@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Family palette, verbatim from ../SLOP-TIMELINE-UI.md §1 (role names kept). Dark only. The
+   ARTWORK is unaffected: the artboard background is document data, painted by the canvas. */
+@theme {
+  --font-sans: "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-ground: #101013;
+  --color-panel: #1e1e22;
+  --color-raised: #2d2d33;
+  --color-line: #2e2e35;
+  --color-text: #f4f4f5;
+  --color-muted: #a1a1aa;
+  --color-accent: #5b8cff;
+  --color-accent-hover: #7aa3ff;
+  --color-accent-text: #121212;
+  --color-danger: #f87171;
+  --color-warn: #d5b75d;
+  --color-ok: #34d399;
+  --color-disabled: #52525b;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+  background: var(--color-ground);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Fixed like slop-animator: iOS must not scroll or rubber-band the app shell. */
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+@layer components {
+  .icon-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent;
+  }
+  .btn {
+    @apply inline-flex h-8 items-center rounded border border-line bg-raised px-3 text-xs text-text hover:border-muted disabled:text-disabled;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-accent-text hover:bg-accent-hover;
+  }
+  .btn-on {
+    @apply border-accent text-accent;
+  }
+  .field {
+    @apply h-8 rounded border border-line bg-ground px-2 text-xs text-text select-text focus:border-accent focus:outline-none;
+  }
+  .menu-item {
+    @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised;
+  }
+  .kbd {
+    @apply text-muted;
+  }
+}

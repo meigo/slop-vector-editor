@@ -1,0 +1,184 @@
+import { describe, expect, it } from "vitest";
+import { createDoc, DEFAULT_STYLE, type Doc, type Shape } from "../doc/document";
+import { IDENTITY } from "../geom/mat";
+import { layerAttrs, shapeAttrs, styleAttrs } from "../svg/attrs";
+import { parseSvg } from "../svg/parse";
+import { serializeDoc } from "../svg/serialize";
+
+describe("styleAttrs", () => {
+  it("writes the default style compactly", () => {
+    expect(styleAttrs(DEFAULT_STYLE)).toEqual({
+      fill: "#d9d9d9",
+      stroke: "#000000",
+      "stroke-width": "1",
+    });
+  });
+
+  it("writes none, opacities and non-default caps", () => {
+    expect(
+      styleAttrs({
+        fill: null,
+        stroke: { color: "#ff0000", opacity: 0.5 },
+        strokeWidth: 2.5,
+        cap: "round",
+        join: "bevel",
+        opacity: 0.25,
+      }),
+    ).toEqual({
+      fill: "none",
+      stroke: "#ff0000",
+      "stroke-opacity": "0.5",
+      "stroke-width": "2.5",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "bevel",
+      opacity: "0.25",
+    });
+  });
+
+  it("keeps stroke width and caps when stroke is none", () => {
+    const a = styleAttrs({ ...DEFAULT_STYLE, stroke: null, strokeWidth: 3, cap: "square" });
+    expect(a.stroke).toBeUndefined();
+    expect(a["stroke-width"]).toBe("3");
+    expect(a["stroke-linecap"]).toBe("square");
+  });
+});
+
+describe("shapeAttrs", () => {
+  it("writes a rect with transform and name", () => {
+    const s: Shape = {
+      kind: "rect",
+      id: "n2",
+      name: "Box",
+      transform: [1, 0, 0, 1, 5, 6],
+      style: DEFAULT_STYLE,
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 20,
+      rx: 0,
+    };
+    expect(shapeAttrs(s)).toEqual({
+      tag: "rect",
+      attrs: {
+        x: "0",
+        y: "0",
+        width: "10",
+        height: "20",
+        transform: "matrix(1 0 0 1 5 6)",
+        "data-sv-name": "Box",
+        fill: "#d9d9d9",
+        stroke: "#000000",
+        "stroke-width": "1",
+      },
+    });
+  });
+
+  it("writes a path with d and node codes", () => {
+    const s: Shape = {
+      kind: "path",
+      id: "n3",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      subpaths: [
+        {
+          nodes: [
+            { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 1, y: 1 }, in: null, out: null, type: "corner" },
+          ],
+          closed: false,
+        },
+      ],
+    };
+    const { tag, attrs } = shapeAttrs(s);
+    expect(tag).toBe("path");
+    expect(attrs.d).toBe("M0 0 L1 1");
+    expect(attrs["data-sv-nodes"]).toBe("cc");
+    expect(attrs.transform).toBeUndefined();
+  });
+});
+
+describe("layerAttrs", () => {
+  it("marks hidden and locked layers", () => {
+    expect(layerAttrs({ id: "n1", name: "A", visible: false, locked: true, children: [] })).toEqual(
+      {
+        "data-sv-layer": "",
+        "data-sv-name": "A",
+        "data-sv-locked": "",
+        display: "none",
+      },
+    );
+  });
+});
+
+describe("serializeDoc", () => {
+  it("writes an empty document", () => {
+    expect(serializeDoc(createDoc(100, 50))).toBe(
+      [
+        `<?xml version="1.0" encoding="UTF-8"?>`,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50" data-sv-version="1">`,
+        `  <rect data-sv-background="" x="0" y="0" width="100" height="50" fill="#ffffff"/>`,
+        `  <g data-sv-layer="" data-sv-name="Layer 1"/>`,
+        `</svg>`,
+        ``,
+      ].join("\n"),
+    );
+  });
+
+  it("nests groups, escapes names and omits a null background", () => {
+    const base = createDoc(10, 10);
+    const doc: Doc = {
+      ...base,
+      artboard: { ...base.artboard, background: null },
+      layers: [
+        {
+          ...base.layers[0],
+          name: `A & "B" <C>`,
+          children: [
+            {
+              kind: "group",
+              id: "n2",
+              transform: IDENTITY,
+              opacity: 0.5,
+              children: [
+                {
+                  kind: "ellipse",
+                  id: "n3",
+                  transform: IDENTITY,
+                  style: DEFAULT_STYLE,
+                  cx: 1,
+                  cy: 2,
+                  rx: 3,
+                  ry: 4,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const out = serializeDoc(doc);
+    expect(out).not.toContain("data-sv-background");
+    expect(out).toContain(`data-sv-name="A &amp; &quot;B&quot; &lt;C&gt;"`);
+    expect(out).toContain(
+      [
+        `  <g data-sv-layer="" data-sv-name="A &amp; &quot;B&quot; &lt;C&gt;">`,
+        `    <g opacity="0.5">`,
+        `      <ellipse cx="1" cy="2" rx="3" ry="4" fill="#d9d9d9" stroke="#000000" stroke-width="1"/>`,
+        `    </g>`,
+        `  </g>`,
+      ].join("\n"),
+    );
+  });
+
+  it("escapes control characters in attribute values so the file stays well-formed XML", () => {
+    const base = createDoc(10, 10);
+    const doc: Doc = {
+      ...base,
+      layers: [{ ...base.layers[0], name: "a\nbc" }],
+    };
+    const out = serializeDoc(doc);
+    expect(out).toContain(`data-sv-name="a&#10;bc"`);
+    const { doc: back } = parseSvg(out);
+    expect(back.layers[0].name).toBe("a\nbc");
+  });
+});

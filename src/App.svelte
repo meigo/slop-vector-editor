@@ -1,0 +1,92 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import type { Vec } from "./geom/vec";
+  import Canvas from "./lib/Canvas.svelte";
+  import ConfirmDialog from "./lib/ConfirmDialog.svelte";
+  import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
+  import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
+  import Notices from "./lib/Notices.svelte";
+  import StatusBar from "./lib/StatusBar.svelte";
+  import TopBar from "./lib/TopBar.svelte";
+  import { flushAutosave, scheduleAutosave } from "./persist/autosave";
+  import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
+  import { app, notify } from "./state/appState.svelte";
+  import { runCommand } from "./state/commands";
+  import { commandForKey } from "./state/keys";
+
+  let cursor = $state<Vec | null>(null);
+
+  // Autosave starts only after the restore attempt, so the empty startup document never
+  // overwrites the saved one. It stays off entirely when storage is unavailable, so we don't
+  // schedule a write that would just fail a few seconds later.
+  let autosaveEnabled = $state(false);
+
+  onMount(() => {
+    void restoreAutosave().then((ok) => (autosaveEnabled = ok));
+  });
+
+  $effect(() => {
+    if (!autosaveEnabled) return;
+    void app.session; // any edit, undo, save or document replace
+    void app.fileName;
+    scheduleAutosave(autosaveRecord, (err) =>
+      notify("error", `Autosave failed: ${errorMessage(err)}`),
+    );
+  });
+
+  // A pending 3 s debounce would otherwise be lost if the tab is closed or backgrounded (e.g.
+  // switching apps on iPad) before it fires.
+  $effect(() => {
+    if (!autosaveEnabled) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushAutosave();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flushAutosave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flushAutosave);
+    };
+  });
+
+  function isEditable(t: EventTarget | null): boolean {
+    return (
+      t instanceof HTMLElement &&
+      (t.isContentEditable ||
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.tagName === "SELECT")
+    );
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    // Modals own the keyboard (Modal.svelte handles Escape).
+    if (app.dialog || app.confirm || isEditable(e.target)) return;
+    const cmd = commandForKey(e);
+    if (!cmd) return;
+    e.preventDefault();
+    runCommand(cmd);
+  }
+</script>
+
+<svelte:window {onkeydown} />
+
+<div class="flex h-full flex-col">
+  <TopBar />
+  <main class="min-h-0 flex-1">
+    <Canvas oncursor={(p) => (cursor = p)} />
+  </main>
+  <StatusBar {cursor} />
+</div>
+
+<Notices />
+
+{#if app.dialog === "new"}
+  <NewDocumentDialog />
+{:else if app.dialog === "settings"}
+  <DocumentSettingsDialog />
+{/if}
+
+{#if app.confirm}
+  <ConfirmDialog request={app.confirm} />
+{/if}
