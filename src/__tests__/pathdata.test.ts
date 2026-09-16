@@ -142,6 +142,11 @@ describe("parsePathData", () => {
     expect(parsePathData("")).toEqual([]);
   });
 
+  it("stops at a non-finite number without throwing", () => {
+    const [sp] = parsePathData("M0 0 L1e999 0 L5 5");
+    expect(pts(sp)).toEqual([[0, 0]]);
+  });
+
   it("nulls handles that sit on their node", () => {
     const [sp] = parsePathData("M0 0 C0 0 10 0 10 0");
     expect(sp.nodes[0].out).toBeNull();

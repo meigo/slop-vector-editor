@@ -212,3 +212,57 @@ describe("parseSvg — foreign files", () => {
     expect(() => parseSvg("<svg>")).toThrow(XmlError);
   });
 });
+
+describe("parseSvg — non-finite numbers and invalid artboards", () => {
+  const allFinite = (v: unknown): boolean => {
+    if (typeof v === "number") return Number.isFinite(v);
+    if (Array.isArray(v)) return v.every(allFinite);
+    if (v && typeof v === "object") return Object.values(v).every(allFinite);
+    return true;
+  };
+
+  it("drops a non-finite polygon point instead of producing Infinity", () => {
+    const { doc } = parseSvg(`<svg><polygon points="1e999,2 3,4"/></svg>`);
+    expect(doc.layers[0].children).toHaveLength(0);
+    expect(allFinite(doc)).toBe(true);
+  });
+
+  it("falls back to 300 × 150 for a non-finite viewBox origin", () => {
+    const { doc } = parseSvg(`<svg viewBox="-1e999 0 10 10"/>`);
+    expect(doc.artboard).toEqual({ w: 300, h: 150, background: null });
+    expect(allFinite(doc)).toBe(true);
+  });
+
+  it("ignores a non-finite transform argument", () => {
+    const { doc } = parseSvg(
+      `<svg><rect width="5" height="5" transform="translate(1e999)"/></svg>`,
+    );
+    const [rect] = doc.layers[0].children as Shape[];
+    expect(rect.transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(allFinite(doc)).toBe(true);
+  });
+
+  it("stops path parsing before a non-finite coordinate", () => {
+    const { doc } = parseSvg(`<svg><path d="M 1e999 0 L 1 1"/></svg>`);
+    expect(doc.layers[0].children).toHaveLength(0);
+    expect(allFinite(doc)).toBe(true);
+  });
+
+  it("reports and falls back to 300 × 150 when the viewBox size is non-finite", () => {
+    const { doc, dropped } = parseSvg(`<svg viewBox="0 0 1e999 10"/>`);
+    expect(doc.artboard).toEqual({ w: 300, h: 150, background: null });
+    expect(dropped).toEqual(["invalid artboard size"]);
+  });
+
+  it("reports and falls back to 300 × 150 when the viewBox size exceeds the maximum", () => {
+    const { doc, dropped } = parseSvg(`<svg viewBox="0 0 250000 180000"/>`);
+    expect(doc.artboard).toEqual({ w: 300, h: 150, background: null });
+    expect(dropped).toEqual(["invalid artboard size"]);
+  });
+
+  it("uses a valid width/height when the viewBox is invalid", () => {
+    const { doc, dropped } = parseSvg(`<svg viewBox="0 0 1e999 10" width="50" height="60"/>`);
+    expect(doc.artboard).toEqual({ w: 50, h: 60, background: null });
+    expect(dropped).toEqual(["invalid artboard size"]);
+  });
+});

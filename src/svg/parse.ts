@@ -1,6 +1,7 @@
 import {
   DOC_VERSION,
   idFor,
+  isValidArtboardSize,
   type Doc,
   type Layer,
   type LineCap,
@@ -75,7 +76,15 @@ function opacityValue(v: string | undefined, fallback: number): number {
 }
 
 function numbers(v: string | undefined): number[] {
-  return (v?.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []).map(Number);
+  const out: number[] = [];
+  for (const m of v?.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []) {
+    const n = Number(m);
+    // SVG stops parsing a number list at the first error; a non-finite value counts as one so
+    // later values don't shift into the wrong slot of an x/y pair.
+    if (!Number.isFinite(n)) break;
+    out.push(n);
+  }
+  return out;
 }
 
 export function parseSvg(src: string): ParseResult {
@@ -265,18 +274,31 @@ export function parseSvg(src: string): ParseResult {
   }
 
   // ----- artboard -----
-  const vb = numbers(root.attrs.viewBox);
+  const vbAttr = root.attrs.viewBox;
+  const vb = numbers(vbAttr);
+  const vbOk =
+    vb.length === 4 &&
+    Number.isFinite(vb[0]) &&
+    Number.isFinite(vb[1]) &&
+    isValidArtboardSize(vb[2]) &&
+    isValidArtboardSize(vb[3]);
+  if (vbAttr !== undefined && !vbOk) drop("invalid artboard size");
+
   let minX = 0;
   let minY = 0;
   let w: number;
   let h: number;
-  if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+  if (vbOk) {
     [minX, minY, w, h] = vb;
   } else {
-    w = num(root.attrs.width, 300);
-    h = num(root.attrs.height, 150);
-    if (!(w > 0)) w = 300;
-    if (!(h > 0)) h = 150;
+    const wAttr = root.attrs.width;
+    const hAttr = root.attrs.height;
+    const wNum = num(wAttr, NaN);
+    const hNum = num(hAttr, NaN);
+    const whOk = isValidArtboardSize(wNum) && isValidArtboardSize(hNum);
+    if (!whOk && (wAttr !== undefined || hAttr !== undefined)) drop("invalid artboard size");
+    w = whOk ? wNum : 300;
+    h = whOk ? hNum : 150;
   }
   const rootMat = translate(-minX, -minY);
   const place = (n: Node): Node =>

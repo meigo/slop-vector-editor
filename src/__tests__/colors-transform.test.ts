@@ -63,4 +63,8 @@ describe("parseTransform", () => {
     expect(parseTransform("translate(1,2) foo(9,9) scale(2)")).toEqual(IDENTITY);
     expect(parseTransform("translate(1,2), scale(2)")).not.toEqual(IDENTITY);
   });
+
+  it("returns identity when an argument is non-finite", () => {
+    expect(parseTransform("translate(1e999)")).toEqual(IDENTITY);
+  });
 });

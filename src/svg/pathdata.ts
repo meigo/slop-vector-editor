@@ -65,7 +65,9 @@ function scanner(s: string) {
       const m = NUM_RE.exec(s);
       if (!m) throw new PathDataError(`Expected a number at ${i}`);
       i = NUM_RE.lastIndex;
-      return parseFloat(m[0]);
+      const n = parseFloat(m[0]);
+      if (!Number.isFinite(n)) throw new PathDataError(`Non-finite number at ${i}`);
+      return n;
     },
     flag(): boolean {
       skip();

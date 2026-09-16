@@ -18,6 +18,9 @@ function decode(s: string): string {
     if (e[0] === "#") {
       const code =
         e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) {
+        throw new XmlError(`Invalid character reference &${e};`);
+      }
       return String.fromCodePoint(code);
     }
     return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[e]!;

@@ -44,4 +44,8 @@ describe("parseXml", () => {
     expect(() => parseXml(`<svg a="1></svg>`)).toThrow(XmlError);
     expect(() => parseXml("<svg><!-- open</svg>")).toThrow(XmlError);
   });
+
+  it("throws XmlError instead of RangeError for an out-of-range numeric character reference", () => {
+    expect(() => parseXml('<svg><g id="&#x110000;"/></svg>')).toThrow(XmlError);
+  });
 });

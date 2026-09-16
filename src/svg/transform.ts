@@ -34,6 +34,7 @@ export function parseTransform(value: string): Mat {
   let found = false;
   for (const m of value.matchAll(FN_RE)) {
     const args = (m[2].match(NUM_RE) ?? []).map(Number);
+    if (args.some((a) => !Number.isFinite(a))) return IDENTITY;
     const fm = fnMatrix(m[1], args);
     if (!fm) return IDENTITY; // SVG: an invalid list disables the whole transform
     result = multiply(result, fm);
