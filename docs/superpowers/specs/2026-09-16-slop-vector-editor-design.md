@@ -118,6 +118,9 @@ type Mat = [a: number, b: number, c: number, d: number, e: number, f: number]; /
 
 - Line, polygon and star are **created as paths** (tools generate nodes). Rect/ellipse stay
   parametric until "Convert to path".
+> **SUPERSEDED 2026-09-16 (resize part):** resize bakes scale into geometry — see
+> `2026-09-16-m2a-select-transform-shapes-design.md` §1.
+
 - Transforms live on each node. Move/scale/rotate only change `transform`; geometry is not
   rewritten unless the user runs **Flatten transform** (v1: paths only, a context-bar action that
   bakes the matrix into the node coordinates and resets `transform` to identity; stroke width is
