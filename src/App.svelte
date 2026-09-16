@@ -16,7 +16,7 @@
   import { flushAutosave, scheduleAutosave } from "./persist/autosave";
   import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
   import { watchOtherTabs } from "./persist/tab-presence";
-  import { app, notify } from "./state/appState.svelte";
+  import { app, copySelection, cutSelection, notify, pasteText } from "./state/appState.svelte";
   import { runCommand, runEditAction } from "./state/commands";
   import { commandForKey, editActionForKey } from "./state/keys";
 
@@ -95,9 +95,38 @@
   function onkeyup(e: KeyboardEvent) {
     if (e.key === " ") app.spaceHeld = false;
   }
+
+  /** Text fields and dialogs keep the browser's own clipboard behaviour. */
+  function clipboardIgnored(e: ClipboardEvent): boolean {
+    return app.dialog !== null || app.confirm !== null || isEditable(e.target);
+  }
+
+  function writeClipboard(e: ClipboardEvent, action: () => string | null) {
+    if (clipboardIgnored(e) || !e.clipboardData || app.selection.length === 0) return;
+    const text = action();
+    if (text === null) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", text);
+    e.clipboardData.setData("image/svg+xml", text);
+  }
+
+  function onpaste(e: ClipboardEvent) {
+    if (clipboardIgnored(e) || !e.clipboardData) return;
+    const text = e.clipboardData.getData("image/svg+xml") || e.clipboardData.getData("text/plain");
+    if (!text) return;
+    e.preventDefault();
+    pasteText(text);
+  }
 </script>
 
-<svelte:window {onkeydown} {onkeyup} onblur={() => (app.spaceHeld = false)} />
+<svelte:window
+  {onkeydown}
+  {onkeyup}
+  onblur={() => (app.spaceHeld = false)}
+  oncopy={(e) => writeClipboard(e, copySelection)}
+  oncut={(e) => writeClipboard(e, cutSelection)}
+  {onpaste}
+/>
 
 <div class="flex h-full flex-col">
   <TopBar />

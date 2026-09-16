@@ -9,6 +9,7 @@ import {
   translateNodes,
 } from "../doc/edits";
 import { pruneSelection } from "../doc/tree";
+import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
   loadPrefs,
@@ -17,8 +18,10 @@ import {
   type PolygonPrefs,
   type Prefs,
 } from "../persist/preferences";
+import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
+import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
 import { canRedo, canUndo } from "./history";
 import { applyGeometryField, type GeometryField } from "./properties";
 import {
@@ -32,7 +35,7 @@ import {
   undoSession,
   type Session,
 } from "./session";
-import { fitRect, zoomAt, type View } from "./viewport";
+import { fitRect, screenToDoc, zoomAt, type View } from "./viewport";
 
 export type Notice = { id: number; kind: "info" | "error"; text: string };
 export type DialogKind = "new" | "settings" | null;
@@ -300,4 +303,69 @@ export function setSelectionStyle(patch: Partial<Style>): void {
 export function applyGeometry(field: GeometryField, value: number): void {
   cancelActiveGesture();
   commitDoc(applyGeometryField(app.doc, app.selection, field, value));
+}
+
+// ----- clipboard (spec M2b §2) -----
+
+/** Our last copy, used to recognise repeated pastes and as the fallback when the system
+ *  clipboard can't be read. Nothing renders it, so it isn't reactive. */
+let clip: Clip | null = null;
+
+/** The canvas viewport in document coordinates. */
+export function visibleDocBox(): Box {
+  const { w, h } = app.viewportSize;
+  const a = screenToDoc(app.view, { x: 0, y: 0 });
+  const b = screenToDoc(app.view, { x: w, y: h });
+  return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+}
+
+/** Returns the SVG text for the system clipboard, or null when nothing is selected. */
+export function copySelection(): string | null {
+  cancelActiveGesture();
+  const text = clipboardText(app.doc, app.selection);
+  if (text !== null) clip = { text, pastes: 0 };
+  return text;
+}
+
+export function cutSelection(): string | null {
+  const text = copySelection();
+  if (text !== null) commitDoc(deleteNodes(app.doc, app.selection));
+  return text;
+}
+
+/** One undo step; selects what was pasted. */
+export function pasteText(text: string): void {
+  cancelActiveGesture();
+  const r = planPaste(app.doc, text, clip, visibleDocBox());
+  if (isPasteError(r)) {
+    notify("error", r.error);
+    return;
+  }
+  clip = r.clip;
+  commitDoc(r.doc);
+  setSelection(r.ids);
+  if (r.dropped.length > 0) {
+    notify("info", `Some content was not imported: ${r.dropped.join(", ")}`);
+  }
+}
+
+/** For buttons and menu items. Keyboard paste uses the window `paste` event instead. */
+export async function pasteFromClipboard(): Promise<void> {
+  cancelActiveGesture();
+  const system = await readClipboardText();
+  if (system !== null && looksLikeSvg(system)) return pasteText(system);
+  if (clip) return pasteText(clip.text);
+  if (system !== null) return pasteText(system);
+  notify("info", "Nothing to paste.");
+}
+
+/** For buttons and menu items: a failed system write is silent — the in-app copy still works. */
+export function copyToSystem(): void {
+  const text = copySelection();
+  if (text !== null) void writeClipboardText(text);
+}
+
+export function cutToSystem(): void {
+  const text = cutSelection();
+  if (text !== null) void writeClipboardText(text);
 }
