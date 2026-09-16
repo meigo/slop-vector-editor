@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 210 tests in 22 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 243 tests in 25 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -25,13 +25,14 @@ every user-visible change.
 
 ## Architecture map
 
-- `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`),
-  `tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`), `resize.ts` (bakes a resize into
-  shape geometry; see gotcha below).
+- `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
+  `insertNodes` for paste), `tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`),
+  `resize.ts` (bakes a resize into shape geometry; see gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, and the other
   shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`, `boxMap`), `bezier.ts`
   (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds through the matrix),
-  `hit.ts` (hit-testing and marquee select; caches flattened outlines per shape object).
+  `hit.ts` (hit-testing and marquee select; caches flattened outlines per shape object), `snap.ts`
+  (snap targets from the artboard and object bounds, `snapValue`/`snapBox`/`snapPoint`).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export), `serialize.ts`, `parse.ts`.
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
@@ -43,11 +44,13 @@ every user-visible change.
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
   `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
-  properties panel, incl. mixed-value handling), `appState.svelte.ts` (the `app` store + actions).
+  properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
+  planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
   (localStorage defaults for new shapes: style + polygon prefs), `tab-presence.ts`
-  (`BroadcastChannel` "another tab is open" warning).
+  (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
+  `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `ContextBar`, `ContextMenu`, `ModifierDock`, `PropertiesPanel`,
   `NumberField`, `PaintField`, `Modal`, dialogs, `Notices`.
@@ -110,16 +113,23 @@ every user-visible change.
     polyline** (nearest point), not along the radius.
 18. **`rectPath` merges coincident nodes**: a corner radius equal to half a side no longer yields
     duplicate nodes.
+19. **Keyboard copy/cut/paste use the window `copy`/`cut`/`paste` events** (App.svelte), never
+    `navigator.clipboard`: the events need no permission and can set `image/svg+xml`. Only the
+    context bar and menu buttons read `navigator.clipboard`, and they fall back to the in-app copy
+    (`clip` in the store). Text fields and dialogs keep the browser's own behaviour.
+20. **Snapping is per gesture.** Tools collect targets at pointer-down (`collectTargets`,
+    excluding what moves) and put guides in the overlay; they must clear the overlay on up/cancel.
+    Resize snaps only unrotated frames; rotation and marquee never snap. The threshold is
+    `SNAP_PX / zoom`.
 
 ## Current state
 
-Milestone 2a (select/transform/shapes/properties) — see CHANGELOG. Milestone 2b is clipboard and
-snapping.
+Milestone 2b (clipboard, snapping) — see CHANGELOG. Next is milestone 3: layers and groups.
 
 ## Roadmap
 
-M2b clipboard + snapping, M3 layers/groups, M4 pen + node editing, M5 iPad polish + deploy
-(spec §9). Post-v1 list in spec §10.
+M3 layers/groups, M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
+spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
@@ -127,10 +137,7 @@ not round-trip.
 
 M4 constraint: a closed subpath whose last node coincides with its first is merged on reload (one
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
-closing segment.
-
-M2b: the snapping hook goes where `tools/select.ts` turns the pointer into a delta (move) or a
-target edge position (resize — pointer plus the grab offset).
+closing segment. Snapping to path nodes is M4 (spec M2b §1).
 
 M3: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
 also edit group opacity.

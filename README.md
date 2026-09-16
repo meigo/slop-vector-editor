@@ -23,7 +23,9 @@ Early development. What works today:
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
   defaults for new shapes when nothing is selected.
 - Convert to path and flatten transform.
-- An on-screen Shift/Alt pad for touch.
+- Copy, cut and paste — within the editor and as SVG with other apps.
+- Snapping to the artboard and other objects while moving, resizing and drawing, with guide lines.
+- An on-screen Shift/Alt/Snap pad for touch.
 
 ## Keyboard
 
@@ -39,10 +41,12 @@ Early development. What works today:
 | Cancel                                          | Esc                                   |
 | Nudge / nudge ×10                               | Arrows / Shift+Arrows                 |
 | Duplicate                                       | ⌘D                                    |
+| Cut / Copy / Paste                              | ⌘X / ⌘C / ⌘V                          |
+| Snap on/off                                     | %                                     |
 
 ## Roadmap
 
-Next: clipboard and snapping, then layers and groups, then pen and node editing.
+Next: layers and groups, then pen and node editing.
 
 ## Development
 
@@ -50,7 +54,7 @@ Next: clipboard and snapping, then layers and groups, then pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 216 unit tests
+npm test          # 243 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
