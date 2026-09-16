@@ -1,22 +1,50 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { hitTest } from "../geom/hit";
   import type { Vec } from "../geom/vec";
-  import { app, fitArtboard, setView, setViewportSize } from "../state/appState.svelte";
+  import { routePointerDown } from "../input/route";
+  import {
+    app,
+    dockMods,
+    fitArtboard,
+    registerGestureCancel,
+    setSelection,
+    setView,
+    setViewportSize,
+  } from "../state/appState.svelte";
   import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
+  import { storeContext } from "../tools/context";
+  import { TOOLS } from "../tools/registry";
+  import { pointerTolerance, type Tool, type ToolEvent } from "../tools/tool";
   import NodeView from "./NodeView.svelte";
+  import Overlay from "./Overlay.svelte";
 
   let { oncursor }: { oncursor: (p: Vec | null) => void } = $props();
+
+  type Gesture =
+    | { kind: "tool"; pointerId: number; tool: Tool }
+    | { kind: "pan"; pointerId: number }
+    | { kind: "pinch" };
 
   let host: HTMLDivElement;
   let width = $state(0);
   let height = $state(0);
-  let panning = $state(false);
+  let gesture = $state.raw<Gesture | null>(null);
+  /** Once a Pencil has touched the canvas, fingers only navigate (spec §5). */
+  let pencilSeen = false;
   /** Active pointers in canvas-local px. A plain Map: nothing renders from it. */
   const pointers = new Map<number, Vec>();
 
   const ready = $derived(width > 0 && height > 0);
   const view = $derived(app.view);
   const artboard = $derived(app.doc.artboard);
+  const cursor = $derived(
+    gesture?.kind === "pan"
+      ? "grabbing"
+      : app.spaceHeld || app.toolId === "hand"
+        ? "grab"
+        : TOOLS[app.toolId].cursor,
+  );
 
   $effect(() => {
     setViewportSize(width, height);
@@ -28,40 +56,120 @@
     if (ready) untrack(fitArtboard);
   });
 
+  // Switching tools mid-gesture cancels the running gesture.
+  $effect(() => {
+    void app.toolId;
+    untrack(() => {
+      if (gesture?.kind === "tool") {
+        gesture.tool.cancel(storeContext);
+        gesture = null;
+        registerGestureCancel(null);
+      }
+    });
+  });
+
   function local(e: { clientX: number; clientY: number }): Vec {
     const r = host.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  function toolEvent(e: PointerEvent): ToolEvent {
+    const screen = local(e);
+    const dock = dockMods();
+    return {
+      doc: screenToDoc(app.view, screen),
+      screen,
+      pointerType: e.pointerType,
+      mods: { shift: e.shiftKey || dock.shift, alt: e.altKey || dock.alt },
+    };
+  }
+
   function onpointerdown(e: PointerEvent) {
-    host.setPointerCapture(e.pointerId);
+    app.contextMenu = null;
+    if (e.pointerType === "pen") pencilSeen = true;
+    const route = routePointerDown({
+      pointerType: e.pointerType,
+      button: e.button,
+      activePointers: pointers.size,
+      spaceHeld: app.spaceHeld,
+      tool: app.toolId,
+      pencilSeen,
+    });
+    if (route === "ignore" || route === "menu") return;
+    // No native text selection or drag; keep keyboard shortcuts working after a click here.
+    e.preventDefault();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    app.lastPointerType = e.pointerType;
+    try {
+      host.setPointerCapture(e.pointerId);
+    } catch {
+      // The pointer is no longer active (e.g. a synthetic event); tracking still works.
+    }
     pointers.set(e.pointerId, local(e));
-    // M1 has no editing tools, so every single-pointer drag pans. Milestone 2 routes this through
-    // the active tool and keeps panning for Space / middle button / Hand.
-    panning = true;
+    if (route === "pinch") {
+      if (gesture?.kind === "tool") {
+        gesture.tool.cancel(storeContext);
+        registerGestureCancel(null);
+      }
+      gesture = { kind: "pinch" };
+      return;
+    }
+    if (route === "pan") {
+      gesture = { kind: "pan", pointerId: e.pointerId };
+      return;
+    }
+    const tool = TOOLS[app.toolId];
+    gesture = { kind: "tool", pointerId: e.pointerId, tool };
+    tool.down(storeContext, toolEvent(e));
+    registerGestureCancel(() => {
+      if (gesture?.kind === "tool") {
+        gesture.tool.cancel(storeContext);
+        gesture = null;
+      }
+    });
   }
 
   function onpointermove(e: PointerEvent) {
     const p = local(e);
     oncursor(screenToDoc(app.view, p));
     const prev = pointers.get(e.pointerId);
-    if (!prev) return;
-    if (pointers.size >= 2) {
+    if (!prev || !gesture) return;
+    if (gesture.kind === "pinch") {
       // Pinch with the first two pointers; any further finger is ignored.
       const [idA, idB] = [...pointers.keys()];
-      if (e.pointerId === idA || e.pointerId === idB) {
+      if (idB !== undefined && (e.pointerId === idA || e.pointerId === idB)) {
         const other = pointers.get(e.pointerId === idA ? idB : idA)!;
         setView(pinch(app.view, prev, other, p, other));
       }
-    } else if (panning) {
-      setView(panBy(app.view, p.x - prev.x, p.y - prev.y));
+    } else if (gesture.pointerId === e.pointerId) {
+      if (gesture.kind === "pan") setView(panBy(app.view, p.x - prev.x, p.y - prev.y));
+      else gesture.tool.move(storeContext, toolEvent(e));
     }
     pointers.set(e.pointerId, p);
   }
 
-  function onpointerend(e: PointerEvent) {
+  function endPointer(e: PointerEvent, cancelled: boolean) {
+    if (!pointers.has(e.pointerId)) return;
+    const g = gesture;
+    if (g && g.kind !== "pinch" && g.pointerId === e.pointerId) {
+      if (g.kind === "tool") {
+        if (cancelled) g.tool.cancel(storeContext);
+        else g.tool.up(storeContext, toolEvent(e));
+        registerGestureCancel(null);
+      }
+      gesture = null;
+    }
     pointers.delete(e.pointerId);
-    if (pointers.size === 0) panning = false;
+    if (pointers.size === 0) gesture = null;
+  }
+
+  function oncontextmenu(e: MouseEvent) {
+    e.preventDefault();
+    if (app.toolId !== "select") return;
+    const p = screenToDoc(app.view, local(e));
+    const hit = hitTest(app.doc, p, pointerTolerance("mouse") / app.view.zoom);
+    if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
+    if (app.selection.length > 0) app.contextMenu = { x: e.clientX, y: e.clientY };
   }
 
   $effect(() => {
@@ -99,15 +207,16 @@
   bind:this={host}
   bind:clientWidth={width}
   bind:clientHeight={height}
-  class="relative size-full overflow-hidden bg-ground"
-  class:cursor-grabbing={panning}
-  style="touch-action: none"
+  class="relative size-full overflow-hidden bg-ground select-none"
+  style="touch-action: none; cursor: {cursor}"
   role="application"
   aria-label="Drawing canvas"
   {onpointerdown}
   {onpointermove}
-  onpointerup={onpointerend}
-  onpointercancel={onpointerend}
+  onpointerup={(e) => endPointer(e, false)}
+  onpointercancel={(e) => endPointer(e, true)}
+  onlostpointercapture={(e) => endPointer(e, true)}
+  {oncontextmenu}
   onpointerleave={() => {
     if (pointers.size === 0) oncursor(null);
   }}
@@ -153,5 +262,6 @@
         pointer-events="none"
       />
     </g>
+    <Overlay />
   </svg>
 </div>
