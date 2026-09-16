@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
+import { DEFAULT_PREFS } from "../persist/preferences";
 import { createSelectTool } from "../tools/select";
 import type { Tool } from "../tools/tool";
 import { ev, fakeContext } from "./fake-context";
@@ -254,5 +255,61 @@ describe("select tool: transforms", () => {
     drag(t, ctx, [50, 50], [50, 80]);
     expect(node(state.session.doc, "l").transform).toEqual(translate(0, 30));
     expect(state.session.history.past).toHaveLength(1);
+  });
+});
+
+describe("select tool: snapping", () => {
+  // twoRects(): a at x 0–40, b at x 60–100, both y 0–40; artboard 200 × 200.
+  it("snaps a moved selection to other objects and shows guides", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20));
+    t.move(ctx, ev(37, 20));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [0] });
+    t.up(ctx, ev(37, 20));
+    expect(origin(state.session.doc, "a")).toEqual({ x: 20, y: 0 });
+    expect(state.overlay).toBeNull();
+    expect(state.session.history.past).toHaveLength(1);
+  });
+
+  it("does not snap when Snap is off", () => {
+    const { ctx, state } = fakeContext(twoRects(), { ...DEFAULT_PREFS, snap: false });
+    drag(createSelectTool(), ctx, [20, 20], [37, 20]);
+    expect(origin(state.session.doc, "a")).toEqual({ x: 17, y: 0 });
+  });
+
+  it("snaps only along a Shift-constrained axis", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    t.down(ctx, ev(20, 20, { shift: true }));
+    t.move(ctx, ev(37, 22, { shift: true }));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [] });
+    t.up(ctx, ev(37, 22, { shift: true }));
+    const p = origin(state.session.doc, "a");
+    expect(p.x).toBeCloseTo(20);
+    expect(p.y).toBeCloseTo(0);
+  });
+
+  it("snaps a resize handle", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    drag(t, ctx, [40, 40], [57, 43]);
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 40 });
+  });
+
+  it("an Alt-drag that ends where it started leaves nothing behind", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20, { alt: true }));
+    t.move(ctx, ev(20, 60, { alt: true }));
+    expect(state.session.doc.layers[0].children).toHaveLength(3);
+    t.move(ctx, ev(20, 20, { alt: true }));
+    t.up(ctx, ev(20, 20, { alt: true }));
+    expect(state.session.doc.layers[0].children.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.selection).toEqual(["a"]);
+    expect(state.overlay).toBeNull();
   });
 });

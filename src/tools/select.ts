@@ -1,10 +1,28 @@
 import type { Doc } from "../doc/document";
 import { duplicateNodes, rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
-import { boxFromPoints } from "../geom/box";
+import { boxFromPoints, type Box } from "../geom/box";
 import { hitTest, marqueeSelect } from "../geom/hit";
+import {
+  collectTargets,
+  hasGuides,
+  NO_GUIDES,
+  SNAP_PX,
+  snapBox,
+  snapPoint,
+  type Axes,
+  type Guides,
+  type SnapTargets,
+} from "../geom/snap";
 import type { Vec } from "../geom/vec";
-import { docToFrame, frameCenter, frameResizeMap, selectionFrame, type Frame } from "./frame";
+import {
+  docToFrame,
+  frameCenter,
+  frameResizeMap,
+  selectionBounds,
+  selectionFrame,
+  type Frame,
+} from "./frame";
 import {
   dragHandle,
   handleAt,
@@ -26,10 +44,22 @@ type Pending = Common & {
   toggleOnUp: boolean;
   collapseOnUp: boolean;
 };
+type MoveMode = Common & {
+  kind: "move";
+  original: Doc;
+  base: Doc;
+  ids: readonly string[];
+  /** Set when the drag duplicated with Alt: the selection the copies were made from. */
+  duplicatedFrom: readonly string[] | null;
+  bounds: Box | null;
+  targets: SnapTargets | null;
+  /** The last committed translation. */
+  last: Vec;
+};
 type Mode =
   | Pending
   | (Common & { kind: "marquee"; base: readonly string[] })
-  | (Common & { kind: "move"; original: Doc; base: Doc; ids: readonly string[] })
+  | MoveMode
   | (Common & {
       kind: "resize";
       original: Doc;
@@ -38,20 +68,34 @@ type Mode =
       handle: ResizeHandle;
       /** Handle point minus the press point, in frame coordinates. */
       grab: Vec;
+      targets: SnapTargets | null;
     })
   | (Common & { kind: "rotate"; original: Doc; ids: readonly string[]; frame: Frame; centre: Vec });
 
-function constrain(dx: number, dy: number): [number, number] {
+const ALL_AXES: Axes = { x: true, y: true };
+const NO_AXES: Axes = { x: false, y: false };
+
+function constrain(dx: number, dy: number): [number, number, Axes] {
   const angle = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const along = dx * c + dy * s;
-  return [along * c, along * s];
+  const horizontal = Math.abs(s) < 1e-9;
+  const vertical = Math.abs(c) < 1e-9;
+  const axes = horizontal ? { x: true, y: false } : vertical ? { x: false, y: true } : NO_AXES;
+  return [along * c, along * s, axes];
+}
+
+const threshold = (ctx: ToolContext) => SNAP_PX / ctx.view().zoom;
+
+function showGuides(ctx: ToolContext, guides: Guides): void {
+  ctx.setOverlay(hasGuides(guides) ? { kind: "guides", ...guides } : null);
 }
 
 function startDrag(ctx: ToolContext, p: Pending): Mode {
   const doc = ctx.doc();
   const ids = ctx.selection();
+  const snapping = ctx.snapEnabled();
   const common = { start: p.start, startSelection: p.startSelection };
   if (p.handle && p.frame) {
     ctx.beginGesture();
@@ -68,6 +112,7 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
     const pressed = docToFrame(p.frame, p.start.doc);
     const at = handleFramePoint(p.handle, p.frame.box);
     const grab = { x: at.x - pressed.x, y: at.y - pressed.y };
+    const targets = snapping && p.frame.angle === 0 ? collectTargets(doc, ids) : null;
     return {
       ...common,
       kind: "resize",
@@ -76,17 +121,33 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
       frame: p.frame,
       handle: p.handle,
       grab,
+      targets,
     };
   }
   if (p.hitId) {
     ctx.beginGesture();
+    let base = doc;
+    let moveIds = ids;
+    let duplicatedFrom: readonly string[] | null = null;
     if (p.start.mods.alt) {
       const dup = duplicateNodes(doc, ids, 0, 0);
-      ctx.commit(dup.doc);
-      ctx.setSelection(dup.ids);
-      return { ...common, kind: "move", original: doc, base: dup.doc, ids: dup.ids };
+      base = dup.doc;
+      moveIds = dup.ids;
+      duplicatedFrom = ids;
+      ctx.commit(base);
+      ctx.setSelection(moveIds);
     }
-    return { ...common, kind: "move", original: doc, base: doc, ids };
+    return {
+      ...common,
+      kind: "move",
+      original: doc,
+      base,
+      ids: moveIds,
+      duplicatedFrom,
+      bounds: selectionBounds(base, moveIds),
+      targets: snapping ? collectTargets(base, moveIds) : null,
+      last: { x: 0, y: 0 },
+    };
   }
   return { ...common, kind: "marquee", base: p.start.mods.shift ? ids : [] };
 }
@@ -98,13 +159,35 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
     case "move": {
       let dx = e.doc.x - m.start.doc.x;
       let dy = e.doc.y - m.start.doc.y;
-      if (e.mods.shift) [dx, dy] = constrain(dx, dy);
+      let axes = ALL_AXES;
+      if (e.mods.shift) [dx, dy, axes] = constrain(dx, dy);
+      let guides = NO_GUIDES;
+      if (m.targets && m.bounds) {
+        const moved = { ...m.bounds, x: m.bounds.x + dx, y: m.bounds.y + dy };
+        const s = snapBox(moved, m.targets, threshold(ctx), axes);
+        dx += s.dx;
+        dy += s.dy;
+        guides = s.guides;
+      }
+      showGuides(ctx, guides);
+      m.last = { x: dx, y: dy };
       ctx.commit(translateNodes(m.base, m.ids, dx, dy));
       return;
     }
     case "resize": {
       const p = docToFrame(m.frame, e.doc);
-      const target = { x: p.x + m.grab.x, y: p.y + m.grab.y };
+      let target = { x: p.x + m.grab.x, y: p.y + m.grab.y };
+      let guides = NO_GUIDES;
+      if (m.targets) {
+        const axes = {
+          x: m.handle.includes("e") || m.handle.includes("w"),
+          y: m.handle.includes("n") || m.handle.includes("s"),
+        };
+        const s = snapPoint(target, m.targets, threshold(ctx), axes);
+        target = s.p;
+        guides = s.guides;
+      }
+      showGuides(ctx, guides);
       const box = dragHandle(m.handle, m.frame.box, target, e.mods);
       ctx.commit(resizeNodes(m.original, m.ids, frameResizeMap(m.frame.angle, m.frame.box, box)));
       return;
@@ -199,8 +282,14 @@ export function createSelectTool(): Tool {
         return;
       }
       drag(ctx, m, e);
-      if (m.kind === "marquee") ctx.setOverlay(null);
-      else ctx.endGesture();
+      ctx.setOverlay(null);
+      if (m.kind === "marquee") return;
+      if (m.kind === "move" && m.duplicatedFrom && m.last.x === 0 && m.last.y === 0) {
+        // Alt-dragged back to the start: drop the copies rather than stacking a hidden duplicate.
+        ctx.commit(m.original);
+        ctx.setSelection(m.duplicatedFrom);
+      }
+      ctx.endGesture();
     },
 
     cancel(ctx) {
