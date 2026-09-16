@@ -119,6 +119,13 @@ describe("select tool: transforms", () => {
     expect(state.selection).toEqual(["a"]);
   });
 
+  it("a mostly-vertical Shift-drag leaves x exactly 0, not a float residue", () => {
+    const { ctx, state } = fakeContext(twoRects(), { ...DEFAULT_PREFS, snap: false });
+    const t = createSelectTool();
+    drag(t, ctx, [20, 20], [22, 50], { shift: true });
+    expect(origin(state.session.doc, "a").x).toBe(0);
+  });
+
   it("duplicates with Alt and moves the copy", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();
@@ -297,6 +304,18 @@ describe("select tool: snapping", () => {
     tap(t, ctx, 20, 20);
     drag(t, ctx, [40, 40], [57, 43]);
     expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 40 });
+  });
+
+  it("cancel during a snapped move clears the guides overlay and restores the doc", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20));
+    t.move(ctx, ev(37, 20));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [0] });
+    t.cancel(ctx);
+    expect(state.overlay).toBeNull();
+    expect(node(state.session.doc, "a").transform).toEqual(IDENTITY);
+    expect(state.session.history.past).toHaveLength(0);
   });
 
   it("an Alt-drag that ends where it started leaves nothing behind", () => {

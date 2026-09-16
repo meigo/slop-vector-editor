@@ -38,6 +38,7 @@
     aria-pressed={app.prefs.snap}
     title="Snap to the artboard and objects (%)"
     onclick={toggleSnap}
+    onpointerdown={(e) => e.preventDefault()}
   >
     Snap
   </button>

@@ -74,6 +74,8 @@ type Mode =
 
 const ALL_AXES: Axes = { x: true, y: true };
 const NO_AXES: Axes = { x: false, y: false };
+/** A rotate-then-unrotate can leave the frame angle at ~1e-17 instead of exactly 0. */
+const FRAME_ANGLE_EPS = 1e-9;
 /** Tolerance for "the Alt-drag ended back at the start": snapping can leave a float residue
  *  instead of an exact 0 (see `up`). */
 const BACK_AT_START_EPS = 1e-9;
@@ -86,7 +88,9 @@ function constrain(dx: number, dy: number): [number, number, Axes] {
   const horizontal = Math.abs(s) < 1e-9;
   const vertical = Math.abs(c) < 1e-9;
   const axes = horizontal ? { x: true, y: false } : vertical ? { x: false, y: true } : NO_AXES;
-  return [along * c, along * s, axes];
+  // cos/sin of a right-angle multiple can leave a ~1e-17 residue instead of exactly 0; a
+  // horizontal/vertical constraint must zero the other axis exactly, not approximately.
+  return [vertical ? 0 : along * c, horizontal ? 0 : along * s, axes];
 }
 
 const threshold = (ctx: ToolContext) => SNAP_PX / ctx.view().zoom;
@@ -115,7 +119,8 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
     const pressed = docToFrame(p.frame, p.start.doc);
     const at = handleFramePoint(p.handle, p.frame.box);
     const grab = { x: at.x - pressed.x, y: at.y - pressed.y };
-    const targets = snapping && p.frame.angle === 0 ? collectTargets(doc, ids) : null;
+    const targets =
+      snapping && Math.abs(p.frame.angle) < FRAME_ANGLE_EPS ? collectTargets(doc, ids) : null;
     return {
       ...common,
       kind: "resize",
