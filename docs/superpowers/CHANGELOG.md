@@ -26,3 +26,26 @@
   doc (name + dot) and clean doc after reload; no console errors on load.
 - Owed: real OS file picker / save-in-place / download fallback (automation can't drive OS
   dialogs); resize-without-refit; Safari trackpad gesture events; touch pinch/pan; iPad.
+
+## 2026-09-16 — final review fixes
+
+- F1: `ParseResult` gained `native` (true only when the root `<svg>` has `data-sv-version`).
+  `openText` keeps the File System Access handle only when the file is native and nothing was
+  dropped, so ⌘S on a foreign file goes through the save picker/download fallback instead of
+  overwriting the original; the info notice says so when a handle is discarded.
+- F2: `autosave.ts` exports `flushAutosave()`, which performs the pending debounced write
+  immediately (same error reporting) instead of waiting out the 3 s timer. `App.svelte` calls it
+  on `document` `visibilitychange` (hidden) and `window` `pagehide` while autosave is enabled, so
+  closing the tab or switching apps no longer drops the last few seconds of edits.
+- F3: `parse.ts` exports `MAX_COORD = 1e9`; `num`/`numbers` reject values beyond it like
+  non-finite ones. `transform.ts` and `pathdata.ts` each keep a local copy of the same bound (to
+  avoid an import cycle with `parse.ts`) so an overflowing composed transform falls back to
+  identity and an overflowing path coordinate stops the path, instead of `fmt` writing "Infinity"
+  back out on save.
+- F4: `xml.ts`'s `decode` now throws `XmlError` for numeric character references to code points
+  XML 1.0 forbids (nulls, most C0 controls, the UTF-16 surrogates, U+FFFE/U+FFFF).
+  `serialize.ts`'s `escapeAttr` writes tab/LF/CR as `&#9;`/`&#10;`/`&#13;` and strips any other C0
+  control character, so a name or value containing one still round-trips as well-formed XML.
+- F5: `autosave.ts`'s `writeAutosave` now resolves on the write transaction's `oncomplete` and
+  rejects on `onabort`/`onerror` (`tx.error`), rather than on the `put` request's `onsuccess` —
+  the previous version could report success before the write was durable.
