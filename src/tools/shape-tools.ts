@@ -4,6 +4,15 @@ import { targetLayerId } from "../doc/tree";
 import { boxFromPoints, type Box } from "../geom/box";
 import { IDENTITY } from "../geom/mat";
 import { linePath, polygonPath, starPath } from "../geom/shapes";
+import {
+  collectTargets,
+  hasGuides,
+  NO_GUIDES,
+  SNAP_PX,
+  snapPoint,
+  type Guides,
+  type SnapTargets,
+} from "../geom/snap";
 import type { Vec } from "../geom/vec";
 import type { Prefs } from "../persist/preferences";
 import { movedEnough, type Tool, type ToolContext, type ToolEvent } from "./tool";
@@ -37,15 +46,40 @@ export function lineStyle(style: Style): Style {
 
 type Build = (a: Vec, b: Vec, mods: Mods, prefs: Prefs) => Shape | null;
 
-type Active = { start: ToolEvent; layerId: string; base: Doc; createdId: string | null };
+type Active = {
+  start: ToolEvent;
+  /** The start point after snapping. */
+  from: Vec;
+  layerId: string;
+  base: Doc;
+  createdId: string | null;
+  targets: SnapTargets | null;
+};
 
-function createDragTool(id: ToolId, hint: string, build: Build): Tool {
+/** `snapEnd` says whether the current point may snap (the line tool opts out while Shift
+ *  constrains its angle). */
+function createDragTool(
+  id: ToolId,
+  hint: string,
+  build: Build,
+  snapEnd: (mods: Mods) => boolean = () => true,
+): Tool {
   let active: Active | null = null;
+
+  const threshold = (ctx: ToolContext) => SNAP_PX / ctx.view().zoom;
 
   function update(ctx: ToolContext, e: ToolEvent): void {
     if (!active) return;
+    let to = e.doc;
+    let guides: Guides = NO_GUIDES;
+    if (active.targets && snapEnd(e.mods)) {
+      const s = snapPoint(e.doc, active.targets, threshold(ctx));
+      to = s.p;
+      guides = s.guides;
+    }
+    ctx.setOverlay(hasGuides(guides) ? { kind: "guides", ...guides } : null);
     const shape = movedEnough(active.start.screen, e.screen)
-      ? build(active.start.doc, e.doc, e.mods, ctx.prefs())
+      ? build(active.from, to, e.mods, ctx.prefs())
       : null;
     if (!shape) {
       ctx.commit(active.base);
@@ -62,13 +96,16 @@ function createDragTool(id: ToolId, hint: string, build: Build): Tool {
     hint,
     cursor: "crosshair",
     down(ctx, e) {
-      const layerId = targetLayerId(ctx.doc());
+      const doc = ctx.doc();
+      const layerId = targetLayerId(doc);
       if (!layerId) {
         ctx.notify("info", "Every layer is hidden or locked — there is nowhere to draw.");
         return;
       }
+      const targets = ctx.snapEnabled() ? collectTargets(doc, []) : null;
+      const from = targets ? snapPoint(e.doc, targets, threshold(ctx)).p : e.doc;
       ctx.beginGesture();
-      active = { start: e, layerId, base: ctx.doc(), createdId: null };
+      active = { start: e, from, layerId, base: doc, createdId: null, targets };
     },
     move(ctx, e) {
       update(ctx, e);
@@ -77,12 +114,14 @@ function createDragTool(id: ToolId, hint: string, build: Build): Tool {
       if (!active) return;
       update(ctx, e);
       if (active.createdId) ctx.setSelection([active.createdId]);
+      ctx.setOverlay(null);
       ctx.endGesture();
       active = null;
     },
     cancel(ctx) {
       if (!active) return;
       ctx.commit(active.base);
+      ctx.setOverlay(null);
       ctx.endGesture();
       active = null;
     },
@@ -133,11 +172,21 @@ export function createEllipseTool(): Tool {
 }
 
 export function createLineTool(): Tool {
-  return createDragTool("line", "Drag to draw a line · Shift: 45° steps", (a, b, mods, prefs) => {
-    const end = mods.shift ? snapLineEnd(a, b) : b;
-    if (end.x === a.x && end.y === a.y) return null;
-    return { ...base, kind: "path", style: lineStyle(prefs.style), subpaths: [linePath(a, end)] };
-  });
+  return createDragTool(
+    "line",
+    "Drag to draw a line · Shift: 45° steps",
+    (a, b, mods, prefs) => {
+      const end = mods.shift ? snapLineEnd(a, b) : b;
+      if (end.x === a.x && end.y === a.y) return null;
+      return {
+        ...base,
+        kind: "path",
+        style: lineStyle(prefs.style),
+        subpaths: [linePath(a, end)],
+      };
+    },
+    (mods) => !mods.shift,
+  );
 }
 
 export function createPolygonTool(): Tool {
