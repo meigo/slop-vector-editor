@@ -17,12 +17,14 @@
 
   let editing = $state(false);
   let draft = $state("");
+  let initial = "";
   const shown = $derived(
     editing ? draft : value === null ? "" : String(Math.round(value * 100) / 100),
   );
 
   function commit() {
     editing = false;
+    if (draft === initial) return;
     const v = Number(draft);
     if (draft.trim() === "" || !Number.isFinite(v)) return;
     onchange(Math.min(max, Math.max(min, v)));
@@ -39,6 +41,7 @@
     placeholder={value === null ? "–" : ""}
     onfocus={(e) => {
       draft = e.currentTarget.value;
+      initial = draft;
       editing = true;
     }}
     oninput={(e) => (draft = e.currentTarget.value)}
