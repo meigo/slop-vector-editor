@@ -147,6 +147,11 @@ describe("parsePathData", () => {
     expect(pts(sp)).toEqual([[0, 0]]);
   });
 
+  it("stops at a coordinate exceeding the maximum without throwing", () => {
+    const [sp] = parsePathData("M0 0 L1e12 0");
+    expect(sp.nodes).toHaveLength(1);
+  });
+
   it("nulls handles that sit on their node", () => {
     const [sp] = parsePathData("M0 0 C0 0 10 0 10 0");
     expect(sp.nodes[0].out).toBeNull();

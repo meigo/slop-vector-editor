@@ -3,6 +3,7 @@ import figma from "../../fixtures/figma-flat.svg?raw";
 import illustrator from "../../fixtures/illustrator-classes.svg?raw";
 import inkscape from "../../fixtures/inkscape-layers.svg?raw";
 import { createDoc, DEFAULT_STYLE, type Doc, type PathShape, type Shape } from "../doc/document";
+import { IDENTITY } from "../geom/mat";
 import { rectPath } from "../geom/shapes";
 import { parseSvg, SvgError } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
@@ -265,6 +266,29 @@ describe("parseSvg — non-finite numbers and invalid artboards", () => {
     const { doc, dropped } = parseSvg(`<svg viewBox="0 0 250000 180000"/>`);
     expect(doc.artboard).toEqual({ w: 300, h: 150, background: null });
     expect(dropped).toEqual(["invalid artboard size"]);
+  });
+
+  it("caps an overflowing coordinate at the fallback instead of Infinity", () => {
+    const { doc } = parseSvg(`<svg><rect x="1e305" width="5" height="5"/></svg>`);
+    const [rect] = doc.layers[0].children as Shape[];
+    expect(rect).toMatchObject({ x: 0 });
+    expect(serializeDoc(doc)).not.toMatch(/Infinity|NaN/);
+  });
+
+  it("caps an overflowing stroke-width at the inherited value", () => {
+    const { doc } = parseSvg(`<svg><rect width="5" height="5" stroke-width="1e305"/></svg>`);
+    const [rect] = doc.layers[0].children as Shape[];
+    expect(rect.style.strokeWidth).toBe(1);
+    expect(serializeDoc(doc)).not.toMatch(/Infinity|NaN/);
+  });
+
+  it("ignores an overflowing composed transform", () => {
+    const { doc } = parseSvg(
+      `<svg><rect width="5" height="5" transform="scale(1e300) scale(1e300)"/></svg>`,
+    );
+    const [rect] = doc.layers[0].children as Shape[];
+    expect(rect.transform).toEqual(IDENTITY);
+    expect(serializeDoc(doc)).not.toMatch(/Infinity|NaN/);
   });
 
   it("uses a valid width/height when the viewBox is invalid", () => {

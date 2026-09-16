@@ -4,6 +4,10 @@ const FN_RE = /(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)/g;
 const NUM_RE = /[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
+/** Mirrors parse.ts's MAX_COORD; kept as a local copy because parse.ts imports parseTransform,
+ *  so importing from parse.ts here would be a circular import. */
+const MAX_COORD = 1e9;
+
 function fnMatrix(name: string, a: number[]): Mat | null {
   switch (name) {
     case "matrix":
@@ -43,6 +47,9 @@ export function parseTransform(value: string): Mat {
   // If we found functions, check that the whole string is valid
   // (only recognized functions, whitespace, and commas)
   if (found && !/^[\s,]*$/.test(value.replace(FN_RE, ""))) {
+    return IDENTITY;
+  }
+  if (found && result.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_COORD)) {
     return IDENTITY;
   }
   return found ? result : IDENTITY;

@@ -65,10 +65,14 @@ const SILENT = new Set(["defs", "title", "desc", "metadata", "script"]);
 const CAPS: readonly string[] = ["butt", "round", "square"];
 const JOINS: readonly string[] = ["miter", "round", "bevel"];
 
+/** Coordinates and lengths beyond this are rejected like non-finite ones: `fmt` overflows to
+ *  "Infinity" well before this, so nothing bigger should ever reach the document. */
+export const MAX_COORD = 1e9;
+
 function num(v: string | undefined, fallback: number): number {
   if (v === undefined) return fallback;
   const n = parseFloat(v);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) && Math.abs(n) <= MAX_COORD ? n : fallback;
 }
 
 function opacityValue(v: string | undefined, fallback: number): number {
@@ -82,9 +86,9 @@ function numbers(v: string | undefined): number[] {
   const out: number[] = [];
   for (const m of v?.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []) {
     const n = Number(m);
-    // SVG stops parsing a number list at the first error; a non-finite value counts as one so
-    // later values don't shift into the wrong slot of an x/y pair.
-    if (!Number.isFinite(n)) break;
+    // SVG stops parsing a number list at the first error; a non-finite or overflowing value
+    // counts as one so later values don't shift into the wrong slot of an x/y pair.
+    if (!Number.isFinite(n) || Math.abs(n) > MAX_COORD) break;
     out.push(n);
   }
   return out;

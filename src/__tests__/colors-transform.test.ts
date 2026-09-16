@@ -67,4 +67,8 @@ describe("parseTransform", () => {
   it("returns identity when an argument is non-finite", () => {
     expect(parseTransform("translate(1e999)")).toEqual(IDENTITY);
   });
+
+  it("returns identity when the composed matrix overflows the coordinate maximum", () => {
+    expect(parseTransform("scale(1e300) scale(1e300)")).toEqual(IDENTITY);
+  });
 });

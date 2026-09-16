@@ -34,6 +34,10 @@ export function subpathsToD(subpaths: Subpath[]): string {
 const NUM_RE = /[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/y;
 const CMD_RE = /[MmLlHhVvCcSsQqTtAaZz]/;
 
+/** Mirrors parse.ts's MAX_COORD; kept as a local copy because parse.ts imports parsePathData,
+ *  so importing from parse.ts here would be a circular import. */
+const MAX_COORD = 1e9;
+
 class PathDataError extends Error {}
 
 function scanner(s: string) {
@@ -66,7 +70,9 @@ function scanner(s: string) {
       if (!m) throw new PathDataError(`Expected a number at ${i}`);
       i = NUM_RE.lastIndex;
       const n = parseFloat(m[0]);
-      if (!Number.isFinite(n)) throw new PathDataError(`Non-finite number at ${i}`);
+      if (!Number.isFinite(n) || Math.abs(n) > MAX_COORD) {
+        throw new PathDataError(`Non-finite number at ${i}`);
+      }
       return n;
     },
     flag(): boolean {
