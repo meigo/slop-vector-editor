@@ -9,6 +9,7 @@
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
+  import PropertiesPanel from "./lib/PropertiesPanel.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
   import ToolStrip from "./lib/ToolStrip.svelte";
   import TopBar from "./lib/TopBar.svelte";
@@ -106,7 +107,15 @@
     <main class="relative min-w-0 flex-1">
       <Canvas oncursor={(p) => (cursor = p)} />
       <ModifierDock />
+      {#if app.propertiesOpen}
+        <div class="absolute inset-y-0 right-0 z-20 flex shadow-xl min-[900px]:hidden">
+          <PropertiesPanel />
+        </div>
+      {/if}
     </main>
+    <div class="hidden min-[900px]:flex">
+      <PropertiesPanel />
+    </div>
   </div>
   <StatusBar {cursor} />
 </div>

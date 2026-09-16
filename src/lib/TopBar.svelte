@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Maximize, Menu, Redo2, Undo2, ZoomIn, ZoomOut } from "@lucide/svelte";
+  import { Maximize, Menu, Redo2, SlidersHorizontal, Undo2, ZoomIn, ZoomOut } from "@lucide/svelte";
   import { app, type DialogKind } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
@@ -63,6 +63,15 @@
   </span>
 
   <div class="ml-auto flex items-center gap-1">
+    <button
+      class="icon-btn min-[900px]:hidden"
+      aria-label="Properties"
+      aria-pressed={app.propertiesOpen}
+      title="Properties"
+      onclick={() => (app.propertiesOpen = !app.propertiesOpen)}
+    >
+      <SlidersHorizontal size={18} />
+    </button>
     <button
       class="icon-btn"
       aria-label="Undo"

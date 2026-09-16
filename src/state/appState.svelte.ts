@@ -20,6 +20,7 @@ import {
 import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
 import { canRedo, canUndo } from "./history";
+import { applyGeometryField, type GeometryField } from "./properties";
 import {
   beginGesture,
   commit,
@@ -289,4 +290,9 @@ export function setSelectionStyle(patch: Partial<Style>): void {
     return;
   }
   commitDoc(setStyle(app.doc, app.selection, patch));
+}
+
+export function applyGeometry(field: GeometryField, value: number): void {
+  cancelActiveGesture();
+  commitDoc(applyGeometryField(app.doc, app.selection, field, value));
 }
