@@ -216,6 +216,7 @@ export function setSelection(ids: readonly string[]): void {
 }
 
 export function clearSelection(): void {
+  cancelActiveGesture();
   if (app.selection.length > 0) app.selection = [];
 }
 
