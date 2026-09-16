@@ -56,3 +56,25 @@ export function skewY(rad: number): Mat {
 export function isIdentity(m: Mat, eps = 1e-9): boolean {
   return m.every((v, i) => Math.abs(v - IDENTITY[i]) <= eps);
 }
+
+/** The rotation of the matrix's x axis, in radians. */
+export function rotationOf(m: Mat): number {
+  return Math.atan2(m[1], m[0]);
+}
+
+/** True when the matrix maps a rectangle to a non-rectangle (shear, or a collapsed axis). */
+export function isSkewed(m: Mat, eps = 1e-6): boolean {
+  const la = Math.hypot(m[0], m[1]);
+  const lb = Math.hypot(m[2], m[3]);
+  if (la === 0 || lb === 0) return true;
+  return Math.abs(m[0] * m[2] + m[1] * m[3]) / (la * lb) > eps;
+}
+
+/** True when the matrix has no rotation or shear (scale + translate only). */
+export function isAxisAligned(m: Mat, eps = 1e-9): boolean {
+  return Math.abs(m[1]) <= eps && Math.abs(m[2]) <= eps;
+}
+
+export function rotateAbout(rad: number, c: Vec): Mat {
+  return multiply(translate(c.x, c.y), multiply(rotate(rad), translate(-c.x, -c.y)));
+}
