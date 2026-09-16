@@ -9,7 +9,7 @@
   import StatusBar from "./lib/StatusBar.svelte";
   import TopBar from "./lib/TopBar.svelte";
   import { scheduleAutosave } from "./persist/autosave";
-  import { autosaveRecord, restoreAutosave } from "./persist/project-io";
+  import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
   import { app, notify } from "./state/appState.svelte";
   import { runCommand } from "./state/commands";
   import { commandForKey } from "./state/keys";
@@ -17,19 +17,20 @@
   let cursor = $state<Vec | null>(null);
 
   // Autosave starts only after the restore attempt, so the empty startup document never
-  // overwrites the saved one.
-  let restored = $state(false);
+  // overwrites the saved one. It stays off entirely when storage is unavailable, so we don't
+  // schedule a write that would just fail a few seconds later.
+  let autosaveEnabled = $state(false);
 
   onMount(() => {
-    void restoreAutosave().finally(() => (restored = true));
+    void restoreAutosave().then((ok) => (autosaveEnabled = ok));
   });
 
   $effect(() => {
-    if (!restored) return;
+    if (!autosaveEnabled) return;
     void app.session; // any edit, undo, save or document replace
     void app.fileName;
     scheduleAutosave(autosaveRecord, (err) =>
-      notify("error", `Autosave failed: ${err instanceof Error ? err.message : String(err)}`),
+      notify("error", `Autosave failed: ${errorMessage(err)}`),
     );
   });
 

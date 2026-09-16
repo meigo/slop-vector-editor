@@ -60,19 +60,22 @@ export function autosaveRecord(): AutosaveRecord {
   return { svg: serializeDoc(app.doc), fileName: app.fileName, dirty: app.dirty };
 }
 
-export async function restoreAutosave(): Promise<void> {
+/** Resolves false only when storage itself is unavailable, so the caller can skip scheduling
+ *  autosaves in that case rather than trying (and failing) to write to it moments later. */
+export async function restoreAutosave(): Promise<boolean> {
   let rec: AutosaveRecord | null;
   try {
     rec = await loadAutosave();
   } catch {
     notify("info", "Autosave is unavailable in this browser session — save your work manually.");
-    return;
+    return false;
   }
-  if (!rec) return;
+  if (!rec) return true;
   try {
     const { doc } = parseSvg(rec.svg);
     replaceDocument(doc, rec.fileName, null, !rec.dirty);
   } catch (err) {
     notify("error", `The autosaved document could not be restored: ${errorMessage(err)}`);
   }
+  return true;
 }
