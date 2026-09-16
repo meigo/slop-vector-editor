@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
-import { applyMat, IDENTITY } from "../geom/mat";
+import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { createSelectTool } from "../tools/select";
 import type { Tool } from "../tools/tool";
 import { ev, fakeContext } from "./fake-context";
@@ -191,5 +191,68 @@ describe("select tool: transforms", () => {
     t.cancel(ctx);
     expect(state.overlay).toBeNull();
     expect(state.selection).toEqual(["b"]);
+  });
+
+  it("keeps the grab offset when a handle is pressed off-centre", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    t.down(ctx, ev(37, 37));
+    t.move(ctx, ev(39, 37));
+    t.up(ctx, ev(39, 37));
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 42, h: 40 });
+    expect(state.session.history.past).toHaveLength(1);
+  });
+
+  it("a tap on a handle changes nothing", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    tap(t, ctx, 40, 40);
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 40, h: 40 });
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.selection).toEqual(["a"]);
+  });
+
+  it("cancel during a resize restores the rect", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    t.down(ctx, ev(40, 40));
+    t.move(ctx, ev(60, 60));
+    expect(node(state.session.doc, "a")).toMatchObject({ w: 60, h: 60 });
+    t.cancel(ctx);
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 40, h: 40 });
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.session.gestureBase).toBeNull();
+  });
+
+  it("drags a horizontal line by its middle instead of hitting a handle", () => {
+    const d = createDoc(200, 200);
+    const line: Node = {
+      kind: "path",
+      id: "l",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 50 }, in: null, out: null, type: "corner" },
+            { p: { x: 100, y: 50 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [line] }],
+    });
+    const t = createSelectTool();
+    tap(t, ctx, 50, 50);
+    expect(state.selection).toEqual(["l"]);
+    drag(t, ctx, [50, 50], [50, 80]);
+    expect(node(state.session.doc, "l").transform).toEqual(translate(0, 30));
+    expect(state.session.history.past).toHaveLength(1);
   });
 });

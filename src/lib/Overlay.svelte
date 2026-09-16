@@ -5,7 +5,7 @@
   import { app } from "../state/appState.svelte";
   import { docToScreen } from "../state/viewport";
   import { selectionFrame } from "../tools/frame";
-  import { frameOutline, handlePositions, handleSize, RESIZE_HANDLES } from "../tools/gizmo";
+  import { activeHandles, frameOutline, handlePositions, handleSize } from "../tools/gizmo";
 
   const LINE = "stroke: var(--color-accent); fill: none";
   const KNOB = "stroke: var(--color-accent); fill: var(--color-text)";
@@ -56,7 +56,7 @@
       stroke-width="1"
     />
     <circle cx={handles.rotate.x} cy={handles.rotate.y} r={size / 2} style={KNOB} />
-    {#each RESIZE_HANDLES as h (h)}
+    {#each activeHandles(frame) as h (h)}
       <rect
         x={handles[h].x - size / 2}
         y={handles[h].y - size / 2}

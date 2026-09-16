@@ -10,6 +10,7 @@ import {
   selectionFrame,
 } from "../tools/frame";
 import {
+  activeHandles,
   dragHandle,
   frameOutline,
   handleAt,
@@ -121,6 +122,14 @@ describe("gizmo handles", () => {
     expect(handleAt(f, view, { x: 60, y: 25 }, 8)).toBeNull();
     const tiny = { angle: 0, box: { x: 0, y: 0, w: 2, h: 2 } };
     expect(handleAt(tiny, view, { x: 1, y: 0 }, 8)).toBe("nw");
+  });
+
+  it("drops handles that would act on a zero-size axis", () => {
+    const line = { angle: 0, box: { x: 0, y: 10, w: 100, h: 0 } };
+    expect(activeHandles(line)).toEqual(["nw", "ne", "e", "se", "sw", "w"]);
+    expect(handleAt(line, view, { x: 50, y: 10 }, 8)).toBeNull();
+    expect(handleAt(line, view, { x: 100, y: 10 }, 8)).toBe("ne");
+    expect(activeHandles({ angle: 0, box: { x: 0, y: 0, w: 0, h: 0 } })).toEqual([]);
   });
 });
 

@@ -16,7 +16,7 @@ export function handleSize(pointerType: string): number {
   return pointerType === "mouse" ? 8 : 16;
 }
 
-function framePoint(h: ResizeHandle, b: Box): Vec {
+export function handleFramePoint(h: ResizeHandle, b: Box): Vec {
   const x = h.includes("w") ? b.x : h.includes("e") ? b.x + b.w : b.x + b.w / 2;
   const y = h.includes("n") ? b.y : h.includes("s") ? b.y + b.h : b.y + b.h / 2;
   return { x, y };
@@ -24,7 +24,8 @@ function framePoint(h: ResizeHandle, b: Box): Vec {
 
 export function handlePositions(f: Frame, view: View): Record<Handle, Vec> {
   const out = {} as Record<Handle, Vec>;
-  for (const h of RESIZE_HANDLES) out[h] = docToScreen(view, frameToDoc(f, framePoint(h, f.box)));
+  for (const h of RESIZE_HANDLES)
+    out[h] = docToScreen(view, frameToDoc(f, handleFramePoint(h, f.box)));
   out.rotate = {
     x: out.n.x + ROTATE_OFFSET * Math.sin(f.angle),
     y: out.n.y - ROTATE_OFFSET * Math.cos(f.angle),
@@ -39,10 +40,22 @@ export function frameOutline(f: Frame, view: View): Vec[] {
 
 const PRIORITY: readonly Handle[] = ["rotate", "nw", "ne", "se", "sw", "n", "e", "s", "w"];
 
+/** The resize handles to draw and hit-test: none that would act on a zero-size axis. */
+export function activeHandles(f: Frame): readonly ResizeHandle[] {
+  const { w, h } = f.box;
+  return RESIZE_HANDLES.filter((k) => {
+    if (k === "n" || k === "s") return h !== 0;
+    if (k === "e" || k === "w") return w !== 0;
+    return w !== 0 || h !== 0;
+  });
+}
+
 export function handleAt(f: Frame, view: View, screen: Vec, size: number): Handle | null {
   const pos = handlePositions(f, view);
   const reach = size / 2 + 2;
+  const active: readonly Handle[] = activeHandles(f);
   for (const h of PRIORITY) {
+    if (h !== "rotate" && !active.includes(h)) continue;
     const p = pos[h];
     if (Math.abs(p.x - screen.x) <= reach && Math.abs(p.y - screen.y) <= reach) return h;
   }

@@ -8,6 +8,7 @@ import { docToFrame, frameCenter, frameResizeMap, selectionFrame, type Frame } f
 import {
   dragHandle,
   handleAt,
+  handleFramePoint,
   handleSize,
   rotateDelta,
   type Handle,
@@ -35,6 +36,8 @@ type Mode =
       ids: readonly string[];
       frame: Frame;
       handle: ResizeHandle;
+      /** Handle point minus the press point, in frame coordinates. */
+      grab: Vec;
     })
   | (Common & { kind: "rotate"; original: Doc; ids: readonly string[]; frame: Frame; centre: Vec });
 
@@ -62,7 +65,18 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
         centre: frameCenter(p.frame),
       };
     }
-    return { ...common, kind: "resize", original: doc, ids, frame: p.frame, handle: p.handle };
+    const pressed = docToFrame(p.frame, p.start.doc);
+    const at = handleFramePoint(p.handle, p.frame.box);
+    const grab = { x: at.x - pressed.x, y: at.y - pressed.y };
+    return {
+      ...common,
+      kind: "resize",
+      original: doc,
+      ids,
+      frame: p.frame,
+      handle: p.handle,
+      grab,
+    };
   }
   if (p.hitId) {
     ctx.beginGesture();
@@ -89,7 +103,9 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
       return;
     }
     case "resize": {
-      const box = dragHandle(m.handle, m.frame.box, docToFrame(m.frame, e.doc), e.mods);
+      const p = docToFrame(m.frame, e.doc);
+      const target = { x: p.x + m.grab.x, y: p.y + m.grab.y };
+      const box = dragHandle(m.handle, m.frame.box, target, e.mods);
       ctx.commit(resizeNodes(m.original, m.ids, frameResizeMap(m.frame.angle, m.frame.box, box)));
       return;
     }
