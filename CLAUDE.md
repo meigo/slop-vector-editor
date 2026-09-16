@@ -92,7 +92,10 @@ every user-visible change.
 13. **Every session change goes through `setSession`,** which prunes the selection. Don't assign
     `app.session` directly anywhere else.
 14. **Handles on tiny objects cover the whole shape.** Reach is 6/10 px from the handle centre,
-    and corners take priority. Tests use 40×40 shapes for this reason.
+    and corners take priority. Tests use 40×40 shapes for this reason. Handles that would act on
+    a zero-size axis are not drawn or hit-tested (`activeHandles` in `tools/gizmo.ts`), so a
+    horizontal/vertical line can be dragged by its middle. Tiny (non-zero) objects are still
+    handle-dominated — a small-object handle policy is an M5 item.
 15. **A running tool drag commits from its own base document**, so the store has a gesture-cancel
     hook: `Canvas` registers `registerGestureCancel` while a tool gesture runs; undo, redo,
     `replaceDocument`, every selection action (delete/duplicate/nudge/convert/flatten/rect
@@ -126,7 +129,15 @@ M4 constraint: a closed subpath whose last node coincides with its first is merg
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
 closing segment.
 
-M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP).
+M2b: the snapping hook goes where `tools/select.ts` turns the pointer into a delta (move) or a
+target edge position (resize — pointer plus the grab offset).
+
+M3: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
+also edit group opacity.
+
+M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
+palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
+small-object handle policy; the drawer covers the modifier dock at iPad portrait widths.
 
 ## Verification debt
 

@@ -112,3 +112,23 @@
   observed); in the narrow layout the status bar wraps "800 × 600 px" onto two lines (cosmetic).
 - Owed: touch, Apple Pencil and iPad (pinch, palm rejection, dock with a held finger); physical
   Shift/Alt held during a real drag; Safari/Firefox; the drawer on a real narrow device.
+
+## 2026-09-16 — final review fixes (M2a)
+
+- F1: resizing keeps the grab offset — a handle pressed off-centre no longer makes the edge jump
+  to the pointer on the first move (`handleFramePoint` exported from `tools/gizmo.ts`).
+- F2: `NumberField` no longer commits on focus + blur without typing (tabbing through X/Y/W/H/R
+  recorded rounding-error nudges as undo steps).
+- F3: handles that would act on a zero-size axis are skipped (`activeHandles`): a horizontal or
+  vertical line can be dragged by its middle; the overlay draws only the active handles.
+- F4: Esc (`clearSelection`) cancels an active drag first.
+- F5: the right-click menu is clamped to the viewport (measured size, 4 px margin), and shows
+  "Convert to path" / "Flatten transform" only when they apply — the same check as the context
+  bar (`selectionActions` in `state/properties.ts`).
+- F6: `lastPointerType` is set only for routed pointers (plus right-click), so a rejected palm
+  does not change the handle size; the canvas context menu cancels an active drag before changing
+  the selection; the path hit-test cache is keyed by `subpaths` (survives move/rotate); the status
+  bar's artboard size no longer wraps; the properties panel's fallback paints come from
+  `DEFAULT_STYLE`; the test `fakeContext` prunes the selection like the real store.
+- Correction to the Milestone 2a entry: the modifier dock's long press acts like holding the key
+  and ends "off" when released (a quick tap latches; a quick tap on a latched key releases it).
