@@ -34,6 +34,8 @@
   let pencilSeen = false;
   /** Active pointers in canvas-local px. A plain Map: nothing renders from it. */
   const pointers = new Map<number, Vec>();
+  /** Each active pointer's `pointerType`, alongside `pointers`. */
+  const pointerTypes = new Map<number, string>();
 
   const ready = $derived(width > 0 && height > 0);
   const view = $derived(app.view);
@@ -86,11 +88,15 @@
 
   function onpointerdown(e: PointerEvent) {
     app.contextMenu = null;
+    app.lastPointerType = e.pointerType;
     if (e.pointerType === "pen") pencilSeen = true;
+    let activeTouches = 0;
+    for (const t of pointerTypes.values()) if (t === "touch") activeTouches++;
     const route = routePointerDown({
       pointerType: e.pointerType,
       button: e.button,
       activePointers: pointers.size,
+      activeTouches,
       spaceHeld: app.spaceHeld,
       tool: app.toolId,
       pencilSeen,
@@ -99,13 +105,13 @@
     // No native text selection or drag; keep keyboard shortcuts working after a click here.
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    app.lastPointerType = e.pointerType;
     try {
       host.setPointerCapture(e.pointerId);
     } catch {
       // The pointer is no longer active (e.g. a synthetic event); tracking still works.
     }
     pointers.set(e.pointerId, local(e));
+    pointerTypes.set(e.pointerId, e.pointerType);
     if (route === "pinch") {
       if (gesture?.kind === "tool") {
         gesture.tool.cancel(storeContext);
@@ -160,11 +166,13 @@
       gesture = null;
     }
     pointers.delete(e.pointerId);
+    pointerTypes.delete(e.pointerId);
     if (pointers.size === 0) gesture = null;
   }
 
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
+    if (app.lastPointerType !== "mouse") return;
     if (app.toolId !== "select") return;
     const p = screenToDoc(app.view, local(e));
     const hit = hitTest(app.doc, p, pointerTolerance("mouse") / app.view.zoom);
@@ -215,7 +223,9 @@
   {onpointermove}
   onpointerup={(e) => endPointer(e, false)}
   onpointercancel={(e) => endPointer(e, true)}
-  onlostpointercapture={(e) => endPointer(e, true)}
+  onlostpointercapture={(e) => {
+    if (e.target === host) endPointer(e, true);
+  }}
   {oncontextmenu}
   onpointerleave={() => {
     if (pointers.size === 0) oncursor(null);

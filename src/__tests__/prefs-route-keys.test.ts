@@ -91,6 +91,7 @@ describe("routePointerDown", () => {
     pointerType: "mouse",
     button: 0,
     activePointers: 0,
+    activeTouches: 0,
     spaceHeld: false,
     tool: "select",
     pencilSeen: false,
@@ -103,6 +104,7 @@ describe("routePointerDown", () => {
     expect(r({ button: 1 })).toBe("pan");
     expect(r({ button: 3 })).toBe("ignore");
     expect(r({ activePointers: 1 })).toBe("ignore");
+    expect(r({ button: 1, activePointers: 1 })).toBe("ignore");
   });
 
   it("pans with Space or the Hand tool", () => {
@@ -114,10 +116,13 @@ describe("routePointerDown", () => {
   it("routes touch and pen", () => {
     expect(r({ pointerType: "touch" })).toBe("tool");
     expect(r({ pointerType: "touch", pencilSeen: true })).toBe("pan");
-    expect(r({ pointerType: "touch", activePointers: 1 })).toBe("pinch");
-    expect(r({ pointerType: "touch", activePointers: 1, pencilSeen: true })).toBe("pinch");
+    expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 1 })).toBe("pinch");
+    expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 1, pencilSeen: true })).toBe(
+      "pinch",
+    );
     expect(r({ pointerType: "pen", pencilSeen: true })).toBe("tool");
     expect(r({ pointerType: "pen", activePointers: 1 })).toBe("ignore");
+    expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 0 })).toBe("ignore");
   });
 });
 
