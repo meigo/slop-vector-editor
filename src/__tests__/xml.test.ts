@@ -48,4 +48,9 @@ describe("parseXml", () => {
   it("throws XmlError instead of RangeError for an out-of-range numeric character reference", () => {
     expect(() => parseXml('<svg><g id="&#x110000;"/></svg>')).toThrow(XmlError);
   });
+
+  it("throws XmlError for a character reference to a code point XML 1.0 forbids", () => {
+    expect(() => parseXml('<a b="&#1;"/>')).toThrow(XmlError);
+    expect(() => parseXml('<a b="&#xD800;"/>')).toThrow(XmlError);
+  });
 });

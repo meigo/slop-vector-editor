@@ -13,12 +13,28 @@ export class XmlError extends Error {}
 const NAME_RE = /[A-Za-z_:][-\w.:]*/y;
 const ATTR_NAME_RE = /[^\s=/>]+/y;
 
+/** XML 1.0 forbids these code points outright (control characters other than tab/LF/CR, the
+ *  UTF-16 surrogates, and the two permanently-reserved noncharacters). A numeric character
+ *  reference to one would otherwise write bytes no XML parser can read back. */
+function isForbiddenXmlCodePoint(code: number): boolean {
+  return (
+    code === 0 ||
+    (code >= 1 && code <= 8) ||
+    code === 11 ||
+    code === 12 ||
+    (code >= 14 && code <= 31) ||
+    (code >= 0xd800 && code <= 0xdfff) ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
+}
+
 function decode(s: string): string {
   return s.replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, (_, e: string) => {
     if (e[0] === "#") {
       const code =
         e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
-      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) {
+      if (!Number.isFinite(code) || code < 0 || code > 0x10ffff || isForbiddenXmlCodePoint(code)) {
         throw new XmlError(`Invalid character reference &${e};`);
       }
       return String.fromCodePoint(code);

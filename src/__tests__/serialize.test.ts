@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Shape } from "../doc/document";
 import { IDENTITY } from "../geom/mat";
 import { layerAttrs, shapeAttrs, styleAttrs } from "../svg/attrs";
+import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 
 describe("styleAttrs", () => {
@@ -167,5 +168,17 @@ describe("serializeDoc", () => {
         `  </g>`,
       ].join("\n"),
     );
+  });
+
+  it("escapes control characters in attribute values so the file stays well-formed XML", () => {
+    const base = createDoc(10, 10);
+    const doc: Doc = {
+      ...base,
+      layers: [{ ...base.layers[0], name: "a\nbc" }],
+    };
+    const out = serializeDoc(doc);
+    expect(out).toContain(`data-sv-name="a&#10;bc"`);
+    const { doc: back } = parseSvg(out);
+    expect(back.layers[0].name).toBe("a\nbc");
   });
 });

@@ -3,7 +3,16 @@ import { groupAttrs, layerAttrs, shapeAttrs, styleAttrs, type Attrs } from "./at
 import { fmt } from "./fmt";
 
 const escapeAttr = (v: string) =>
-  v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  v
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/\t/g, "&#9;")
+    .replace(/\n/g, "&#10;")
+    .replace(/\r/g, "&#13;")
+    // eslint-disable-next-line no-control-regex -- stripping the remaining C0 controls XML forbids
+    .replace(/[\u0000-\u001f]/g, "");
 
 function open(tag: string, attrs: Attrs): string {
   const parts = Object.entries(attrs).map(([k, v]) => ` ${k}="${escapeAttr(v)}"`);
