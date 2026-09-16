@@ -1,3 +1,5 @@
+import type { ToolId } from "../tools/types";
+
 export type Command =
   "undo" | "redo" | "save" | "saveAs" | "open" | "fit" | "zoom100" | "zoomIn" | "zoomOut";
 
@@ -26,4 +28,41 @@ export function commandForKey(e: KeyLike): Command | null {
   if (k === "=" || k === "+") return "zoomIn";
   if (k === "-" || k === "_") return "zoomOut";
   return null;
+}
+
+export type EditAction =
+  | { kind: "tool"; tool: ToolId }
+  | { kind: "delete" }
+  | { kind: "duplicate" }
+  | { kind: "clear" }
+  | { kind: "nudge"; dx: number; dy: number };
+
+const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
+  v: "select",
+  r: "rect",
+  e: "ellipse",
+  l: "line",
+  y: "polygon",
+  h: "hand",
+};
+
+/** Editing keys. Checked after `commandForKey`, and never while a text field has focus. */
+export function editActionForKey(e: KeyLike): EditAction | null {
+  const k = e.key.toLowerCase();
+  if (e.metaKey || e.ctrlKey) return k === "d" ? { kind: "duplicate" } : null;
+  if (k === "delete" || k === "backspace") return { kind: "delete" };
+  if (k === "escape") return { kind: "clear" };
+  const step = e.shiftKey ? 10 : 1;
+  switch (e.key) {
+    case "ArrowLeft":
+      return { kind: "nudge", dx: -step, dy: 0 };
+    case "ArrowRight":
+      return { kind: "nudge", dx: step, dy: 0 };
+    case "ArrowUp":
+      return { kind: "nudge", dx: 0, dy: -step };
+    case "ArrowDown":
+      return { kind: "nudge", dx: 0, dy: step };
+  }
+  const tool = e.shiftKey ? undefined : TOOL_KEYS[k];
+  return tool ? { kind: "tool", tool } : null;
 }
