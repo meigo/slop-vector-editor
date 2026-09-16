@@ -2,6 +2,7 @@ import { createDoc } from "../doc/document";
 import { app, askConfirm, markDocSaved, notify, replaceDocument } from "../state/appState.svelte";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
+import { loadAutosave, type AutosaveRecord } from "./autosave";
 import { pickSvgFile, writeSvgFile } from "./file-io";
 
 export function errorMessage(err: unknown): string {
@@ -52,5 +53,26 @@ export async function saveDocument(asNew: boolean): Promise<void> {
     if (r) markDocSaved(doc, r.name, r.handle);
   } catch (err) {
     notify("error", `Save failed: ${errorMessage(err)}`);
+  }
+}
+
+export function autosaveRecord(): AutosaveRecord {
+  return { svg: serializeDoc(app.doc), fileName: app.fileName, dirty: app.dirty };
+}
+
+export async function restoreAutosave(): Promise<void> {
+  let rec: AutosaveRecord | null;
+  try {
+    rec = await loadAutosave();
+  } catch {
+    notify("info", "Autosave is unavailable in this browser session — save your work manually.");
+    return;
+  }
+  if (!rec) return;
+  try {
+    const { doc } = parseSvg(rec.svg);
+    replaceDocument(doc, rec.fileName, null, !rec.dirty);
+  } catch (err) {
+    notify("error", `The autosaved document could not be restored: ${errorMessage(err)}`);
   }
 }
