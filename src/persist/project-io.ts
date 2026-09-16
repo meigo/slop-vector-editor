@@ -39,10 +39,17 @@ export function openText(text: string, name: string, handle: FileSystemFileHandl
     notify("error", `${name} could not be read: ${errorMessage(err)}`);
     return;
   }
-  replaceDocument(result.doc, name, handle, true);
+  // Only our own export format is safe to overwrite in place: re-saving a foreign file would
+  // replace an Inkscape/Figma/Illustrator original with our lossy re-export.
+  const keepHandle = result.native && result.dropped.length === 0;
+  const discardedHandle = handle !== null && !keepHandle;
+  replaceDocument(result.doc, name, keepHandle ? handle : null, true);
+  const notes: string[] = [];
+  if (discardedHandle) notes.push("Opened as a copy — Save will ask where to write it.");
   if (result.dropped.length > 0) {
-    notify("info", `Some content was not imported: ${result.dropped.join(", ")}`);
+    notes.push(`Some content was not imported: ${result.dropped.join(", ")}`);
   }
+  if (notes.length > 0) notify("info", notes.join(" "));
 }
 
 export async function saveDocument(asNew: boolean): Promise<void> {

@@ -20,7 +20,10 @@ import { parseXml, type XmlElement } from "./xml";
 
 export class SvgError extends Error {}
 
-export type ParseResult = { doc: Doc; dropped: string[] };
+/** `dropped` lists unsupported content, in the order first seen. `native` is true only when the
+ *  root `<svg>` carries `data-sv-version` (our own export format) — callers use it to decide
+ *  whether re-saving in place is safe. */
+export type ParseResult = { doc: Doc; dropped: string[]; native: boolean };
 
 /** Inherited paint state while walking the tree. */
 type Inherited = {
@@ -383,5 +386,6 @@ export function parseSvg(src: string): ParseResult {
   return {
     doc: { version: DOC_VERSION, artboard: { w, h, background }, layers, nextId: next },
     dropped,
+    native: root.attrs["data-sv-version"] !== undefined,
   };
 }

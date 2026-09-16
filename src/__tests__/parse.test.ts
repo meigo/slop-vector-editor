@@ -130,11 +130,16 @@ describe("parseSvg — own format round-trip", () => {
     const noBg = { ...doc, artboard: { ...doc.artboard, background: null } };
     expect(stripIds(parseSvg(serializeDoc(noBg)).doc)).toEqual(stripIds(noBg));
   });
+
+  it("marks own-format output as native", () => {
+    expect(parseSvg(serializeDoc(createDoc(10, 10))).native).toBe(true);
+  });
 });
 
 describe("parseSvg — foreign files", () => {
   it("reads Inkscape layers, inherited styles and mm-based viewBox", () => {
-    const { doc, dropped } = parseSvg(inkscape);
+    const { doc, dropped, native } = parseSvg(inkscape);
+    expect(native).toBe(false);
     expect(doc.artboard).toEqual({ w: 210, h: 297, background: null });
     expect(doc.layers.map((l) => [l.name, l.visible, l.locked])).toEqual([
       ["Background", true, true],
@@ -155,7 +160,8 @@ describe("parseSvg — foreign files", () => {
   });
 
   it("reads a flat Figma export with gradients dropped", () => {
-    const { doc, dropped } = parseSvg(figma);
+    const { doc, dropped, native } = parseSvg(figma);
+    expect(native).toBe(false);
     expect(doc.layers).toHaveLength(1);
     const [rect, line, poly] = doc.layers[0].children as Shape[];
     expect(rect).toMatchObject({ kind: "rect", x: 4, y: 4, w: 56, h: 56, rx: 12 });
@@ -171,7 +177,8 @@ describe("parseSvg — foreign files", () => {
   });
 
   it("offsets a viewBox origin, converts unequal radii and reports classes", () => {
-    const { doc, dropped } = parseSvg(illustrator);
+    const { doc, dropped, native } = parseSvg(illustrator);
+    expect(native).toBe(false);
     expect(doc.artboard).toEqual({ w: 100, h: 50, background: null });
     const [rect, line, rounded] = doc.layers[0].children as Shape[];
     expect(rect.transform).toEqual([1, 0, 0, 1, -10, -20]);
