@@ -23,6 +23,7 @@ type Pending = Common & {
   handle: Handle | null;
   frame: Frame | null;
   toggleOnUp: boolean;
+  collapseOnUp: boolean;
 };
 type Mode =
   | Pending
@@ -110,12 +111,25 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
 export function createSelectTool(): Tool {
   let mode: Mode | null = null;
 
+  function cancelMode(ctx: ToolContext): void {
+    const m = mode;
+    mode = null;
+    if (!m) return;
+    if (m.kind === "move" || m.kind === "resize" || m.kind === "rotate") {
+      ctx.commit(m.original);
+      ctx.endGesture();
+    }
+    ctx.setOverlay(null);
+    ctx.setSelection(m.startSelection);
+  }
+
   return {
     id: "select",
     hint: "Click to select · drag to move · Shift: add · drag empty space to select an area",
     cursor: "default",
 
     down(ctx, e) {
+      cancelMode(ctx);
       const sel = ctx.selection();
       const doc = ctx.doc();
       const view = ctx.view();
@@ -123,13 +137,24 @@ export function createSelectTool(): Tool {
       const handle = frame ? handleAt(frame, view, e.screen, handleSize(e.pointerType)) : null;
       let hitId: string | null = null;
       let toggleOnUp = false;
+      let collapseOnUp = false;
       if (!handle) {
         hitId = hitTest(doc, e.doc, pointerTolerance(e.pointerType) / view.zoom)?.nodeId ?? null;
         if (hitId && !sel.includes(hitId))
           ctx.setSelection(e.mods.shift ? [...sel, hitId] : [hitId]);
         else if (hitId && e.mods.shift) toggleOnUp = true;
+        else if (hitId && sel.length > 1) collapseOnUp = true;
       }
-      mode = { kind: "pending", start: e, startSelection: sel, hitId, handle, frame, toggleOnUp };
+      mode = {
+        kind: "pending",
+        start: e,
+        startSelection: sel,
+        hitId,
+        handle,
+        frame,
+        toggleOnUp,
+        collapseOnUp,
+      };
     },
 
     move(ctx, e) {
@@ -150,6 +175,8 @@ export function createSelectTool(): Tool {
         if (m.hitId && m.toggleOnUp) {
           const id = m.hitId;
           ctx.setSelection(ctx.selection().filter((s) => s !== id));
+        } else if (m.hitId && m.collapseOnUp) {
+          ctx.setSelection([m.hitId]);
         } else if (!m.hitId && !m.start.mods.shift) {
           ctx.setSelection([]);
         }
@@ -161,15 +188,7 @@ export function createSelectTool(): Tool {
     },
 
     cancel(ctx) {
-      const m = mode;
-      mode = null;
-      if (!m) return;
-      if (m.kind === "move" || m.kind === "resize" || m.kind === "rotate") {
-        ctx.commit(m.original);
-        ctx.endGesture();
-      }
-      ctx.setOverlay(null);
-      ctx.setSelection(m.startSelection);
+      cancelMode(ctx);
     },
   };
 }

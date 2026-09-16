@@ -59,6 +59,16 @@ describe("select tool: selection", () => {
     expect(state.session.history.past).toHaveLength(0);
   });
 
+  it("a plain tap on a member narrows a multi-selection to it", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    tap(t, ctx, 80, 20, { shift: true });
+    expect(state.selection).toEqual(["a", "b"]);
+    tap(t, ctx, 20, 20);
+    expect(state.selection).toEqual(["a"]);
+  });
+
   it("marquee-selects nodes fully inside and adds with Shift", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();
@@ -140,6 +150,27 @@ describe("select tool: transforms", () => {
     expect(p.y).toBeCloseTo(0);
     expect((node(state.session.doc, "a") as RectShape).w).toBe(40);
     expect(state.session.history.past).toHaveLength(1);
+  });
+
+  it("dragging a member of a multi-selection moves the whole selection", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    tap(t, ctx, 80, 20, { shift: true });
+    drag(t, ctx, [20, 20], [30, 20]);
+    expect(origin(state.session.doc, "a")).toEqual({ x: 10, y: 0 });
+    expect(origin(state.session.doc, "b")).toEqual({ x: 10, y: 0 });
+    expect(state.selection).toEqual(["a", "b"]);
+  });
+
+  it("a new pointer-down cancels an active drag", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20));
+    t.move(ctx, ev(60, 60));
+    t.down(ctx, ev(150, 150));
+    expect(state.session.gestureBase).toBeNull();
+    expect(node(state.session.doc, "a").transform).toEqual(IDENTITY);
   });
 
   it("cancel restores the document and the previous selection", () => {
