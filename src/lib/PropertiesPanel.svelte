@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { LineCap, LineJoin, Paint } from "../doc/document";
+  import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
   import { app, applyGeometry, setSelectionStyle } from "../state/appState.svelte";
   import {
     selectionGeometry,
@@ -11,8 +11,9 @@
   import NumberField from "./NumberField.svelte";
   import PaintField from "./PaintField.svelte";
 
-  const FILL_FALLBACK: Paint = { color: "#d9d9d9", opacity: 1 };
-  const STROKE_FALLBACK: Paint = { color: "#000000", opacity: 1 };
+  // The default style always has both paints.
+  const FILL_FALLBACK: Paint = DEFAULT_STYLE.fill!;
+  const STROKE_FALLBACK: Paint = DEFAULT_STYLE.stroke!;
   const GEOMETRY: { field: GeometryField; label: string; min?: number; suffix?: string }[] = [
     { field: "x", label: "X" },
     { field: "y", label: "Y" },

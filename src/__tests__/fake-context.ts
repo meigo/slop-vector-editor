@@ -1,4 +1,5 @@
 import type { Doc } from "../doc/document";
+import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
 import { beginGesture, commit, endGesture, newSession, type Session } from "../state/session";
 import type { View } from "../state/viewport";
@@ -30,7 +31,7 @@ export function fakeContext(
     view: () => state.view,
     selection: () => state.selection,
     setSelection: (ids) => {
-      state.selection = [...ids];
+      state.selection = pruneSelection(state.session.doc, ids);
     },
     commit: (d) => {
       state.session = commit(state.session, d);

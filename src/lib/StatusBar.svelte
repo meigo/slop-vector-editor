@@ -14,7 +14,7 @@
   {#if app.selection.length > 0}
     <span>{app.selection.length} selected</span>
   {/if}
-  <span class="ml-auto">{ab.w} × {ab.h} px</span>
+  <span class="ml-auto whitespace-nowrap">{ab.w} × {ab.h} px</span>
   <span class="w-28 text-right">
     {cursor ? `${cursor.x.toFixed(1)}, ${cursor.y.toFixed(1)}` : "–"}
   </span>

@@ -5,6 +5,7 @@
   import { routePointerDown } from "../input/route";
   import {
     app,
+    cancelActiveGesture,
     dockMods,
     fitArtboard,
     registerGestureCancel,
@@ -88,7 +89,6 @@
 
   function onpointerdown(e: PointerEvent) {
     app.contextMenu = null;
-    app.lastPointerType = e.pointerType;
     if (e.pointerType === "pen") pencilSeen = true;
     let activeTouches = 0;
     for (const t of pointerTypes.values()) if (t === "touch") activeTouches++;
@@ -101,7 +101,10 @@
       tool: app.toolId,
       pencilSeen,
     });
-    if (route === "ignore" || route === "menu") return;
+    if (route === "ignore") return;
+    // Only routed pointers set the handle size (a stray palm must not); right-click counts as mouse.
+    app.lastPointerType = e.pointerType;
+    if (route === "menu") return;
     // No native text selection or drag; keep keyboard shortcuts working after a click here.
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -174,6 +177,7 @@
     e.preventDefault();
     if (app.lastPointerType !== "mouse") return;
     if (app.toolId !== "select") return;
+    cancelActiveGesture();
     const p = screenToDoc(app.view, local(e));
     const hit = hitTest(app.doc, p, pointerTolerance("mouse") / app.view.zoom);
     if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);

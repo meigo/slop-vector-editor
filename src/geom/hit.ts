@@ -1,4 +1,4 @@
-import type { Doc, EllipseShape, Node, PathShape, Shape } from "../doc/document";
+import type { Doc, EllipseShape, Node, PathShape, Shape, Subpath } from "../doc/document";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
@@ -7,14 +7,15 @@ import type { Vec } from "./vec";
 
 export type Hit = { layerId: string; nodeId: string };
 
-/** Flattened subpaths, cached per (immutable) path object. */
-const flatCache = new WeakMap<PathShape, Vec[][]>();
+/** Flattened subpaths, cached per (immutable) subpath array, so moving or rotating a path
+ *  (a new shape object with the same subpaths) keeps the cache. */
+const flatCache = new WeakMap<readonly Subpath[], Vec[][]>();
 
 function polylines(s: PathShape): Vec[][] {
-  let polys = flatCache.get(s);
+  let polys = flatCache.get(s.subpaths);
   if (!polys) {
     polys = s.subpaths.map(flattenSubpath);
-    flatCache.set(s, polys);
+    flatCache.set(s.subpaths, polys);
   }
   return polys;
 }
