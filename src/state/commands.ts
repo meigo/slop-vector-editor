@@ -1,6 +1,17 @@
 import { openDocument, saveDocument } from "../persist/project-io";
-import { fitArtboard, redo, undo, zoomBy, zoomTo } from "./appState.svelte";
-import type { Command } from "./keys";
+import {
+  clearSelection,
+  deleteSelection,
+  duplicateSelection,
+  fitArtboard,
+  nudgeSelection,
+  redo,
+  setTool,
+  undo,
+  zoomBy,
+  zoomTo,
+} from "./appState.svelte";
+import type { Command, EditAction } from "./keys";
 
 export const ZOOM_STEP = 1.25;
 
@@ -28,5 +39,20 @@ export function runCommand(cmd: Command): void {
       return zoomBy(ZOOM_STEP);
     case "zoomOut":
       return zoomBy(1 / ZOOM_STEP);
+  }
+}
+
+export function runEditAction(a: EditAction): void {
+  switch (a.kind) {
+    case "tool":
+      return setTool(a.tool);
+    case "delete":
+      return deleteSelection();
+    case "duplicate":
+      return duplicateSelection();
+    case "clear":
+      return clearSelection();
+    case "nudge":
+      return nudgeSelection(a.dx, a.dy);
   }
 }

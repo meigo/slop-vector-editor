@@ -3,16 +3,22 @@
   import type { Vec } from "./geom/vec";
   import Canvas from "./lib/Canvas.svelte";
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
+  import ContextBar from "./lib/ContextBar.svelte";
+  import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
+  import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
+  import PropertiesPanel from "./lib/PropertiesPanel.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
+  import ToolStrip from "./lib/ToolStrip.svelte";
   import TopBar from "./lib/TopBar.svelte";
   import { flushAutosave, scheduleAutosave } from "./persist/autosave";
   import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
+  import { watchOtherTabs } from "./persist/tab-presence";
   import { app, notify } from "./state/appState.svelte";
-  import { runCommand } from "./state/commands";
-  import { commandForKey } from "./state/keys";
+  import { runCommand, runEditAction } from "./state/commands";
+  import { commandForKey, editActionForKey } from "./state/keys";
 
   let cursor = $state<Vec | null>(null);
 
@@ -23,6 +29,12 @@
 
   onMount(() => {
     void restoreAutosave().then((ok) => (autosaveEnabled = ok));
+    return watchOtherTabs(() =>
+      notify(
+        "error",
+        "This editor is also open in another tab. Both tabs share one autosave — keep editing in one tab only.",
+      ),
+    );
   });
 
   $effect(() => {
@@ -60,24 +72,55 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    // Modals own the keyboard (Modal.svelte handles Escape).
-    if (app.dialog || app.confirm || isEditable(e.target)) return;
+    // Modals and menus own the keyboard (they handle Escape themselves).
+    if (app.dialog || app.confirm || app.contextMenu || isEditable(e.target)) return;
+    if (e.key === " ") {
+      e.preventDefault();
+      app.spaceHeld = true;
+      return;
+    }
     const cmd = commandForKey(e);
-    if (!cmd) return;
-    e.preventDefault();
-    runCommand(cmd);
+    if (cmd) {
+      e.preventDefault();
+      runCommand(cmd);
+      return;
+    }
+    const action = editActionForKey(e);
+    if (action) {
+      e.preventDefault();
+      runEditAction(action);
+    }
+  }
+
+  function onkeyup(e: KeyboardEvent) {
+    if (e.key === " ") app.spaceHeld = false;
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} {onkeyup} onblur={() => (app.spaceHeld = false)} />
 
 <div class="flex h-full flex-col">
   <TopBar />
-  <main class="min-h-0 flex-1">
-    <Canvas oncursor={(p) => (cursor = p)} />
-  </main>
+  <ContextBar />
+  <div class="flex min-h-0 flex-1">
+    <ToolStrip />
+    <main class="relative min-w-0 flex-1">
+      <Canvas oncursor={(p) => (cursor = p)} />
+      <ModifierDock />
+      {#if app.propertiesOpen}
+        <div class="absolute inset-y-0 right-0 z-20 flex shadow-xl min-[900px]:hidden">
+          <PropertiesPanel />
+        </div>
+      {/if}
+    </main>
+    <div class="hidden min-[900px]:flex">
+      <PropertiesPanel />
+    </div>
+  </div>
   <StatusBar {cursor} />
 </div>
+
+<ContextMenu />
 
 <Notices />
 

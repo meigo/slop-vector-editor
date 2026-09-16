@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 101 tests in 10 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 210 tests in 22 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -25,15 +25,32 @@ every user-visible change.
 
 ## Architecture map
 
-- `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`).
-- `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`).
+- `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`),
+  `tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`), `resize.ts` (bakes a resize into
+  shape geometry; see gotcha below).
+- `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, and the other
+  shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`, `boxMap`), `bezier.ts`
+  (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds through the matrix),
+  `hit.ts` (hit-testing and marquee select; caches flattened outlines per shape object).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export), `serialize.ts`, `parse.ts`.
+- `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
+  `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
+  (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
+  move, resize, rotate), `registry.ts` (`TOOLS`, one instance per id), `context.ts`
+  (`storeContext`, the real `ToolContext` wired to `app`; tests use `__tests__/fake-context.ts`).
+- `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
+  pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
-  `viewport.ts`, `keys.ts`, `commands.ts`, `appState.svelte.ts` (the `app` store + actions).
+  `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
+  properties panel, incl. mixed-value handling), `appState.svelte.ts` (the `app` store + actions).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
-  (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce).
-- `src/lib/` — `Canvas`, `NodeView`, `TopBar`, `StatusBar`, `Modal`, dialogs, `Notices`.
+  (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
+  (localStorage defaults for new shapes: style + polygon prefs), `tab-presence.ts`
+  (`BroadcastChannel` "another tab is open" warning).
+- `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo drawing), `TopBar`,
+  `StatusBar`, `ToolStrip`, `ContextBar`, `ContextMenu`, `ModifierDock`, `PropertiesPanel`,
+  `NumberField`, `PaintField`, `Modal`, dialogs, `Notices`.
 
 ## Invariants and gotchas
 
@@ -68,29 +85,59 @@ every user-visible change.
     opens with no handle — the first Save goes through the save picker or the download fallback —
     so a later ⌘S can never silently overwrite an Inkscape/Figma/Illustrator original with our
     lossy re-export.
+11. **Resize bakes scale into geometry** (spec M2a §1). Move and rotate only touch the matrix.
+    Never "simplify" resize into a matrix multiply: strokes would scale.
+12. **Tools never import the store.** They use `ToolContext` (`tools/context.ts` for the app,
+    `__tests__/fake-context.ts` for tests). This is what makes them unit-testable.
+13. **Every session change goes through `setSession`,** which prunes the selection. Don't assign
+    `app.session` directly anywhere else.
+14. **Handles on tiny objects cover the whole shape.** Reach is 6/10 px from the handle centre,
+    and corners take priority. Tests use 40×40 shapes for this reason. Handles that would act on
+    a zero-size axis are not drawn or hit-tested (`activeHandles` in `tools/gizmo.ts`), so a
+    horizontal/vertical line can be dragged by its middle. Tiny (non-zero) objects are still
+    handle-dominated — a small-object handle policy is an M5 item.
+15. **A running tool drag commits from its own base document**, so the store has a gesture-cancel
+    hook: `Canvas` registers `registerGestureCancel` while a tool gesture runs; undo, redo,
+    `replaceDocument`, every selection action (delete/duplicate/nudge/convert/flatten/rect
+    radius/style) and `applyGeometry` call `cancelActiveGesture()` first. New document-editing
+    store actions must do the same, or an edit made while a drag is in flight can be clobbered
+    when the drag commits.
+16. **Pointer routing (`input/route.ts`) uses `activeTouches`**: only a second finger starts a
+    pinch; a touch while a pen/mouse gesture is already running is ignored (palm rejection). The
+    right-click menu opens only for mouse input. A plain tap on a member of a multi-selection
+    narrows the selection to it; a new pointer-down cancels an active drag.
+17. **Ellipse hit-testing (`geom/hit.ts`) measures outline distance against a sampled 64-point
+    polyline** (nearest point), not along the radius.
+18. **`rectPath` merges coincident nodes**: a corner radius equal to half a side no longer yields
+    duplicate nodes.
 
 ## Current state
 
-Milestone 1 (scaffold, model, render, files) — see CHANGELOG. In M1 every canvas drag pans; there
-are no editing tools yet.
+Milestone 2a (select/transform/shapes/properties) — see CHANGELOG. Milestone 2b is clipboard and
+snapping.
 
 ## Roadmap
 
-M2 select/transform + shapes, M3 layers/groups, M4 pen + node editing, M5 iPad polish + deploy
+M2b clipboard + snapping, M3 layers/groups, M4 pen + node editing, M5 iPad polish + deploy
 (spec §9). Post-v1 list in spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
 not round-trip.
 
-M2: two tabs share one autosave record (last write wins) — add a Web Lock or BroadcastChannel
-warning.
-
 M4 constraint: a closed subpath whose last node coincides with its first is merged on reload (one
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
 closing segment.
 
-M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP).
+M2b: the snapping hook goes where `tools/select.ts` turns the pointer into a delta (move) or a
+target edge position (resize — pointer plus the grab offset).
+
+M3: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
+also edit group opacity.
+
+M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
+palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
+small-object handle policy; the drawer covers the modifier dock at iPad portrait widths.
 
 ## Verification debt
 

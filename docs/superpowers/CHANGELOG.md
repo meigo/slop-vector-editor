@@ -49,3 +49,86 @@
 - F5: `autosave.ts`'s `writeAutosave` now resolves on the write transaction's `oncomplete` and
   rejects on `onabort`/`onerror` (`tx.error`), rather than on the `put` request's `onsuccess` —
   the previous version could report success before the write was durable.
+
+## 2026-09-16 — Milestone 2a: select, transform, shapes
+
+- Geometry: `geom/box.ts` (axis-aligned boxes, `boxMap` for a resize transform), `bezier.ts`
+  (cubic point/extrema/bounds/flatten), `bounds.ts` (node and selection bounds through the
+  matrix), `hit.ts` (hit-testing and marquee select — path outlines and a 64-point sampled
+  ellipse polyline, both cached per shape object).
+- Edits and the resize model: `doc/tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`)
+  and `doc/resize.ts`, which bakes a resize into shape geometry (rect/ellipse fields, path node
+  positions) instead of the matrix, so stroke width and rect corner radius never scale; a resize
+  that would skew or rotate a rect/ellipse converts it to a path first. Move and rotate only ever
+  touch the matrix.
+- Tools and the gizmo: `tools/` gained `types`, `tool` (`Tool`/`ToolContext`/`ToolEvent`), `frame`
+  (rotated selection frame), `gizmo` (resize/rotate handle geometry and hit-testing), `shape-tools`
+  (rect/ellipse/line/polygon/hand draw tools, Shift/Alt during drag), `select` (click,
+  Shift-click, drag-select, move, resize by corner/edge, rotate with 15° Shift-snap,
+  Alt-duplicate), `registry` (`TOOLS`) and `context` (the real `ToolContext`, wired to `app`).
+  Tools never import the store — this is what makes them unit-testable against
+  `__tests__/fake-context.ts`.
+- Pointer routing: `input/route.ts` decides tool vs. pan vs. pinch vs. context-menu vs. ignore
+  from pointer type, button, and active pointers/touches — a right-click menu only for mouse
+  input, a second finger for pinch, and a touch during an active pen/mouse gesture ignored
+  (palm rejection). `Canvas` treats `pointercancel`/`lostpointercapture` like a gesture end. A
+  running tool drag commits from its own base document, so the store exposes a gesture-cancel
+  hook (`registerGestureCancel`/`cancelActiveGesture`): undo, redo, `replaceDocument`, every
+  selection action and `applyGeometry` cancel an active gesture before editing.
+- The modifier dock (`input/dock.ts`, `ModifierDock.svelte`): on-screen Shift/Alt for touch —
+  press-and-hold behaves like a physical key, a quick tap latches, a long press releases it.
+- The properties panel (`state/properties.ts`, `PropertiesPanel.svelte`, `NumberField`,
+  `PaintField`): fill/stroke/width/cap/join/opacity and X/Y/W/H/rotation, with mixed-value
+  ("blank field") handling across a multi-selection; with nothing selected it edits the defaults
+  for new shapes. A drawer (`TopBar` toggle) replaces the docked panel below 900 px width.
+- Preferences (`persist/preferences.ts`): style and polygon (sides/star/inner-ratio) defaults for
+  new shapes, persisted to `localStorage` and validated field-by-field on load.
+- The other-tab warning (`persist/tab-presence.ts`): a `BroadcastChannel` "hello"/"here" exchange
+  warns both tabs once that they share one autosave record.
+- Plan: `docs/superpowers/plans/2026-09-16-m2a-select-transform-shapes.md`. Spec addendum:
+  `docs/superpowers/specs/2026-09-16-m2a-select-transform-shapes-design.md`.
+- Browser-verified (desktop Chrome, dev server, at b221e6e): draw rect/ellipse/line/polygon with
+  real mouse drags, each new shape selected, tool keys R/E/L/Y/V; select by tap, Shift-tap
+  multi-select, drag-select (fully-inside rule, document order), Esc clears; resize by corner and
+  by edge; rotate with the knob (handles follow the rotated frame); a rotated rect resized in its
+  own frame stays a rect with its matrix unchanged; a non-uniform multi-selection resize turns a
+  ~90.16°-rotated rect into a path while an axis-aligned ellipse in the same selection stays an
+  ellipse; stroke widths never change on resize; Shift-snapped rotation (135° exactly) and
+  Alt-duplicate-drag via the on-screen modifier pad (tap latches, tap again releases), and
+  Alt-duplicate via a synthetic pointer event with `altKey` (the physical-key path) — the
+  automation tool's drag action cannot deliver modifier keys, so physical Shift/Alt drags were
+  not exercised with real input; keyboard: Shift+Arrow nudge as one undo step, ⌘D duplicate
+  (selects the copies), Backspace delete, ⌘Z undo, Space held enters the pan state; context bar:
+  rect corner radius (12), Convert to path (rounded rect → 8-node path); right-click menu opens on
+  the object under the pointer, Convert to path from the menu works; properties panel: fill hex
+  (uppercase accepted, stored lowercase), stroke width, W (resize keeps stroke width), mixed
+  values (fill "mixed", width blank), "Defaults for new shapes" with nothing selected, defaults
+  saved and restored after reload; serialize → parse → serialize of a drawn document is
+  byte-identical with nothing dropped; a second tab shows the shared-autosave warning in both
+  tabs; narrow layout
+  (820 px iframe): docked panel hidden, TopBar toggle opens/closes the drawer; no console errors.
+- Known issues found in the browser pass: the right-click menu is not clamped to the viewport
+  (opened near the bottom edge, its Delete item was cut off — a previously deferred minor, now
+  observed); in the narrow layout the status bar wraps "800 × 600 px" onto two lines (cosmetic).
+- Owed: touch, Apple Pencil and iPad (pinch, palm rejection, dock with a held finger); physical
+  Shift/Alt held during a real drag; Safari/Firefox; the drawer on a real narrow device.
+
+## 2026-09-16 — final review fixes (M2a)
+
+- F1: resizing keeps the grab offset — a handle pressed off-centre no longer makes the edge jump
+  to the pointer on the first move (`handleFramePoint` exported from `tools/gizmo.ts`).
+- F2: `NumberField` no longer commits on focus + blur without typing (tabbing through X/Y/W/H/R
+  recorded rounding-error nudges as undo steps).
+- F3: handles that would act on a zero-size axis are skipped (`activeHandles`): a horizontal or
+  vertical line can be dragged by its middle; the overlay draws only the active handles.
+- F4: Esc (`clearSelection`) cancels an active drag first.
+- F5: the right-click menu is clamped to the viewport (measured size, 4 px margin), and shows
+  "Convert to path" / "Flatten transform" only when they apply — the same check as the context
+  bar (`selectionActions` in `state/properties.ts`).
+- F6: `lastPointerType` is set only for routed pointers (plus right-click), so a rejected palm
+  does not change the handle size; the canvas context menu cancels an active drag before changing
+  the selection; the path hit-test cache is keyed by `subpaths` (survives move/rotate); the status
+  bar's artboard size no longer wraps; the properties panel's fallback paints come from
+  `DEFAULT_STYLE`; the test `fakeContext` prunes the selection like the real store.
+- Correction to the Milestone 2a entry: the modifier dock's long press acts like holding the key
+  and ends "off" when released (a quick tap latches; a quick tap on a latched key releases it).
