@@ -181,7 +181,7 @@
     const p = screenToDoc(app.view, local(e));
     const hit = hitTest(app.doc, p, pointerTolerance("mouse") / app.view.zoom);
     if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
-    if (app.selection.length > 0) app.contextMenu = { x: e.clientX, y: e.clientY };
+    app.contextMenu = { x: e.clientX, y: e.clientY };
   }
 
   $effect(() => {

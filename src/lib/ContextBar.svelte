@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { Copy, Trash2 } from "@lucide/svelte";
+  import { ClipboardPaste, Copy, CopyPlus, Scissors, Trash2 } from "@lucide/svelte";
   import type { Node, RectShape } from "../doc/document";
   import { findTopLevel } from "../doc/tree";
   import {
     app,
     convertSelectionToPath,
+    copyToSystem,
+    cutToSystem,
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    pasteFromClipboard,
     setPolygonPrefs,
     setSelectionRectRadius,
   } from "../state/appState.svelte";
@@ -60,8 +63,15 @@
     {/if}
   {:else if app.selection.length > 0}
     <span class="text-muted">{app.selection.length} selected</span>
+    <button class="btn gap-1" onclick={cutToSystem}><Scissors size={14} /> Cut</button>
+    <button class="btn gap-1" onclick={copyToSystem}><Copy size={14} /> Copy</button>
+    <button class="btn gap-1" onclick={() => void pasteFromClipboard()}>
+      <ClipboardPaste size={14} /> Paste
+    </button>
+    <button class="btn gap-1" onclick={duplicateSelection}>
+      <CopyPlus size={14} /> Duplicate
+    </button>
     <button class="btn gap-1" onclick={deleteSelection}><Trash2 size={14} /> Delete</button>
-    <button class="btn gap-1" onclick={duplicateSelection}><Copy size={14} /> Duplicate</button>
     {#if actions.canConvert}
       <button class="btn" onclick={convertSelectionToPath}>Convert to path</button>
     {/if}
@@ -72,6 +82,11 @@
       <NumberField label="Radius" value={radius} min={0} onchange={setSelectionRectRadius} />
     {/if}
   {:else}
+    {#if app.toolId === "select"}
+      <button class="btn gap-1" onclick={() => void pasteFromClipboard()}>
+        <ClipboardPaste size={14} /> Paste
+      </button>
+    {/if}
     <span class="truncate text-muted">{TOOLS[app.toolId].hint}</span>
   {/if}
 </div>
