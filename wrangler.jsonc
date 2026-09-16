@@ -1,0 +1,9 @@
+{
+  // Assets-only Workers deploy: no `main`. Static-asset requests are free and unlimited; only
+  // Worker invocations are billed, so a Worker script would meter traffic for no benefit.
+  // No `not_found_handling`: the app has no client-side routes.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "slop-vector-editor",
+  "compatibility_date": "2026-09-16",
+  "assets": { "directory": "./dist" },
+}
