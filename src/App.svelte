@@ -8,7 +8,7 @@
   import Notices from "./lib/Notices.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
   import TopBar from "./lib/TopBar.svelte";
-  import { scheduleAutosave } from "./persist/autosave";
+  import { flushAutosave, scheduleAutosave } from "./persist/autosave";
   import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
   import { app, notify } from "./state/appState.svelte";
   import { runCommand } from "./state/commands";
@@ -32,6 +32,21 @@
     scheduleAutosave(autosaveRecord, (err) =>
       notify("error", `Autosave failed: ${errorMessage(err)}`),
     );
+  });
+
+  // A pending 3 s debounce would otherwise be lost if the tab is closed or backgrounded (e.g.
+  // switching apps on iPad) before it fires.
+  $effect(() => {
+    if (!autosaveEnabled) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushAutosave();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flushAutosave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flushAutosave);
+    };
   });
 
   function isEditable(t: EventTarget | null): boolean {

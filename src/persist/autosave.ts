@@ -49,21 +49,45 @@ export async function loadAutosave(): Promise<AutosaveRecord | null> {
 
 export async function writeAutosave(rec: AutosaveRecord): Promise<void> {
   const db = await open();
-  await request(db.transaction(STORE, "readwrite").objectStore(STORE).put(rec, KEY));
+  const tx = db.transaction(STORE, "readwrite");
+  tx.objectStore(STORE).put(rec, KEY);
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+  });
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let reported = false;
+let pending: { get: () => AutosaveRecord; onError: (err: unknown) => void } | null = null;
+
+function runWrite(get: () => AutosaveRecord, onError: (err: unknown) => void): void {
+  writeAutosave(get()).catch((err: unknown) => {
+    if (reported) return; // one notice per session is enough
+    reported = true;
+    onError(err);
+  });
+}
 
 /** Debounced write. `get` runs when the timer fires, so a burst of edits serializes once. */
 export function scheduleAutosave(get: () => AutosaveRecord, onError: (err: unknown) => void): void {
   if (timer) clearTimeout(timer);
+  pending = { get, onError };
   timer = setTimeout(() => {
     timer = null;
-    writeAutosave(get()).catch((err: unknown) => {
-      if (reported) return; // one notice per session is enough
-      reported = true;
-      onError(err);
-    });
+    pending = null;
+    runWrite(get, onError);
   }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+/** Writes immediately if a debounced autosave is pending (e.g. the page is about to be hidden),
+ *  using the same get/onError pair scheduleAutosave last saw. A no-op otherwise. */
+export function flushAutosave(): void {
+  if (!timer || !pending) return;
+  clearTimeout(timer);
+  timer = null;
+  const { get, onError } = pending;
+  pending = null;
+  runWrite(get, onError);
 }
