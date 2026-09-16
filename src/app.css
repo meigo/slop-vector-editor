@@ -60,4 +60,10 @@ body {
   .kbd {
     @apply text-muted;
   }
+  .tool-on {
+    @apply bg-accent text-accent-text hover:bg-accent-hover;
+  }
+  .dock-on {
+    @apply border-accent bg-accent text-accent-text;
+  }
 }
