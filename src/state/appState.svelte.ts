@@ -248,6 +248,10 @@ export function setPolygonPrefs(patch: Partial<PolygonPrefs>): void {
   setPrefs({ ...app.prefs, polygon: { ...app.prefs.polygon, ...patch } });
 }
 
+export function toggleSnap(): void {
+  setPrefs({ ...app.prefs, snap: !app.prefs.snap });
+}
+
 // ----- selection actions (keyboard, context bar, context menu) -----
 
 export function deleteSelection(): void {

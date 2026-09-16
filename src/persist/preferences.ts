@@ -7,12 +7,13 @@ import {
 } from "../doc/document";
 
 export type PolygonPrefs = { sides: number; star: boolean; innerRatio: number };
-export type Prefs = { style: Style; polygon: PolygonPrefs };
+export type Prefs = { style: Style; polygon: PolygonPrefs; snap: boolean };
 export type PrefStorage = Pick<Storage, "getItem" | "setItem">;
 
 export const DEFAULT_PREFS: Prefs = {
   style: DEFAULT_STYLE,
   polygon: { sides: 5, star: false, innerRatio: 0.5 },
+  snap: true,
 };
 
 const KEY = "slop-vector-editor:prefs";
@@ -53,6 +54,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
       star: typeof p.star === "boolean" ? p.star : d.polygon.star,
       innerRatio: num(p.innerRatio, 0.1, 0.95, d.polygon.innerRatio),
     },
+    snap: typeof r.snap === "boolean" ? r.snap : d.snap,
   };
 }
 

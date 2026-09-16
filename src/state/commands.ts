@@ -7,6 +7,7 @@ import {
   nudgeSelection,
   redo,
   setTool,
+  toggleSnap,
   undo,
   zoomBy,
   zoomTo,
@@ -54,5 +55,7 @@ export function runEditAction(a: EditAction): void {
       return clearSelection();
     case "nudge":
       return nudgeSelection(a.dx, a.dy);
+    case "toggleSnap":
+      return toggleSnap();
   }
 }

@@ -43,6 +43,7 @@ export function fakeContext(
       state.session = endGesture(state.session);
     },
     prefs: () => prefs,
+    snapEnabled: () => prefs.snap,
     notify: (_kind, text) => {
       state.notices.push(text);
     },

@@ -8,7 +8,8 @@ import type { Mods, ToolId } from "./types";
 export type ToolEvent = { doc: Vec; screen: Vec; pointerType: string; mods: Mods };
 
 /** Transient drawing that is not part of the document (doc-space coordinates). */
-export type Overlay = { kind: "marquee"; box: Box } | null;
+export type Overlay =
+  { kind: "marquee"; box: Box } | { kind: "guides"; xs: number[]; ys: number[] } | null;
 
 /** Everything a tool may read or change. The app binds it to the store; tests use a fake. */
 export interface ToolContext {
@@ -20,6 +21,8 @@ export interface ToolContext {
   beginGesture(): void;
   endGesture(): void;
   prefs(): Prefs;
+  /** Whether moves, resizes and drawing should snap (the Snap toggle). */
+  snapEnabled(): boolean;
   notify(kind: "info" | "error", text: string): void;
   setOverlay(o: Overlay): void;
 }

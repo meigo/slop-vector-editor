@@ -35,7 +35,8 @@ export type EditAction =
   | { kind: "delete" }
   | { kind: "duplicate" }
   | { kind: "clear" }
-  | { kind: "nudge"; dx: number; dy: number };
+  | { kind: "nudge"; dx: number; dy: number }
+  | { kind: "toggleSnap" };
 
 const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   v: "select",
@@ -50,6 +51,7 @@ const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
 export function editActionForKey(e: KeyLike): EditAction | null {
   const k = e.key.toLowerCase();
   if (e.metaKey || e.ctrlKey) return k === "d" ? { kind: "duplicate" } : null;
+  if (e.key === "%") return { kind: "toggleSnap" };
   if (k === "delete" || k === "backspace") return { kind: "delete" };
   if (k === "escape") return { kind: "clear" };
   const step = e.shiftKey ? 10 : 1;
