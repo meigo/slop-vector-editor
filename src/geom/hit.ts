@@ -1,4 +1,4 @@
-import type { Doc, Node, PathShape, Shape } from "../doc/document";
+import type { Doc, EllipseShape, Node, PathShape, Shape } from "../doc/document";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
@@ -15,6 +15,24 @@ function polylines(s: PathShape): Vec[][] {
   if (!polys) {
     polys = s.subpaths.map(flattenSubpath);
     flatCache.set(s, polys);
+  }
+  return polys;
+}
+
+/** Ellipse outline sampled as a closed polyline, cached per (immutable) ellipse object. */
+const ellipseCache = new WeakMap<EllipseShape, Vec[][]>();
+
+function ellipsePolylines(s: EllipseShape): Vec[][] {
+  let polys = ellipseCache.get(s);
+  if (!polys) {
+    const n = 64;
+    const pts: Vec[] = [];
+    for (let i = 0; i <= n; i++) {
+      const t = (2 * Math.PI * (i % n)) / n;
+      pts.push({ x: s.cx + s.rx * Math.cos(t), y: s.cy + s.ry * Math.sin(t) });
+    }
+    polys = [pts];
+    ellipseCache.set(s, polys);
   }
   return polys;
 }
@@ -74,10 +92,7 @@ function shapeHit(s: Shape, p: Vec, tol: number): boolean {
       const ny = (p.y - s.cy) / s.ry;
       const q = Math.sqrt(nx * nx + ny * ny);
       if (q <= 1 && s.style.fill) return true;
-      // Radial distance to the outline along the ray from the centre (exact for circles).
-      const r = Math.hypot(p.x - s.cx, p.y - s.cy);
-      const d = q === 0 ? Math.min(s.rx, s.ry) : Math.abs(r - r / q);
-      return d <= reach;
+      return distToPolylines(p, ellipsePolylines(s)) <= reach;
     }
     case "path": {
       const polys = polylines(s);

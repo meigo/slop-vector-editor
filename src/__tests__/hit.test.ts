@@ -84,6 +84,25 @@ describe("hitTest", () => {
     expect(hitTest(ring, at(71, 50), 1)?.nodeId).toBe("e");
   });
 
+  it("measures ellipse outline distance to the nearest point, not along the radius", () => {
+    const e: Node = {
+      kind: "ellipse",
+      id: "e",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: null, stroke: null },
+      cx: 50,
+      cy: 50,
+      rx: 20,
+      ry: 10,
+    };
+    const d = doc({ children: [e] });
+    // 45° ray crosses the outline at (8.944, 8.944) from the centre; 10% further out is
+    // (9.839, 9.839). The true nearest distance there is ≈ 1.091.
+    const p = at(50 + 9.839, 50 + 9.839);
+    expect(hitTest(d, p, 1.15)?.nodeId).toBe("e");
+    expect(hitTest(d, p, 1.0)).toBeNull();
+  });
+
   it("fills paths with nonzero winding, closing open subpaths implicitly", () => {
     const tri: Node = {
       kind: "path",
