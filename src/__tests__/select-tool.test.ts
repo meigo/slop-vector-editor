@@ -312,4 +312,35 @@ describe("select tool: snapping", () => {
     expect(state.selection).toEqual(["a"]);
     expect(state.overlay).toBeNull();
   });
+
+  // Confirmed (node one-liner reproducing the snapBox arithmetic): with a rect at fractional
+  // x 215.115, pressing at 216 and ending the drag at 218.4 makes the copy's right edge snap onto
+  // the original's, and dx0 (2.4000000000000057) plus the snap delta (-2.3999999999999773) is
+  // 2.842170943040401e-14, not exactly 0 — the old `=== 0` check misses this residue.
+  it("an Alt-drag back to a fractional-origin start is caught despite float residue", () => {
+    const d = createDoc(400, 100);
+    const a: RectShape = {
+      kind: "rect",
+      id: "a",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: null },
+      x: 215.115,
+      y: 0,
+      w: 40,
+      h: 40,
+      rx: 0,
+    };
+    const doc: Doc = { ...d, nextId: 10, layers: [{ ...d.layers[0], children: [a] }] };
+    const { ctx, state } = fakeContext(doc);
+    const t = createSelectTool();
+    t.down(ctx, ev(216, 20, { alt: true }));
+    t.move(ctx, ev(216, 60, { alt: true }));
+    expect(state.session.doc.layers[0].children).toHaveLength(2);
+    t.move(ctx, ev(218.4, 20, { alt: true }));
+    t.up(ctx, ev(218.4, 20, { alt: true }));
+    expect(state.session.doc.layers[0].children.map((n) => n.id)).toEqual(["a"]);
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.selection).toEqual(["a"]);
+    expect(state.overlay).toBeNull();
+  });
 });

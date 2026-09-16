@@ -74,6 +74,9 @@ type Mode =
 
 const ALL_AXES: Axes = { x: true, y: true };
 const NO_AXES: Axes = { x: false, y: false };
+/** Tolerance for "the Alt-drag ended back at the start": snapping can leave a float residue
+ *  instead of an exact 0 (see `up`). */
+const BACK_AT_START_EPS = 1e-9;
 
 function constrain(dx: number, dy: number): [number, number, Axes] {
   const angle = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
@@ -284,8 +287,16 @@ export function createSelectTool(): Tool {
       drag(ctx, m, e);
       ctx.setOverlay(null);
       if (m.kind === "marquee") return;
-      if (m.kind === "move" && m.duplicatedFrom && m.last.x === 0 && m.last.y === 0) {
+      if (
+        m.kind === "move" &&
+        m.duplicatedFrom &&
+        Math.abs(m.last.x) < BACK_AT_START_EPS &&
+        Math.abs(m.last.y) < BACK_AT_START_EPS
+      ) {
         // Alt-dragged back to the start: drop the copies rather than stacking a hidden duplicate.
+        // Snapping can leave a sub-1e-9 float residue instead of an exact 0 (e.g. a fractional
+        // origin whose bounds don't cancel cleanly), so this compares with a tolerance rather
+        // than `=== 0`.
         ctx.commit(m.original);
         ctx.setSelection(m.duplicatedFrom);
       }
