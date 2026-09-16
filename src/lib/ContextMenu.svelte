@@ -6,6 +6,25 @@
     duplicateSelection,
     flattenSelection,
   } from "../state/appState.svelte";
+  import { selectionActions } from "../state/properties";
+
+  const MARGIN = 4;
+  let innerWidth = $state(0);
+  let innerHeight = $state(0);
+  // Estimated size until the first measurement.
+  let width = $state(208);
+  let height = $state(150);
+  const actions = $derived(selectionActions(app.doc, app.selection));
+  const left = $derived(
+    app.contextMenu
+      ? Math.max(MARGIN, Math.min(app.contextMenu.x, innerWidth - width - MARGIN))
+      : 0,
+  );
+  const top = $derived(
+    app.contextMenu
+      ? Math.max(MARGIN, Math.min(app.contextMenu.y, innerHeight - height - MARGIN))
+      : 0,
+  );
 
   function close() {
     app.contextMenu = null;
@@ -18,6 +37,8 @@
 </script>
 
 <svelte:window
+  bind:innerWidth
+  bind:innerHeight
   onkeydown={(e) => {
     if (e.key === "Escape" && app.contextMenu) close();
   }}
@@ -36,18 +57,24 @@
   ></button>
   <div
     class="fixed z-50 w-52 rounded border border-line bg-panel py-1 shadow-lg"
-    style="left: {app.contextMenu.x}px; top: {app.contextMenu.y}px"
+    style="left: {left}px; top: {top}px"
     role="menu"
+    bind:clientWidth={width}
+    bind:clientHeight={height}
   >
     <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>
       Duplicate <span class="kbd">⌘D</span>
     </button>
-    <button class="menu-item" role="menuitem" onclick={() => run(convertSelectionToPath)}>
-      Convert to path
-    </button>
-    <button class="menu-item" role="menuitem" onclick={() => run(flattenSelection)}>
-      Flatten transform
-    </button>
+    {#if actions.canConvert}
+      <button class="menu-item" role="menuitem" onclick={() => run(convertSelectionToPath)}>
+        Convert to path
+      </button>
+    {/if}
+    {#if actions.canFlatten}
+      <button class="menu-item" role="menuitem" onclick={() => run(flattenSelection)}>
+        Flatten transform
+      </button>
+    {/if}
     <div class="my-1 h-px bg-line"></div>
     <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
       Delete <span class="kbd">⌫</span>

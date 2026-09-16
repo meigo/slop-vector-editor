@@ -2,7 +2,6 @@
   import { Copy, Trash2 } from "@lucide/svelte";
   import type { Node, RectShape } from "../doc/document";
   import { findTopLevel } from "../doc/tree";
-  import { isIdentity } from "../geom/mat";
   import {
     app,
     convertSelectionToPath,
@@ -12,6 +11,7 @@
     setPolygonPrefs,
     setSelectionRectRadius,
   } from "../state/appState.svelte";
+  import { selectionActions } from "../state/properties";
   import { TOOLS } from "../tools/registry";
   import NumberField from "./NumberField.svelte";
 
@@ -20,8 +20,7 @@
       .map((id) => findTopLevel(app.doc, id)?.node)
       .filter((n): n is Node => n !== undefined),
   );
-  const canConvert = $derived(nodes.some((n) => n.kind === "rect" || n.kind === "ellipse"));
-  const canFlatten = $derived(nodes.some((n) => n.kind === "path" && !isIdentity(n.transform)));
+  const actions = $derived(selectionActions(app.doc, app.selection));
   const rects = $derived(nodes.filter((n): n is RectShape => n.kind === "rect"));
   const onlyRects = $derived(rects.length > 0 && rects.length === nodes.length);
   const radius = $derived(
@@ -63,10 +62,10 @@
     <span class="text-muted">{app.selection.length} selected</span>
     <button class="btn gap-1" onclick={deleteSelection}><Trash2 size={14} /> Delete</button>
     <button class="btn gap-1" onclick={duplicateSelection}><Copy size={14} /> Duplicate</button>
-    {#if canConvert}
+    {#if actions.canConvert}
       <button class="btn" onclick={convertSelectionToPath}>Convert to path</button>
     {/if}
-    {#if canFlatten}
+    {#if actions.canFlatten}
       <button class="btn" onclick={flattenSelection}>Flatten transform</button>
     {/if}
     {#if onlyRects}

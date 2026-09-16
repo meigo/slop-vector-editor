@@ -7,9 +7,10 @@ import {
   type RectShape,
   type Style,
 } from "../doc/document";
-import { applyMat, IDENTITY, rotateAbout, type Mat } from "../geom/mat";
+import { applyMat, IDENTITY, rotateAbout, translate, type Mat } from "../geom/mat";
 import {
   applyGeometryField,
+  selectionActions,
   selectionGeometry,
   selectionStyles,
   summarizeStyles,
@@ -118,5 +119,32 @@ describe("geometry fields", () => {
     expect(selectionGeometry(r, ["a"])!.r).toBeCloseTo(90);
     expect(applyGeometryField(d, ["a"], "r", 0)).toBe(d);
     expect(applyGeometryField(d, [], "r", 45)).toBe(d);
+  });
+});
+
+describe("selection actions", () => {
+  const path = (id: string, t: Mat): Node => ({
+    kind: "path",
+    id,
+    transform: t,
+    style: DEFAULT_STYLE,
+    subpaths: [
+      {
+        closed: false,
+        nodes: [
+          { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+          { p: { x: 10, y: 0 }, in: null, out: null, type: "corner" },
+        ],
+      },
+    ],
+  });
+  const d = doc(rect("a", 0, 0, 10, 10), path("p", IDENTITY), path("q", translate(5, 0)));
+
+  it("offers convert for rects and ellipses, flatten for transformed paths", () => {
+    expect(selectionActions(d, [])).toEqual({ canConvert: false, canFlatten: false });
+    expect(selectionActions(d, ["a"])).toEqual({ canConvert: true, canFlatten: false });
+    expect(selectionActions(d, ["p"])).toEqual({ canConvert: false, canFlatten: false });
+    expect(selectionActions(d, ["q"])).toEqual({ canConvert: false, canFlatten: true });
+    expect(selectionActions(d, ["a", "q", "gone"])).toEqual({ canConvert: true, canFlatten: true });
   });
 });

@@ -2,6 +2,7 @@ import type { Doc, LineCap, LineJoin, Paint, Style } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
 import { findTopLevel, shapesOf } from "../doc/tree";
+import { isIdentity } from "../geom/mat";
 import { frameCenter, frameResizeMap, selectionBounds, selectionFrame } from "../tools/frame";
 import { normalizeAngle } from "../tools/gizmo";
 
@@ -46,6 +47,17 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
     cap: merge(styles.map((s) => s.cap)),
     join: merge(styles.map((s) => s.join)),
     opacity: merge(styles.map((s) => s.opacity)),
+  };
+}
+
+export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
+
+/** Which shape actions apply to the selection (shared by the context bar and the context menu). */
+export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
+  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  return {
+    canConvert: nodes.some((n) => n.kind === "rect" || n.kind === "ellipse"),
+    canFlatten: nodes.some((n) => n.kind === "path" && !isIdentity(n.transform)),
   };
 }
 
