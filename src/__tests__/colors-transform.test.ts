@@ -60,5 +60,7 @@ describe("parseTransform", () => {
     expect(parseTransform("")).toEqual(IDENTITY);
     expect(parseTransform("bogus(1)")).toEqual(IDENTITY);
     expect(parseTransform("matrix(1 2)")).toEqual(IDENTITY);
+    expect(parseTransform("translate(1,2) foo(9,9) scale(2)")).toEqual(IDENTITY);
+    expect(parseTransform("translate(1,2), scale(2)")).not.toEqual(IDENTITY);
   });
 });

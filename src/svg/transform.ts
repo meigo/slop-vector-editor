@@ -39,5 +39,10 @@ export function parseTransform(value: string): Mat {
     result = multiply(result, fm);
     found = true;
   }
+  // If we found functions, check that the whole string is valid
+  // (only recognized functions, whitespace, and commas)
+  if (found && !/^[\s,]*$/.test(value.replace(FN_RE, ""))) {
+    return IDENTITY;
+  }
   return found ? result : IDENTITY;
 }
