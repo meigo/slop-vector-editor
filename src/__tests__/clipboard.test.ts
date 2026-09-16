@@ -121,6 +121,14 @@ describe("planPaste", () => {
     expect(second.clip).toEqual({ text, pastes: 2 });
   });
 
+  it("recognises our own copy even after a CRLF round-trip", () => {
+    const crlf = text.replace(/\n/g, "\r\n");
+    const clip: Clip = { text, pastes: 0 };
+    const r = plan(planPaste(source, crlf, clip, view));
+    expect(originOf(r.doc, r.ids[0])).toEqual({ x: 10, y: 10 });
+    expect(r.clip).toEqual({ text: crlf, pastes: 1 });
+  });
+
   it("centres our copy in the view when the offset copy would be off-screen", () => {
     const far = { x: 500, y: 500, w: 100, h: 100 };
     const r = plan(planPaste(source, text, { text, pastes: 0 }, far));

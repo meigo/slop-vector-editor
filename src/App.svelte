@@ -71,6 +71,29 @@
     );
   }
 
+  /** Input types that aren't text entry — a focused checkbox etc. must not block clipboard
+   *  keyboard shortcuts from acting on the shape selection. Used only by `clipboardIgnored`. */
+  const NON_TEXT_INPUT_TYPES = new Set([
+    "checkbox",
+    "radio",
+    "color",
+    "range",
+    "button",
+    "submit",
+    "reset",
+    "file",
+  ]);
+
+  function isTextField(t: EventTarget | null): boolean {
+    return (
+      t instanceof HTMLElement &&
+      (t.isContentEditable ||
+        (t.tagName === "INPUT" && !NON_TEXT_INPUT_TYPES.has((t as HTMLInputElement).type)) ||
+        t.tagName === "TEXTAREA" ||
+        t.tagName === "SELECT")
+    );
+  }
+
   function onkeydown(e: KeyboardEvent) {
     // Modals and menus own the keyboard (they handle Escape themselves).
     if (app.dialog || app.confirm || app.contextMenu || isEditable(e.target)) return;
@@ -97,8 +120,8 @@
   }
 
   /** Text fields and dialogs keep the browser's own clipboard behaviour. */
-  function clipboardIgnored(e: ClipboardEvent): boolean {
-    return app.dialog !== null || app.confirm !== null || isEditable(e.target);
+  function clipboardIgnored(e: Event): boolean {
+    return app.dialog !== null || app.confirm !== null || isTextField(e.target);
   }
 
   function writeClipboard(e: ClipboardEvent, action: () => string | null) {
@@ -117,6 +140,27 @@
     e.preventDefault();
     pasteText(text);
   }
+
+  // WebKit (Safari, iPad) only enables Edit ▸ Copy/Cut/Paste — and so only fires
+  // copy/cut/paste for ⌘C/⌘X/⌘V — when there's a text selection, an editable focus, or a
+  // beforecopy/beforecut/beforepaste handler that calls preventDefault(). Harmless elsewhere.
+  // Not in lib.dom.d.ts, so <svelte:window> can't type these; register by hand.
+  $effect(() => {
+    const onBeforeCopyOrCut = (e: Event) => {
+      if (!clipboardIgnored(e) && app.selection.length > 0) e.preventDefault();
+    };
+    const onBeforePaste = (e: Event) => {
+      if (!clipboardIgnored(e)) e.preventDefault();
+    };
+    window.addEventListener("beforecopy", onBeforeCopyOrCut);
+    window.addEventListener("beforecut", onBeforeCopyOrCut);
+    window.addEventListener("beforepaste", onBeforePaste);
+    return () => {
+      window.removeEventListener("beforecopy", onBeforeCopyOrCut);
+      window.removeEventListener("beforecut", onBeforeCopyOrCut);
+      window.removeEventListener("beforepaste", onBeforePaste);
+    };
+  });
 </script>
 
 <svelte:window

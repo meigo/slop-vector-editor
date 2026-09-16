@@ -66,7 +66,10 @@ export function planPaste(
   const layerId = targetLayerId(doc);
   if (!layerId) return { error: NO_LAYER };
 
-  const own = clip !== null && text === clip.text;
+  // A system clipboard round-trip (e.g. on Windows) can turn \n into \r\n, so compare with line
+  // endings normalised or our own copy looks external.
+  const normalizeEol = (s: string) => s.replace(/\r\n/g, "\n");
+  const own = clip !== null && normalizeEol(text) === normalizeEol(clip.text);
   const n = own ? clip.pastes + 1 : 0;
   const vc = boxCenter(view);
   const bc = boxCenter(bounds);
