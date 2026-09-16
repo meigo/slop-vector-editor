@@ -48,10 +48,10 @@ every user-visible change.
   planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
-  (localStorage defaults for new shapes: style + polygon prefs), `tab-presence.ts`
+  (localStorage defaults for new shapes: style + polygon prefs + snap), `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper).
-- `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo drawing), `TopBar`,
+- `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `ContextBar`, `ContextMenu`, `ModifierDock`, `PropertiesPanel`,
   `NumberField`, `PaintField`, `Modal`, dialogs, `Notices`.
 
@@ -116,7 +116,10 @@ every user-visible change.
 19. **Keyboard copy/cut/paste use the window `copy`/`cut`/`paste` events** (App.svelte), never
     `navigator.clipboard`: the events need no permission and can set `image/svg+xml`. Only the
     context bar and menu buttons read `navigator.clipboard`, and they fall back to the in-app copy
-    (`clip` in the store). Text fields and dialogs keep the browser's own behaviour.
+    (`clip` in the store). Text fields and dialogs keep the browser's own behaviour. `App.svelte`
+    also listens for `beforecopy`/`beforecut`/`beforepaste` on `window` and calls
+    `preventDefault()` — these exist so WebKit (Safari, iPad) enables the clipboard commands with
+    no text selection; don't remove them.
 20. **Snapping is per gesture.** Tools collect targets at pointer-down (`collectTargets`,
     excluding what moves) and put guides in the overlay; they must clear the overlay on up/cancel.
     Resize snaps only unrotated frames; rotation and marquee never snap. The threshold is

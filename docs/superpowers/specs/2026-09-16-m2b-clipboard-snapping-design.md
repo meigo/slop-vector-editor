@@ -73,8 +73,8 @@ recognising "our own last copy".
   `cancelActiveGesture()` first. A paste is one undo step and selects the pasted nodes; dropped
   features show the same info notice as Open.
 - UI: the context bar shows Cut / Copy / Paste with a selection and Paste without one (Select
-  tool). The right-click menu gains Cut / Copy / Paste and now also opens on empty canvas, where it
-  offers only Paste.
+  tool). The right-click menu gains Cut / Copy / Paste and now also opens on empty canvas too,
+  offering only Paste when nothing is selected. (amended at final review)
 - The store exposes `visibleDocBox(): Box` (the canvas viewport in document coordinates).
 
 ## 3. Snapping
