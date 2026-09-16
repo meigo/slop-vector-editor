@@ -1,6 +1,6 @@
 <script lang="ts">
   import { dockDown, dockUp, type DockPress } from "../input/dock";
-  import { app, setDock, type DockState } from "../state/appState.svelte";
+  import { app, setDock, toggleSnap, type DockState } from "../state/appState.svelte";
 
   const KEYS: readonly (keyof DockState)[] = ["shift", "alt"];
   const LABELS: Record<keyof DockState, string> = { shift: "Shift", alt: "Alt" };
@@ -32,6 +32,16 @@
   role="toolbar"
   aria-label="Modifier keys"
 >
+  <button
+    class="h-10 w-14 rounded border border-line text-xs select-none"
+    class:dock-on={app.prefs.snap}
+    aria-pressed={app.prefs.snap}
+    title="Snap to the artboard and objects (%)"
+    onclick={toggleSnap}
+    onpointerdown={(e) => e.preventDefault()}
+  >
+    Snap
+  </button>
   {#each KEYS as key (key)}
     <button
       class="h-10 w-14 rounded border border-line text-xs select-none"

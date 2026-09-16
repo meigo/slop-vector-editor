@@ -31,6 +31,7 @@ describe("preferences", () => {
       opacity: 0.8,
     },
     polygon: { sides: 7, star: true, innerRatio: 0.3 },
+    snap: false,
   };
 
   it("falls back to defaults for missing or malformed input", () => {
@@ -50,6 +51,7 @@ describe("preferences", () => {
         opacity: 2,
       },
       polygon: { sides: 2.5, star: "yes", innerRatio: 0.99 },
+      snap: "yes",
     });
     expect(p.style).toEqual({
       fill: DEFAULT_PREFS.style.fill,
@@ -60,8 +62,15 @@ describe("preferences", () => {
       opacity: 1,
     });
     expect(p.polygon).toEqual(DEFAULT_PREFS.polygon);
+    expect(p.snap).toBe(true);
     const q = sanitizePrefs({ style: { fill: { color: "#00ff00", opacity: "x" } } });
     expect(q.style.fill).toEqual({ color: "#00ff00", opacity: 1 });
+  });
+
+  it("keeps a boolean snap preference", () => {
+    expect(DEFAULT_PREFS.snap).toBe(true);
+    expect(sanitizePrefs({ snap: false }).snap).toBe(false);
+    expect(sanitizePrefs({}).snap).toBe(true);
   });
 
   it("loads and saves without ever throwing", () => {
@@ -154,6 +163,8 @@ describe("editActionForKey", () => {
     expect(k("ArrowDown", { shiftKey: true })).toEqual({ kind: "nudge", dx: 0, dy: 10 });
     expect(k("ArrowUp")).toEqual({ kind: "nudge", dx: 0, dy: -1 });
     expect(k("ArrowRight", { shiftKey: true })).toEqual({ kind: "nudge", dx: 10, dy: 0 });
+    expect(k("%", { shiftKey: true })).toEqual({ kind: "toggleSnap" });
+    expect(k("%", { metaKey: true })).toBeNull();
   });
 });
 

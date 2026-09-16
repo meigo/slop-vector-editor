@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
+import { DEFAULT_PREFS } from "../persist/preferences";
 import { createSelectTool } from "../tools/select";
 import type { Tool } from "../tools/tool";
 import { ev, fakeContext } from "./fake-context";
@@ -116,6 +117,13 @@ describe("select tool: transforms", () => {
     expect(p.x).toBeCloseTo(10);
     expect(p.y).toBeCloseTo(0);
     expect(state.selection).toEqual(["a"]);
+  });
+
+  it("a mostly-vertical Shift-drag leaves x exactly 0, not a float residue", () => {
+    const { ctx, state } = fakeContext(twoRects(), { ...DEFAULT_PREFS, snap: false });
+    const t = createSelectTool();
+    drag(t, ctx, [20, 20], [22, 50], { shift: true });
+    expect(origin(state.session.doc, "a").x).toBe(0);
   });
 
   it("duplicates with Alt and moves the copy", () => {
@@ -254,5 +262,104 @@ describe("select tool: transforms", () => {
     drag(t, ctx, [50, 50], [50, 80]);
     expect(node(state.session.doc, "l").transform).toEqual(translate(0, 30));
     expect(state.session.history.past).toHaveLength(1);
+  });
+});
+
+describe("select tool: snapping", () => {
+  // twoRects(): a at x 0–40, b at x 60–100, both y 0–40; artboard 200 × 200.
+  it("snaps a moved selection to other objects and shows guides", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20));
+    t.move(ctx, ev(37, 20));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [0] });
+    t.up(ctx, ev(37, 20));
+    expect(origin(state.session.doc, "a")).toEqual({ x: 20, y: 0 });
+    expect(state.overlay).toBeNull();
+    expect(state.session.history.past).toHaveLength(1);
+  });
+
+  it("does not snap when Snap is off", () => {
+    const { ctx, state } = fakeContext(twoRects(), { ...DEFAULT_PREFS, snap: false });
+    drag(createSelectTool(), ctx, [20, 20], [37, 20]);
+    expect(origin(state.session.doc, "a")).toEqual({ x: 17, y: 0 });
+  });
+
+  it("snaps only along a Shift-constrained axis", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    t.down(ctx, ev(20, 20, { shift: true }));
+    t.move(ctx, ev(37, 22, { shift: true }));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [] });
+    t.up(ctx, ev(37, 22, { shift: true }));
+    const p = origin(state.session.doc, "a");
+    expect(p.x).toBeCloseTo(20);
+    expect(p.y).toBeCloseTo(0);
+  });
+
+  it("snaps a resize handle", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    drag(t, ctx, [40, 40], [57, 43]);
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 40 });
+  });
+
+  it("cancel during a snapped move clears the guides overlay and restores the doc", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20));
+    t.move(ctx, ev(37, 20));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [60], ys: [0] });
+    t.cancel(ctx);
+    expect(state.overlay).toBeNull();
+    expect(node(state.session.doc, "a").transform).toEqual(IDENTITY);
+    expect(state.session.history.past).toHaveLength(0);
+  });
+
+  it("an Alt-drag that ends where it started leaves nothing behind", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    t.down(ctx, ev(20, 20, { alt: true }));
+    t.move(ctx, ev(20, 60, { alt: true }));
+    expect(state.session.doc.layers[0].children).toHaveLength(3);
+    t.move(ctx, ev(20, 20, { alt: true }));
+    t.up(ctx, ev(20, 20, { alt: true }));
+    expect(state.session.doc.layers[0].children.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.selection).toEqual(["a"]);
+    expect(state.overlay).toBeNull();
+  });
+
+  // Confirmed (node one-liner reproducing the snapBox arithmetic): with a rect at fractional
+  // x 215.115, pressing at 216 and ending the drag at 218.4 makes the copy's right edge snap onto
+  // the original's, and dx0 (2.4000000000000057) plus the snap delta (-2.3999999999999773) is
+  // 2.842170943040401e-14, not exactly 0 — the old `=== 0` check misses this residue.
+  it("an Alt-drag back to a fractional-origin start is caught despite float residue", () => {
+    const d = createDoc(400, 100);
+    const a: RectShape = {
+      kind: "rect",
+      id: "a",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: null },
+      x: 215.115,
+      y: 0,
+      w: 40,
+      h: 40,
+      rx: 0,
+    };
+    const doc: Doc = { ...d, nextId: 10, layers: [{ ...d.layers[0], children: [a] }] };
+    const { ctx, state } = fakeContext(doc);
+    const t = createSelectTool();
+    t.down(ctx, ev(216, 20, { alt: true }));
+    t.move(ctx, ev(216, 60, { alt: true }));
+    expect(state.session.doc.layers[0].children).toHaveLength(2);
+    t.move(ctx, ev(218.4, 20, { alt: true }));
+    t.up(ctx, ev(218.4, 20, { alt: true }));
+    expect(state.session.doc.layers[0].children.map((n) => n.id)).toEqual(["a"]);
+    expect(state.session.history.past).toHaveLength(0);
+    expect(state.selection).toEqual(["a"]);
+    expect(state.overlay).toBeNull();
   });
 });

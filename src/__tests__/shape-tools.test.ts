@@ -6,6 +6,7 @@ import {
   type RectShape,
   type EllipseShape,
 } from "../doc/document";
+import { IDENTITY } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import {
   createEllipseTool,
@@ -191,5 +192,82 @@ describe("ellipse, line and polygon tools", () => {
     drag(createHandTool(), ctx, [0, 0], [10, 10]);
     expect(children(state.session.doc)).toHaveLength(0);
     expect(createHandTool().cursor).toBe("grab");
+  });
+});
+
+describe("snapping while drawing", () => {
+  const withRect = (): Doc => {
+    const d = createDoc(100, 100);
+    return {
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          children: [
+            {
+              kind: "rect",
+              id: "a",
+              transform: IDENTITY,
+              style: DEFAULT_PREFS.style,
+              x: 20,
+              y: 20,
+              w: 10,
+              h: 10,
+              rx: 0,
+            },
+          ],
+        },
+      ],
+    };
+  };
+
+  it("snaps the start and current points to the artboard and shows guides", () => {
+    const { ctx, state } = fakeContext(blank());
+    const tool = createRectTool();
+    tool.down(ctx, ev(1, 1));
+    tool.move(ctx, ev(48, 30));
+    expect(state.overlay).toEqual({ kind: "guides", xs: [50], ys: [] });
+    tool.up(ctx, ev(48, 30));
+    expect(children(state.session.doc)[0]).toMatchObject({ x: 0, y: 0, w: 50, h: 30 });
+    expect(state.overlay).toBeNull();
+  });
+
+  it("snaps to other objects' edges", () => {
+    const { ctx, state } = fakeContext(withRect());
+    drag(createRectTool(), ctx, [60, 60], [31, 71]);
+    expect(children(state.session.doc)[1]).toMatchObject({ x: 30, y: 60, w: 30, h: 11 });
+  });
+
+  it("does nothing when Snap is off", () => {
+    const { ctx, state } = fakeContext(blank(), { ...DEFAULT_PREFS, snap: false });
+    drag(createRectTool(), ctx, [1, 1], [48, 30]);
+    expect(children(state.session.doc)[0]).toMatchObject({ x: 1, y: 1, w: 47, h: 29 });
+    expect(state.overlay).toBeNull();
+  });
+
+  it("uses a screen-sized threshold", () => {
+    const { ctx, state } = fakeContext(blank());
+    state.view = { x: 0, y: 0, zoom: 4 };
+    drag(createRectTool(), ctx, [3, 3], [40, 40]);
+    expect(children(state.session.doc)[0]).toMatchObject({ x: 3, y: 3 });
+  });
+
+  it("does not snap a Shift-constrained line end", () => {
+    const { ctx, state } = fakeContext(blank());
+    drag(createLineTool(), ctx, [1, 1], [48, 3], { shift: true });
+    const line = children(state.session.doc)[0] as PathShape;
+    const [a, b] = line.subpaths[0].nodes;
+    expect(a.p).toEqual({ x: 0, y: 0 });
+    expect(b.p.x).toBeCloseTo(Math.hypot(48, 3));
+    expect(b.p.y).toBeCloseTo(0);
+  });
+
+  it("clears the guides on cancel", () => {
+    const { ctx, state } = fakeContext(blank());
+    const tool = createRectTool();
+    tool.down(ctx, ev(1, 1));
+    tool.move(ctx, ev(48, 30));
+    tool.cancel(ctx);
+    expect(state.overlay).toBeNull();
   });
 });

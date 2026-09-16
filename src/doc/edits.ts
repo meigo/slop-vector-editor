@@ -142,3 +142,26 @@ export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
       : n,
   );
 }
+
+/** Adds copies of `nodes` (fresh ids) on top of a layer, moved by (dx, dy). */
+export function insertNodes(
+  doc: Doc,
+  layerId: string,
+  nodes: readonly Node[],
+  dx: number,
+  dy: number,
+): { doc: Doc; ids: string[] } {
+  const li = doc.layers.findIndex((l) => l.id === layerId);
+  if (li < 0) throw new Error(`No layer ${layerId}`);
+  if (nodes.length === 0) return { doc, ids: [] };
+  let nextId = doc.nextId;
+  const next = () => idFor(nextId++);
+  const offset = translate(dx, dy);
+  const added = nodes.map((n) => {
+    const copy = withFreshIds(n, next);
+    return dx === 0 && dy === 0 ? copy : { ...copy, transform: multiply(offset, copy.transform) };
+  });
+  const layers = doc.layers.slice();
+  layers[li] = { ...layers[li], children: [...layers[li].children, ...added] };
+  return { doc: { ...doc, layers, nextId }, ids: added.map((n) => n.id) };
+}

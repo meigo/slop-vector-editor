@@ -19,6 +19,7 @@ export const storeContext: ToolContext = {
   beginGesture: beginDocGesture,
   endGesture: endDocGesture,
   prefs: () => app.prefs,
+  snapEnabled: () => app.prefs.snap,
   notify,
   setOverlay,
 };

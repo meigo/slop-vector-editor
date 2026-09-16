@@ -2,9 +2,12 @@
   import {
     app,
     convertSelectionToPath,
+    copyToSystem,
+    cutToSystem,
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    pasteFromClipboard,
   } from "../state/appState.svelte";
   import { selectionActions } from "../state/properties";
 
@@ -62,22 +65,36 @@
     bind:clientWidth={width}
     bind:clientHeight={height}
   >
-    <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>
-      Duplicate <span class="kbd">⌘D</span>
-    </button>
-    {#if actions.canConvert}
-      <button class="menu-item" role="menuitem" onclick={() => run(convertSelectionToPath)}>
-        Convert to path
+    {#if app.selection.length > 0}
+      <button class="menu-item" role="menuitem" onclick={() => run(cutToSystem)}>
+        Cut <span class="kbd">⌘X</span>
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(copyToSystem)}>
+        Copy <span class="kbd">⌘C</span>
       </button>
     {/if}
-    {#if actions.canFlatten}
-      <button class="menu-item" role="menuitem" onclick={() => run(flattenSelection)}>
-        Flatten transform
+    <button class="menu-item" role="menuitem" onclick={() => run(() => void pasteFromClipboard())}>
+      Paste <span class="kbd">⌘V</span>
+    </button>
+    {#if app.selection.length > 0}
+      <div class="my-1 h-px bg-line"></div>
+      <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>
+        Duplicate <span class="kbd">⌘D</span>
+      </button>
+      {#if actions.canConvert}
+        <button class="menu-item" role="menuitem" onclick={() => run(convertSelectionToPath)}>
+          Convert to path
+        </button>
+      {/if}
+      {#if actions.canFlatten}
+        <button class="menu-item" role="menuitem" onclick={() => run(flattenSelection)}>
+          Flatten transform
+        </button>
+      {/if}
+      <div class="my-1 h-px bg-line"></div>
+      <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
+        Delete <span class="kbd">⌫</span>
       </button>
     {/if}
-    <div class="my-1 h-px bg-line"></div>
-    <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
-      Delete <span class="kbd">⌫</span>
-    </button>
   </div>
 {/if}

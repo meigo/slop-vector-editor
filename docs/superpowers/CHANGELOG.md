@@ -132,3 +132,51 @@
   `DEFAULT_STYLE`; the test `fakeContext` prunes the selection like the real store.
 - Correction to the Milestone 2a entry: the modifier dock's long press acts like holding the key
   and ends "off" when released (a quick tap latches; a quick tap on a latched key releases it).
+
+## 2026-09-16 — Milestone 2b: clipboard and snapping
+
+- Copy/cut/paste: the selection is copied as standalone SVG in our own format (`text/plain` and
+  `image/svg+xml`); paste accepts any SVG text through the importer. Repeated pastes of our own
+  copy cascade by 10 (centred on the view when the offset copy would be off-screen); external
+  SVG is centred on the view. One undo step; the pasted nodes are selected; dropped features are
+  listed. Keyboard uses the window clipboard events; the context bar and right-click menu (which
+  now also opens on empty canvas, Paste only) use `navigator.clipboard` with the in-app copy as
+  fallback.
+- Snapping (8 screen px) to the artboard edges/centre and other objects' bounds (visible layers,
+  locked included) while moving (Shift-constrained moves snap only their axis), resizing
+  (unrotated frames, the moving handle's axes) and drawing (start and current point; not the end
+  of a Shift-constrained line). Pink guide lines; Snap toggle in the dock and on `%`; saved in
+  preferences (default on).
+- An Alt-drag released at its start no longer leaves a hidden duplicate.
+- The Alt-drag-back check uses a 1e-9 tolerance: snapping can leave a float residue on fractional
+  coordinates.
+- Plan: `docs/superpowers/plans/2026-09-16-m2b-clipboard-snapping.md`.
+- Browser-verified (desktop Chrome, M2b branch; synthetic ClipboardEvents/PointerEvents;
+  `navigator.clipboard` stubbed so the real system clipboard was never read or written and no
+  permission prompt appeared): copy event preventDefaults and writes identical SVG text in
+  `text/plain` and `image/svg+xml`; three pastes of it cascade +10/+20/+30, each one undo step,
+  pasted copy selected; cut event removes the selection in one undo step, pasting it back lands
+  at +10; external SVG (circle + `<text>`) pastes centred exactly on the visible canvas with info
+  notice "Some content was not imported: `<text>`"; plain-text paste gives error notice "The
+  clipboard doesn't contain an SVG drawing." and leaves the document unchanged; copy with focus
+  in a properties field is not intercepted; context bar shows "1 selected · Cut · Copy · Paste ·
+  Duplicate · Delete · Convert to path · Radius" with a selection, "Paste" + hint without one;
+  right-click menu on empty canvas offers Cut/Copy/Paste/Duplicate/Convert to path/Delete with a
+  selection, Paste only without one; menu Copy writes the system clipboard once; menu Paste with
+  the read refused pastes the in-app copy at +10, and with no in-app copy after a reload shows
+  info "Nothing to paste." with the document unchanged; move snapping: right edge snaps onto
+  another object's left edge (x exact), guide state `{xs:[200]}` and a 1 px pink (`#ff3ea5`)
+  full-height line at the right screen x, removed on release, one undo step; resize
+  snapping: east handle snaps to the other object's edge (w exactly 160), guide shown then
+  cleared, a 10°-rotated rect does not snap (w 117 = 80 + 37); draw snapping: a rect started 2–3
+  units from the artboard corner starts exactly at (0, 0), and at (2, 3) with Snap off; Snap
+  toggle: `%` turns it off (button `aria-pressed` false, not highlighted), the setting survives a
+  reload, tapping the dock's Snap button turns it back on; Alt-drag (dock Alt latched) of a
+  fractional-origin rect out and back near the start leaves no duplicate, no history, not dirty,
+  selection kept; no console errors on load.
+- Known issue observed (not a regression of this branch): an info notice sits on top of the
+  modifier dock (both bottom-right) for its 6 s lifetime.
+- Owed: Safari (does it fire `copy`/`cut` with no text selection?), Firefox, the iPad clipboard
+  permission prompt and paste button, snapping by touch/Pencil, a real clipboard-read permission
+  prompt, real ⌘C/⌘V key presses (automation used synthetic clipboard events), pasting directly
+  from Inkscape/Illustrator/Figma.

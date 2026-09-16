@@ -29,6 +29,8 @@
   const marqueeB = $derived(
     marquee ? docToScreen(view, { x: marquee.x + marquee.w, y: marquee.y + marquee.h }) : null,
   );
+  const guides = $derived(app.overlay?.kind === "guides" ? app.overlay : null);
+  const GUIDE = "stroke: var(--color-guide)";
 
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 </script>
@@ -76,5 +78,16 @@
       style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.08"
       stroke-dasharray="4 3"
     />
+  {/if}
+
+  {#if guides}
+    {#each guides.xs as x, i (i)}
+      {@const sx = docToScreen(view, { x, y: 0 }).x}
+      <line x1={sx} y1="0" x2={sx} y2={app.viewportSize.h} style={GUIDE} stroke-width="1" />
+    {/each}
+    {#each guides.ys as y, i (i)}
+      {@const sy = docToScreen(view, { x: 0, y }).y}
+      <line x1="0" y1={sy} x2={app.viewportSize.w} y2={sy} style={GUIDE} stroke-width="1" />
+    {/each}
   {/if}
 </g>
