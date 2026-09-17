@@ -12,7 +12,10 @@ const escapeAttr = (v: string) =>
     .replace(/\n/g, "&#10;")
     .replace(/\r/g, "&#13;")
     // eslint-disable-next-line no-control-regex -- stripping the remaining C0 controls XML forbids
-    .replace(/[\u0000-\u001f]/g, "");
+    .replace(/[\u0000-\u001f]/g, "")
+    // …and the other code points XML forbids: U+FFFE/U+FFFF and unpaired surrogates.
+    .replace(/[\uFFFE\uFFFF]/g, "")
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "");
 
 function open(tag: string, attrs: Attrs): string {
   const parts = Object.entries(attrs).map(([k, v]) => ` ${k}="${escapeAttr(v)}"`);

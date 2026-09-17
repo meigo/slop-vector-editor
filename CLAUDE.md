@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 281 tests in 27 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 303 tests in 29 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -26,8 +26,9 @@ every user-visible change.
 ## Architecture map
 
 - `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
-  `insertNodes` for paste), `tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`),
-  `resize.ts` (bakes a resize into shape geometry; see gotcha below).
+  `insertNodes` for paste), `tree.ts` (`findTopLevel`, `selectableIds`), `layers.ts` (layer,
+  naming and z-order edits; current-layer helpers), `resize.ts` (bakes a resize into shape
+  geometry; see gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds
@@ -55,9 +56,10 @@ every user-visible change.
   `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
-  (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`,
-  `PropertiesPanel`, `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state
-  helper), `Modal`, dialogs, `Notices`.
+  (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
+  (the Properties + Layers column), `PropertiesPanel`, `LayersPanel`, `double-tap.ts` and
+  `layer-drop.ts` (pure helpers), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`,
+  the pure state helper), `Modal`, dialogs, `Notices`.
 
 ## Invariants and gotchas
 
@@ -155,15 +157,22 @@ every user-visible change.
     shows no tooltip, and a hidden one moves the bar. The top bar must never scroll or wrap,
     because that would clip the File menu. Only the file name shrinks. The file name's `title`
     (full name when truncated) is the one non-action title and also shows in the status bar.
+25. **New objects go into the current layer** (`app.currentLayerId`, spec M3a). It is store state
+    (not saved or undoable), re-resolved in `setSession`, set from the last selected object in
+    `setSelection`, and reset by `replaceDocument`. Tools read it through
+    `ToolContext.currentLayerId()`, and paste receives it as a parameter. A hidden or locked
+    current layer refuses with `blockMessage`, never silently falls back. Z-order shortcuts match
+    `KeyboardEvent.code` (`BracketLeft`/`BracketRight`), because Shift changes `key`. The Layers
+    panel also handles Escape in the window capture phase during a row drag, so the app's Escape
+    ("clear selection") doesn't also run.
 
 ## Current state
 
-Milestone 2e (one icon top bar) — see CHANGELOG. Next is milestone 3a: the layers panel and
-z-order.
+Milestone 3a (layers panel, z-order) — see CHANGELOG. Next is milestone 3b: groups.
 
 ## Roadmap
 
-M3 layers/groups, M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
+M3b groups, M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
 spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
@@ -174,7 +183,7 @@ M4 constraint: a closed subpath whose last node coincides with its first is merg
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
 closing segment. Snapping to path nodes is M4 (spec M2b §1).
 
-M3: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
+M3b: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
 also edit group opacity.
 
 M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);

@@ -240,3 +240,14 @@ describe("serializeDoc", () => {
     expect(back.layers[0].name).toBe("a\nbc");
   });
 });
+
+describe("name sanitising", () => {
+  it("drops code points XML forbids from names", () => {
+    const d = createDoc(10, 10);
+    const bad: Doc = {
+      ...d,
+      layers: [{ ...d.layers[0], name: "A\uFFFEB\uFFFF\uD800C\uDC00D\uD83D\uDE00" }],
+    };
+    expect(serializeDoc(bad)).toContain('data-sv-name="ABCD\uD83D\uDE00"');
+  });
+});

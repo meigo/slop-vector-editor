@@ -1,6 +1,8 @@
 <script lang="ts">
   import {
     app,
+    bringSelectionForward,
+    bringSelectionToFront,
     convertSelectionToPath,
     copyToSystem,
     cutToSystem,
@@ -8,6 +10,8 @@
     duplicateSelection,
     flattenSelection,
     pasteFromClipboard,
+    sendSelectionBackward,
+    sendSelectionToBack,
   } from "../state/appState.svelte";
   import { selectionActions } from "../state/properties";
 
@@ -91,6 +95,19 @@
           Flatten transform
         </button>
       {/if}
+      <div class="my-1 h-px bg-line"></div>
+      <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionToFront)}>
+        Bring to front <span class="kbd">⇧⌘]</span>
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionForward)}>
+        Bring forward <span class="kbd">⌘]</span>
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(sendSelectionBackward)}>
+        Send backward <span class="kbd">⌘[</span>
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(sendSelectionToBack)}>
+        Send to back <span class="kbd">⇧⌘[</span>
+      </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
         Delete <span class="kbd">⌫</span>

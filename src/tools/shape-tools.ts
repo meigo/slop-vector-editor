@@ -1,6 +1,6 @@
 import type { Doc, Shape, Style } from "../doc/document";
 import { addShape } from "../doc/edits";
-import { targetLayerId } from "../doc/tree";
+import { blockMessage, layerBlock } from "../doc/layers";
 import { boxFromPoints, type Box } from "../geom/box";
 import { IDENTITY, rotateAbout } from "../geom/mat";
 import { linePath } from "../geom/shapes";
@@ -97,9 +97,10 @@ function createDragTool(
     cursor: "crosshair",
     down(ctx, e) {
       const doc = ctx.doc();
-      const layerId = targetLayerId(doc);
-      if (!layerId) {
-        ctx.notify("info", "Every layer is hidden or locked — there is nowhere to draw.");
+      const layerId = ctx.currentLayerId();
+      const block = layerBlock(doc, layerId);
+      if (block) {
+        ctx.notify("info", blockMessage(block, "draw"));
         return;
       }
       const targets = ctx.snapEnabled() ? collectTargets(doc, []) : null;

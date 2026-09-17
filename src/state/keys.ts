@@ -3,7 +3,13 @@ import type { ToolId } from "../tools/types";
 export type Command =
   "undo" | "redo" | "save" | "saveAs" | "open" | "fit" | "zoom100" | "zoomIn" | "zoomOut";
 
-export type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean };
+export type KeyLike = {
+  key: string;
+  code?: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+};
 
 /** New document has no shortcut on purpose: browsers reserve ⌘N / Ctrl+N. */
 export function commandForKey(e: KeyLike): Command | null {
@@ -30,13 +36,16 @@ export function commandForKey(e: KeyLike): Command | null {
   return null;
 }
 
+export type ZOrderOp = "forward" | "backward" | "front" | "back";
+
 export type EditAction =
   | { kind: "tool"; tool: ToolId }
   | { kind: "delete" }
   | { kind: "duplicate" }
   | { kind: "clear" }
   | { kind: "nudge"; dx: number; dy: number }
-  | { kind: "toggleSnap" };
+  | { kind: "toggleSnap" }
+  | { kind: "zorder"; op: ZOrderOp };
 
 const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   v: "select",
@@ -50,7 +59,13 @@ const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
 /** Editing keys. Checked after `commandForKey`, and never while a text field has focus. */
 export function editActionForKey(e: KeyLike): EditAction | null {
   const k = e.key.toLowerCase();
-  if (e.metaKey || e.ctrlKey) return k === "d" ? { kind: "duplicate" } : null;
+  if (e.metaKey || e.ctrlKey) {
+    if (k === "d") return { kind: "duplicate" };
+    // By physical key: Shift turns "]" into "}" on many layouts.
+    if (e.code === "BracketRight") return { kind: "zorder", op: e.shiftKey ? "front" : "forward" };
+    if (e.code === "BracketLeft") return { kind: "zorder", op: e.shiftKey ? "back" : "backward" };
+    return null;
+  }
   if (e.key === "%") return { kind: "toggleSnap" };
   if (k === "delete" || k === "backspace") return { kind: "delete" };
   if (k === "escape") return { kind: "clear" };

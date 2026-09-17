@@ -1,4 +1,5 @@
 import type { Doc } from "../doc/document";
+import { resolveLayerId } from "../doc/layers";
 import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
 import { beginGesture, commit, endGesture, newSession, type Session } from "../state/session";
@@ -9,6 +10,7 @@ import { NO_MODS, type Mods } from "../tools/types";
 export type FakeState = {
   session: Session;
   selection: readonly string[];
+  currentLayerId: string;
   overlay: Overlay;
   notices: string[];
   view: View;
@@ -22,6 +24,7 @@ export function fakeContext(
   const state: FakeState = {
     session: newSession(doc, true),
     selection: [],
+    currentLayerId: resolveLayerId(doc, null),
     overlay: null,
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
@@ -30,6 +33,7 @@ export function fakeContext(
     doc: () => state.session.doc,
     view: () => state.view,
     selection: () => state.selection,
+    currentLayerId: () => state.currentLayerId,
     setSelection: (ids) => {
       state.selection = pruneSelection(state.session.doc, ids);
     },

@@ -1,6 +1,6 @@
 import type { Doc, Node } from "../doc/document";
 import { insertNodes } from "../doc/edits";
-import { targetLayerId } from "../doc/tree";
+import { blockMessage, layerBlock } from "../doc/layers";
 import { nodeBounds } from "../geom/bounds";
 import { boxCenter, unionBox, type Box } from "../geom/box";
 import { IDENTITY } from "../geom/mat";
@@ -10,7 +10,6 @@ import { serializeDoc } from "../svg/serialize";
 export const PASTE_STEP = 10;
 export const NOT_SVG = "The clipboard doesn't contain an SVG drawing.";
 export const EMPTY = "The clipboard drawing is empty.";
-export const NO_LAYER = "Every layer is hidden or locked — there is nowhere to paste.";
 
 /** The in-app copy: what we last copied, and how many times it has been pasted since. */
 export type Clip = { text: string; pastes: number };
@@ -47,12 +46,14 @@ function intersects(a: Box, b: Box): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
 }
 
-/** Spec (M2b) §2.3. `view` is the visible canvas area in document coordinates. */
+/** Spec (M2b) §2.3, M3a §2. `view` is the visible canvas area in document coordinates; `layerId`
+ *  is the current layer, which receives the pasted nodes. */
 export function planPaste(
   doc: Doc,
   text: string,
   clip: Clip | null,
   view: Box,
+  layerId: string,
 ): PastePlan | PasteError {
   let parsed: ParseResult;
   try {
@@ -63,8 +64,8 @@ export function planPaste(
   const nodes = parsed.doc.layers.flatMap((l) => l.children);
   const bounds = boundsOf(nodes);
   if (nodes.length === 0 || !bounds) return { error: EMPTY };
-  const layerId = targetLayerId(doc);
-  if (!layerId) return { error: NO_LAYER };
+  const block = layerBlock(doc, layerId);
+  if (block) return { error: blockMessage(block, "paste") };
 
   // A system clipboard round-trip (e.g. on Windows) can turn \n into \r\n, so compare with line
   // endings normalised or our own copy looks external.

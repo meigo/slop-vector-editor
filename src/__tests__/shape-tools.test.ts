@@ -139,13 +139,28 @@ describe("rect tool", () => {
     expect(state.session.history.past).toHaveLength(2);
   });
 
-  it("refuses to draw when every layer is locked or hidden", () => {
+  it("refuses to draw on a hidden or locked current layer", () => {
     const d = blank();
     const locked: Doc = { ...d, layers: [{ ...d.layers[0], locked: true }] };
-    const { ctx, state } = fakeContext(locked);
+    const l = fakeContext(locked);
+    drag(createRectTool(), l.ctx, [0, 0], [10, 10]);
+    expect(children(l.state.session.doc)).toHaveLength(0);
+    expect(l.state.notices).toEqual(["“Layer 1” is locked — unlock it to draw."]);
+    const hidden: Doc = { ...d, layers: [{ ...d.layers[0], visible: false }] };
+    const h = fakeContext(hidden);
+    drag(createRectTool(), h.ctx, [0, 0], [10, 10]);
+    expect(h.state.notices).toEqual(["“Layer 1” is hidden — show it to draw."]);
+  });
+
+  it("draws into the current layer", () => {
+    const d = blank();
+    const two: Doc = { ...d, layers: [d.layers[0], { ...d.layers[0], id: "top", name: "Top" }] };
+    const { ctx, state } = fakeContext(two);
+    expect(state.currentLayerId).toBe("top");
+    state.currentLayerId = d.layers[0].id;
     drag(createRectTool(), ctx, [0, 0], [10, 10]);
-    expect(children(state.session.doc)).toHaveLength(0);
-    expect(state.notices).toEqual(["Every layer is hidden or locked — there is nowhere to draw."]);
+    expect(state.session.doc.layers[0].children).toHaveLength(1);
+    expect(state.session.doc.layers[1].children).toHaveLength(0);
   });
 });
 

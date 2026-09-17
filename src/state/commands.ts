@@ -1,11 +1,15 @@
 import { openDocument, saveDocument } from "../persist/project-io";
 import {
+  bringSelectionForward,
+  bringSelectionToFront,
   clearSelection,
   deleteSelection,
   duplicateSelection,
   fitArtboard,
   nudgeSelection,
   redo,
+  sendSelectionBackward,
+  sendSelectionToBack,
   setTool,
   toggleSnap,
   undo,
@@ -57,5 +61,16 @@ export function runEditAction(a: EditAction): void {
       return nudgeSelection(a.dx, a.dy);
     case "toggleSnap":
       return toggleSnap();
+    case "zorder":
+      switch (a.op) {
+        case "forward":
+          return bringSelectionForward();
+        case "backward":
+          return sendSelectionBackward();
+        case "front":
+          return bringSelectionToFront();
+        case "back":
+          return sendSelectionToBack();
+      }
   }
 }

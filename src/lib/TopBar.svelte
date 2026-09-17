@@ -1,11 +1,15 @@
 <script lang="ts">
   import {
+    ArrowDown,
+    ArrowUp,
+    BringToFront,
     ClipboardPaste,
     Copy,
     CopyPlus,
     Maximize,
     Redo2,
     Scissors,
+    SendToBack,
     SlidersHorizontal,
     Spline,
     Stamp,
@@ -16,6 +20,8 @@
   } from "@lucide/svelte";
   import {
     app,
+    bringSelectionForward,
+    bringSelectionToFront,
     convertSelectionToPath,
     copyToSystem,
     cutToSystem,
@@ -23,6 +29,8 @@
     duplicateSelection,
     flattenSelection,
     pasteFromClipboard,
+    sendSelectionBackward,
+    sendSelectionToBack,
     type DialogKind,
   } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
@@ -156,6 +164,39 @@
     disabled={none}
     disabledTitle="Delete — nothing selected"
     onclick={deleteSelection}
+  />
+  <span class="bar-sep"></span>
+  <IconButton
+    label="Bring to front"
+    title="Bring to front ({shiftMod}])"
+    icon={BringToFront}
+    disabled={none}
+    disabledTitle="Bring to front — nothing selected"
+    onclick={bringSelectionToFront}
+  />
+  <IconButton
+    label="Bring forward"
+    title="Bring forward ({mod}])"
+    icon={ArrowUp}
+    disabled={none}
+    disabledTitle="Bring forward — nothing selected"
+    onclick={bringSelectionForward}
+  />
+  <IconButton
+    label="Send backward"
+    title="Send backward ({mod}[)"
+    icon={ArrowDown}
+    disabled={none}
+    disabledTitle="Send backward — nothing selected"
+    onclick={sendSelectionBackward}
+  />
+  <IconButton
+    label="Send to back"
+    title="Send to back ({shiftMod}[)"
+    icon={SendToBack}
+    disabled={none}
+    disabledTitle="Send to back — nothing selected"
+    onclick={sendSelectionToBack}
   />
 
   <span class="bar-sep"></span>
