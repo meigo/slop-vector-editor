@@ -151,9 +151,9 @@
     </div>
   {/if}
 
-  {#if !hasSelection}
+  {#if !hasSelection || app.toolId === "polygon"}
     <div class="flex flex-col gap-2 border-t border-line pt-3">
-      <span class="section-title">Polygon</span>
+      <span class="section-title">New polygons</span>
       <div class="flex flex-wrap items-center gap-2">
         <NumberField
           label="Sides"

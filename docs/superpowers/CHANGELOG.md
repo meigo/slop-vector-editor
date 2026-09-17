@@ -254,7 +254,8 @@
   Actions that don't apply stay in place, `aria-disabled`, with the reason in the tooltip.
 - Every `title` also shows in the status bar on mouse hover (tool hint otherwise).
 - Rect radius and polygon Sides / Star / Inner moved to a "Shape" section in Properties; the
-  polygon tool's defaults are a "Polygon" section under "Defaults for new shapes".
+  polygon tool's defaults are a "New polygons" section shown with nothing selected or while the
+  polygon tool is active.
 - Superseded: the M2d entry's context-bar bullets (separators, Star toggle in the context bar,
   40px context bar) — the context bar no longer exists.
 - Plan: `docs/superpowers/plans/2026-09-17-m2e-icon-toolbar.md`.

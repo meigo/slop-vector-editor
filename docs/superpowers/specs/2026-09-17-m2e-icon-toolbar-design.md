@@ -116,8 +116,9 @@ From left to right, with groups separated by `.bar-sep`:
       → `setSelectionPolygon({ innerRatio })`.
 
   Otherwise there is no Shape section.
-- **With nothing selected** ("Defaults for new shapes"), after the style defaults, show a
-  "Polygon" section (`.section-title`), always, whatever tool is active:
+- **With nothing selected, or whenever the polygon tool is active** ("Defaults for new shapes"),
+  after the style defaults, show a "New polygons" section (`.section-title`) (amended at final
+  review: the tool selects each new polygon, which hid the defaults while drawing):
   - **Sides** → `setPolygonPrefs({ sides })`;
   - **Star** → `setPolygonPrefs({ star })`;
   - **Inner %** (shown when `prefs.polygon.star`) → `setPolygonPrefs({ innerRatio })`.
