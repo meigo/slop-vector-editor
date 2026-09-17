@@ -422,4 +422,15 @@ describe("entering a group", () => {
     expect(state.enteredGroupId).toBe("g");
     expect(state.selection).toEqual(["b"]);
   });
+
+  it("leaves the group when a click lands on empty canvas", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(250, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(250, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBeNull();
+    expect(state.selection).toEqual([]);
+  });
 });

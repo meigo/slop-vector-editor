@@ -307,6 +307,7 @@ export function createSelectTool(): Tool {
         } else if (m.hitId && m.collapseOnUp) {
           ctx.setSelection([m.hitId]);
         } else if (!m.hitId && !m.start.mods.shift) {
+          ctx.setEnteredGroup(null);
           ctx.setSelection([]);
         }
         return;
