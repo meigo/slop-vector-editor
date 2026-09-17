@@ -36,7 +36,7 @@
 </script>
 
 <div
-  class="flex h-9 shrink-0 items-center gap-2 overflow-x-auto border-b border-line bg-panel px-3 text-xs"
+  class="flex h-10 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-line bg-panel px-3 text-xs"
 >
   {#if app.toolId === "polygon"}
     <NumberField

@@ -19,9 +19,7 @@
   }
 </script>
 
-<header
-  class="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-panel px-2 text-xs"
->
+<header class="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-panel px-2 text-xs">
   <div class="relative">
     <button
       class={[
