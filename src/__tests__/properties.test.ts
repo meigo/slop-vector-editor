@@ -4,6 +4,7 @@ import {
   DEFAULT_STYLE,
   type Doc,
   type Node,
+  type PolygonShape,
   type RectShape,
   type Style,
 } from "../doc/document";
@@ -13,6 +14,7 @@ import {
   selectionActions,
   selectionGeometry,
   selectionStyles,
+  summarizePolygons,
   summarizeStyles,
 } from "../state/properties";
 import { deepFreeze } from "./helpers";
@@ -146,5 +148,45 @@ describe("selection actions", () => {
     expect(selectionActions(d, ["p"])).toEqual({ canConvert: false, canFlatten: false });
     expect(selectionActions(d, ["q"])).toEqual({ canConvert: false, canFlatten: true });
     expect(selectionActions(d, ["a", "q", "gone"])).toEqual({ canConvert: true, canFlatten: true });
+  });
+});
+
+describe("polygon summary", () => {
+  const poly = (id: string, over: Partial<PolygonShape> = {}): PolygonShape => ({
+    kind: "polygon",
+    id,
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    cx: 50,
+    cy: 50,
+    rx: 10,
+    ry: 10,
+    sides: 5,
+    star: false,
+    innerRatio: 0.5,
+    ...over,
+  });
+
+  it("summarises polygons, blanking values that differ", () => {
+    const d = doc(poly("a"), poly("b", { sides: 6, star: true }), rect("r", 0, 0, 5, 5));
+    expect(summarizePolygons(d, [])).toBeNull();
+    expect(summarizePolygons(d, ["a", "r"])).toBeNull();
+    expect(summarizePolygons(d, ["a"])).toEqual({
+      sides: 5,
+      star: false,
+      innerRatio: 0.5,
+      anyStar: false,
+    });
+    expect(summarizePolygons(d, ["a", "b"])).toEqual({
+      sides: null,
+      star: "mixed",
+      innerRatio: 0.5,
+      anyStar: true,
+    });
+  });
+
+  it("offers Convert to path for polygons", () => {
+    const d = doc(poly("a"));
+    expect(selectionActions(d, ["a"]).canConvert).toBe(true);
   });
 });

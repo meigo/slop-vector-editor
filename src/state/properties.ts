@@ -1,4 +1,4 @@
-import type { Doc, LineCap, LineJoin, Paint, Style } from "../doc/document";
+import type { Doc, LineCap, LineJoin, Paint, PolygonShape, Style } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
 import { findTopLevel, shapesOf } from "../doc/tree";
@@ -56,8 +56,33 @@ export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
 export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
   const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
   return {
-    canConvert: nodes.some((n) => n.kind === "rect" || n.kind === "ellipse"),
+    canConvert: nodes.some(
+      (n) => n.kind === "rect" || n.kind === "ellipse" || n.kind === "polygon",
+    ),
     canFlatten: nodes.some((n) => n.kind === "path" && !isIdentity(n.transform)),
+  };
+}
+
+export type PolygonSummary = {
+  sides: number | null;
+  star: boolean | "mixed";
+  innerRatio: number | null;
+  anyStar: boolean;
+};
+
+/** Context-bar values for a selection made only of polygons (spec M2c §5); null otherwise. */
+export function summarizePolygons(doc: Doc, ids: readonly string[]): PolygonSummary | null {
+  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  const polys = nodes.filter((n): n is PolygonShape => n.kind === "polygon");
+  if (polys.length === 0 || polys.length !== nodes.length) return null;
+  const same = <T>(values: T[]): T | null =>
+    values.every((v) => v === values[0]) ? values[0] : null;
+  const stars = polys.map((p) => p.star);
+  return {
+    sides: same(polys.map((p) => p.sides)),
+    star: same(stars) ?? "mixed",
+    innerRatio: same(polys.map((p) => p.innerRatio)),
+    anyStar: stars.some(Boolean),
   };
 }
 

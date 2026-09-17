@@ -6,6 +6,7 @@ import {
   type Group,
   type Layer,
   type Node,
+  type PolygonShape,
   type RectShape,
 } from "../doc/document";
 import {
@@ -15,6 +16,7 @@ import {
   duplicateNodes,
   flattenTransform,
   rotateNodes,
+  setPolygon,
   setRectRadius,
   setStyle,
   translateNodes,
@@ -177,5 +179,66 @@ describe("edits", () => {
     expect(flat.transform).toEqual(IDENTITY);
     if (flat.kind !== "path") throw new Error("expected path");
     expect(flat.subpaths[0].nodes[0].p).toEqual({ x: 5, y: 0 });
+  });
+});
+
+describe("polygon edits", () => {
+  const poly = (id: string, over: Partial<PolygonShape> = {}): PolygonShape => ({
+    kind: "polygon",
+    id,
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    cx: 0,
+    cy: 0,
+    rx: 10,
+    ry: 10,
+    sides: 5,
+    star: false,
+    innerRatio: 0.5,
+    ...over,
+  });
+  const d = (): Doc =>
+    deepFreeze({
+      ...createDoc(100, 100),
+      layers: [
+        {
+          id: "L",
+          name: "L",
+          visible: true,
+          locked: false,
+          children: [poly("a"), poly("b", { star: true }), rect("r")],
+        },
+      ],
+    });
+  const get = (doc: Doc, id: string) => doc.layers[0].children.find((n) => n.id === id)!;
+
+  it("sets sides, star and inner ratio on selected polygons only", () => {
+    const doc = d();
+    const out = setPolygon(doc, ["a", "b", "r"], { sides: 7.4, star: true, innerRatio: 0.3 });
+    expect(get(out, "a")).toMatchObject({ sides: 7, star: true, innerRatio: 0.3 });
+    expect(get(out, "b")).toMatchObject({ sides: 7, star: true, innerRatio: 0.3 });
+    expect(get(out, "r")).toBe(get(doc, "r"));
+  });
+
+  it("clamps and ignores non-finite values", () => {
+    const doc = d();
+    expect(get(setPolygon(doc, ["a"], { sides: 1 }), "a")).toMatchObject({ sides: 3 });
+    expect(get(setPolygon(doc, ["a"], { sides: 99 }), "a")).toMatchObject({ sides: 32 });
+    expect(get(setPolygon(doc, ["a"], { innerRatio: 0 }), "a")).toMatchObject({ innerRatio: 0.1 });
+    expect(get(setPolygon(doc, ["a"], { innerRatio: 2 }), "a")).toMatchObject({ innerRatio: 0.95 });
+    expect(setPolygon(doc, ["a"], { sides: NaN, innerRatio: Infinity })).toBe(doc);
+  });
+
+  it("returns the same document when nothing changes", () => {
+    const doc = d();
+    expect(setPolygon(doc, ["a"], { sides: 5, star: false, innerRatio: 0.5 })).toBe(doc);
+    expect(setPolygon(doc, ["r"], { sides: 8 })).toBe(doc);
+    expect(setPolygon(doc, ["a"], {})).toBe(doc);
+  });
+
+  it("converts polygons to paths", () => {
+    const out = convertToPath(d(), ["b"]);
+    expect(get(out, "b").kind).toBe("path");
+    expect(get(out, "a").kind).toBe("polygon");
   });
 });
