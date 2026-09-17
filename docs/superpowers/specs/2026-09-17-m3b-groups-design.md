@@ -164,9 +164,11 @@ changes.
    **descendant of another selected node** — grouping a group together with its own child means
    grouping the group.
 2. With no node left, return `{ doc, id: null }`.
-3. The **target parent** is the parent of the frontmost node (the last one in document order), and
-   the group is inserted at that node's index, counted after the moved nodes are taken out. So a
-   group lands where its frontmost member was, and keeps its z-order.
+3. The **target parent** is the parent of the frontmost node (the last one in document order). The
+   new group is put in at that node's own index and the members are then moved into it, so the
+   group ends up exactly where its frontmost member was, keeping its z-order. (Amended during the
+   plan's dry run: computing the index "after removal" and inserting before the removal placed the
+   group one slot too low.)
 4. The children keep their place on screen. A node moving from parent matrix `P_old` into the
    target's matrix `P_new` gets `reparent(P_old, P_new, T)` (§2.2). The new group's own transform is
    the identity, so `P_new` is the target parent's matrix. If any conversion returns null (a
