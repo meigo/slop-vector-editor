@@ -280,5 +280,6 @@
   context bar element remains; screenshots taken of the disabled state, the File menu, the Shape
   section (radius) and the Shape section (polygon + star); no console errors during use or on
   reload.
-- Owed: iPad (no hover — no status-bar hints on touch; native tooltips need a long-press),
-  Safari/Firefox, a real 768px window.
+- Owed: iPad (no hover — no status-bar hints on touch; iPad Safari shows no `title` tooltips, so
+  on touch the icon buttons have no visible labels and disabled reasons are invisible — needs a
+  touch label/reason affordance (M5)), Safari/Firefox, a real 768px window.

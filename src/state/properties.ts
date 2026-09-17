@@ -64,7 +64,7 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
 
 export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
 
-/** Which shape actions apply to the selection (shared by the context bar and the context menu). */
+/** Which shape actions apply to the selection (shared by the top bar and the context menu). */
 export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
   const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
   return {

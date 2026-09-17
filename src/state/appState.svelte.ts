@@ -259,7 +259,7 @@ export function toggleSnap(): void {
   setPrefs({ ...app.prefs, snap: !app.prefs.snap });
 }
 
-// ----- selection actions (keyboard, context bar, context menu) -----
+// ----- selection actions (keyboard, top bar, context menu) -----
 
 export function deleteSelection(): void {
   cancelActiveGesture();
