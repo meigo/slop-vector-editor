@@ -49,9 +49,10 @@ body {
 
 @layer components {
   /* Every control in a bar is 32px high (spec M2d §5; the guide says 24px, slop-animator and
-     touch use 32px). Controls never shrink or wrap; the bar scrolls instead. */
+     touch use 32px). The top bar never scrolls or wraps (that would clip the File menu); only
+     the file name shrinks. */
   .icon-btn {
-    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;
   }
   .btn {
     @apply inline-flex h-8 shrink-0 items-center rounded border border-line bg-raised px-3 text-xs whitespace-nowrap text-text hover:border-muted disabled:text-disabled;

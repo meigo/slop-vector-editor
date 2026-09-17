@@ -1,4 +1,12 @@
-import type { Doc, LineCap, LineJoin, Paint, PolygonShape, Style } from "../doc/document";
+import type {
+  Doc,
+  LineCap,
+  LineJoin,
+  Paint,
+  PolygonShape,
+  RectShape,
+  Style,
+} from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
 import { findTopLevel, shapesOf } from "../doc/tree";
@@ -56,7 +64,7 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
 
 export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
 
-/** Which shape actions apply to the selection (shared by the context bar and the context menu). */
+/** Which shape actions apply to the selection (shared by the top bar and the context menu). */
 export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
   const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
   return {
@@ -74,7 +82,7 @@ export type PolygonSummary = {
   anyStar: boolean;
 };
 
-/** Context-bar values for a selection made only of polygons (spec M2c §5); null otherwise. */
+/** Shape-section values for a selection made only of polygons (spec M2c §5); null otherwise. */
 export function summarizePolygons(doc: Doc, ids: readonly string[]): PolygonSummary | null {
   const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
   const polys = nodes.filter((n): n is PolygonShape => n.kind === "polygon");
@@ -88,6 +96,16 @@ export function summarizePolygons(doc: Doc, ids: readonly string[]): PolygonSumm
     innerRatio: same(polys.map((p) => p.innerRatio)),
     anyStar: stars.some(Boolean),
   };
+}
+
+export type RectSummary = { radius: number | null };
+
+/** Shape-section value for a selection made only of rects (spec M2e §5); null otherwise. */
+export function summarizeRects(doc: Doc, ids: readonly string[]): RectSummary | null {
+  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  const rects = nodes.filter((n): n is RectShape => n.kind === "rect");
+  if (rects.length === 0 || rects.length !== nodes.length) return null;
+  return { radius: rects.every((r) => r.rx === rects[0].rx) ? rects[0].rx : null };
 }
 
 export function selectionStyles(doc: Doc, ids: readonly string[]): Style[] {

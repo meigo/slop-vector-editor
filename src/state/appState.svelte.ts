@@ -78,6 +78,8 @@ class AppState {
   propertiesOpen = $state(false);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
+  /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
+  hoverHint = $state<string | null>(null);
 
   get doc(): Doc {
     return this.session.doc;
@@ -257,7 +259,7 @@ export function toggleSnap(): void {
   setPrefs({ ...app.prefs, snap: !app.prefs.snap });
 }
 
-// ----- selection actions (keyboard, context bar, context menu) -----
+// ----- selection actions (keyboard, top bar, context menu) -----
 
 export function deleteSelection(): void {
   cancelActiveGesture();

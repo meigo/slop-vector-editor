@@ -10,7 +10,7 @@
 <footer
   class="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-panel px-3 text-xs text-muted tabular-nums"
 >
-  <span class="min-w-0 truncate">{TOOLS[app.toolId].hint}</span>
+  <span class="min-w-0 truncate">{app.hoverHint ?? TOOLS[app.toolId].hint}</span>
   {#if app.selection.length > 0}
     <span>{app.selection.length} selected</span>
   {/if}
