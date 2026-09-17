@@ -93,8 +93,10 @@ resize in the shape's local space.
   drag and the prefs (`r` = drag length; nothing is created when `r` = 0). It uses the snapped
   start and end points (M2b).
 - Rotation: with Shift, `transform = IDENTITY` (upright). Otherwise
-  `transform = rotateAbout(θ, c)` with `θ = atan2(dy, dx) + π/2`, so corner 0 points at the
-  pointer as before. When `θ` is exactly 0, use `IDENTITY` so no `-0` entries appear.
+  `transform = rotateAbout(θ, c)` with `θ = atan2(dy, dx) + π/2`, reduced modulo `2π/sides` into
+  `[−π/sides, π/sides]` (the same shape with the smallest rotation), so one of the corners points
+  at the pointer. When `|θ| < 1e-12`, use `IDENTITY`. (Amended at final review: a full drag angle
+  made most drawn polygons show large rotations and disabled resize snapping.)
 - The tool's context-bar fields (prefs) are unchanged.
 
 ## 7. File format (`src/svg/attrs.ts`, `src/svg/parse.ts`)

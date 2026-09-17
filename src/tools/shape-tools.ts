@@ -196,13 +196,16 @@ export function createPolygonTool(): Tool {
     (a, b, mods, prefs) => {
       const r = Math.hypot(b.x - a.x, b.y - a.y);
       if (r === 0) return null;
-      // Corner 0 points up; turn it towards the pointer unless Shift keeps it upright.
-      const theta = mods.shift ? 0 : Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2;
+      // Corner 0 points up; turn a corner towards the pointer unless Shift keeps it upright.
+      // The shape repeats every `step`, so use the smallest equivalent turn (spec M2c §6).
       const { sides, star, innerRatio } = prefs.polygon;
+      const step = (2 * Math.PI) / sides;
+      let theta = mods.shift ? 0 : Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2;
+      theta -= Math.round(theta / step) * step;
       return {
         ...base,
         kind: "polygon",
-        transform: theta === 0 ? IDENTITY : rotateAbout(theta, a),
+        transform: Math.abs(theta) < 1e-12 ? IDENTITY : rotateAbout(theta, a),
         style: prefs.style,
         cx: a.x,
         cy: a.y,
