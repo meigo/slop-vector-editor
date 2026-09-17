@@ -17,15 +17,24 @@ import type { Vec } from "./vec";
 
 export type Hit = { layerId: string; nodeId: string };
 
-/** Flattened subpaths, cached per (immutable) subpath array, so moving or rotating a path
- *  (a new shape object with the same subpaths) keeps the cache. */
-const flatCache = new WeakMap<readonly Subpath[], Vec[][]>();
+/** Flattened subpaths, cached per (immutable) subpath array and per scale bucket, so moving or
+ *  rotating a path keeps the cache and zooming only adds one entry per power of two. */
+const flatCache = new WeakMap<readonly Subpath[], Map<number, Vec[][]>>();
 
-function polylines(s: PathShape): Vec[][] {
-  let polys = flatCache.get(s.subpaths);
+const bucketOf = (scale: number) =>
+  scale > 0 && Number.isFinite(scale) ? 2 ** Math.round(Math.log2(scale)) : 1;
+
+function polylines(s: PathShape, scale: number): Vec[][] {
+  const bucket = bucketOf(scale);
+  let perScale = flatCache.get(s.subpaths);
+  if (!perScale) {
+    perScale = new Map();
+    flatCache.set(s.subpaths, perScale);
+  }
+  let polys = perScale.get(bucket);
   if (!polys) {
-    polys = s.subpaths.map(flattenSubpath);
-    flatCache.set(s.subpaths, polys);
+    polys = s.subpaths.map((sp) => flattenSubpath(sp, bucket));
+    perScale.set(bucket, polys);
   }
   return polys;
 }
@@ -96,7 +105,7 @@ function insideNonzero(p: Vec, polys: Vec[][]): boolean {
   return winding !== 0;
 }
 
-function shapeHit(s: Shape, p: Vec, tol: number): boolean {
+function shapeHit(s: Shape, p: Vec, tol: number, scale = 1): boolean {
   const reach = tol + (s.style.stroke ? s.style.strokeWidth / 2 : 0);
   switch (s.kind) {
     case "rect": {
@@ -123,22 +132,22 @@ function shapeHit(s: Shape, p: Vec, tol: number): boolean {
       return distToPolylines(p, polys) <= reach;
     }
     case "path": {
-      const polys = polylines(s);
+      const polys = polylines(s, scale);
       if (s.style.fill && insideNonzero(p, polys)) return true;
       return distToPolylines(p, polys) <= reach;
     }
   }
 }
 
-function nodeHit(n: Node, p: Vec, tol: number): boolean {
+function nodeHit(n: Node, p: Vec, tol: number, scale = 1): boolean {
   const inv = invert(n.transform);
   if (!inv) return false;
   const m = n.transform;
   const s = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
   const lp = applyMat(inv, p);
   const lt = tol / s;
-  if (n.kind === "group") return n.children.some((c) => nodeHit(c, lp, lt));
-  return shapeHit(n, lp, lt);
+  if (n.kind === "group") return n.children.some((c) => nodeHit(c, lp, lt, scale * s));
+  return shapeHit(n, lp, lt, scale * s);
 }
 
 export function hitTest(
@@ -157,7 +166,7 @@ export function hitTest(
         const lp = applyMat(inv, p);
         const children = found.node.children;
         for (let i = children.length - 1; i >= 0; i--) {
-          if (nodeHit(children[i], lp, tol / scale)) {
+          if (nodeHit(children[i], lp, tol / scale, scale)) {
             return { layerId: found.layer.id, nodeId: children[i].id };
           }
         }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { PathNode } from "../doc/document";
+import type { PathNode, Subpath } from "../doc/document";
 import {
   cubicBounds,
   cubicPoint,
   flattenCubic,
   flattenSubpath,
+  nearestOnSubpath,
   segmentCubic,
+  splitCubic,
   type Cubic,
 } from "../geom/bezier";
 import { boxCenter, boxContains, boxCorners, boxFromPoints, boxMap, unionBox } from "../geom/box";
@@ -91,7 +93,7 @@ describe("bezier", () => {
     ]);
   });
 
-  it("flattens with 4 to 64 segments", () => {
+  it("flattens with 4 to 256 segments", () => {
     const shortOut: Vec[] = [];
     flattenCubic(
       [
@@ -113,8 +115,8 @@ describe("bezier", () => {
       ],
       longOut,
     );
-    expect(longOut).toHaveLength(64);
-    expect(longOut[63]).toEqual({ x: 3000, y: 0 });
+    expect(longOut).toHaveLength(256);
+    expect(longOut[255]).toEqual({ x: 3000, y: 0 });
   });
 
   it("flattens subpaths, closing back to the start", () => {
@@ -141,5 +143,78 @@ describe("bezier", () => {
     });
     expect(curved.length).toBeGreaterThan(2);
     expect(curved[curved.length - 1]).toEqual({ x: 10, y: 0 });
+  });
+});
+
+describe("splitting and picking curves", () => {
+  const c: Cubic = [
+    { x: 0, y: 0 },
+    { x: 0, y: 10 },
+    { x: 10, y: 10 },
+    { x: 10, y: 0 },
+  ];
+
+  it("splits a cubic into two that draw the same curve", () => {
+    const [a, b] = splitCubic(c, 0.5);
+    expect(a[3]).toEqual(b[0]);
+    expect(a[0]).toEqual(c[0]);
+    expect(b[3]).toEqual(c[3]);
+    for (const u of [0, 0.25, 0.5, 0.75, 1]) {
+      const whole = cubicPoint(c, u / 2);
+      const half = cubicPoint(a, u);
+      expect(half.x).toBeCloseTo(whole.x, 9);
+      expect(half.y).toBeCloseTo(whole.y, 9);
+    }
+    const [s, e] = splitCubic(c, 0);
+    expect(s[0]).toEqual(c[0]);
+    expect(e[3]).toEqual(c[3]);
+  });
+
+  it("finds the nearest point on a subpath", () => {
+    const line: Subpath = {
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 10, y: 0 }, in: null, out: null, type: "corner" },
+      ],
+    };
+    const near = nearestOnSubpath(line, { x: 5, y: 3 })!;
+    expect(near.seg).toBe(0);
+    expect(near.t).toBeCloseTo(0.5, 6);
+    expect(near.point.x).toBeCloseTo(5, 6);
+    expect(near.dist).toBeCloseTo(3, 6);
+
+    const curve: Subpath = {
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: { x: 0, y: 10 }, type: "smooth" },
+        { p: { x: 10, y: 0 }, in: { x: 10, y: 10 }, out: null, type: "smooth" },
+      ],
+    };
+    const onCurve = nearestOnSubpath(curve, { x: 5, y: 20 })!;
+    expect(onCurve.t).toBeCloseTo(0.5, 3);
+    expect(onCurve.point.y).toBeGreaterThan(6);
+
+    // A closed subpath's last segment runs from the last node back to the first.
+    const tri: Subpath = {
+      closed: true,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 10, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 10, y: 10 }, in: null, out: null, type: "corner" },
+      ],
+    };
+    expect(nearestOnSubpath(tri, { x: 2, y: 3 })!.seg).toBe(2);
+    expect(nearestOnSubpath({ closed: false, nodes: [] }, { x: 0, y: 0 })).toBeNull();
+  });
+
+  it("flattens more finely at a larger scale", () => {
+    const at1: Vec[] = [];
+    const at8: Vec[] = [];
+    flattenCubic(c, at1);
+    flattenCubic(c, at8, 8);
+    expect(at8.length).toBeGreaterThan(at1.length);
+    expect(at8[at8.length - 1]).toEqual(at1[at1.length - 1]);
+    expect(flattenSubpath({ closed: false, nodes: [] })).toEqual([]);
   });
 });

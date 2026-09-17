@@ -85,7 +85,9 @@ function scanner(s: string) {
   };
 }
 
-const near = (a: Vec, b: Vec) => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
+// The writer rounds to 6 decimals, so two points that were identical before saving can be up to
+// ~1e-6 apart in the file; anything tighter leaves a stray node on a closed path (spec M4a §10).
+const near = (a: Vec, b: Vec) => Math.abs(a.x - b.x) <= 1e-6 && Math.abs(a.y - b.y) <= 1e-6;
 const reflect = (c: Vec, about: Vec): Vec => ({ x: 2 * about.x - c.x, y: 2 * about.y - c.y });
 const lerp = (a: Vec, b: Vec, t: number): Vec => ({
   x: a.x + (b.x - a.x) * t,

@@ -448,3 +448,14 @@ describe("live polygons", () => {
     }
   });
 });
+
+describe("closing a path after a save round trip", () => {
+  it("merges a last node that rounding left a hair away from the first", () => {
+    const d = "M 0 0 L 10 0 L 10 10 L 0.0000004 0.0000003 Z";
+    const [sp] = parsePathData(d);
+    expect(sp.closed).toBe(true);
+    expect(sp.nodes).toHaveLength(3);
+    const far = parsePathData("M 0 0 L 10 0 L 10 10 L 0.001 0.001 Z")[0];
+    expect(far.nodes).toHaveLength(4);
+  });
+});
