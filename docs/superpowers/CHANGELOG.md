@@ -246,3 +246,38 @@
   hidden text.
 - Owed: iPad/Safari look (SF system font), touch sizes on a device, the narrow drawer layout on a
   real narrow window (automation narrowed only the app container).
+
+## 2026-09-17 — Milestone 2e: one icon top bar
+
+- The file bar and the context bar became one icon-only top bar: File ▾ · name | undo redo |
+  cut copy paste | duplicate delete | convert-to-path flatten … zoom | properties (narrow).
+  Actions that don't apply stay in place, `aria-disabled`, with the reason in the tooltip.
+- Every `title` also shows in the status bar on mouse hover (tool hint otherwise).
+- Rect radius and polygon Sides / Star / Inner moved to a "Shape" section in Properties; the
+  polygon tool's defaults are a "Polygon" section under "Defaults for new shapes".
+- Superseded: the M2d entry's context-bar bullets (separators, Star toggle in the context bar,
+  40px context bar) — the context bar no longer exists.
+- Plan: `docs/superpowers/plans/2026-09-17-m2e-icon-toolbar.md`.
+- Browser-verified (desktop Chrome, M2e branch, separate dev server on port 5198; synthetic
+  PointerEvents for drawing, real mouse hover; `navigator.clipboard` stubbed): with nothing
+  selected, Undo/Redo/Cut/Copy/Duplicate/Delete/Convert/Flatten are `aria-disabled` with their
+  reason titles ("Cut — nothing selected", "Convert to path — select a rectangle, ellipse or
+  polygon", …), Paste is enabled, and every button has an `aria-label` and a `title`; clicking
+  disabled Delete/Convert changes nothing (same document, no history); with a rect selected,
+  Cut/Copy/Paste/Duplicate/Delete/Convert are enabled and Flatten is disabled with its reason; a
+  real mouse hover on Cut shows "Cut (⌘X)" in the status bar, and moving onto the canvas brings
+  back the tool hint; the File menu opens fully and "Document settings…" opens the dialog; copy,
+  duplicate, delete, paste (from the stubbed clipboard), cut, undo, redo, convert to path and
+  flatten transform (after a nudge) all work; two rects with different radii show Shape → Radius
+  blank ("–"), and setting it to 6 changes both in one undo step; a polygon + a star show Shape →
+  Sides, Star (`aria-pressed` "mixed") and Inner, and a Star click plus Sides 6 each change both
+  in one undo step; with nothing selected, the Polygon defaults section sets Sides 7 + Star on
+  `prefs.polygon`, and the next drawn polygon is a 7-point star; narrowed to 768px and 820px the
+  header stays one row (scrollWidth = clientWidth), with ~207 CSS px free at 768px between the
+  Flatten button and the zoom group — at a real 768px window the Properties toggle and its
+  separator also show (~40px), leaving ~167px, of which M3a's four z-order icons need ~150px; no
+  context bar element remains; screenshots taken of the disabled state, the File menu, the Shape
+  section (radius) and the Shape section (polygon + star); no console errors during use or on
+  reload.
+- Owed: iPad (no hover — no status-bar hints on touch; native tooltips need a long-press),
+  Safari/Firefox, a real 768px window.

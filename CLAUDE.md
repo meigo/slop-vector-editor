@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 278 tests in 26 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 281 tests in 27 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -54,9 +54,10 @@ every user-visible change.
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
-  `StatusBar`, `ToolStrip`, `ContextBar`, `ContextMenu`, `ModifierDock`, `PropertiesPanel`,
-  `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper), `Modal`,
-  dialogs, `Notices`.
+  `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
+  (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`,
+  `PropertiesPanel`, `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state
+  helper), `Modal`, dialogs, `Notices`.
 
 ## Invariants and gotchas
 
@@ -118,7 +119,7 @@ every user-visible change.
     duplicate nodes.
 19. **Keyboard copy/cut/paste use the window `copy`/`cut`/`paste` events** (App.svelte), never
     `navigator.clipboard`: the events need no permission and can set `image/svg+xml`. Only the
-    context bar and menu buttons read `navigator.clipboard`, and they fall back to the in-app copy
+    top bar and menu buttons read `navigator.clipboard`, and they fall back to the in-app copy
     (`clip` in the store). Text fields and dialogs keep the browser's own behaviour. `App.svelte`
     also listens for `beforecopy`/`beforecut`/`beforepaste` on `window` and calls
     `preventDefault()` — these exist so WebKit (Safari, iPad) enables the clipboard commands with
@@ -147,11 +148,17 @@ every user-visible change.
       name.
     - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
       with slop-animator, because it suits touch.
+24. **Every `title` is also a status-bar hint** (spec M2e). On mouse hover, the status bar shows
+    the nearest `title`. Write titles as short action descriptions with the shortcut, e.g.
+    "Cut (⌘X)". Top-bar actions that don't apply use `aria-disabled` with a reason title, e.g.
+    "Cut — nothing selected". They never use `disabled` and are never hidden: a disabled button
+    shows no tooltip, and a hidden one moves the bar. The top bar must never scroll or wrap,
+    because that would clip the File menu. Only the file name shrinks.
 
 ## Current state
 
-Milestone 2d (UI alignment with slop-animator) — see CHANGELOG. Next is milestone 3a: the layers
-panel and z-order.
+Milestone 2e (one icon top bar) — see CHANGELOG. Next is milestone 3a: the layers panel and
+z-order.
 
 ## Roadmap
 

@@ -27,6 +27,8 @@ Early development. What works today:
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide lines.
 - An on-screen Shift/Alt/Snap pad for touch.
+- An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
+  polygon sides/star) live in the properties panel.
 
 ## Keyboard
 
@@ -55,7 +57,7 @@ Next: layers and groups, then pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 278 unit tests
+npm test          # 281 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
