@@ -57,6 +57,7 @@
 
   /** A second tap on the same name within the double-tap window starts renaming it. */
   function tapName(kind: "layer" | "node", id: string, initial: string, e: PointerEvent) {
+    if (e.button !== 0) return;
     const tap = { id, time: e.timeStamp };
     if (isDoubleTap(lastTap, tap)) {
       lastTap = null;
@@ -127,11 +128,12 @@
 </script>
 
 <svelte:window
-  onkeydown={(e) => {
-    if (e.key === "Escape" && dragging) {
-      dragging = null;
-      drop = null;
-    }
+  onkeydowncapture={(e) => {
+    if (e.key !== "Escape" || !dragging) return;
+    dragging = null;
+    drop = null;
+    e.preventDefault();
+    e.stopPropagation();
   }}
 />
 
@@ -173,6 +175,7 @@
               onpointermove={moveDrag}
               onpointerup={(e) => endDrag(e, true)}
               onpointercancel={(e) => endDrag(e, false)}
+              onlostpointercapture={(e) => endDrag(e, false)}
             >
               <GripVertical size={14} />
             </button>
@@ -205,7 +208,7 @@
                   isCurrent && "font-medium",
                   blocked && "text-muted",
                 ]}
-                title={layer.name}
+                title="Make “{layer.name}” current — double-click to rename"
                 onclick={() => setCurrentLayer(layer.id)}
                 onpointerup={(e) => tapName("layer", layer.id, layer.name, e)}
               >
@@ -258,6 +261,7 @@
                     onpointermove={moveDrag}
                     onpointerup={(e) => endDrag(e, true)}
                     onpointercancel={(e) => endDrag(e, false)}
+                    onlostpointercapture={(e) => endDrag(e, false)}
                   >
                     <GripVertical size={14} />
                   </button>
@@ -278,7 +282,11 @@
                     <button
                       type="button"
                       class="h-8 min-w-0 flex-1 truncate text-left"
+                      title={blocked
+                        ? undefined
+                        : `Select “${rowLabel(node)}” — double-click to rename`}
                       onclick={(e) => {
+                        if (editing) return;
                         if (!blocked)
                           selectFromPanel(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
                       }}
