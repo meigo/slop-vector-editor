@@ -15,6 +15,7 @@ import {
   bringForward,
   bringToFront,
   deleteLayer,
+  layerBlock,
   moveLayer,
   moveNodes,
   renameLayer,
@@ -454,6 +455,7 @@ export function moveLayerTo(id: string, index: number): void {
 /** The moved objects become the selection (and so their new layer becomes current). */
 export function moveNodesTo(ids: readonly string[], layerId: string, index: number): void {
   cancelActiveGesture();
+  if (layerBlock(app.doc, layerId)) return;
   commitDoc(moveNodes(app.doc, ids, layerId, index));
   setSelection(ids);
 }

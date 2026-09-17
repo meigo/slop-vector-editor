@@ -6,10 +6,12 @@ import { mapTopLevel } from "./tree";
 
 const MAX_NAME = 100;
 
-/** A user-typed name, trimmed and capped; null when nothing is left. */
+/** A user-typed name, trimmed and capped; null when nothing is left. Capped by code points, not
+ *  UTF-16 units, so the cap never splits a surrogate pair. */
 function cleanName(name: string): string | null {
-  const t = name.trim().slice(0, MAX_NAME);
-  return t === "" ? null : t;
+  const trimmed = name.trim();
+  const capped = Array.from(trimmed).slice(0, MAX_NAME).join("");
+  return capped === "" ? null : capped;
 }
 
 export function resolveLayerId(doc: Doc, id: string | null): string {

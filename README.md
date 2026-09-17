@@ -30,7 +30,7 @@ Early development. What works today:
 - An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
   polygon sides/star) live in the properties panel.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
-  new shapes; bring forward / send backward.
+  new shapes; z-order (bring forward/backward, to front/back).
 
 ## Keyboard
 

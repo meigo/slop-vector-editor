@@ -110,6 +110,13 @@ describe("layer edits", () => {
     expect(renameLayer(d, "zz", "Ink")).toBe(d);
   });
 
+  it("caps by code points, so the cap never splits a surrogate pair", () => {
+    const d = doc(layer("A", []));
+    const emoji = "\uD83D\uDE00";
+    const name = "x".repeat(99) + emoji + "y";
+    expect(renameLayer(d, "A", name).layers[0].name).toBe("x".repeat(99) + emoji);
+  });
+
   it("shows, hides, locks and unlocks", () => {
     const d = doc(layer("A", []));
     expect(setLayerVisible(d, "A", false).layers[0].visible).toBe(false);

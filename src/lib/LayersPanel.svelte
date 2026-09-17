@@ -110,7 +110,7 @@
   function endDrag(e: PointerEvent, apply: boolean) {
     if (!dragging || e.pointerId !== dragging.pointerId) return;
     const drag = dragging.drag;
-    const target = drop;
+    const target = apply ? dropTarget(app.doc, rows(), e.clientY, drag) : null;
     dragging = null;
     drop = null;
     if (!apply || !target) return;
