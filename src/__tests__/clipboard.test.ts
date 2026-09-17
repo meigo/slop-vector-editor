@@ -159,10 +159,10 @@ describe("planPaste", () => {
     expect(r.doc.layers[0].children.map((n) => n.id)).toEqual(r.ids);
     expect(r.doc.layers[1].children).toHaveLength(0);
     expect(planPaste(d, text, null, view, "L2")).toEqual({
-      error: '"Ink" is locked — unlock it to paste.',
+      error: "“Ink” is locked — unlock it to paste.",
     });
     expect(planPaste(d, text, null, view, "L3")).toEqual({
-      error: '"Sketch" is hidden — show it to paste.',
+      error: "“Sketch” is hidden — show it to paste.",
     });
   });
 
