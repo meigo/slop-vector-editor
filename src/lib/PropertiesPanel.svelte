@@ -1,15 +1,25 @@
 <script lang="ts">
   import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
-  import { app, applyGeometry, setSelectionStyle } from "../state/appState.svelte";
+  import {
+    app,
+    applyGeometry,
+    setPolygonPrefs,
+    setSelectionPolygon,
+    setSelectionRectRadius,
+    setSelectionStyle,
+  } from "../state/appState.svelte";
   import {
     selectionGeometry,
     selectionStyles,
+    summarizePolygons,
+    summarizeRects,
     summarizeStyles,
     type Field,
     type GeometryField,
   } from "../state/properties";
   import NumberField from "./NumberField.svelte";
   import PaintField from "./PaintField.svelte";
+  import ToggleButton from "./ToggleButton.svelte";
 
   // The default style always has both paints.
   const FILL_FALLBACK: Paint = DEFAULT_STYLE.fill!;
@@ -27,6 +37,9 @@
     summarizeStyles(hasSelection ? selectionStyles(app.doc, app.selection) : [app.prefs.style]),
   );
   const geometry = $derived(hasSelection ? selectionGeometry(app.doc, app.selection) : null);
+  const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
+  const polygons = $derived(hasSelection ? summarizePolygons(app.doc, app.selection) : null);
+  const poly = $derived(app.prefs.polygon);
   const value = <T,>(f: Field<T>): T | null => (f.mixed ? null : f.value);
 </script>
 
@@ -96,6 +109,76 @@
       suffix="%"
       onchange={(v) => setSelectionStyle({ opacity: v / 100 })}
     />
+  {/if}
+
+  {#if rects || polygons}
+    <div class="flex flex-col gap-2 border-t border-line pt-3">
+      <span class="section-title">Shape</span>
+      {#if rects}
+        <NumberField
+          label="Radius"
+          value={rects.radius}
+          min={0}
+          onchange={setSelectionRectRadius}
+        />
+      {/if}
+      {#if polygons}
+        <div class="flex flex-wrap items-center gap-2">
+          <NumberField
+            label="Sides"
+            value={polygons.sides}
+            min={3}
+            max={32}
+            onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
+          />
+          <ToggleButton
+            label="Star"
+            value={polygons.star}
+            onchange={(star) => setSelectionPolygon({ star })}
+          />
+          {#if polygons.anyStar}
+            <NumberField
+              label="Inner"
+              value={polygons.innerRatio === null ? null : Math.round(polygons.innerRatio * 100)}
+              min={10}
+              max={95}
+              suffix="%"
+              onchange={(v) => setSelectionPolygon({ innerRatio: v / 100 })}
+            />
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if !hasSelection}
+    <div class="flex flex-col gap-2 border-t border-line pt-3">
+      <span class="section-title">Polygon</span>
+      <div class="flex flex-wrap items-center gap-2">
+        <NumberField
+          label="Sides"
+          value={poly.sides}
+          min={3}
+          max={32}
+          onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
+        />
+        <ToggleButton
+          label="Star"
+          value={poly.star}
+          onchange={(star) => setPolygonPrefs({ star })}
+        />
+        {#if poly.star}
+          <NumberField
+            label="Inner"
+            value={Math.round(poly.innerRatio * 100)}
+            min={10}
+            max={95}
+            suffix="%"
+            onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
+          />
+        {/if}
+      </div>
+    </div>
   {/if}
 
   {#if geometry}
