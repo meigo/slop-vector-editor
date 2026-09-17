@@ -9,6 +9,7 @@ import { applyMat, invert, multiply, type Mat } from "../geom/mat";
 import { collectTargets, hasGuides, SNAP_PX, snapPoint, type SnapTargets } from "../geom/snap";
 import type { Vec } from "../geom/vec";
 import { isDoubleTap, type Tap } from "../input/double-tap";
+import { SNAP_45 } from "./shape-tools";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
 /** Spec (M4a) §6. Editing one path's nodes; everything happens in that path's own space. */
@@ -22,20 +23,37 @@ type Pick =
   | null;
 
 type Mode =
-  | { kind: "pending"; start: ToolEvent; pick: Pick }
+  | { kind: "pending"; start: ToolEvent; pick: Pick; collapseOnUp: boolean }
   | {
       kind: "nodes";
       base: Doc;
       start: Vec;
+      /** The press point in document space, so Shift can constrain to 45° the way the user sees
+       *  it, regardless of the path's own rotation (spec M4a §7). */
+      startDoc: Vec;
       refs: readonly NodeRef[];
       targets: SnapTargets | null;
     }
   | { kind: "handle"; base: Doc; ref: NodeRef; which: "in" | "out" }
+  /** The marquee is dragged and hit-tested in document space, like the select tool's own
+   *  marquee — nodes are tested by their world position, not the path's own space. */
   | { kind: "marquee"; start: Vec; base: readonly NodeRef[] };
 
 const sameRef = (a: NodeRef, b: NodeRef) => a.sub === b.sub && a.i === b.i;
 const refKey = (r: NodeRef) => `${r.sub}:${r.i}`;
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** Shift constrains a node drag to the nearest 45°, mirroring the select tool's own drag
+ *  constraint (spec M4a §7). */
+function constrain45(dx: number, dy: number): Vec {
+  const angle = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const along = dx * c + dy * s;
+  const horizontal = Math.abs(s) < 1e-9;
+  const vertical = Math.abs(c) < 1e-9;
+  return { x: vertical ? 0 : along * c, y: horizontal ? 0 : along * s };
+}
 
 function targetOf(ctx: ToolContext): Target | null {
   const id = ctx.nodeTarget();
@@ -87,6 +105,17 @@ export function createNodeTool(): Tool {
   let mode: Mode | null = null;
   let lastTap: Tap | null = null;
 
+  function cancelMode(ctx: ToolContext): void {
+    const m = mode;
+    mode = null;
+    if (!m) return;
+    ctx.setOverlay(null);
+    if (m.kind === "nodes" || m.kind === "handle") {
+      ctx.commit(m.base);
+      ctx.endGesture();
+    }
+  }
+
   const cycle = (ctx: ToolContext, t: Target, ref: NodeRef) => {
     const node = t.path.subpaths[ref.sub]?.nodes[ref.i];
     if (!node) return;
@@ -101,7 +130,7 @@ export function createNodeTool(): Tool {
     cursor: "default",
 
     down(ctx, e) {
-      mode = null;
+      cancelMode(ctx);
       const t = targetOf(ctx);
       if (!t) {
         pickTarget(ctx, e);
@@ -111,8 +140,18 @@ export function createNodeTool(): Tool {
       const tol = pointerTolerance(e.pointerType) / (ctx.view().zoom * t.scale);
       const pick = pickAt(t, ctx.nodeSel(), p, tol);
 
-      // A second tap on the same thing adds a node or cycles a type (spec M4a §6).
-      const tap = pick === null ? null : { id: `${pick.kind}:${refKey(pick.ref)}`, time: e.time };
+      // A second tap on the same thing adds a node or cycles a type (spec M4a §6). A handle's
+      // key includes which one, so an `in` tap followed by an `out` tap is never a double tap.
+      const tap =
+        pick === null
+          ? null
+          : {
+              id:
+                pick.kind === "handle"
+                  ? `handle:${refKey(pick.ref)}:${pick.which}`
+                  : `${pick.kind}:${refKey(pick.ref)}`,
+              time: e.time,
+            };
       const second = tap !== null && isDoubleTap(lastTap, tap);
       lastTap = second ? null : tap;
       if (second && pick) {
@@ -142,11 +181,12 @@ export function createNodeTool(): Tool {
           pickTarget(ctx, e);
           return;
         }
-        mode = { kind: "marquee", start: p, base: e.mods.shift ? ctx.nodeSel() : [] };
+        mode = { kind: "marquee", start: e.doc, base: e.mods.shift ? ctx.nodeSel() : [] };
         if (!e.mods.shift) ctx.setNodeSel([]);
         return;
       }
 
+      let collapseOnUp = false;
       if (pick.kind === "node") {
         const sel = ctx.nodeSel();
         const already = sel.some((r) => sameRef(r, pick.ref));
@@ -154,9 +194,13 @@ export function createNodeTool(): Tool {
           ctx.setNodeSel(already ? sel.filter((r) => !sameRef(r, pick.ref)) : [...sel, pick.ref]);
         } else if (!already) {
           ctx.setNodeSel([pick.ref]);
+        } else if (sel.length > 1) {
+          // A plain click on an already-selected node narrows the selection to it, but only if
+          // the gesture turns out to be a click rather than a drag (spec M4a §6).
+          collapseOnUp = true;
         }
       }
-      mode = { kind: "pending", start: e, pick };
+      mode = { kind: "pending", start: e, pick, collapseOnUp };
     },
 
     move(ctx, e) {
@@ -177,6 +221,7 @@ export function createNodeTool(): Tool {
             kind: "nodes",
             base: ctx.doc(),
             start: applyMat(t.inv, mode.start.doc),
+            startDoc: mode.start.doc,
             refs: refs.length > 0 ? refs : [pick.ref],
             targets: ctx.snapEnabled()
               ? collectTargets(ctx.doc(), [t.path.id], { nodes: true })
@@ -197,8 +242,14 @@ export function createNodeTool(): Tool {
         const path = pathOf(mode.base, t.path.id);
         if (!path) return;
         let to = p;
+        // Shift constrains to the nearest 45° in document space, matching what the user sees,
+        // regardless of the path's own rotation (spec M4a §7).
+        if (e.mods.shift) {
+          const d = constrain45(e.doc.x - mode.startDoc.x, e.doc.y - mode.startDoc.y);
+          to = applyMat(t.inv, { x: mode.startDoc.x + d.x, y: mode.startDoc.y + d.y });
+        }
         if (mode.targets) {
-          const world = applyMat(t.world, p);
+          const world = applyMat(t.world, to);
           const snapped = snapPoint(world, mode.targets, SNAP_PX / ctx.view().zoom);
           ctx.setOverlay(hasGuides(snapped.guides) ? { kind: "guides", ...snapped.guides } : null);
           to = applyMat(t.inv, snapped.p);
@@ -212,10 +263,10 @@ export function createNodeTool(): Tool {
         return;
       }
       if (mode.kind === "marquee") {
-        const box = boxFromPoints([mode.start, p]);
+        const box = boxFromPoints([mode.start, e.doc]);
         if (!box) return;
-        ctx.setOverlay({ kind: "marquee", box: worldBox(t, box) });
-        ctx.setNodeSel(mergeRefs(mode.base, nodesIn(t.path, box)));
+        ctx.setOverlay({ kind: "marquee", box });
+        ctx.setNodeSel(mergeRefs(mode.base, nodesIn(t, box)));
       }
     },
 
@@ -223,21 +274,18 @@ export function createNodeTool(): Tool {
       const m = mode;
       mode = null;
       if (!m) return;
-      if (m.kind === "pending") return;
+      if (m.kind === "pending") {
+        // The gesture stayed a click (never dragged): apply a deferred collapse now.
+        if (m.collapseOnUp && m.pick && m.pick.kind === "node") ctx.setNodeSel([m.pick.ref]);
+        return;
+      }
       this.move(ctx, e);
       ctx.setOverlay(null);
       if (m.kind !== "marquee") ctx.endGesture();
     },
 
     cancel(ctx) {
-      const m = mode;
-      mode = null;
-      if (!m) return;
-      ctx.setOverlay(null);
-      if (m.kind === "nodes" || m.kind === "handle") {
-        ctx.commit(m.base);
-        ctx.endGesture();
-      }
+      cancelMode(ctx);
     },
   };
 }
@@ -247,22 +295,14 @@ function pathOf(base: Doc, id: string): PathShape | null {
   return found && found.node.kind === "path" ? found.node : null;
 }
 
-/** The marquee is drawn in document space, so the path-space box is mapped through the matrix. */
-function worldBox(t: Target, b: Box): Box {
-  const corners = [
-    applyMat(t.world, { x: b.x, y: b.y }),
-    applyMat(t.world, { x: b.x + b.w, y: b.y }),
-    applyMat(t.world, { x: b.x + b.w, y: b.y + b.h }),
-    applyMat(t.world, { x: b.x, y: b.y + b.h }),
-  ];
-  return boxFromPoints(corners)!;
-}
-
-function nodesIn(path: PathShape, box: Box): NodeRef[] {
+/** Nodes are tested by their world position (spec M4a §7), since the marquee itself is drawn and
+ *  dragged in document space. */
+function nodesIn(t: Target, box: Box): NodeRef[] {
   const out: NodeRef[] = [];
-  path.subpaths.forEach((sp, sub) => {
+  t.path.subpaths.forEach((sp, sub) => {
     sp.nodes.forEach((n, i) => {
-      if (n.p.x >= box.x && n.p.x <= box.x + box.w && n.p.y >= box.y && n.p.y <= box.y + box.h) {
+      const q = applyMat(t.world, n.p);
+      if (q.x >= box.x && q.x <= box.x + box.w && q.y >= box.y && q.y <= box.y + box.h) {
         out.push({ sub, i });
       }
     });

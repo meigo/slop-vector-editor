@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type PathShape } from "../doc/document";
-import { IDENTITY } from "../geom/mat";
+import { IDENTITY, rotate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import { createNodeTool } from "../tools/node-tool";
 import { ev, fakeContext } from "./fake-context";
@@ -181,5 +181,114 @@ describe("node tool: editing", () => {
       { sub: 0, i: 1 },
     ]);
     expect(state.overlay).toBeNull();
+  });
+
+  it("marquees nodes by their world position on a rotated path", () => {
+    // A straight two-node path (0,0)-(40,0) rotated 90° about the origin: node 0 stays at
+    // world (0,0), node 1 lands at world (0,40). A document-space box that covers only the
+    // second point must select only that node, even though in the path's own space both nodes
+    // sit on y = 0.
+    const rotated: PathShape = { ...line("p", 0), transform: rotate(Math.PI / 2) };
+    const d = createDoc(300, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [rotated] }],
+    });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    tool.down(ctx, ev(-30, 30));
+    tool.move(ctx, ev(10, 50));
+    tool.up(ctx, ev(10, 50));
+    expect(state.nodeSel).toEqual([{ sub: 0, i: 1 }]);
+  });
+
+  it("Shift constrains a node drag to 45° in document space", () => {
+    // Snapping off: this checks the constrain maths, not the snap targets.
+    const { ctx, state } = fakeContext(curvedDoc(), { ...DEFAULT_PREFS, snap: false });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(0, 0));
+    tool.move(ctx, ev(10, 3, { shift: true }));
+    tool.up(ctx, ev(10, 3, { shift: true }));
+    const n = target(state).subpaths[0].nodes[0];
+    expect(n.p.x).toBeCloseTo(10);
+    expect(n.p.y).toBe(0);
+  });
+
+  it("a plain click on an already-selected node collapses the selection to it", () => {
+    const { ctx, state } = fakeContext(curvedDoc());
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ];
+    tool.down(ctx, ev(0, 0));
+    tool.up(ctx, ev(0, 0));
+    expect(state.nodeSel).toEqual([{ sub: 0, i: 0 }]);
+  });
+
+  it("dragging an already-selected node keeps the multi-selection instead of collapsing it", () => {
+    // Snapping off: only the selection outcome is under test here.
+    const { ctx, state } = fakeContext(curvedDoc(), { ...DEFAULT_PREFS, snap: false });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ];
+    tool.down(ctx, ev(0, 0));
+    tool.move(ctx, ev(5, 5));
+    tool.up(ctx, ev(5, 5));
+    expect(state.nodeSel).toEqual([
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ]);
+  });
+
+  it("distinguishes a node's two handles for double-tap purposes", () => {
+    const twoHandled: PathShape = {
+      ...curvedPath(),
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 0 }, in: { x: -10, y: -10 }, out: { x: 0, y: 40 }, type: "smooth" },
+            { p: { x: 40, y: 0 }, in: { x: 40, y: 40 }, out: null, type: "smooth" },
+          ],
+        },
+      ],
+    };
+    const d = createDoc(300, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [twoHandled] }],
+    });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    // Tapping the `in` handle, then the `out` handle of the same node shortly after, must not
+    // be read as a double tap on "the same thing" (it would otherwise have no effect here since
+    // handles have no double-tap action, but the key must still distinguish them).
+    tool.down(ctx, ev(-10, -10, {}, "mouse", 0));
+    tool.up(ctx, ev(-10, -10, {}, "mouse", 0));
+    tool.down(ctx, ev(0, 40, {}, "mouse", 100));
+    tool.up(ctx, ev(0, 40, {}, "mouse", 100));
+    expect(target(state).subpaths[0].nodes[0].type).toBe("smooth");
+    expect(target(state).subpaths[0].nodes).toHaveLength(2);
+  });
+
+  it("a new pointer-down cancels a leftover gesture", () => {
+    const { ctx, state } = fakeContext(curvedDoc());
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(0, 0));
+    tool.move(ctx, ev(5, 5));
+    expect(state.session.gestureBase).not.toBeNull();
+    tool.down(ctx, ev(250, 150));
+    expect(state.session.gestureBase).toBeNull();
+    expect(target(state).subpaths[0].nodes[0].p).toEqual({ x: 0, y: 0 });
   });
 });

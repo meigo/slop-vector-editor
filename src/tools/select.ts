@@ -45,6 +45,8 @@ type Pending = Common & {
   frame: Frame | null;
   toggleOnUp: boolean;
   collapseOnUp: boolean;
+  /** A double tap on a path or group, applied in `up` only if the gesture never dragged. */
+  secondTap: "path" | "group" | null;
 };
 type MoveMode = Common & {
   kind: "move";
@@ -254,38 +256,30 @@ export function createSelectTool(): Tool {
       let hitId: string | null = null;
       let toggleOnUp = false;
       let collapseOnUp = false;
+      let secondTap: "path" | "group" | null = null;
       if (!handle) {
         const entered = ctx.enteredGroupId();
         const tol = pointerTolerance(e.pointerType) / view.zoom;
         hitId = hitTest(doc, e.doc, tol, entered)?.nodeId ?? null;
         // A double tap steps inside a group (spec M3b §3.2) or hands a path to the node tool
-        // (spec M4a §6). `lastTap` is recorded in `up`, and only for a click that did not drag,
-        // so click-then-drag within the double-tap window still drags.
+        // (spec M4a §6). `lastTap` is recorded in `up`, and the action itself is applied there
+        // too, only when the gesture stayed a click, so a click followed within the double-tap
+        // window by a drag on the same object still drags instead of being swallowed.
         const second = hitId !== null && isDoubleTap(lastTap, { id: hitId, time: e.time });
         if (second) lastTap = null;
-        // A double tap on a path hands it to the node tool (spec M4a §6).
-        if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "path") {
-          ctx.setNodeTarget(hitId);
-          ctx.setSelection([hitId]);
-          ctx.setTool("node");
-          mode = null;
-          return;
+        const kind = second && hitId !== null ? findNode(doc, hitId)?.node.kind : undefined;
+        if (kind === "path" || kind === "group") {
+          secondTap = kind;
+        } else {
+          // A click outside the entered group leaves it, then selects as usual.
+          if (entered !== null && hitId !== null && hitId !== entered) {
+            if (!ancestorIds(doc, hitId).includes(entered)) ctx.setEnteredGroup(null);
+          }
+          if (hitId && !sel.includes(hitId))
+            ctx.setSelection(e.mods.shift ? [...sel, hitId] : [hitId]);
+          else if (hitId && e.mods.shift) toggleOnUp = true;
+          else if (hitId && sel.length > 1) collapseOnUp = true;
         }
-        if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "group") {
-          ctx.setEnteredGroup(hitId);
-          const inner = hitTest(doc, e.doc, tol, hitId);
-          ctx.setSelection(inner ? [inner.nodeId] : []);
-          mode = null;
-          return;
-        }
-        // A click outside the entered group leaves it, then selects as usual.
-        if (entered !== null && hitId !== null && hitId !== entered) {
-          if (!ancestorIds(doc, hitId).includes(entered)) ctx.setEnteredGroup(null);
-        }
-        if (hitId && !sel.includes(hitId))
-          ctx.setSelection(e.mods.shift ? [...sel, hitId] : [hitId]);
-        else if (hitId && e.mods.shift) toggleOnUp = true;
-        else if (hitId && sel.length > 1) collapseOnUp = true;
       }
       mode = {
         kind: "pending",
@@ -296,6 +290,7 @@ export function createSelectTool(): Tool {
         frame,
         toggleOnUp,
         collapseOnUp,
+        secondTap,
       };
     },
 
@@ -315,6 +310,20 @@ export function createSelectTool(): Tool {
       if (m.kind === "pending") {
         if (m.handle) return;
         if (m.hitId !== null) lastTap = { id: m.hitId, time: e.time };
+        // The gesture stayed a click (never dragged): apply a pending double tap now.
+        if (m.secondTap === "path" && m.hitId !== null) {
+          ctx.setNodeTarget(m.hitId);
+          ctx.setSelection([m.hitId]);
+          ctx.setTool("node");
+          return;
+        }
+        if (m.secondTap === "group" && m.hitId !== null) {
+          const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
+          ctx.setEnteredGroup(m.hitId);
+          const inner = hitTest(ctx.doc(), e.doc, tol, m.hitId);
+          ctx.setSelection(inner ? [inner.nodeId] : []);
+          return;
+        }
         if (m.hitId && m.toggleOnUp) {
           const id = m.hitId;
           ctx.setSelection(ctx.selection().filter((s) => s !== id));

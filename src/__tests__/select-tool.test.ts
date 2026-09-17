@@ -455,4 +455,50 @@ describe("entering a group", () => {
     expect(state.enteredGroupId).toBeNull();
     expect(state.selection).toEqual([]);
   });
+
+  it("a click followed within the window by a drag on the same object still drags", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(10, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(10, 10, {}, "mouse", 0));
+    expect(state.selection).toEqual(["g"]);
+    tool.down(ctx, ev(10, 10, {}, "mouse", 100));
+    tool.move(ctx, ev(60, 60, {}, "mouse", 150));
+    tool.up(ctx, ev(60, 60, {}, "mouse", 150));
+    expect(state.enteredGroupId).toBeNull();
+    expect(state.selection).toEqual(["g"]);
+    expect(node(state.session.doc, "g").transform).toEqual(translate(50, 50));
+  });
+});
+
+describe("select tool: node-tool handoff", () => {
+  it("a double-click on a path switches to the node tool with that path as the target", () => {
+    const d = createDoc(200, 200);
+    const path: Node = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 50 }, in: null, out: null, type: "corner" },
+            { p: { x: 100, y: 50 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const { ctx, state } = fakeContext({ ...d, layers: [{ ...d.layers[0], children: [path] }] });
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(50, 50, {}, "mouse", 0));
+    tool.up(ctx, ev(50, 50, {}, "mouse", 0));
+    expect(state.selection).toEqual(["p"]);
+    expect(state.toolId).toBe("select");
+    tool.down(ctx, ev(50, 50, {}, "mouse", 100));
+    tool.up(ctx, ev(50, 50, {}, "mouse", 100));
+    expect(state.toolId).toBe("node");
+    expect(state.nodeTarget).toBe("p");
+    expect(state.selection).toEqual(["p"]);
+  });
 });
