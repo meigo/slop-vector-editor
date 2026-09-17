@@ -187,7 +187,9 @@ every user-visible change.
     inverse of the path's world matrix, and does nothing when that matrix is singular.
 30. **No edit may leave a subpath with fewer than two nodes, a path with no subpaths, or a closed
     subpath whose last node repeats its first.** A path a store edit would leave with no subpaths
-    is deleted outright instead; the importer drops or merges the other two shapes on reload.
+    is deleted outright instead; the importer drops or merges the other two shapes on reload. The
+    structural edits enforce this; the one gap is `movePathNodes`, which will happily drag a node
+    onto its subpath's first node — the reload then merges them and the path loses a node.
 31. **`app.nodeTarget`/`app.nodeSel` are store state** (not saved, not undoable), re-resolved in
     `setSession`. Escape walks node selection → node target (back to the select tool) → entered
     group → object selection.
