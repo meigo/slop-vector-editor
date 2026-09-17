@@ -25,7 +25,8 @@ Early development. What works today:
   defaults for new shapes when nothing is selected.
 - Convert to path and flatten transform.
 - Copy, cut and paste — within the editor and as SVG with other apps.
-- Snapping to the artboard and other objects while moving, resizing and drawing, with guide lines.
+- Snapping to the artboard and other objects while moving, resizing and drawing, with guide
+  lines — including other paths' nodes while editing one.
 - An on-screen Shift/Alt/Snap pad for touch.
 - An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
   polygon sides/star) live in the properties panel.
@@ -33,8 +34,8 @@ Early development. What works today:
   new shapes; z-order (bring forward/backward, to front/back).
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the
   layers panel.
-- Node editing: the Node tool (N) moves nodes and handles, adds and deletes nodes, changes node
-  type and closes a path.
+- Node editing: double-click a path with the Select tool, or press N, to edit its nodes — move
+  nodes and handles, add and delete nodes, change node type and close a path.
 
 ## Keyboard
 

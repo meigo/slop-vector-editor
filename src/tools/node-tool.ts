@@ -114,6 +114,55 @@ function replacePath(ctx: ToolContext, base: Doc, path: PathShape, next: PathSha
   ctx.commit(mapNodes(base, [path.id], () => next));
 }
 
+/** Applies a drag/marquee mode at event `e`, taking the mode explicitly rather than reading a
+ *  closure variable — `up` calls this with its own captured mode after clearing that variable,
+ *  so the release position and modifiers are never dropped (mirrors `select.ts`'s `drag`). */
+function applyMove(
+  ctx: ToolContext,
+  e: ToolEvent,
+  t: Target,
+  m: Exclude<Mode, { kind: "pending" }>,
+): void {
+  const p = applyMat(t.inv, e.doc);
+
+  if (m.kind === "handle") {
+    const path = pathOf(m.base, t.path.id);
+    if (path) replacePath(ctx, m.base, path, moveHandle(path, m.ref, m.which, p, e.mods.alt));
+    return;
+  }
+  if (m.kind === "nodes") {
+    const path = pathOf(m.base, t.path.id);
+    if (!path) return;
+    let to = p;
+    // Shift constrains to the nearest 45° in document space, matching what the user sees,
+    // regardless of the path's own rotation (spec M4a §7). The implied axes are carried into
+    // snapping below, so a target near the locked-out axis can't pull the drag off it.
+    let axes: Axes | undefined;
+    if (e.mods.shift) {
+      const constrained = constrain45(e.doc.x - m.startDoc.x, e.doc.y - m.startDoc.y);
+      to = applyMat(t.inv, {
+        x: m.startDoc.x + constrained.d.x,
+        y: m.startDoc.y + constrained.d.y,
+      });
+      axes = constrained.axes;
+    }
+    if (m.targets) {
+      const world = applyMat(t.world, to);
+      const snapped = snapPoint(world, m.targets, SNAP_PX / ctx.view().zoom, axes);
+      ctx.setOverlay(hasGuides(snapped.guides) ? { kind: "guides", ...snapped.guides } : null);
+      to = applyMat(t.inv, snapped.p);
+    }
+    replacePath(ctx, m.base, path, movePathNodes(path, m.refs, to.x - m.start.x, to.y - m.start.y));
+    return;
+  }
+  if (m.kind === "marquee") {
+    const box = boxFromPoints([m.start, e.doc]);
+    if (!box) return;
+    ctx.setOverlay({ kind: "marquee", box });
+    ctx.setNodeSel(mergeRefs(m.base, nodesIn(t, box)));
+  }
+}
+
 export function createNodeTool(): Tool {
   let mode: Mode | null = null;
   let lastTap: Tap | null = null;
@@ -221,7 +270,6 @@ export function createNodeTool(): Tool {
     move(ctx, e) {
       const t = targetOf(ctx);
       if (!mode || !t) return;
-      const p = applyMat(t.inv, e.doc);
 
       if (mode.kind === "pending") {
         if (!movedEnough(mode.start.screen, e.screen)) return;
@@ -247,48 +295,7 @@ export function createNodeTool(): Tool {
         }
       }
 
-      if (mode.kind === "handle") {
-        const path = pathOf(mode.base, t.path.id);
-        if (path)
-          replacePath(ctx, mode.base, path, moveHandle(path, mode.ref, mode.which, p, e.mods.alt));
-        return;
-      }
-      if (mode.kind === "nodes") {
-        const path = pathOf(mode.base, t.path.id);
-        if (!path) return;
-        let to = p;
-        // Shift constrains to the nearest 45° in document space, matching what the user sees,
-        // regardless of the path's own rotation (spec M4a §7). The implied axes are carried into
-        // snapping below, so a target near the locked-out axis can't pull the drag off it.
-        let axes: Axes | undefined;
-        if (e.mods.shift) {
-          const constrained = constrain45(e.doc.x - mode.startDoc.x, e.doc.y - mode.startDoc.y);
-          to = applyMat(t.inv, {
-            x: mode.startDoc.x + constrained.d.x,
-            y: mode.startDoc.y + constrained.d.y,
-          });
-          axes = constrained.axes;
-        }
-        if (mode.targets) {
-          const world = applyMat(t.world, to);
-          const snapped = snapPoint(world, mode.targets, SNAP_PX / ctx.view().zoom, axes);
-          ctx.setOverlay(hasGuides(snapped.guides) ? { kind: "guides", ...snapped.guides } : null);
-          to = applyMat(t.inv, snapped.p);
-        }
-        replacePath(
-          ctx,
-          mode.base,
-          path,
-          movePathNodes(path, mode.refs, to.x - mode.start.x, to.y - mode.start.y),
-        );
-        return;
-      }
-      if (mode.kind === "marquee") {
-        const box = boxFromPoints([mode.start, e.doc]);
-        if (!box) return;
-        ctx.setOverlay({ kind: "marquee", box });
-        ctx.setNodeSel(mergeRefs(mode.base, nodesIn(t, box)));
-      }
+      applyMove(ctx, e, t, mode);
     },
 
     up(ctx, e) {
@@ -300,7 +307,8 @@ export function createNodeTool(): Tool {
         if (m.collapseOnUp && m.pick && m.pick.kind === "node") ctx.setNodeSel([m.pick.ref]);
         return;
       }
-      this.move(ctx, e);
+      const t = targetOf(ctx);
+      if (t) applyMove(ctx, e, t, m);
       ctx.setOverlay(null);
       if (m.kind !== "marquee") ctx.endGesture();
     },

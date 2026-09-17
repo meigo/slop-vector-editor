@@ -137,6 +137,22 @@ describe("node tool: editing", () => {
     expect(state.session.history.past).toHaveLength(1);
   });
 
+  it("applies the pointer-up position when it's only reported on up, not on a prior move", () => {
+    // Snapping off: this checks the drag maths, not the snap targets. Only one intermediate
+    // move is sent before up, and up itself carries the final position — nothing reports it
+    // beforehand, so a fix that drops the up event entirely would leave the node at (5, 5).
+    const { ctx, state } = fakeContext(curvedDoc(), { ...DEFAULT_PREFS, snap: false });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(0, 0));
+    tool.move(ctx, ev(5, 5));
+    tool.up(ctx, ev(10, 6));
+    const n = target(state).subpaths[0].nodes[0];
+    expect(n.p).toEqual({ x: 10, y: 6 });
+    expect(n.out).toEqual({ x: 10, y: 46 });
+  });
+
   it("drags a handle of a selected node", () => {
     const { ctx, state } = fakeContext(curvedDoc());
     const tool = createNodeTool();

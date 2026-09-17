@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { findNode } from "../doc/tree";
   import {
     app,
     bringSelectionForward,
     bringSelectionToFront,
+    closeTargetSubpath,
     convertSelectionToPath,
     copyToSystem,
     cutToSystem,
@@ -26,6 +28,13 @@
   let width = $state(208);
   let height = $state(150);
   const actions = $derived(selectionActions(app.doc, app.selection));
+  const canClosePath = $derived.by(() => {
+    if (app.toolId !== "node" || app.nodeSel.length === 0) return false;
+    const found = app.nodeTarget === null ? null : findNode(app.doc, app.nodeTarget);
+    const path = found && found.node.kind === "path" ? found.node : null;
+    const sub = path?.subpaths[app.nodeSel[0].sub];
+    return sub ? !sub.closed : false;
+  });
   const left = $derived(
     app.contextMenu
       ? Math.max(MARGIN, Math.min(app.contextMenu.x, innerWidth - width - MARGIN))
@@ -85,6 +94,7 @@
       Paste <span class="kbd">⌘V</span>
     </button>
     {#if app.toolId === "node" && app.nodeSel.length > 0}
+      <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(deleteSelectedNodes)}>
         Delete node{app.nodeSel.length > 1 ? "s" : ""} <span class="kbd">⌫</span>
       </button>
@@ -109,6 +119,15 @@
       >
         Symmetric
       </button>
+      {#if canClosePath}
+        <button
+          class="menu-item"
+          role="menuitem"
+          onclick={() => run(() => closeTargetSubpath(app.nodeSel[0].sub))}
+        >
+          Close path
+        </button>
+      {/if}
     {/if}
     {#if app.selection.length > 0}
       <div class="my-1 h-px bg-line"></div>

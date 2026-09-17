@@ -354,16 +354,16 @@
   mid-curve, and `nearestOnSubpath` for picking the segment under the pointer. Flattening now
   scales with the accumulated matrix scale (segment cap 64 → 256), fixing coarse hit-testing on
   scaled-up curves — a parked M2b/M4 finding.
-- The coincident-point tolerance in `src/svg/pathdata.ts` widened from exact float equality to
-  match the writer's 6-decimal rounding, so a closed subpath a hair off from its start still
-  merges on reload — another parked finding this milestone fixes.
+- The coincident-point tolerance in `src/svg/pathdata.ts` widened from 1e-9 to 1e-6, matching the
+  writer's 6-decimal rounding, so a closed subpath a hair off from its start still merges on
+  reload — another parked finding this milestone fixes.
 - Snapping to path nodes (`collectTargets`'s new `{ nodes: true }` option, spec M2b §1); a Node
   section in Properties (type toggle + X/Y for a single selected node); node items (Delete
   node(s), Corner, Smooth, Symmetric) in the context menu, gated to the node tool with a node
   selection.
-- Fix: a tool's double-tap action now fires on pointer-up for a gesture that stayed a click,
-  instead of on pointer-down — a latent bug where a click followed within the double-tap window by
-  a drag would enter a group (or, now, switch tools) instead of dragging.
+- Fix: the select tool's double-tap action now fires on pointer-up for a gesture that stayed a
+  click, instead of on pointer-down — a latent bug where a click followed within the double-tap
+  window by a drag would enter a group (or, now, switch tools) instead of dragging.
 - Plan: `docs/superpowers/plans/2026-09-17-m4a-node-editing.md`.
 - Browser-verified (desktop Chrome): convert-free editing of a pasted path — targeting a path,
   dragging a node (handles follow) and a handle, double-click to add a node and to cycle a type,

@@ -41,7 +41,9 @@
     { type: "smooth" as const, label: "Smooth" },
     { type: "symmetric" as const, label: "Symmetric" },
   ];
-  const nodeSummary = $derived(selectedNodeSummary(app.doc, app.nodeTarget, app.nodeSel));
+  const nodeSummary = $derived(
+    app.toolId === "node" && selectedNodeSummary(app.doc, app.nodeTarget, app.nodeSel),
+  );
 
   const hasSelection = $derived(app.selection.length > 0);
   const opacity = $derived(selectionOpacity(app.doc, app.selection));
@@ -204,7 +206,7 @@
       <div class="flex gap-1">
         {#each NODE_TYPES as t (t.type)}
           <ToggleButton
-            value={nodeSummary.type === t.type}
+            value={nodeSummary.type === "mixed" ? "mixed" : nodeSummary.type === t.type}
             label={t.label}
             onchange={() => setSelectedNodeType(t.type)}
           />

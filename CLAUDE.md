@@ -35,8 +35,9 @@ every user-visible change.
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
   `bounds.ts` (node/selection bounds through the matrix), `hit.ts` (hit-testing and marquee
-  select; caches flattened outlines per shape object), `snap.ts` (snap targets from the artboard
-  and object bounds, `snapValue`/`snapBox`/`snapPoint`).
+  select; caches flattened outlines keyed per subpath array and scale bucket), `snap.ts` (snap
+  targets from the artboard and object bounds, plus path node points via `collectTargets`'s
+  `nodes` option, `snapValue`/`snapBox`/`snapPoint`).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
   `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
@@ -190,8 +191,11 @@ every user-visible change.
 31. **`app.nodeTarget`/`app.nodeSel` are store state** (not saved, not undoable), re-resolved in
     `setSession`. Escape walks node selection → node target (back to the select tool) → entered
     group → object selection.
-32. **A tool's double-tap action fires on pointer-up, for a gesture that stayed a click.** Acting
-    on pointer-down made a click followed by a quick drag change context instead of dragging.
+32. **The select tool's double-tap action fires on pointer-up, for a gesture that stayed a
+    click.** Acting on pointer-down made a click followed by a quick drag change context instead
+    of dragging. The node tool's own double-tap actions — inserting a node, cycling a node's
+    type — deliberately fire on pointer-down instead: there's no context to hand off, so nothing
+    is lost by not waiting for the up.
 
 ## Current state
 
@@ -207,8 +211,8 @@ tools and edits must never create them (or add an own-format bypass) — otherwi
 not round-trip.
 
 M4b constraint: a closed subpath whose last node coincides with its first is merged on reload (one
-node fewer) — the pen tool must not create that shape, or the writer must emit an explicit closing
-segment.
+node fewer) — the pen and node tools must not create that shape (`movePathNodes` can drop a node
+onto the first one), or the writer must emit an explicit closing segment.
 
 M3b (parked, spec §9): a per-document id index for `findNode` lookups during drags — nesting makes
 it more relevant, since `dropTarget` runs `findNode` + `ancestorIds` + `moveNodes` on every
@@ -216,7 +220,8 @@ pointermove.
 
 M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
 palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
-small-object handle policy; the drawer covers the modifier dock at iPad portrait widths.
+small-object handle policy; the drawer covers the modifier dock at iPad portrait widths; a path
+inside a group contributes no snap targets, because `collectTargets` walks only top-level nodes.
 
 ## Verification debt
 
