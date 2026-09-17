@@ -129,7 +129,7 @@ every user-visible change.
 21. **Polygons are live shapes saved as paths** (spec M2c). A polygon is written as
     `<path d … data-sv-polygon="sides star inner cx cy rx ry">`, with `d` built from the numbers
     _as written_ (`polygonD`). The importer restores a polygon only when the attribute validates
-    and the regenerated `d` equals the file's `d`; otherwise it stays a path. Never build a
+    and the regenerated `d` matches the file's outline within 2e-6; otherwise it stays a path. Never build a
     polygon's `d` from unrounded numbers, or reopened files silently lose their polygons.
 22. **Polygon resize flips:** the corner set is left-right symmetric, so a horizontal flip needs
     nothing. A vertical flip of an odd polygon composes an exact half-turn

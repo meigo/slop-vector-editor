@@ -14,6 +14,8 @@ import { IDENTITY, rotateAbout } from "../geom/mat";
 import { rectPath } from "../geom/shapes";
 import { parsePolygonAttr, parseSvg, SvgError } from "../svg/parse";
 import { polygonD } from "../svg/attrs";
+import { fmt } from "../svg/fmt";
+import { parsePathData } from "../svg/pathdata";
 import { serializeDoc } from "../svg/serialize";
 import { XmlError } from "../svg/xml";
 import { stripIds } from "./helpers";
@@ -358,6 +360,52 @@ describe("live polygons", () => {
     ]);
   });
 
+  /** The saved file with the first `M` x value of the polygon's `d` shifted by `dx`. */
+  const nudged = (dx: number): string =>
+    serializeDoc(withPoly()).replace(
+      / d="M([-+.\de]+)/,
+      (_, x: string) => ` d="M${fmt(Number(x) + dx)}`,
+    );
+
+  it("reads the written polygon d as one closed subpath without a duplicate last node", () => {
+    const sp = parsePathData(polygonD(poly));
+    expect(sp).toHaveLength(1);
+    expect(sp[0].closed).toBe(true);
+    expect(sp[0].nodes).toHaveLength(14);
+  });
+
+  it("keeps a polygon whose outline differs by float noise", () => {
+    const text = nudged(1e-6);
+    expect(text).not.toBe(serializeDoc(withPoly()));
+    const back = parseSvg(text);
+    expect(back.dropped).toEqual([]);
+    expect(back.doc.layers[0].children[0].kind).toBe("polygon");
+  });
+
+  it("imports an outline moved by more than the tolerance as a path", () => {
+    const back = parseSvg(nudged(1e-4));
+    expect(back.dropped).toEqual([]);
+    expect(back.doc.layers[0].children[0].kind).toBe("path");
+  });
+
+  it("imports an outline with an extra node as a path", () => {
+    const text = serializeDoc(withPoly()).replace(/ Z"/, ' L0 0 Z"');
+    expect(text).toContain(' L0 0 Z"');
+    const back = parseSvg(text);
+    expect(back.dropped).toEqual([]);
+    expect(back.doc.layers[0].children[0].kind).toBe("path");
+  });
+
+  it("stores the polygon parameters as a save would write them", () => {
+    const d = polygonD({ cx: 1, cy: 0, rx: 10, ry: 10, sides: 5, star: false, innerRatio: 0.5 });
+    const back = parseSvg(
+      `<svg><path d="${d}" data-sv-polygon="5 0 0.5 1.0000001 0 10 10"/></svg>`,
+    );
+    const p = back.doc.layers[0].children[0] as PolygonShape;
+    expect(p.kind).toBe("polygon");
+    expect(p.cx).toBe(1);
+  });
+
   it("imports a path with an invalid polygon attribute as a path", () => {
     const d = polygonD({ cx: 0, cy: 0, rx: 10, ry: 10, sides: 5, star: false, innerRatio: 0.5 });
     const back = parseSvg(`<svg><path d="${d}" data-sv-polygon="5 0 0.5 0 0 10 -10"/></svg>`);
@@ -390,6 +438,11 @@ describe("live polygons", () => {
       "5 0 0.5 0 0 10 2e9",
       "5 0 0.5 0 0 10 NaN",
       "5 0 0.5 0 0 10 abc",
+      "0x5 0 0.5 0 0 10 10",
+      "5 0 0.5 0 0 10 1e1x",
+      "5 0 0.5 0 0 10\u00a010",
+      "5 0 0.5 0 0 10 10\u00a0",
+      "5 0 0.5 0 0 0.0000001 10",
     ]) {
       expect(parsePolygonAttr(bad), bad).toBeNull();
     }

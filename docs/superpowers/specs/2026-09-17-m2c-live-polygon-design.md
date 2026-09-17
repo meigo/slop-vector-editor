@@ -123,7 +123,10 @@ A `<path>` with `data-sv-polygon` becomes a polygon only when all of these hold:
 - `innerRatio` is in 0.1–0.95;
 - `cx` and `cy` are finite with `|v| ≤ MAX_COORD`;
 - `rx` and `ry` are finite, > 0 and ≤ MAX_COORD;
-- the element's `d` attribute equals the `d` regenerated from those numbers, string for string.
+- the element's `d` describes the same outline: one closed subpath of corner nodes without
+  handles, with the same number of corners, each within 2e-6 of the corner regenerated from those
+  numbers (amended at final review: exact string equality depended on identical trig results
+  across browsers).
 
 Otherwise the element imports as a normal path. Nothing is added to `dropped`, because the path
 itself is intact. This is the lossless rule from CLAUDE.md gotcha #10: an outline edited in
