@@ -123,8 +123,7 @@ app:
 - **No wrapping.** Labels and buttons in both bars get `whitespace-nowrap shrink-0`. Both bars get
   `overflow-x-auto`; the context bar already has it.
 - **Unsaved indicator (guide §5).** Delete the inline " ●" span after the file name. When the
-  document is dirty, the file name itself turns `text-accent` (the guide's §5 colour for unsaved state; the old dot used `warn`), keeps its `title`, and gets
-  `aria-label="{name}, unsaved changes"`. The name's box must not change width or position between
+  document is dirty, the file name itself turns `text-accent` (the guide's §5 colour for unsaved state; the old dot used `warn`), keeps its `title`, and contains visually hidden text `, unsaved changes` (Tailwind `sr-only`) — amended in review: `aria-label` on a plain span is not announced. The name's box must not change width or position between
   the clean and dirty states.
 - **Section titles.** One shared class in `app.css`:
   `.section-title { @apply text-[11px] font-medium uppercase tracking-wide text-muted; }`. It is

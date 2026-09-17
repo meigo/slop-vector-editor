@@ -64,12 +64,8 @@
   </div>
 
   <!-- Unsaved = recoloured name, never an inserted glyph (guide §5: state must not move layout). -->
-  <span
-    class={["ml-1 min-w-0 truncate", app.dirty && "text-accent"]}
-    title={app.fileName}
-    aria-label={app.dirty ? `${app.fileName}, unsaved changes` : app.fileName}
-  >
-    {app.fileName}
+  <span class={["ml-1 min-w-0 truncate", app.dirty && "text-accent"]} title={app.fileName}>
+    {app.fileName}{#if app.dirty}<span class="sr-only">, unsaved changes</span>{/if}
   </span>
 
   <div class="ml-auto flex shrink-0 items-center gap-1">
