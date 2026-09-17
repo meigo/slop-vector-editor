@@ -31,8 +31,8 @@
   <div class="flex flex-wrap gap-1">
     {#each PRESETS as p (p.label)}
       <button
-        class="btn"
-        class:btn-on={p.w === w && p.h === h}
+        class={["btn", p.w === w && p.h === h && "ui-on"]}
+        aria-pressed={p.w === w && p.h === h}
         onclick={() => {
           w = p.w;
           h = p.h;

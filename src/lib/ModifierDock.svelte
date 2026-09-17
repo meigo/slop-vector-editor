@@ -33,8 +33,7 @@
   aria-label="Modifier keys"
 >
   <button
-    class="h-10 w-14 rounded border border-line text-xs select-none"
-    class:dock-on={app.prefs.snap}
+    class={["h-10 w-14 rounded border border-line text-xs select-none", app.prefs.snap && "ui-on"]}
     aria-pressed={app.prefs.snap}
     title="Snap to the artboard and objects (%)"
     onclick={toggleSnap}
@@ -44,8 +43,10 @@
   </button>
   {#each KEYS as key (key)}
     <button
-      class="h-10 w-14 rounded border border-line text-xs select-none"
-      class:dock-on={app.dock[key] !== "off"}
+      class={[
+        "h-10 w-14 rounded border border-line text-xs select-none",
+        app.dock[key] !== "off" && "ui-on",
+      ]}
       style="touch-action: none"
       aria-pressed={app.dock[key] !== "off"}
       title="Hold, or tap to lock, {LABELS[key]}"

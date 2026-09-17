@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
 /* Family palette, verbatim from ../SLOP-TIMELINE-UI.md §1 (role names kept). Dark only. The
-   ARTWORK is unaffected: the artboard background is document data, painted by the canvas. */
+   ARTWORK is unaffected: the artboard background is document data, painted by the canvas.
+   System font like slop-animator (spec M2d §2). */
 @theme {
-  --font-sans: "IBM Plex Mono", ui-monospace, monospace;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-ground: #101013;
   --color-panel: #1e1e22;
   --color-raised: #2d2d33;
@@ -29,6 +30,8 @@ body {
   background: var(--color-ground);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.4;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -40,20 +43,20 @@ body {
 }
 
 @layer components {
+  /* Every control in a bar is 32px high (spec M2d §5; the guide says 24px, slop-animator and
+     touch use 32px). Controls never shrink or wrap; the bar scrolls instead. */
   .icon-btn {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent;
   }
   .btn {
-    @apply inline-flex h-8 items-center rounded border border-line bg-raised px-3 text-xs text-text hover:border-muted disabled:text-disabled;
+    @apply inline-flex h-8 shrink-0 items-center rounded border border-line bg-raised px-3 text-xs whitespace-nowrap text-text hover:border-muted disabled:text-disabled;
   }
   .btn-primary {
     @apply border-accent bg-accent text-accent-text hover:bg-accent-hover;
   }
-  .btn-on {
-    @apply border-accent text-accent;
-  }
+  /* Fields are raised: an input must not be the colour of the surface it sits on (guide §3). */
   .field {
-    @apply h-8 rounded border border-line bg-ground px-2 text-xs text-text select-text focus:border-accent focus:outline-none;
+    @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text focus:border-accent;
   }
   .menu-item {
     @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised;
@@ -61,10 +64,46 @@ body {
   .kbd {
     @apply text-muted;
   }
-  .tool-on {
-    @apply bg-accent text-accent-text hover:bg-accent-hover;
+  .section-title {
+    @apply text-[11px] font-medium tracking-wide text-muted uppercase;
   }
-  .dock-on {
-    @apply border-accent bg-accent text-accent-text;
+  /* Group separator in a bar: 1px rule, bar height minus 8px (guide §4). */
+  .bar-sep {
+    @apply mx-1 my-1 w-px shrink-0 self-stretch bg-line;
   }
+}
+
+/* THE on-state, defined once (guide §6: one idiom per app). Unlayered on purpose: unlayered
+   declarations beat every Tailwind layer, so a button's own text/background utilities can never
+   hide it. Copied from slop-animator/src/app.css. */
+.ui-on {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+.ui-on:hover {
+  background-color: var(--color-accent-hover);
+}
+/* A toggle whose selection is mixed: accent text, no fill. */
+.ui-mixed {
+  color: var(--color-accent);
+}
+/* A selected ROW: a quiet tint plus a 2px left edge. The edge is an inset shadow so selecting a
+   row never changes its geometry (guide §5). For the M3 layers panel. */
+.ui-selected,
+.ui-selected-tint {
+  --ui-selected-tint: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  background-color: var(--ui-selected-tint);
+}
+.ui-selected {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+/* Focus rings are a keyboard affordance: none after a mouse/pen click, one consistent ring for
+   the keyboard. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
