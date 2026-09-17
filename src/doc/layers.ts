@@ -30,7 +30,7 @@ export function layerBlock(doc: Doc, id: string): LayerBlock | null {
 
 export function blockMessage(block: LayerBlock, verb: "draw" | "paste"): string {
   const fix = block.reason === "hidden" ? "show it" : "unlock it";
-  return `"${block.name}" is ${block.reason} — ${fix} to ${verb}.`;
+  return `“${block.name}” is ${block.reason} — ${fix} to ${verb}.`;
 }
 
 function replaceLayer(doc: Doc, id: string, fn: (l: Layer) => Layer): Doc {

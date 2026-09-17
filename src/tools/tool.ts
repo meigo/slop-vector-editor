@@ -16,6 +16,7 @@ export interface ToolContext {
   doc(): Doc;
   view(): View;
   selection(): readonly string[];
+  currentLayerId(): string;
   setSelection(ids: readonly string[]): void;
   commit(doc: Doc): void;
   beginGesture(): void;

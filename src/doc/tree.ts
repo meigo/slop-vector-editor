@@ -21,15 +21,6 @@ export function selectableIds(doc: Doc): Set<string> {
   return out;
 }
 
-/** Where new shapes go until the layers panel (M3) adds a real current layer. */
-export function targetLayerId(doc: Doc): string | null {
-  for (let i = doc.layers.length - 1; i >= 0; i--) {
-    const l = doc.layers[i];
-    if (l.visible && !l.locked) return l.id;
-  }
-  return null;
-}
-
 export function pruneSelection(doc: Doc, ids: readonly string[]): readonly string[] {
   const ok = selectableIds(doc);
   const seen = new Set<string>();

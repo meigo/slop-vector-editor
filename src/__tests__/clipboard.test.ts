@@ -14,7 +14,6 @@ import {
   EMPTY,
   isPasteError,
   looksLikeSvg,
-  NO_LAYER,
   NOT_SVG,
   planPaste,
   type Clip,
@@ -111,12 +110,12 @@ describe("planPaste", () => {
 
   it("cascades repeated pastes of our own copy by 10", () => {
     const clip: Clip = { text, pastes: 0 };
-    const first = plan(planPaste(source, text, clip, view));
+    const first = plan(planPaste(source, text, clip, view, "L0"));
     expect(first.ids).toEqual(["n50"]);
     expect(originOf(first.doc, "n50")).toEqual({ x: 10, y: 10 });
     expect(first.clip).toEqual({ text, pastes: 1 });
     expect(first.dropped).toEqual([]);
-    const second = plan(planPaste(first.doc, text, first.clip, view));
+    const second = plan(planPaste(first.doc, text, first.clip, view, "L0"));
     expect(originOf(second.doc, second.ids[0])).toEqual({ x: 20, y: 20 });
     expect(second.clip).toEqual({ text, pastes: 2 });
   });
@@ -124,14 +123,14 @@ describe("planPaste", () => {
   it("recognises our own copy even after a CRLF round-trip", () => {
     const crlf = text.replace(/\n/g, "\r\n");
     const clip: Clip = { text, pastes: 0 };
-    const r = plan(planPaste(source, crlf, clip, view));
+    const r = plan(planPaste(source, crlf, clip, view, "L0"));
     expect(originOf(r.doc, r.ids[0])).toEqual({ x: 10, y: 10 });
     expect(r.clip).toEqual({ text: crlf, pastes: 1 });
   });
 
   it("centres our copy in the view when the offset copy would be off-screen", () => {
     const far = { x: 500, y: 500, w: 100, h: 100 };
-    const r = plan(planPaste(source, text, { text, pastes: 0 }, far));
+    const r = plan(planPaste(source, text, { text, pastes: 0 }, far, "L0"));
     // bounds (10,10,20,20) centre (20,20) → view centre (550,550)
     expect(originOf(r.doc, r.ids[0])).toEqual({ x: 530, y: 530 });
     expect(r.clip).toEqual({ text, pastes: 1 });
@@ -141,27 +140,36 @@ describe("planPaste", () => {
     const clip: Clip = { text, pastes: 3 };
     const ext = `<svg viewBox="0 0 50 50"><circle cx="5" cy="5" r="5"/><text>hi</text></svg>`;
     expect(looksLikeSvg(ext)).toBe(true);
-    const r = plan(planPaste(source, ext, clip, view));
+    const r = plan(planPaste(source, ext, clip, view, "L0"));
     expect(r.clip).toBe(clip);
     expect(r.dropped).toEqual(["<text>"]);
     expect(originOf(r.doc, r.ids[0])).toEqual({ x: 45, y: 45 });
-    const noClip = plan(planPaste(source, ext, null, view));
+    const noClip = plan(planPaste(source, ext, null, view, "L0"));
     expect(noClip.clip).toBeNull();
   });
 
-  it("pastes into the top-most visible unlocked layer", () => {
-    const d = doc([{ children: [] }, { children: [] }, { children: [], locked: true }]);
-    const r = plan(planPaste(d, text, null, view));
-    expect(r.doc.layers[1].children.map((n) => n.id)).toEqual(r.ids);
-    expect(r.doc.layers[0].children).toHaveLength(0);
+  it("pastes into the given layer and refuses blocked ones", () => {
+    const d = doc([
+      { children: [] },
+      { children: [] },
+      { children: [], locked: true, name: "Ink" },
+      { children: [], visible: false, name: "Sketch" },
+    ]);
+    const r = plan(planPaste(d, text, null, view, "L0"));
+    expect(r.doc.layers[0].children.map((n) => n.id)).toEqual(r.ids);
+    expect(r.doc.layers[1].children).toHaveLength(0);
+    expect(planPaste(d, text, null, view, "L2")).toEqual({
+      error: '"Ink" is locked — unlock it to paste.',
+    });
+    expect(planPaste(d, text, null, view, "L3")).toEqual({
+      error: '"Sketch" is hidden — show it to paste.',
+    });
   });
 
   it("reports errors without changing anything", () => {
-    expect(planPaste(source, "hello", null, view)).toEqual({ error: NOT_SVG });
-    expect(planPaste(source, "<html></html>", null, view)).toEqual({ error: NOT_SVG });
-    expect(planPaste(source, "<svg/>", null, view)).toEqual({ error: EMPTY });
-    const locked = doc([{ children: [], locked: true }]);
-    expect(planPaste(locked, text, null, view)).toEqual({ error: NO_LAYER });
+    expect(planPaste(source, "hello", null, view, "L0")).toEqual({ error: NOT_SVG });
+    expect(planPaste(source, "<html></html>", null, view, "L0")).toEqual({ error: NOT_SVG });
+    expect(planPaste(source, "<svg/>", null, view, "L0")).toEqual({ error: EMPTY });
     expect(looksLikeSvg("just text")).toBe(false);
     expect(looksLikeSvg("<SVG width='1'/>")).toBe(true);
   });

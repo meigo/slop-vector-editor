@@ -28,7 +28,6 @@ import {
   pruneSelection,
   selectableIds,
   shapesOf,
-  targetLayerId,
 } from "../doc/tree";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { deepFreeze } from "./helpers";
@@ -83,11 +82,8 @@ describe("tree", () => {
     expect(findTopLevel(d, "inner")).toBeNull();
   });
 
-  it("lists selectable ids and the target layer", () => {
+  it("lists selectable ids", () => {
     expect([...selectableIds(d)]).toEqual(["a", "g"]);
-    expect(targetLayerId(d)).toBe("L0");
-    expect(targetLayerId(doc([{ locked: true }]))).toBeNull();
-    expect(targetLayerId(doc([{}, {}]))).toBe("L1");
   });
 
   it("prunes selections", () => {

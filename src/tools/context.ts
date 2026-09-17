@@ -14,6 +14,7 @@ export const storeContext: ToolContext = {
   doc: () => app.doc,
   view: () => app.view,
   selection: () => app.selection,
+  currentLayerId: () => app.currentLayerId,
   setSelection,
   commit: commitDoc,
   beginGesture: beginDocGesture,

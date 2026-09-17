@@ -62,10 +62,10 @@ describe("current layer helpers", () => {
     expect(layerBlock(d, "H")).toEqual({ name: "Sketch", reason: "hidden" });
     expect(layerBlock(d, "K")).toEqual({ name: "K", reason: "locked" });
     expect(blockMessage({ name: "Sketch", reason: "hidden" }, "draw")).toBe(
-      `"Sketch" is hidden — show it to draw.`,
+      `“Sketch” is hidden — show it to draw.`,
     );
     expect(blockMessage({ name: "K", reason: "locked" }, "paste")).toBe(
-      `"K" is locked — unlock it to paste.`,
+      `“K” is locked — unlock it to paste.`,
     );
   });
 });

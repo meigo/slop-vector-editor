@@ -10,7 +10,8 @@ import {
   translateNodes,
   type PolygonPatch,
 } from "../doc/edits";
-import { pruneSelection } from "../doc/tree";
+import { resolveLayerId } from "../doc/layers";
+import { findTopLevel, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
@@ -55,6 +56,8 @@ export type DockState = { shift: Latch; alt: Latch };
  *  equality intact for the dirty check and for selection pruning. */
 class AppState {
   session = $state.raw<Session>(newSession(createDoc(1920, 1080), true));
+  /** Where new objects go (spec M3a §2). Not saved, not undoable. */
+  currentLayerId = $state<string>(resolveLayerId(createDoc(1920, 1080), null));
   fileName = $state("Untitled.svg");
   view = $state.raw<View>({ x: 0, y: 0, zoom: 1 });
   viewportSize = $state.raw({ w: 0, h: 0 });
@@ -116,6 +119,8 @@ function setSession(s: Session): void {
   app.session = s;
   const pruned = pruneSelection(s.doc, app.selection);
   if (pruned !== app.selection) app.selection = pruned;
+  const current = resolveLayerId(s.doc, app.currentLayerId);
+  if (current !== app.currentLayerId) app.currentLayerId = current;
 }
 
 export function commitDoc(next: Doc): void {
@@ -150,6 +155,7 @@ export function replaceDocument(
   app.selection = [];
   app.overlay = null;
   setSession(newSession(doc, saved));
+  app.currentLayerId = resolveLayerId(doc, null);
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
@@ -220,6 +226,14 @@ export function askConfirm(text: string, confirmLabel: string): Promise<boolean>
 
 export function setSelection(ids: readonly string[]): void {
   app.selection = pruneSelection(app.doc, ids);
+  // The layer of the last selected object becomes current (spec M3a §2).
+  const last = app.selection[app.selection.length - 1];
+  const found = last === undefined ? null : findTopLevel(app.doc, last);
+  if (found && found.layer.id !== app.currentLayerId) app.currentLayerId = found.layer.id;
+}
+
+export function setCurrentLayer(id: string): void {
+  app.currentLayerId = resolveLayerId(app.doc, id);
 }
 
 export function clearSelection(): void {
@@ -345,7 +359,7 @@ export function cutSelection(): string | null {
 /** One undo step; selects what was pasted. */
 export function pasteText(text: string): void {
   cancelActiveGesture();
-  const r = planPaste(app.doc, text, clip, visibleDocBox());
+  const r = planPaste(app.doc, text, clip, visibleDocBox(), app.currentLayerId);
   if (isPasteError(r)) {
     notify("error", r.error);
     return;
