@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 276 tests in 25 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 278 tests in 26 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -55,7 +55,8 @@ every user-visible change.
   `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `ContextBar`, `ContextMenu`, `ModifierDock`, `PropertiesPanel`,
-  `NumberField`, `PaintField`, `Modal`, dialogs, `Notices`.
+  `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper), `Modal`,
+  dialogs, `Notices`.
 
 ## Invariants and gotchas
 
@@ -135,6 +136,17 @@ every user-visible change.
     nothing. A vertical flip of an odd polygon composes an exact half-turn
     (`[−1, 0, 0, −1, 2cx, 2cy]`) into the transform, never `rotateAbout(π)`, which leaves float
     noise in files.
+23. **UI follows `../SLOP-TIMELINE-UI.md` and slop-animator** (spec M2d).
+    - The on-state is `.ui-on`, and a row selection is `.ui-selected`. Both are unlayered in
+      `app.css`, so no utility can hide them.
+    - Write each element's classes as one expression (`class={["btn", on && "ui-on"]}`), never a
+      `class:` colour directive over a coloured base.
+    - Toggles are `ToggleButton`s (`aria-pressed`, with a `"mixed"` state), never checkboxes.
+    - Fields are raised.
+    - A state change must not move the layout. For example, unsaved changes recolour the file
+      name.
+    - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
+      with slop-animator, because it suits touch.
 
 ## Current state
 

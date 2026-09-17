@@ -210,3 +210,39 @@
   dropped and kinds kept, and polygons survive autosave + reload; no console errors.
 - Owed: touch/Pencil editing of the fields on iPad; Safari/Firefox; opening a saved polygon in
   Inkscape/Illustrator/Figma (should show as a plain path).
+
+## 2026-09-17 — Milestone 2d: UI alignment with slop-animator
+
+- System UI font (IBM Plex Mono and its Google Fonts request removed); 14px body text; tabular
+  digits in number and hex fields.
+- Raised fields; one on-state (`.ui-on`, unlayered) for tools, dock, presets and the open File
+  menu; `.ui-selected` row style ready for the layers panel; keyboard-only focus rings.
+- Checkboxes became toggle buttons (`ToggleButton`, `aria-pressed`, with a mixed state): Star (tool
+  and selection), Fill/Stroke "On", Document settings Background.
+- The ☰ menu is a labelled "File ▾" button; bars have group separators and never wrap (they scroll
+  when too narrow); the unsaved state recolours the file name instead of inserting a dot; panel and
+  dialog section titles are small uppercase labels.
+- Deliberate deviation from SLOP-TIMELINE-UI.md: bar controls are 32px (as in slop-animator), not
+  24px.
+- Plan: `docs/superpowers/plans/2026-09-17-m2d-ui-alignment.md`.
+- Browser-verified (desktop Chrome): body font-family is system-ui, sans-serif with no requests to
+  fonts.googleapis.com / fonts.gstatic.com; no checkbox left in the DOM, every toggle carries
+  aria-pressed (tools, Snap/Shift/Alt, Properties, Star, Fill/Stroke "On" — named "Fill on"/"Stroke
+  on", Document settings Background "On" — named "Background on", New-document presets); a polygon
+  + star selection shows Star as `aria-pressed="mixed"` with `.ui-mixed`, a filled + unfilled
+  selection shows Fill/Stroke as mixed, and clicking either mixed toggle applies to both in one
+  undo step; the active tool button and the selected New-document preset use `.ui-on`; a mouse
+  click on Undo leaves no focus outline, Tab to Redo shows a solid 2px accent outline; the file
+  name keeps an identical bounding box clean vs dirty and turns accent when dirty (checked before a
+  review fix replaced the span's aria-label with visually hidden ", unsaved changes" text, which
+  takes no layout space; that fix was not re-checked in the browser); fields have the raised
+  background; the File ▾ button carries `aria-haspopup`/`aria-expanded` and `.ui-on` while open,
+  menu items unchanged, and the click-away overlay closes it; narrowed to 820px neither bar changes
+  height or wraps, the context bar scrolls instead (882 > 820); screenshots taken of the top bar +
+  context bar with a mixed polygon selection, Properties, Document settings, and New document; no
+  console errors during use or on reload.
+- Review fixes: fields show only the focus ring (no accent border) on focus; the "On" toggles are
+  named "Fill on" / "Stroke on" / "Background on"; the unsaved state is announced by visually
+  hidden text.
+- Owed: iPad/Safari look (SF system font), touch sizes on a device, the narrow drawer layout on a
+  real narrow window (automation narrowed only the app container).
