@@ -4,12 +4,14 @@
     app,
     applyGeometry,
     setPolygonPrefs,
+    setSelectionOpacity,
     setSelectionPolygon,
     setSelectionRectRadius,
     setSelectionStyle,
   } from "../state/appState.svelte";
   import {
     selectionGeometry,
+    selectionOpacity,
     selectionStyles,
     summarizePolygons,
     summarizeRects,
@@ -33,6 +35,12 @@
   ];
 
   const hasSelection = $derived(app.selection.length > 0);
+  const opacity = $derived(selectionOpacity(app.doc, app.selection));
+  const opacityValue = $derived.by(() => {
+    const field = opacity ?? summary?.opacity;
+    if (!field) return null;
+    return field.mixed ? null : Math.round(field.value * 100);
+  });
   const summary = $derived(
     summarizeStyles(hasSelection ? selectionStyles(app.doc, app.selection) : [app.prefs.style]),
   );
@@ -103,11 +111,11 @@
     </div>
     <NumberField
       label="Opacity"
-      value={summary.opacity.mixed ? null : Math.round(summary.opacity.value * 100)}
+      value={opacityValue}
       min={0}
       max={100}
       suffix="%"
-      onchange={(v) => setSelectionStyle({ opacity: v / 100 })}
+      onchange={(v) => setSelectionOpacity(v / 100)}
     />
   {/if}
 
