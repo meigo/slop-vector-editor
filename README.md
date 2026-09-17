@@ -31,6 +31,8 @@ Early development. What works today:
   polygon sides/star) live in the properties panel.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back).
+- Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the
+  layers panel.
 
 ## Keyboard
 
@@ -50,10 +52,11 @@ Early development. What works today:
 | Snap on/off                                     | %                                     |
 | Bring forward / Send backward                   | ⌘] / ⌘[                               |
 | Bring to front / Send to back                   | ⇧⌘] / ⇧⌘[                             |
+| Group / Ungroup                                 | ⌘G / ⇧⌘G                              |
 
 ## Roadmap
 
-Next: groups, then pen and node editing.
+Next: pen and node editing.
 
 ## Development
 
@@ -61,7 +64,7 @@ Next: groups, then pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 303 unit tests
+npm test          # 354 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

@@ -22,6 +22,10 @@
       ? selectionFrame(app.doc, app.selection)
       : null,
   );
+  const entered = $derived(
+    app.enteredGroupId === null ? null : selectionFrame(app.doc, [app.enteredGroupId]),
+  );
+  const enteredOutline = $derived(entered ? frameOutline(entered, view) : null);
   const handles = $derived(frame ? handlePositions(frame, view) : null);
   const size = $derived(handleSize(app.lastPointerType));
   const marquee = $derived(app.overlay?.kind === "marquee" ? app.overlay.box : null);
@@ -36,6 +40,14 @@
 </script>
 
 <g pointer-events="none">
+  {#if enteredOutline}
+    <polygon
+      points={points(enteredOutline)}
+      style="stroke: var(--color-line); fill: none"
+      stroke-width="1"
+      stroke-dasharray="4 3"
+    />
+  {/if}
   {#each outlines as outline, i (i)}
     <polygon points={points(outline)} style={LINE} stroke-width="1" />
   {/each}

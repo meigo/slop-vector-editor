@@ -58,6 +58,39 @@ describe("selection frame", () => {
     );
   });
 
+  it("uses the node's parent matrix for a node inside a rotated group", () => {
+    const gt = rotateAbout(Math.PI / 6, { x: 0, y: 0 });
+    const d = doc({
+      kind: "group",
+      id: "g",
+      transform: gt,
+      opacity: 1,
+      children: [rect("a", 0, 0, 10, 20)],
+    });
+    const b = selectionBounds(d, ["a"])!;
+    const corners = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 20 },
+      { x: 0, y: 20 },
+    ].map((p) => applyMat(gt, p));
+    const xs = corners.map((p) => p.x);
+    const ys = corners.map((p) => p.y);
+    expect(b.x).toBeCloseTo(Math.min(...xs));
+    expect(b.y).toBeCloseTo(Math.min(...ys));
+    expect(b.w).toBeCloseTo(Math.max(...xs) - Math.min(...xs));
+    expect(b.h).toBeCloseTo(Math.max(...ys) - Math.min(...ys));
+
+    // The frame's own box stays axis-aligned in the rotated space; the group's rotation
+    // becomes the frame's angle.
+    const f = selectionFrame(d, ["a"])!;
+    expect(f.angle).toBeCloseTo(Math.PI / 6);
+    expect(f.box.x).toBeCloseTo(0);
+    expect(f.box.y).toBeCloseTo(0);
+    expect(f.box.w).toBeCloseTo(10);
+    expect(f.box.h).toBeCloseTo(20);
+  });
+
   it("uses angle 0 for multiple or skewed nodes", () => {
     const d = doc(
       rect("a", 0, 0, 10, 10),

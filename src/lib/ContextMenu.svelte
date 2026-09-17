@@ -9,9 +9,11 @@
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    groupSelection,
     pasteFromClipboard,
     sendSelectionBackward,
     sendSelectionToBack,
+    ungroupSelection,
   } from "../state/appState.svelte";
   import { selectionActions } from "../state/properties";
 
@@ -85,6 +87,14 @@
       <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>
         Duplicate <span class="kbd">⌘D</span>
       </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(groupSelection)}>
+        Group <span class="kbd">⌘G</span>
+      </button>
+      {#if actions.canUngroup}
+        <button class="menu-item" role="menuitem" onclick={() => run(ungroupSelection)}>
+          Ungroup <span class="kbd">⇧⌘G</span>
+        </button>
+      {/if}
       {#if actions.canConvert}
         <button class="menu-item" role="menuitem" onclick={() => run(convertSelectionToPath)}>
           Convert to path

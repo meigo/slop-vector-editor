@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createDoc, DEFAULT_STYLE, type Doc, type Layer, type Node } from "../doc/document";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  type Doc,
+  type Group,
+  type Layer,
+  type Node,
+} from "../doc/document";
 import {
   addLayer,
   blockMessage,
@@ -18,7 +25,8 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
-import { IDENTITY } from "../geom/mat";
+import { findNode } from "../doc/tree";
+import { applyMat, IDENTITY, multiply, translate, type Mat } from "../geom/mat";
 import { deepFreeze } from "./helpers";
 
 const rect = (id: string): Node => ({
@@ -209,5 +217,87 @@ describe("z-order", () => {
     expect(sendBackward(d, ["a"])).toBe(d);
     expect(sendToBack(d, ["c"])).toBe(d);
     expect(bringForward(d, [])).toBe(d);
+  });
+});
+
+describe("moving nodes between parents", () => {
+  const grp = (id: string, t: Mat, children: Node[]): Node => ({
+    kind: "group",
+    id,
+    transform: t,
+    opacity: 1,
+    children,
+  });
+  const inLayer = (children: Node[]): Doc =>
+    deepFreeze({
+      ...createDoc(100, 100),
+      layers: [{ id: "L0", name: "L0", visible: true, locked: false, children }],
+    });
+  const worldOf = (d: Doc, id: string) => {
+    const f = findNode(d, id)!;
+    return applyMat(multiply(f.parent, f.node.transform), { x: 0, y: 0 });
+  };
+
+  it("moves a node into a group and keeps its place on screen", () => {
+    const d = inLayer([rect("a"), grp("g", translate(10, 5), [rect("b")])]);
+    const out = moveNodes(d, ["a"], "g", 1);
+    const g = findNode(out, "g")!.node as Group;
+    expect(g.children.map((c) => c.id)).toEqual(["b", "a"]);
+    expect(worldOf(out, "a")).toEqual({ x: 0, y: 0 });
+    expect(out.layers[0].children.map((c) => c.id)).toEqual(["g"]);
+  });
+
+  it("moves a node out of a group, and drops the group it empties", () => {
+    const d = inLayer([rect("a"), grp("g", translate(10, 5), [rect("b")])]);
+    const out = moveNodes(d, ["b"], "L0", 0);
+    expect(out.layers[0].children.map((c) => c.id)).toEqual(["b", "a"]);
+    expect(worldOf(out, "b")).toEqual({ x: 10, y: 5 });
+  });
+
+  it("keeps the exact transform when the parent does not change", () => {
+    const d = doc(layer("A", ["a1", "a2", "a3"]));
+    const before = d.layers[0].children[0];
+    const out = moveNodes(d, ["a1"], "A", 2);
+    expect(out.layers[0].children.map((c) => c.id)).toEqual(["a2", "a3", "a1"]);
+    expect(out.layers[0].children[2]).toBe(before);
+  });
+
+  it("refuses a move into itself or into its own descendant", () => {
+    const d = inLayer([grp("g", IDENTITY, [grp("h", IDENTITY, [rect("b")])])]);
+    expect(moveNodes(d, ["g"], "g", 0)).toBe(d);
+    expect(moveNodes(d, ["g"], "h", 0)).toBe(d);
+    expect(moveNodes(d, ["g"], "zz", 0)).toBe(d);
+    expect(moveNodes(d, [], "L0", 0)).toBe(d);
+  });
+
+  it("refuses a move when a parent matrix is singular", () => {
+    const d = inLayer([rect("a"), grp("g", [0, 0, 0, 0, 0, 0], [rect("b")])]);
+    expect(moveNodes(d, ["a"], "g", 0)).toBe(d);
+  });
+
+  it("reorders a group's own children within it, emptying and refilling the same group", () => {
+    const d = inLayer([grp("g", translate(10, 5), [rect("a"), rect("b"), rect("c")])]);
+    const a = findNode(d, "a")!.node;
+    const b = findNode(d, "b")!.node;
+    const c = findNode(d, "c")!.node;
+    const out = moveNodes(d, ["b"], "g", 0);
+    const g = findNode(out, "g")!.node as Group;
+    expect(g.children.map((n) => n.id)).toEqual(["b", "a", "c"]);
+    expect(findNode(out, "a")!.node).toBe(a);
+    expect(findNode(out, "b")!.node).toBe(b);
+    expect(findNode(out, "c")!.node).toBe(c);
+    expect(out.layers[0].children.map((n) => n.id)).toEqual(["g"]);
+  });
+
+  it("reorders inside a group, leaving other parents alone", () => {
+    const d = inLayer([rect("a"), grp("g", IDENTITY, [rect("b"), rect("c")])]);
+    const out = bringForward(d, ["b"]);
+    expect((findNode(out, "g")!.node as Group).children.map((c) => c.id)).toEqual(["c", "b"]);
+    expect(out.layers[0].children[0]).toBe(d.layers[0].children[0]);
+    expect(bringForward(d, ["c"])).toBe(d);
+    expect((findNode(sendToBack(d, ["c"]), "g")!.node as Group).children.map((c) => c.id)).toEqual([
+      "c",
+      "b",
+    ]);
   });
 });

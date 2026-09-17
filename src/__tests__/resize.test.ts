@@ -10,7 +10,9 @@ import {
   type PolygonShape,
   type RectShape,
 } from "../doc/document";
+import { translateNodes } from "../doc/edits";
 import { resizeNode, resizeNodes } from "../doc/resize";
+import { findNode } from "../doc/tree";
 import { boxMap } from "../geom/box";
 import {
   applyMat,
@@ -21,6 +23,7 @@ import {
   rotateAbout,
   scale,
   translate,
+  type Mat,
 } from "../geom/mat";
 import { linePath, polygonSubpath } from "../geom/shapes";
 import { deepFreeze } from "./helpers";
@@ -253,5 +256,84 @@ describe("resizeNodes", () => {
     expect(resizeNodes(d, ["r"], IDENTITY)).toBe(d);
     const out = resizeNodes(d, ["r"], scale(2));
     expect(out.layers[0].children[0]).toMatchObject({ w: 20, h: 40 });
+  });
+});
+
+describe("resize edge cases", () => {
+  const leaf = (): Node => ({
+    kind: "rect",
+    id: "a",
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  });
+  const inGroup = (t: Mat): Doc =>
+    deepFreeze({
+      ...createDoc(100, 100),
+      layers: [
+        {
+          id: "L0",
+          name: "L0",
+          visible: true,
+          locked: false,
+          children: [
+            { kind: "group", id: "g", transform: t, opacity: 1, children: [leaf()] } as Node,
+          ],
+        },
+      ],
+    });
+
+  it("resizes a child inside a rotated group in document space", () => {
+    const out = resizeNodes(inGroup(rotate(Math.PI / 2)), ["a"], [2, 0, 0, 1, 0, 0]);
+    const r = findNode(out, "a")!.node as RectShape;
+    expect(r.w).toBeCloseTo(10);
+    expect(r.h).toBeCloseTo(20);
+  });
+
+  it("leaves a node untouched when its parent matrix is singular", () => {
+    const d = inGroup([0, 0, 0, 0, 0, 0]);
+    expect(resizeNodes(d, ["a"], [2, 0, 0, 1, 0, 0])).toBe(d);
+    expect(translateNodes(d, ["a"], 5, 5)).toBe(d);
+  });
+
+  it("mirrors an ellipse without moving it off centre", () => {
+    const e: Node = {
+      kind: "ellipse",
+      id: "e",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      cx: 20,
+      cy: 0,
+      rx: 5,
+      ry: 3,
+    };
+    const out = resizeNode(e, [-1, 0, 0, 1, 0, 0]) as EllipseShape;
+    expect(out.cx).toBeCloseTo(-20);
+    expect(out.rx).toBeCloseTo(5);
+    expect(out.ry).toBeCloseTo(3);
+  });
+
+  it("mirrors a path by mirroring its nodes", () => {
+    const p: Node = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 2, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 6, y: 4 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const out = resizeNode(p, [-1, 0, 0, 1, 0, 0]) as PathShape;
+    expect(out.subpaths[0].nodes.map((n) => n.p.x)).toEqual([-2, -6]);
   });
 });

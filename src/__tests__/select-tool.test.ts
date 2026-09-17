@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
+import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import { createSelectTool } from "../tools/select";
@@ -361,5 +362,97 @@ describe("select tool: snapping", () => {
     expect(state.session.history.past).toHaveLength(0);
     expect(state.selection).toEqual(["a"]);
     expect(state.overlay).toBeNull();
+  });
+
+  it("does not snap a child to its own group's bounding box", () => {
+    // child at x 60–100, y 0–40, well clear of the 300×300 artboard's own snap targets
+    // (0/150/300), so the only thing it could snap to is its enclosing group's bounds.
+    const g: Node = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("child", 60)],
+    };
+    const d = createDoc(300, 300);
+    const doc: Doc = { ...d, nextId: 10, layers: [{ ...d.layers[0], children: [g] }] };
+    const { ctx, state } = fakeContext(doc);
+    state.enteredGroupId = "g";
+    const t = createSelectTool();
+    tap(t, ctx, 80, 20);
+    expect(state.selection).toEqual(["child"]);
+    drag(t, ctx, [80, 20], [84, 20]);
+    expect(findNode(state.session.doc, "child")!.node.transform).toEqual(translate(4, 0));
+  });
+});
+
+describe("entering a group", () => {
+  /** g holds a (x 0–40) and b (x 60–100); z sits apart at x 120–160. */
+  function groupDoc(): Doc {
+    const d = createDoc(300, 200);
+    return {
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          children: [
+            {
+              kind: "group",
+              id: "g",
+              transform: IDENTITY,
+              opacity: 1,
+              children: [rect("a", 0), rect("b", 60)],
+            } as Node,
+            rect("z", 120),
+          ],
+        },
+      ],
+    };
+  }
+
+  it("enters on a double click and selects the child under the pointer", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(10, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(10, 10, {}, "mouse", 0));
+    expect(state.selection).toEqual(["g"]);
+    expect(state.enteredGroupId).toBeNull();
+    tool.down(ctx, ev(10, 10, {}, "mouse", 100));
+    tool.up(ctx, ev(10, 10, {}, "mouse", 100));
+    expect(state.enteredGroupId).toBe("g");
+    expect(state.selection).toEqual(["a"]);
+  });
+
+  it("leaves the group when a click lands outside it", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(130, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(130, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBeNull();
+    expect(state.selection).toEqual(["z"]);
+  });
+
+  it("stays inside when a click lands on another child", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(70, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(70, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBe("g");
+    expect(state.selection).toEqual(["b"]);
+  });
+
+  it("leaves the group when a click lands on empty canvas", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(250, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(250, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBeNull();
+    expect(state.selection).toEqual([]);
   });
 });

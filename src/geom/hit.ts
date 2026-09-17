@@ -7,10 +7,11 @@ import type {
   Shape,
   Subpath,
 } from "../doc/document";
+import { findNode } from "../doc/tree";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
-import { applyMat, IDENTITY, invert } from "./mat";
+import { applyMat, IDENTITY, invert, multiply } from "./mat";
 import { polygonSubpath } from "./shapes";
 import type { Vec } from "./vec";
 
@@ -140,7 +141,29 @@ function nodeHit(n: Node, p: Vec, tol: number): boolean {
   return shapeHit(n, lp, lt);
 }
 
-export function hitTest(doc: Doc, p: Vec, tol: number): Hit | null {
+export function hitTest(
+  doc: Doc,
+  p: Vec,
+  tol: number,
+  enteredGroupId: string | null = null,
+): Hit | null {
+  if (enteredGroupId !== null) {
+    const found = findNode(doc, enteredGroupId);
+    if (found && found.node.kind === "group" && found.layer.visible && !found.layer.locked) {
+      const m = multiply(found.parent, found.node.transform);
+      const inv = invert(m);
+      if (inv) {
+        const scale = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+        const lp = applyMat(inv, p);
+        const children = found.node.children;
+        for (let i = children.length - 1; i >= 0; i--) {
+          if (nodeHit(children[i], lp, tol / scale)) {
+            return { layerId: found.layer.id, nodeId: children[i].id };
+          }
+        }
+      }
+    }
+  }
   for (let li = doc.layers.length - 1; li >= 0; li--) {
     const layer = doc.layers[li];
     if (!layer.visible || layer.locked) continue;
@@ -152,8 +175,19 @@ export function hitTest(doc: Doc, p: Vec, tol: number): Hit | null {
   return null;
 }
 
-export function marqueeSelect(doc: Doc, box: Box): string[] {
+export function marqueeSelect(doc: Doc, box: Box, enteredGroupId: string | null = null): string[] {
   const out: string[] = [];
+  if (enteredGroupId !== null) {
+    const found = findNode(doc, enteredGroupId);
+    if (found && found.node.kind === "group" && found.layer.visible && !found.layer.locked) {
+      const m = multiply(found.parent, found.node.transform);
+      for (const c of found.node.children) {
+        const b = nodeBounds(c, m);
+        if (b && boxContains(box, b)) out.push(c.id);
+      }
+      return out;
+    }
+  }
   for (const layer of doc.layers) {
     if (!layer.visible || layer.locked) continue;
     for (const n of layer.children) {

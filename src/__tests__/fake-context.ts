@@ -11,6 +11,7 @@ export type FakeState = {
   session: Session;
   selection: readonly string[];
   currentLayerId: string;
+  enteredGroupId: string | null;
   overlay: Overlay;
   notices: string[];
   view: View;
@@ -25,6 +26,7 @@ export function fakeContext(
     session: newSession(doc, true),
     selection: [],
     currentLayerId: resolveLayerId(doc, null),
+    enteredGroupId: null,
     overlay: null,
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
@@ -34,6 +36,10 @@ export function fakeContext(
     view: () => state.view,
     selection: () => state.selection,
     currentLayerId: () => state.currentLayerId,
+    enteredGroupId: () => state.enteredGroupId,
+    setEnteredGroup: (id) => {
+      state.enteredGroupId = id;
+    },
     setSelection: (ids) => {
       state.selection = pruneSelection(state.session.doc, ids);
     },
@@ -64,6 +70,7 @@ export function ev(
   y: number,
   mods: Partial<Mods> = {},
   pointerType = "mouse",
+  time = 0,
 ): ToolEvent {
-  return { doc: { x, y }, screen: { x, y }, pointerType, mods: { ...NO_MODS, ...mods } };
+  return { doc: { x, y }, screen: { x, y }, pointerType, mods: { ...NO_MODS, ...mods }, time };
 }

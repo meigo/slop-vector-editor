@@ -4,6 +4,7 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  setEnteredGroup,
   setOverlay,
   setSelection,
 } from "../state/appState.svelte";
@@ -15,6 +16,8 @@ export const storeContext: ToolContext = {
   view: () => app.view,
   selection: () => app.selection,
   currentLayerId: () => app.currentLayerId,
+  enteredGroupId: () => app.enteredGroupId,
+  setEnteredGroup,
   setSelection,
   commit: commitDoc,
   beginGesture: beginDocGesture,

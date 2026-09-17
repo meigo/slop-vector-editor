@@ -5,7 +5,7 @@ import type { Prefs } from "../persist/preferences";
 import type { View } from "../state/viewport";
 import type { Mods, ToolId } from "./types";
 
-export type ToolEvent = { doc: Vec; screen: Vec; pointerType: string; mods: Mods };
+export type ToolEvent = { doc: Vec; screen: Vec; pointerType: string; mods: Mods; time: number };
 
 /** Transient drawing that is not part of the document (doc-space coordinates). */
 export type Overlay =
@@ -17,6 +17,9 @@ export interface ToolContext {
   view(): View;
   selection(): readonly string[];
   currentLayerId(): string;
+  /** The group the user is working inside (spec M3b §3), or null at the top. */
+  enteredGroupId(): string | null;
+  setEnteredGroup(id: string | null): void;
   setSelection(ids: readonly string[]): void;
   commit(doc: Doc): void;
   beginGesture(): void;

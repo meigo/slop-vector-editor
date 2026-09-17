@@ -6,12 +6,14 @@
     ClipboardPaste,
     Copy,
     CopyPlus,
+    Group,
     Maximize,
     Redo2,
     Scissors,
     SendToBack,
     SlidersHorizontal,
     Spline,
+    Split,
     Stamp,
     Trash2,
     Undo2,
@@ -28,10 +30,12 @@
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    groupSelection,
     pasteFromClipboard,
     sendSelectionBackward,
     sendSelectionToBack,
     type DialogKind,
+    ungroupSelection,
   } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
@@ -164,6 +168,22 @@
     disabled={none}
     disabledTitle="Delete — nothing selected"
     onclick={deleteSelection}
+  />
+  <IconButton
+    label="Group"
+    title="Group ({mod}G)"
+    icon={Group}
+    disabled={!actions.canGroup}
+    disabledTitle="Group — nothing selected"
+    onclick={groupSelection}
+  />
+  <IconButton
+    label="Ungroup"
+    title="Ungroup ({shiftMod}G)"
+    icon={Split}
+    disabled={!actions.canUngroup}
+    disabledTitle="Ungroup — select a group"
+    onclick={ungroupSelection}
   />
   <span class="bar-sep"></span>
   <IconButton

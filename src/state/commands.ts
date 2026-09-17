@@ -2,10 +2,11 @@ import { openDocument, saveDocument } from "../persist/project-io";
 import {
   bringSelectionForward,
   bringSelectionToFront,
-  clearSelection,
+  clearOrLeaveGroup,
   deleteSelection,
   duplicateSelection,
   fitArtboard,
+  groupSelection,
   nudgeSelection,
   redo,
   sendSelectionBackward,
@@ -13,6 +14,7 @@ import {
   setTool,
   toggleSnap,
   undo,
+  ungroupSelection,
   zoomBy,
   zoomTo,
 } from "./appState.svelte";
@@ -56,7 +58,7 @@ export function runEditAction(a: EditAction): void {
     case "duplicate":
       return duplicateSelection();
     case "clear":
-      return clearSelection();
+      return clearOrLeaveGroup();
     case "nudge":
       return nudgeSelection(a.dx, a.dy);
     case "toggleSnap":
@@ -72,5 +74,10 @@ export function runEditAction(a: EditAction): void {
         case "back":
           return sendSelectionToBack();
       }
+      return;
+    case "group":
+      return groupSelection();
+    case "ungroup":
+      return ungroupSelection();
   }
 }

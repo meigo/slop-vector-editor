@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   IDENTITY,
   applyMat,
+  inParent,
   invert,
+  isAxisAligned,
   isIdentity,
   multiply,
+  reparent,
   rotate,
   scale,
   skewX,
   translate,
+  type Mat,
 } from "../geom/mat";
 import { dist, mid } from "../geom/vec";
 
@@ -56,5 +60,44 @@ describe("mat", () => {
     expect(isIdentity(IDENTITY)).toBe(true);
     expect(isIdentity([1, 1e-12, 0, 1, 0, 0])).toBe(true);
     expect(isIdentity(translate(0.01, 0))).toBe(false);
+  });
+});
+
+describe("parent-space conversion", () => {
+  const close = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    expect(a.x).toBeCloseTo(b.x, 9);
+    expect(a.y).toBeCloseTo(b.y, 9);
+  };
+
+  it("expresses a document-space map inside a parent", () => {
+    const move = translate(10, 0);
+    expect(inParent(IDENTITY, move)).toEqual(move);
+    const scaled: Mat = [2, 0, 0, 2, 0, 0];
+    // In a parent scaled by 2, a 10-unit document move is a 5-unit local move.
+    expect(inParent(scaled, move)).toEqual(translate(5, 0));
+    const turned = rotate(Math.PI / 2);
+    const local = inParent(turned, move)!;
+    // The same point ends up in the same place either way.
+    const p = { x: 3, y: 4 };
+    close(applyMat(multiply(turned, local), p), applyMat(multiply(move, turned), p));
+    expect(inParent([0, 0, 0, 0, 0, 0], move)).toBeNull();
+  });
+
+  it("keeps a node in place when it changes parent", () => {
+    const from = multiply(translate(100, 50), rotate(0.3));
+    const to = multiply(translate(-20, 7), rotate(-1.1));
+    const t = multiply(translate(5, 5), [2, 0, 0, 2, 0, 0] as Mat);
+    const moved = reparent(from, to, t)!;
+    const p = { x: 2, y: -3 };
+    close(applyMat(multiply(to, moved), p), applyMat(multiply(from, t), p));
+    expect(reparent(from, [0, 0, 0, 0, 0, 0], t)).toBeNull();
+  });
+
+  it("measures skew against the matrix's own scale", () => {
+    expect(isAxisAligned(IDENTITY)).toBe(true);
+    expect(isAxisAligned([2, 1e-12, 1e-12, 3, 0, 0])).toBe(true);
+    // A tiny matrix with a proportionally large shear is not axis-aligned.
+    expect(isAxisAligned([1e-10, 5e-11, 0, 1e-10, 0, 0])).toBe(false);
+    expect(isAxisAligned([0, 0, 0, 0, 0, 0])).toBe(true);
   });
 });

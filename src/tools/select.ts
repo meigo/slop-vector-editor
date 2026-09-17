@@ -1,8 +1,10 @@
 import type { Doc } from "../doc/document";
 import { duplicateNodes, rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
+import { ancestorIds, findNode } from "../doc/tree";
 import { boxFromPoints, type Box } from "../geom/box";
 import { hitTest, marqueeSelect } from "../geom/hit";
+import { isDoubleTap, type Tap } from "../input/double-tap";
 import {
   collectTargets,
   hasGuides,
@@ -120,7 +122,9 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
     const at = handleFramePoint(p.handle, p.frame.box);
     const grab = { x: at.x - pressed.x, y: at.y - pressed.y };
     const targets =
-      snapping && Math.abs(p.frame.angle) < FRAME_ANGLE_EPS ? collectTargets(doc, ids) : null;
+      snapping && Math.abs(p.frame.angle) < FRAME_ANGLE_EPS
+        ? collectTargets(doc, [...ids, ...ids.flatMap((id) => ancestorIds(doc, id))])
+        : null;
     return {
       ...common,
       kind: "resize",
@@ -153,7 +157,9 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
       ids: moveIds,
       duplicatedFrom,
       bounds: selectionBounds(base, moveIds),
-      targets: snapping ? collectTargets(base, moveIds) : null,
+      targets: snapping
+        ? collectTargets(base, [...moveIds, ...moveIds.flatMap((id) => ancestorIds(base, id))])
+        : null,
       last: { x: 0, y: 0 },
     };
   }
@@ -208,7 +214,9 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
     case "marquee": {
       const box = boxFromPoints([m.start.doc, e.doc])!;
       ctx.setOverlay({ kind: "marquee", box });
-      const inside = marqueeSelect(ctx.doc(), box).filter((id) => !m.base.includes(id));
+      const inside = marqueeSelect(ctx.doc(), box, ctx.enteredGroupId()).filter(
+        (id) => !m.base.includes(id),
+      );
       ctx.setSelection([...m.base, ...inside]);
       return;
     }
@@ -217,6 +225,7 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
 
 export function createSelectTool(): Tool {
   let mode: Mode | null = null;
+  let lastTap: Tap | null = null;
 
   function cancelMode(ctx: ToolContext): void {
     const m = mode;
@@ -246,7 +255,24 @@ export function createSelectTool(): Tool {
       let toggleOnUp = false;
       let collapseOnUp = false;
       if (!handle) {
-        hitId = hitTest(doc, e.doc, pointerTolerance(e.pointerType) / view.zoom)?.nodeId ?? null;
+        const entered = ctx.enteredGroupId();
+        const tol = pointerTolerance(e.pointerType) / view.zoom;
+        hitId = hitTest(doc, e.doc, tol, entered)?.nodeId ?? null;
+        // A double tap on a group steps inside it (spec M3b §3.2).
+        const tap = hitId === null ? null : { id: hitId, time: e.time };
+        const second = tap !== null && isDoubleTap(lastTap, tap);
+        lastTap = second ? null : tap;
+        if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "group") {
+          ctx.setEnteredGroup(hitId);
+          const inner = hitTest(doc, e.doc, tol, hitId);
+          ctx.setSelection(inner ? [inner.nodeId] : []);
+          mode = null;
+          return;
+        }
+        // A click outside the entered group leaves it, then selects as usual.
+        if (entered !== null && hitId !== null && hitId !== entered) {
+          if (!ancestorIds(doc, hitId).includes(entered)) ctx.setEnteredGroup(null);
+        }
         if (hitId && !sel.includes(hitId))
           ctx.setSelection(e.mods.shift ? [...sel, hitId] : [hitId]);
         else if (hitId && e.mods.shift) toggleOnUp = true;
@@ -285,6 +311,7 @@ export function createSelectTool(): Tool {
         } else if (m.hitId && m.collapseOnUp) {
           ctx.setSelection([m.hitId]);
         } else if (!m.hitId && !m.start.mods.shift) {
+          ctx.setEnteredGroup(null);
           ctx.setSelection([]);
         }
         return;
