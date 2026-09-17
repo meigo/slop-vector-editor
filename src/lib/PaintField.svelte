@@ -2,6 +2,7 @@
   import type { Paint } from "../doc/document";
   import type { Field } from "../state/properties";
   import NumberField from "./NumberField.svelte";
+  import ToggleButton from "./ToggleButton.svelte";
 
   let {
     label,
@@ -27,27 +28,25 @@
 
 <div class="flex flex-col gap-1">
   <div class="flex items-center justify-between">
-    <span class="font-semibold">{label}</span>
-    <label class="flex items-center gap-1 text-muted">
-      <input
-        type="checkbox"
-        checked={paint !== null}
-        onchange={(e) => onchange(e.currentTarget.checked ? (paint ?? fallback) : null)}
-      />
-      {field.mixed ? "mixed" : paint ? "on" : "none"}
-    </label>
+    <span class="section-title">{label}</span>
+    <ToggleButton
+      label="On"
+      ariaLabel={label}
+      value={field.mixed ? "mixed" : paint !== null}
+      onchange={(on) => onchange(on ? (paint ?? fallback) : null)}
+    />
   </div>
   {#if paint}
     <div class="flex items-center gap-2">
       <input
         type="color"
-        class="h-8 w-10 cursor-pointer rounded border border-line bg-ground"
+        class="h-8 w-10 cursor-pointer rounded border border-line bg-raised"
         value={paint.color}
         aria-label="{label} colour"
         onchange={(e) => setColor(e.currentTarget.value)}
       />
       <input
-        class="field w-20 font-mono"
+        class="field w-20 font-mono tabular-nums"
         aria-label="{label} hex"
         value={hexDraft ?? paint.color}
         oninput={(e) => (hexDraft = e.currentTarget.value)}

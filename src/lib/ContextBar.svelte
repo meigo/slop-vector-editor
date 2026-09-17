@@ -18,6 +18,7 @@
   import { selectionActions, summarizePolygons } from "../state/properties";
   import { TOOLS } from "../tools/registry";
   import NumberField from "./NumberField.svelte";
+  import ToggleButton from "./ToggleButton.svelte";
 
   const nodes = $derived(
     app.selection
@@ -45,14 +46,7 @@
       max={32}
       onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
     />
-    <label class="flex items-center gap-1">
-      <input
-        type="checkbox"
-        checked={poly.star}
-        onchange={(e) => setPolygonPrefs({ star: e.currentTarget.checked })}
-      />
-      Star
-    </label>
+    <ToggleButton label="Star" value={poly.star} onchange={(star) => setPolygonPrefs({ star })} />
     {#if poly.star}
       <NumberField
         label="Inner"
@@ -91,15 +85,11 @@
         max={32}
         onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
       />
-      <label class="flex items-center gap-1">
-        <input
-          type="checkbox"
-          checked={polygons.star === true}
-          indeterminate={polygons.star === "mixed"}
-          onchange={(e) => setSelectionPolygon({ star: e.currentTarget.checked })}
-        />
-        Star
-      </label>
+      <ToggleButton
+        label="Star"
+        value={polygons.star}
+        onchange={(star) => setSelectionPolygon({ star })}
+      />
       {#if polygons.anyStar}
         <NumberField
           label="Inner"
