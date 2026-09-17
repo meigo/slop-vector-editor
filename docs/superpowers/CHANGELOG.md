@@ -283,3 +283,27 @@
 - Owed: iPad (no hover — no status-bar hints on touch; iPad Safari shows no `title` tooltips, so
   on touch the icon buttons have no visible labels and disabled reasons are invisible — needs a
   touch label/reason affordance (M5)), Safari/Firefox, a real 768px window.
+
+## 2026-09-17 — Milestone 3a: layers panel and z-order
+
+- A current layer receives new shapes and pastes; selecting an object makes its layer current; a
+  hidden or locked current layer refuses with a notice instead of falling back to another layer.
+- Layers panel under Properties: layers (top first) with their objects, eye/lock, current-layer
+  tint, selected-object rows, rename by double-click/double-tap, drag-to-reorder by grip (layers,
+  and objects within/between layers) with a drop line, New layer / Delete layer (confirmation when
+  not empty; never the last layer).
+- Z-order (per layer): top-bar icons, context-menu items and ⌘] ⌘[ ⇧⌘] ⇧⌘[.
+- The SVG writer strips unpaired surrogates and U+FFFE/U+FFFF from attributes (user-typed names).
+- Plan: `docs/superpowers/plans/2026-09-17-m3a-layers-panel.md`.
+- Browser-verified (desktop Chrome): desktop Chrome at 800px (drawer) and a wide window (column):
+  panel rendering, layer and object rename (Enter commits, Escape cancels, empty name restores the
+  default label, undo), hide/lock (selection pruned, rows muted with reason titles, exact
+  draw/paste refusals), selecting on the canvas sets the current layer and new shapes land there,
+  ⌘[ ⌘] ⇧⌘[ ⇧⌘] and the top-bar buttons (no page navigation; disabled reasons), layer and object
+  drag with the drop line, drop onto a locked layer refused, Escape cancels a drag without clearing
+  the selection, delete with in-app confirmation (Cancel keeps), new layer naming, only-layer
+  delete disabled with reason, Shift/⌘ row toggling, collapse, status-bar hints for rows, top bar
+  one row at 768px, no console errors. Row drags were driven with synthetic pointer events.
+- Owed: iPad (touch drag of rows, double-tap rename, the drawer with both panels), Safari/Firefox,
+  real ⌘[ / ⌘] presses in Safari, wheel-scroll during a row drag (drop line does not follow; no
+  auto-scroll).

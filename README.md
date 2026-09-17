@@ -29,6 +29,8 @@ Early development. What works today:
 - An on-screen Shift/Alt/Snap pad for touch.
 - An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
   polygon sides/star) live in the properties panel.
+- Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
+  new shapes; bring forward / send backward.
 
 ## Keyboard
 
@@ -46,10 +48,12 @@ Early development. What works today:
 | Duplicate                                       | ⌘D                                    |
 | Cut / Copy / Paste                              | ⌘X / ⌘C / ⌘V                          |
 | Snap on/off                                     | %                                     |
+| Bring forward / Send backward                   | ⌘] / ⌘[                               |
+| Bring to front / Send to back                   | ⇧⌘] / ⇧⌘[                             |
 
 ## Roadmap
 
-Next: layers and groups, then pen and node editing.
+Next: groups, then pen and node editing.
 
 ## Development
 
@@ -57,7 +61,7 @@ Next: layers and groups, then pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 281 unit tests
+npm test          # 302 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
