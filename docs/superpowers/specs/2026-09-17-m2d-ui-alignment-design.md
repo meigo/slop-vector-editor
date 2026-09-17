@@ -68,8 +68,9 @@ Add these rules outside any `@layer`, so no Tailwind utility can override them (
   - the modifier dock (Snap, Shift, Alt)
   - the New-document size presets
   - the open File menu button
-- **Fields:** `.field` drops `focus:outline-none` so the shared ring shows. It keeps
-  `focus:border-accent`.
+- **Fields:** `.field` drops both `focus:outline-none` and `focus:border-accent`, so the shared
+  ring is the single focus indicator (amended in review: inputs match `:focus-visible` on a mouse
+  click too, so border + ring doubled up).
 - **`.ui-selected` / `.ui-selected-tint`** have no users in 2d. They are defined now for the M3a
   layers panel. The edge is an inset shadow, so selecting a row never changes its geometry
   (guide §5).

@@ -56,7 +56,7 @@ body {
   }
   /* Fields are raised: an input must not be the colour of the surface it sits on (guide §3). */
   .field {
-    @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text focus:border-accent;
+    @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text;
   }
   .menu-item {
     @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised;
