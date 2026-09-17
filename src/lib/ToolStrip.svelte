@@ -19,8 +19,7 @@
 >
   {#each TOOL_BUTTONS as t (t.id)}
     <button
-      class="icon-btn"
-      class:tool-on={app.toolId === t.id}
+      class={["icon-btn", app.toolId === t.id && "ui-on"]}
       title="{t.label} ({t.key})"
       aria-label={t.label}
       aria-pressed={app.toolId === t.id}

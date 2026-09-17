@@ -31,7 +31,7 @@
   }
 </script>
 
-<label class="flex items-center gap-1 text-xs">
+<label class="flex shrink-0 items-center gap-1 text-xs whitespace-nowrap">
   {#if label}<span class="text-muted">{label}</span>{/if}
   <input
     class="field w-16 tabular-nums"

@@ -68,8 +68,9 @@ Add these rules outside any `@layer`, so no Tailwind utility can override them (
   - the modifier dock (Snap, Shift, Alt)
   - the New-document size presets
   - the open File menu button
-- **Fields:** `.field` drops `focus:outline-none` so the shared ring shows. It keeps
-  `focus:border-accent`.
+- **Fields:** `.field` drops both `focus:outline-none` and `focus:border-accent`, so the shared
+  ring is the single focus indicator (amended in review: inputs match `:focus-visible` on a mouse
+  click too, so border + ring doubled up).
 - **`.ui-selected` / `.ui-selected-tint`** have no users in 2d. They are defined now for the M3a
   layers panel. The edge is an inset shadow, so selecting a row never changes its geometry
   (guide §5).
@@ -97,6 +98,8 @@ app:
 - **PaintField label.** The text after the paint label ("on" / "none" / "mixed") goes. The toggle
   button reads "On", and its state is carried by fill (on), accent text (mixed) or plain (off).
   Unchanged behaviour: turning a mixed or off paint on uses the current paint or the fallback.
+  The "On" toggles are named "Fill on" / "Stroke on" / "Background on" (amended in review: an
+  accessible name must contain the visible text).
 - **App.svelte:** the `isTextField` exclusion list keeps `checkbox` (harmless), so no change is
   needed.
 
@@ -119,11 +122,12 @@ app:
   - Context bar, selection: [count] | [cut copy paste] | [duplicate delete] | [convert / flatten]
     | [shape fields: Radius or Sides/Star/Inner].
   - Context bar, polygon tool: [Sides] | [Star Inner].
-- **No wrapping.** Labels and buttons in both bars get `whitespace-nowrap shrink-0`. Both bars get
-  `overflow-x-auto`; the context bar already has it.
+- **No wrapping.** Labels and buttons in both bars get `whitespace-nowrap shrink-0`. The context bar
+  has `overflow-x-auto`. The top bar does not (amended at final review: a scrolling header clips
+  the File menu; the top bar shrinks by truncating the file name instead). Nothing absolutely
+  positioned may sit inside a scrolling bar.
 - **Unsaved indicator (guide §5).** Delete the inline " ●" span after the file name. When the
-  document is dirty, the file name itself turns `text-accent` (the guide's §5 colour for unsaved state; the old dot used `warn`), keeps its `title`, and gets
-  `aria-label="{name}, unsaved changes"`. The name's box must not change width or position between
+  document is dirty, the file name itself turns `text-accent` (the guide's §5 colour for unsaved state; the old dot used `warn`), keeps its `title`, and contains visually hidden text `, unsaved changes` (Tailwind `sr-only`) — amended in review: `aria-label` on a plain span is not announced. The name's box must not change width or position between
   the clean and dirty states.
 - **Section titles.** One shared class in `app.css`:
   `.section-title { @apply text-[11px] font-medium uppercase tracking-wide text-muted; }`. It is

@@ -34,7 +34,7 @@
   class="flex h-full w-60 shrink-0 flex-col gap-4 overflow-y-auto border-l border-line bg-panel p-3 text-xs"
   aria-label="Properties"
 >
-  <h2 class="font-semibold text-muted">
+  <h2 class="section-title">
     {hasSelection ? "Selection" : "Defaults for new shapes"}
   </h2>
 
@@ -42,12 +42,14 @@
     <PaintField
       label="Fill"
       field={summary.fill}
+      present={summary.fillOn}
       fallback={app.prefs.style.fill ?? FILL_FALLBACK}
       onchange={(p) => setSelectionStyle({ fill: p })}
     />
     <PaintField
       label="Stroke"
       field={summary.stroke}
+      present={summary.strokeOn}
       fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
       onchange={(p) => setSelectionStyle({ stroke: p })}
     />
@@ -98,7 +100,7 @@
 
   {#if geometry}
     <div class="flex flex-col gap-2 border-t border-line pt-3">
-      <span class="font-semibold">Geometry</span>
+      <span class="section-title">Geometry</span>
       <div class="grid grid-cols-2 gap-2">
         {#each GEOMETRY as g (g.field)}
           <NumberField

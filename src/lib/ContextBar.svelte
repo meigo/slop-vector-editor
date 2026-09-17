@@ -18,6 +18,7 @@
   import { selectionActions, summarizePolygons } from "../state/properties";
   import { TOOLS } from "../tools/registry";
   import NumberField from "./NumberField.svelte";
+  import ToggleButton from "./ToggleButton.svelte";
 
   const nodes = $derived(
     app.selection
@@ -35,7 +36,7 @@
 </script>
 
 <div
-  class="flex h-9 shrink-0 items-center gap-2 overflow-x-auto border-b border-line bg-panel px-3 text-xs"
+  class="flex h-10 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-line bg-panel px-3 text-xs"
 >
   {#if app.toolId === "polygon"}
     <NumberField
@@ -45,14 +46,8 @@
       max={32}
       onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
     />
-    <label class="flex items-center gap-1">
-      <input
-        type="checkbox"
-        checked={poly.star}
-        onchange={(e) => setPolygonPrefs({ star: e.currentTarget.checked })}
-      />
-      Star
-    </label>
+    <span class="bar-sep"></span>
+    <ToggleButton label="Star" value={poly.star} onchange={(star) => setPolygonPrefs({ star })} />
     {#if poly.star}
       <NumberField
         label="Inner"
@@ -64,21 +59,29 @@
       />
     {/if}
   {:else if app.selection.length > 0}
-    <span class="text-muted">{app.selection.length} selected</span>
+    <span class="shrink-0 whitespace-nowrap text-muted">{app.selection.length} selected</span>
+    <span class="bar-sep"></span>
     <button class="btn gap-1" onclick={cutToSystem}><Scissors size={14} /> Cut</button>
     <button class="btn gap-1" onclick={copyToSystem}><Copy size={14} /> Copy</button>
     <button class="btn gap-1" onclick={() => void pasteFromClipboard()}>
       <ClipboardPaste size={14} /> Paste
     </button>
+    <span class="bar-sep"></span>
     <button class="btn gap-1" onclick={duplicateSelection}>
       <CopyPlus size={14} /> Duplicate
     </button>
     <button class="btn gap-1" onclick={deleteSelection}><Trash2 size={14} /> Delete</button>
+    {#if actions.canConvert || actions.canFlatten}
+      <span class="bar-sep"></span>
+    {/if}
     {#if actions.canConvert}
       <button class="btn" onclick={convertSelectionToPath}>Convert to path</button>
     {/if}
     {#if actions.canFlatten}
       <button class="btn" onclick={flattenSelection}>Flatten transform</button>
+    {/if}
+    {#if onlyRects || polygons}
+      <span class="bar-sep"></span>
     {/if}
     {#if onlyRects}
       <NumberField label="Radius" value={radius} min={0} onchange={setSelectionRectRadius} />
@@ -91,15 +94,11 @@
         max={32}
         onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
       />
-      <label class="flex items-center gap-1">
-        <input
-          type="checkbox"
-          checked={polygons.star === true}
-          indeterminate={polygons.star === "mixed"}
-          onchange={(e) => setSelectionPolygon({ star: e.currentTarget.checked })}
-        />
-        Star
-      </label>
+      <ToggleButton
+        label="Star"
+        value={polygons.star}
+        onchange={(star) => setSelectionPolygon({ star })}
+      />
       {#if polygons.anyStar}
         <NumberField
           label="Inner"

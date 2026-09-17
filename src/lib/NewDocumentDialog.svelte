@@ -31,8 +31,8 @@
   <div class="flex flex-wrap gap-1">
     {#each PRESETS as p (p.label)}
       <button
-        class="btn"
-        class:btn-on={p.w === w && p.h === h}
+        class={["btn", p.w === w && p.h === h && "ui-on"]}
+        aria-pressed={p.w === w && p.h === h}
         onclick={() => {
           w = p.w;
           h = p.h;
@@ -40,14 +40,17 @@
       >
     {/each}
   </div>
-  <div class="mt-3 flex items-center gap-3 text-xs">
-    <label class="flex items-center gap-1">
-      W <input class="field w-24" type="number" min="1" max={MAX_ARTBOARD} bind:value={w} />
-    </label>
-    <label class="flex items-center gap-1">
-      H <input class="field w-24" type="number" min="1" max={MAX_ARTBOARD} bind:value={h} />
-    </label>
-    <span class="text-muted">px</span>
+  <div class="mt-3 flex flex-col gap-1">
+    <span class="section-title">Size</span>
+    <div class="flex items-center gap-3 text-xs">
+      <label class="flex items-center gap-1">
+        W <input class="field w-24" type="number" min="1" max={MAX_ARTBOARD} bind:value={w} />
+      </label>
+      <label class="flex items-center gap-1">
+        H <input class="field w-24" type="number" min="1" max={MAX_ARTBOARD} bind:value={h} />
+      </label>
+      <span class="text-muted">px</span>
+    </div>
   </div>
   {#if app.dirty}
     <p class="mt-3 text-xs text-warn">
