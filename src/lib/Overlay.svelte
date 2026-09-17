@@ -1,6 +1,8 @@
 <svelte:options namespace="svg" />
 
 <script lang="ts">
+  import { findNode } from "../doc/tree";
+  import { applyMat, multiply } from "../geom/mat";
   import type { Vec } from "../geom/vec";
   import { app } from "../state/appState.svelte";
   import { docToScreen } from "../state/viewport";
@@ -9,6 +11,7 @@
 
   const LINE = "stroke: var(--color-accent); fill: none";
   const KNOB = "stroke: var(--color-accent); fill: var(--color-text)";
+  const SELECTED_KNOB = "stroke: var(--color-accent); fill: var(--color-accent)";
 
   const view = $derived(app.view);
   const outlines = $derived(
@@ -35,6 +38,28 @@
   );
   const guides = $derived(app.overlay?.kind === "guides" ? app.overlay : null);
   const GUIDE = "stroke: var(--color-guide)";
+
+  const nodeView = $derived.by(() => {
+    if (app.toolId !== "node" || app.nodeTarget === null) return null;
+    const found = findNode(app.doc, app.nodeTarget);
+    if (!found || found.node.kind !== "path") return null;
+    const world = multiply(found.parent, found.node.transform);
+    const toScreen = (p: Vec) => docToScreen(view, applyMat(world, p));
+    const selected = new Set(app.nodeSel.map((r) => `${r.sub}:${r.i}`));
+    const knobs: { p: Vec; on: boolean }[] = [];
+    const handles: { a: Vec; b: Vec }[] = [];
+    found.node.subpaths.forEach((sp, sub) => {
+      sp.nodes.forEach((n, i) => {
+        const on = selected.has(`${sub}:${i}`);
+        knobs.push({ p: toScreen(n.p), on });
+        if (!on) return;
+        if (n.in) handles.push({ a: toScreen(n.p), b: toScreen(n.in) });
+        if (n.out) handles.push({ a: toScreen(n.p), b: toScreen(n.out) });
+      });
+    });
+    return { knobs, handles };
+  });
+  const knobSize = $derived(handleSize(app.lastPointerType) - 1);
 
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 </script>
@@ -77,6 +102,23 @@
         width={size}
         height={size}
         style={KNOB}
+      />
+    {/each}
+  {/if}
+
+  {#if nodeView}
+    {#each nodeView.handles as h, i (i)}
+      <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
+      <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />
+    {/each}
+    {#each nodeView.knobs as k, i (i)}
+      <rect
+        x={k.p.x - knobSize / 2}
+        y={k.p.y - knobSize / 2}
+        width={knobSize}
+        height={knobSize}
+        style={k.on ? SELECTED_KNOB : KNOB}
+        stroke-width="1"
       />
     {/each}
   {/if}
