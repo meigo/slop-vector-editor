@@ -9,6 +9,7 @@ import {
 } from "../doc/document";
 import { hitTest, marqueeSelect } from "../geom/hit";
 import { IDENTITY, rotateAbout, scale, translate, type Mat } from "../geom/mat";
+import { deepFreeze } from "./helpers";
 
 const filled: Style = { ...DEFAULT_STYLE, stroke: null };
 const outlineOnly: Style = { ...DEFAULT_STYLE, fill: null, strokeWidth: 4 };
@@ -207,5 +208,54 @@ describe("marqueeSelect", () => {
     expect(marqueeSelect(d, { x: -1, y: -1, w: 32, h: 12 })).toEqual(["a", "b"]);
     expect(marqueeSelect(d, { x: -1, y: -1, w: 17, h: 17 })).toEqual(["a", "d"]);
     expect(marqueeSelect(d, { x: 1, y: -1, w: 50, h: 50 })).toEqual(["b", "d"]);
+  });
+});
+
+describe("hit-testing inside a group", () => {
+  const leaf = (id: string, x: number): Node => ({
+    kind: "rect",
+    id,
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    x,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  });
+  const d = deepFreeze({
+    ...createDoc(100, 100),
+    layers: [
+      {
+        id: "L0",
+        name: "L0",
+        visible: true,
+        locked: false,
+        children: [
+          {
+            kind: "group",
+            id: "g",
+            transform: IDENTITY,
+            opacity: 1,
+            children: [leaf("a", 0), leaf("b", 20)],
+          } as Node,
+          leaf("z", 50),
+        ],
+      },
+    ],
+  });
+
+  it("returns the top-level node at the root, and the child inside the group", () => {
+    expect(hitTest(d, { x: 5, y: 5 }, 1)?.nodeId).toBe("g");
+    expect(hitTest(d, { x: 5, y: 5 }, 1, "g")?.nodeId).toBe("a");
+    expect(hitTest(d, { x: 25, y: 5 }, 1, "g")?.nodeId).toBe("b");
+    expect(hitTest(d, { x: 55, y: 5 }, 1, "g")?.nodeId).toBe("z");
+    expect(hitTest(d, { x: 200, y: 200 }, 1, "g")).toBeNull();
+  });
+
+  it("marquees the group's children while inside it", () => {
+    const all = { x: -5, y: -5, w: 200, h: 200 };
+    expect(marqueeSelect(d, all)).toEqual(["g", "z"]);
+    expect(marqueeSelect(d, all, "g")).toEqual(["a", "b"]);
   });
 });

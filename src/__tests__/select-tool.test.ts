@@ -363,3 +363,63 @@ describe("select tool: snapping", () => {
     expect(state.overlay).toBeNull();
   });
 });
+
+describe("entering a group", () => {
+  /** g holds a (x 0–40) and b (x 60–100); z sits apart at x 120–160. */
+  function groupDoc(): Doc {
+    const d = createDoc(300, 200);
+    return {
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          children: [
+            {
+              kind: "group",
+              id: "g",
+              transform: IDENTITY,
+              opacity: 1,
+              children: [rect("a", 0), rect("b", 60)],
+            } as Node,
+            rect("z", 120),
+          ],
+        },
+      ],
+    };
+  }
+
+  it("enters on a double click and selects the child under the pointer", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(10, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(10, 10, {}, "mouse", 0));
+    expect(state.selection).toEqual(["g"]);
+    expect(state.enteredGroupId).toBeNull();
+    tool.down(ctx, ev(10, 10, {}, "mouse", 100));
+    tool.up(ctx, ev(10, 10, {}, "mouse", 100));
+    expect(state.enteredGroupId).toBe("g");
+    expect(state.selection).toEqual(["a"]);
+  });
+
+  it("leaves the group when a click lands outside it", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(130, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(130, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBeNull();
+    expect(state.selection).toEqual(["z"]);
+  });
+
+  it("stays inside when a click lands on another child", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(70, 10, {}, "mouse", 0));
+    tool.up(ctx, ev(70, 10, {}, "mouse", 0));
+    expect(state.enteredGroupId).toBe("g");
+    expect(state.selection).toEqual(["b"]);
+  });
+});

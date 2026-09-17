@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Layer, type Node } from "../doc/document";
 import { IDENTITY } from "../geom/mat";
-import { DOUBLE_TAP_MS, isDoubleTap } from "../lib/double-tap";
+import { DOUBLE_TAP_MS, isDoubleTap } from "../input/double-tap";
 import { dropTarget, type RowBox } from "../lib/layer-drop";
 import { deepFreeze } from "./helpers";
 

@@ -1,5 +1,5 @@
-/** Spec (M3a) §5: rename starts on a double tap. Decided on pointerup so it works on iPad, where
- *  Safari does not reliably fire dblclick. */
+/** Shared by the layers panel and the select tool. Spec (M3a) §5: rename starts on a double tap.
+ *  Decided on pointerup so it works on iPad, where Safari does not reliably fire dblclick. */
 export type Tap = { id: string; time: number };
 
 export const DOUBLE_TAP_MS = 350;

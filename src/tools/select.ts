@@ -1,8 +1,10 @@
 import type { Doc } from "../doc/document";
 import { duplicateNodes, rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
+import { ancestorIds, findNode } from "../doc/tree";
 import { boxFromPoints, type Box } from "../geom/box";
 import { hitTest, marqueeSelect } from "../geom/hit";
+import { isDoubleTap, type Tap } from "../input/double-tap";
 import {
   collectTargets,
   hasGuides,
@@ -208,7 +210,9 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
     case "marquee": {
       const box = boxFromPoints([m.start.doc, e.doc])!;
       ctx.setOverlay({ kind: "marquee", box });
-      const inside = marqueeSelect(ctx.doc(), box).filter((id) => !m.base.includes(id));
+      const inside = marqueeSelect(ctx.doc(), box, ctx.enteredGroupId()).filter(
+        (id) => !m.base.includes(id),
+      );
       ctx.setSelection([...m.base, ...inside]);
       return;
     }
@@ -217,6 +221,7 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
 
 export function createSelectTool(): Tool {
   let mode: Mode | null = null;
+  let lastTap: Tap | null = null;
 
   function cancelMode(ctx: ToolContext): void {
     const m = mode;
@@ -246,7 +251,24 @@ export function createSelectTool(): Tool {
       let toggleOnUp = false;
       let collapseOnUp = false;
       if (!handle) {
-        hitId = hitTest(doc, e.doc, pointerTolerance(e.pointerType) / view.zoom)?.nodeId ?? null;
+        const entered = ctx.enteredGroupId();
+        const tol = pointerTolerance(e.pointerType) / view.zoom;
+        hitId = hitTest(doc, e.doc, tol, entered)?.nodeId ?? null;
+        // A double tap on a group steps inside it (spec M3b §3.2).
+        const tap = hitId === null ? null : { id: hitId, time: e.time };
+        const second = tap !== null && isDoubleTap(lastTap, tap);
+        lastTap = second ? null : tap;
+        if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "group") {
+          ctx.setEnteredGroup(hitId);
+          const inner = hitTest(doc, e.doc, tol, hitId);
+          ctx.setSelection(inner ? [inner.nodeId] : []);
+          mode = null;
+          return;
+        }
+        // A click outside the entered group leaves it, then selects as usual.
+        if (entered !== null && hitId !== null && hitId !== entered) {
+          if (!ancestorIds(doc, hitId).includes(entered)) ctx.setEnteredGroup(null);
+        }
         if (hitId && !sel.includes(hitId))
           ctx.setSelection(e.mods.shift ? [...sel, hitId] : [hitId]);
         else if (hitId && e.mods.shift) toggleOnUp = true;

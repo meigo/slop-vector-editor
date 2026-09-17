@@ -25,7 +25,7 @@
     toggleLayerLocked,
     toggleLayerVisible,
   } from "../state/appState.svelte";
-  import { isDoubleTap, type Tap } from "./double-tap";
+  import { isDoubleTap, type Tap } from "../input/double-tap";
   import IconButton from "./IconButton.svelte";
   import { dropTarget, type Drag, type Drop, type RowBox } from "./layer-drop";
 

@@ -275,6 +275,20 @@ describe("moving nodes between parents", () => {
     expect(moveNodes(d, ["a"], "g", 0)).toBe(d);
   });
 
+  it("reorders a group's own children within it, emptying and refilling the same group", () => {
+    const d = inLayer([grp("g", translate(10, 5), [rect("a"), rect("b"), rect("c")])]);
+    const a = findNode(d, "a")!.node;
+    const b = findNode(d, "b")!.node;
+    const c = findNode(d, "c")!.node;
+    const out = moveNodes(d, ["b"], "g", 0);
+    const g = findNode(out, "g")!.node as Group;
+    expect(g.children.map((n) => n.id)).toEqual(["b", "a", "c"]);
+    expect(findNode(out, "a")!.node).toBe(a);
+    expect(findNode(out, "b")!.node).toBe(b);
+    expect(findNode(out, "c")!.node).toBe(c);
+    expect(out.layers[0].children.map((n) => n.id)).toEqual(["g"]);
+  });
+
   it("reorders inside a group, leaving other parents alone", () => {
     const d = inLayer([rect("a"), grp("g", IDENTITY, [rect("b"), rect("c")])]);
     const out = bringForward(d, ["b"]);
