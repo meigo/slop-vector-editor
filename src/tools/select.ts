@@ -258,10 +258,19 @@ export function createSelectTool(): Tool {
         const entered = ctx.enteredGroupId();
         const tol = pointerTolerance(e.pointerType) / view.zoom;
         hitId = hitTest(doc, e.doc, tol, entered)?.nodeId ?? null;
-        // A double tap on a group steps inside it (spec M3b §3.2).
-        const tap = hitId === null ? null : { id: hitId, time: e.time };
-        const second = tap !== null && isDoubleTap(lastTap, tap);
-        lastTap = second ? null : tap;
+        // A double tap steps inside a group (spec M3b §3.2) or hands a path to the node tool
+        // (spec M4a §6). `lastTap` is recorded in `up`, and only for a click that did not drag,
+        // so click-then-drag within the double-tap window still drags.
+        const second = hitId !== null && isDoubleTap(lastTap, { id: hitId, time: e.time });
+        if (second) lastTap = null;
+        // A double tap on a path hands it to the node tool (spec M4a §6).
+        if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "path") {
+          ctx.setNodeTarget(hitId);
+          ctx.setSelection([hitId]);
+          ctx.setTool("node");
+          mode = null;
+          return;
+        }
         if (second && hitId !== null && findNode(doc, hitId)?.node.kind === "group") {
           ctx.setEnteredGroup(hitId);
           const inner = hitTest(doc, e.doc, tol, hitId);
@@ -305,6 +314,7 @@ export function createSelectTool(): Tool {
       if (!m) return;
       if (m.kind === "pending") {
         if (m.handle) return;
+        if (m.hitId !== null) lastTap = { id: m.hitId, time: e.time };
         if (m.hitId && m.toggleOnUp) {
           const id = m.hitId;
           ctx.setSelection(ctx.selection().filter((s) => s !== id));
