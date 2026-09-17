@@ -63,7 +63,11 @@ export function dropTarget(doc: Doc, rows: readonly RowBox[], y: number, drag: D
   if (layerBlock(doc, layerId)) return null;
   if (moving.has(parentId)) return null;
   if (ancestorIds(doc, parentId).some((a) => moving.has(a))) return null;
-  const index = siblings.slice(0, slotIndex).filter((n) => !moving.has(n.id)).length;
+  // A group whose entire subtree is moving is removed by `moveNodes`, so it must not count as a
+  // sibling still ahead of the drop point either.
+  const vanishes = (n: Node): boolean =>
+    moving.has(n.id) || (n.kind === "group" && n.children.length > 0 && n.children.every(vanishes));
+  const index = siblings.slice(0, slotIndex).filter((n) => !vanishes(n)).length;
   if (moveNodes(doc, drag.ids, parentId, index) === doc) return null;
   return { kind: "node", parentId, index, line };
 }

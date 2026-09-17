@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
+import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import { createSelectTool } from "../tools/select";
@@ -361,6 +362,27 @@ describe("select tool: snapping", () => {
     expect(state.session.history.past).toHaveLength(0);
     expect(state.selection).toEqual(["a"]);
     expect(state.overlay).toBeNull();
+  });
+
+  it("does not snap a child to its own group's bounding box", () => {
+    // child at x 60–100, y 0–40, well clear of the 300×300 artboard's own snap targets
+    // (0/150/300), so the only thing it could snap to is its enclosing group's bounds.
+    const g: Node = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("child", 60)],
+    };
+    const d = createDoc(300, 300);
+    const doc: Doc = { ...d, nextId: 10, layers: [{ ...d.layers[0], children: [g] }] };
+    const { ctx, state } = fakeContext(doc);
+    state.enteredGroupId = "g";
+    const t = createSelectTool();
+    tap(t, ctx, 80, 20);
+    expect(state.selection).toEqual(["child"]);
+    drag(t, ctx, [80, 20], [84, 20]);
+    expect(findNode(state.session.doc, "child")!.node.transform).toEqual(translate(4, 0));
   });
 });
 

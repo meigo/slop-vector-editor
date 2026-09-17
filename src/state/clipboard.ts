@@ -1,9 +1,10 @@
 import type { Doc, Node } from "../doc/document";
 import { insertNodes } from "../doc/edits";
 import { blockMessage, layerBlock } from "../doc/layers";
+import { findNode } from "../doc/tree";
 import { nodeBounds } from "../geom/bounds";
 import { boxCenter, unionBox, type Box } from "../geom/box";
-import { IDENTITY } from "../geom/mat";
+import { IDENTITY, multiply } from "../geom/mat";
 import { parseSvg, type ParseResult } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 
@@ -24,10 +25,28 @@ export function looksLikeSvg(text: string): boolean {
   return /<svg[\s>/]/i.test(text);
 }
 
-/** The selected top-level nodes as a standalone SVG in our own format, coordinates unchanged. */
+/** Every node id in the document, depth-first, in document order. */
+function documentOrder(doc: Doc): string[] {
+  const out: string[] = [];
+  const walk = (children: readonly Node[]) => {
+    for (const n of children) {
+      out.push(n.id);
+      if (n.kind === "group") walk(n.children);
+    }
+  };
+  for (const layer of doc.layers) walk(layer.children);
+  return out;
+}
+
+/** The selected nodes, at any depth, as a standalone SVG in our own format. A node keeps its
+ *  on-screen position: its ancestors' matrix is baked into the copy's own transform. */
 export function clipboardText(doc: Doc, ids: readonly string[]): string | null {
   const wanted = new Set(ids);
-  const nodes = doc.layers.flatMap((l) => l.children.filter((n) => wanted.has(n.id)));
+  const ordered = documentOrder(doc).filter((id) => wanted.has(id));
+  const nodes = ordered.flatMap((id) => {
+    const f = findNode(doc, id);
+    return f ? [{ ...f.node, transform: multiply(f.parent, f.node.transform) }] : [];
+  });
   if (nodes.length === 0) return null;
   return serializeDoc({
     ...doc,

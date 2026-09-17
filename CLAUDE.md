@@ -28,8 +28,8 @@ every user-visible change.
 - `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
   `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `selectableIds`, `ancestorIds` —
   node lookup and editing at any depth, with parent matrices), `group.ts` (group/ungroup),
-  `layers.ts` (layer, naming and z-order edits; current-layer helpers), `resize.ts` (bakes a
-  resize into shape geometry; see gotcha below).
+  `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
+  current-layer helpers), `resize.ts` (bakes a resize into shape geometry; see gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds
@@ -172,9 +172,9 @@ every user-visible change.
     changing parent through `reparent`); both return null for a singular matrix, and the edit then
     leaves that node alone. A node whose parent doesn't change keeps its exact transform — never
     re-derive it, or saved files fill with float noise.
-    No edit may leave an empty group: the importer drops them, so `deleteNodes` and `moveNodes`
+27. **No edit may leave an empty group:** the importer drops them, so `deleteNodes` and `moveNodes`
     remove a group they empty.
-    Entering a group is `app.enteredGroupId` (not saved, not undoable). It decides what
+28. **Entering a group is `app.enteredGroupId`** (not saved, not undoable). It decides what
     `hitTest`, `marqueeSelect` and `selectableIds` may select; Escape leaves one level before it
     clears the selection. A click on empty canvas also leaves the group — the select tool does
     that in its pointer-up handler, so a marquee drag starting on empty space still selects the
@@ -196,6 +196,10 @@ not round-trip.
 M4 constraint: a closed subpath whose last node coincides with its first is merged on reload (one
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
 closing segment. Snapping to path nodes is M4 (spec M2b §1).
+
+M3b (parked, spec §9): a per-document id index for `findNode` lookups during drags — nesting makes
+it more relevant, since `dropTarget` runs `findNode` + `ancestorIds` + `moveNodes` on every
+pointermove.
 
 M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
 palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a

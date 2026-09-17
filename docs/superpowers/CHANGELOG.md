@@ -334,6 +334,7 @@
   children, panel drags into and out of a group with the drop line, a group dropped into its own
   child refused, z-order inside a group, deleting a group's last child removing the group, undo
   of each, the top bar staying one row down to 730px, and no console errors.
+- Copy and cut work on nodes at any depth, baking the parent transform into the copy.
 - Owed: iPad (double-tap to enter a group, dragging nested rows), Safari/Firefox, a real
   pointer-capture drag of panel rows, and the layers panel's row measuring on every pointermove
   (unchanged from M3a).

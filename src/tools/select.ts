@@ -122,7 +122,9 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
     const at = handleFramePoint(p.handle, p.frame.box);
     const grab = { x: at.x - pressed.x, y: at.y - pressed.y };
     const targets =
-      snapping && Math.abs(p.frame.angle) < FRAME_ANGLE_EPS ? collectTargets(doc, ids) : null;
+      snapping && Math.abs(p.frame.angle) < FRAME_ANGLE_EPS
+        ? collectTargets(doc, [...ids, ...ids.flatMap((id) => ancestorIds(doc, id))])
+        : null;
     return {
       ...common,
       kind: "resize",
@@ -155,7 +157,9 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
       ids: moveIds,
       duplicatedFrom,
       bounds: selectionBounds(base, moveIds),
-      targets: snapping ? collectTargets(base, moveIds) : null,
+      targets: snapping
+        ? collectTargets(base, [...moveIds, ...moveIds.flatMap((id) => ancestorIds(base, id))])
+        : null,
       last: { x: 0, y: 0 },
     };
   }

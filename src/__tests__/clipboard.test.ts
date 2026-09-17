@@ -102,6 +102,38 @@ describe("clipboardText", () => {
       }).layers[0].children,
     );
   });
+
+  it("bakes the parent transform into a child copied out of a translated group", () => {
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: translate(100, 100),
+      opacity: 1,
+      children: [rect("child", 5, 5)],
+    };
+    const d = doc([{ children: [g] }]);
+    const text = clipboardText(d, ["child"])!;
+    const back = parseSvg(text).doc;
+    expect(back.layers[0].children).toHaveLength(1);
+    expect(applyMat(back.layers[0].children[0].transform, { x: 0, y: 0 })).toEqual({
+      x: 100,
+      y: 100,
+    });
+  });
+
+  it("copies a mixed selection of a top-level node and a nested node", () => {
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("child", 5, 5)],
+    };
+    const d = doc([{ children: [rect("top", 10, 10), g] }]);
+    const text = clipboardText(d, ["top", "child"])!;
+    const back = parseSvg(text).doc;
+    expect(back.layers[0].children).toHaveLength(2);
+  });
 });
 
 describe("planPaste", () => {

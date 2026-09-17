@@ -142,7 +142,14 @@ function setSession(s: Session): void {
   if (current !== app.currentLayerId) app.currentLayerId = current;
   if (app.enteredGroupId !== null) {
     const entered = findNode(s.doc, app.enteredGroupId);
-    if (!entered || entered.node.kind !== "group") app.enteredGroupId = null;
+    if (
+      !entered ||
+      entered.node.kind !== "group" ||
+      !entered.layer.visible ||
+      entered.layer.locked
+    ) {
+      app.enteredGroupId = null;
+    }
   }
 }
 
@@ -463,7 +470,9 @@ export function moveNodesTo(ids: readonly string[], parentId: string, index: num
     ? parentId
     : findNode(app.doc, parentId)?.layer.id;
   if (layerId === undefined || layerBlock(app.doc, layerId)) return;
-  commitDoc(moveNodes(app.doc, ids, parentId, index));
+  const next = moveNodes(app.doc, ids, parentId, index);
+  if (next === app.doc) return;
+  commitDoc(next);
   setSelection(ids);
 }
 
