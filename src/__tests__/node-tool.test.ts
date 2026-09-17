@@ -291,4 +291,75 @@ describe("node tool: editing", () => {
     expect(state.session.gestureBase).toBeNull();
     expect(target(state).subpaths[0].nodes[0].p).toEqual({ x: 0, y: 0 });
   });
+
+  it("a new pointer-down rolls back an abandoned marquee's selection", () => {
+    // Shift keeps the pre-marquee selection as its base, so the rollback target is non-empty
+    // and distinguishable from what the marquee itself picked up.
+    const { ctx, state } = fakeContext(curvedDoc());
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(-20, -20, { shift: true }));
+    tool.move(ctx, ev(60, 20, { shift: true }));
+    expect(state.nodeSel).toEqual([
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ]);
+    // A fresh press elsewhere abandons the marquee; its selection change must roll back too.
+    // (Shift again, only so the new marquee this press starts doesn't itself clear the
+    // selection — which would mask whether the rollback happened.)
+    tool.down(ctx, ev(250, 150, { shift: true }));
+    expect(state.nodeSel).toEqual([{ sub: 0, i: 0 }]);
+    expect(state.overlay).toBeNull();
+  });
+
+  it("keeps a Shift-constrained node drag exact even when a target sits near the locked axis", () => {
+    // "p" (the drag target) sits at y 37 — away from the artboard's own snap lines (0/100/200)
+    // so those can't mask the effect. "q" offers a node point at y 39, two pixels off — within
+    // snapping range — that would otherwise pull a horizontally Shift-constrained drag's y off
+    // its exact, locked value.
+    const p: PathShape = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: { color: "#000000", opacity: 1 } },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 37 }, in: null, out: null, type: "corner" },
+            { p: { x: 40, y: 37 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const q: PathShape = {
+      kind: "path",
+      id: "q",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: { color: "#000000", opacity: 1 } },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 10, y: 39 }, in: null, out: null, type: "corner" },
+            { p: { x: 60, y: 39 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const d = createDoc(300, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [p, q] }],
+    });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(0, 37));
+    tool.move(ctx, ev(10, 40, { shift: true }));
+    tool.up(ctx, ev(10, 40, { shift: true }));
+    const n = (state.session.doc.layers[0].children[0] as PathShape).subpaths[0].nodes[0];
+    expect(n.p.y).toBe(37);
+  });
 });

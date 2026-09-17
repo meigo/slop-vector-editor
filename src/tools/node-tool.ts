@@ -6,7 +6,14 @@ import { nearestOnSubpath } from "../geom/bezier";
 import { boxFromPoints, type Box } from "../geom/box";
 import { hitTest } from "../geom/hit";
 import { applyMat, invert, multiply, type Mat } from "../geom/mat";
-import { collectTargets, hasGuides, SNAP_PX, snapPoint, type SnapTargets } from "../geom/snap";
+import {
+  collectTargets,
+  hasGuides,
+  SNAP_PX,
+  snapPoint,
+  type Axes,
+  type SnapTargets,
+} from "../geom/snap";
 import type { Vec } from "../geom/vec";
 import { isDoubleTap, type Tap } from "../input/double-tap";
 import { SNAP_45 } from "./shape-tools";
@@ -44,15 +51,21 @@ const refKey = (r: NodeRef) => `${r.sub}:${r.i}`;
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Shift constrains a node drag to the nearest 45°, mirroring the select tool's own drag
- *  constraint (spec M4a §7). */
-function constrain45(dx: number, dy: number): Vec {
+ *  constraint (spec M4a §7). The `axes` it implies are passed on to `snapPoint`, so snapping to
+ *  a target near the locked-out axis can't pull the drag off the exact 45°. */
+function constrain45(dx: number, dy: number): { d: Vec; axes: Axes } {
   const angle = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
   const c = Math.cos(angle);
   const s = Math.sin(angle);
   const along = dx * c + dy * s;
   const horizontal = Math.abs(s) < 1e-9;
   const vertical = Math.abs(c) < 1e-9;
-  return { x: vertical ? 0 : along * c, y: horizontal ? 0 : along * s };
+  const axes: Axes = horizontal
+    ? { x: true, y: false }
+    : vertical
+      ? { x: false, y: true }
+      : { x: false, y: false };
+  return { d: { x: vertical ? 0 : along * c, y: horizontal ? 0 : along * s }, axes };
 }
 
 function targetOf(ctx: ToolContext): Target | null {
@@ -113,6 +126,8 @@ export function createNodeTool(): Tool {
     if (m.kind === "nodes" || m.kind === "handle") {
       ctx.commit(m.base);
       ctx.endGesture();
+    } else if (m.kind === "marquee") {
+      ctx.setNodeSel(m.base);
     }
   }
 
@@ -243,14 +258,20 @@ export function createNodeTool(): Tool {
         if (!path) return;
         let to = p;
         // Shift constrains to the nearest 45° in document space, matching what the user sees,
-        // regardless of the path's own rotation (spec M4a §7).
+        // regardless of the path's own rotation (spec M4a §7). The implied axes are carried into
+        // snapping below, so a target near the locked-out axis can't pull the drag off it.
+        let axes: Axes | undefined;
         if (e.mods.shift) {
-          const d = constrain45(e.doc.x - mode.startDoc.x, e.doc.y - mode.startDoc.y);
-          to = applyMat(t.inv, { x: mode.startDoc.x + d.x, y: mode.startDoc.y + d.y });
+          const constrained = constrain45(e.doc.x - mode.startDoc.x, e.doc.y - mode.startDoc.y);
+          to = applyMat(t.inv, {
+            x: mode.startDoc.x + constrained.d.x,
+            y: mode.startDoc.y + constrained.d.y,
+          });
+          axes = constrained.axes;
         }
         if (mode.targets) {
           const world = applyMat(t.world, to);
-          const snapped = snapPoint(world, mode.targets, SNAP_PX / ctx.view().zoom);
+          const snapped = snapPoint(world, mode.targets, SNAP_PX / ctx.view().zoom, axes);
           ctx.setOverlay(hasGuides(snapped.guides) ? { kind: "guides", ...snapped.guides } : null);
           to = applyMat(t.inv, snapped.p);
         }
