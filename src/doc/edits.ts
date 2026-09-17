@@ -230,6 +230,15 @@ export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
   );
 }
 
+/** Spec (M3b) §7. Opacity of the selected nodes themselves: a group's own opacity, or a shape's
+ *  style opacity. A group's children are left alone, so its opacity keeps its meaning. */
+export function setNodeOpacity(doc: Doc, ids: readonly string[], value: number): Doc {
+  return mapNodes(doc, ids, (n) => {
+    if (n.kind === "group") return n.opacity === value ? n : { ...n, opacity: value };
+    return n.style.opacity === value ? n : { ...n, style: { ...n.style, opacity: value } };
+  });
+}
+
 /** Adds copies of `nodes` (fresh ids) on top of a layer, moved by (dx, dy). */
 export function insertNodes(
   doc: Doc,

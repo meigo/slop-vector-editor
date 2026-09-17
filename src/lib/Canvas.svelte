@@ -83,6 +83,7 @@
       doc: screenToDoc(app.view, screen),
       screen,
       pointerType: e.pointerType,
+      time: e.timeStamp,
       mods: { shift: e.shiftKey || dock.shift, alt: e.altKey || dock.alt },
     };
   }

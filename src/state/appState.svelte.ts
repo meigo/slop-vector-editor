@@ -4,6 +4,7 @@ import {
   deleteNodes,
   duplicateNodes,
   flattenTransform,
+  setNodeOpacity,
   setPolygon,
   setRectRadius,
   setStyle,
@@ -26,7 +27,8 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
-import { findNode, pruneSelection } from "../doc/tree";
+import { groupNodes, ungroupNodes } from "../doc/group";
+import { ancestorIds, findNode, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
@@ -73,6 +75,8 @@ class AppState {
   session = $state.raw<Session>(newSession(createDoc(1920, 1080), true));
   /** Where new objects go (spec M3a §2). Not saved, not undoable. */
   currentLayerId = $state<string>(resolveLayerId(this.session.doc, null));
+  /** The group being worked inside (spec M3b §3). Not saved, not undoable. */
+  enteredGroupId = $state<string | null>(null);
   fileName = $state("Untitled.svg");
   view = $state.raw<View>({ x: 0, y: 0, zoom: 1 });
   viewportSize = $state.raw({ w: 0, h: 0 });
@@ -136,6 +140,10 @@ function setSession(s: Session): void {
   if (pruned !== app.selection) app.selection = pruned;
   const current = resolveLayerId(s.doc, app.currentLayerId);
   if (current !== app.currentLayerId) app.currentLayerId = current;
+  if (app.enteredGroupId !== null) {
+    const entered = findNode(s.doc, app.enteredGroupId);
+    if (!entered || entered.node.kind !== "group") app.enteredGroupId = null;
+  }
 }
 
 export function commitDoc(next: Doc): void {
@@ -171,6 +179,7 @@ export function replaceDocument(
   app.overlay = null;
   setSession(newSession(doc, saved));
   app.currentLayerId = resolveLayerId(doc, null);
+  app.enteredGroupId = null;
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
@@ -453,10 +462,13 @@ export function moveLayerTo(id: string, index: number): void {
 }
 
 /** The moved objects become the selection (and so their new layer becomes current). */
-export function moveNodesTo(ids: readonly string[], layerId: string, index: number): void {
+export function moveNodesTo(ids: readonly string[], parentId: string, index: number): void {
   cancelActiveGesture();
-  if (layerBlock(app.doc, layerId)) return;
-  commitDoc(moveNodes(app.doc, ids, layerId, index));
+  const layerId = app.doc.layers.some((l) => l.id === parentId)
+    ? parentId
+    : findNode(app.doc, parentId)?.layer.id;
+  if (layerId === undefined || layerBlock(app.doc, layerId)) return;
+  commitDoc(moveNodes(app.doc, ids, parentId, index));
   setSelection(ids);
 }
 
@@ -470,11 +482,12 @@ export function selectFromPanel(id: string, additive: boolean): void {
   cancelActiveGesture();
   if (!additive) {
     setSelection([id]);
-    return;
+  } else {
+    setSelection(
+      app.selection.includes(id) ? app.selection.filter((s) => s !== id) : [...app.selection, id],
+    );
   }
-  setSelection(
-    app.selection.includes(id) ? app.selection.filter((s) => s !== id) : [...app.selection, id],
-  );
+  app.enteredGroupId = ancestorIds(app.doc, id).at(-1) ?? null;
 }
 
 export function bringSelectionForward(): void {
@@ -495,4 +508,48 @@ export function bringSelectionToFront(): void {
 export function sendSelectionToBack(): void {
   cancelActiveGesture();
   commitDoc(sendToBack(app.doc, app.selection));
+}
+
+// ----- groups (spec M3b §3, §4) -----
+
+export function setEnteredGroup(id: string | null): void {
+  app.enteredGroupId = id;
+}
+
+/** Escape: leave the group one level at a time, and only then clear the selection. */
+export function clearOrLeaveGroup(): void {
+  cancelActiveGesture();
+  const entered = app.enteredGroupId;
+  if (entered === null) {
+    if (app.selection.length > 0) app.selection = [];
+    return;
+  }
+  const above = ancestorIds(app.doc, entered);
+  app.enteredGroupId = above.length > 0 ? above[above.length - 1] : null;
+  setSelection([entered]);
+}
+
+export function groupSelection(): void {
+  cancelActiveGesture();
+  const r = groupNodes(app.doc, app.selection);
+  if (r.id === null) return;
+  commitDoc(r.doc);
+  setSelection([r.id]);
+}
+
+export function ungroupSelection(): void {
+  cancelActiveGesture();
+  const r = ungroupNodes(app.doc, app.selection);
+  if (r.doc === app.doc) return;
+  commitDoc(r.doc);
+  setSelection(r.ids);
+}
+
+export function setSelectionOpacity(value: number): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) {
+    setPrefs({ ...app.prefs, style: { ...app.prefs.style, opacity: value } });
+    return;
+  }
+  commitDoc(setNodeOpacity(app.doc, app.selection, value));
 }

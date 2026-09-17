@@ -3,16 +3,20 @@ import {
   createDoc,
   DEFAULT_STYLE,
   type Doc,
+  type Group,
   type Node,
   type PolygonShape,
   type RectShape,
   type Style,
 } from "../doc/document";
+import { setNodeOpacity } from "../doc/edits";
+import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, rotateAbout, translate, type Mat } from "../geom/mat";
 import {
   applyGeometryField,
   selectionActions,
   selectionGeometry,
+  selectionOpacity,
   selectionStyles,
   summarizePolygons,
   summarizeRects,
@@ -153,11 +157,14 @@ describe("selection actions", () => {
   const d = doc(rect("a", 0, 0, 10, 10), path("p", IDENTITY), path("q", translate(5, 0)));
 
   it("offers convert for rects and ellipses, flatten for transformed paths", () => {
-    expect(selectionActions(d, [])).toEqual({ canConvert: false, canFlatten: false });
-    expect(selectionActions(d, ["a"])).toEqual({ canConvert: true, canFlatten: false });
-    expect(selectionActions(d, ["p"])).toEqual({ canConvert: false, canFlatten: false });
-    expect(selectionActions(d, ["q"])).toEqual({ canConvert: false, canFlatten: true });
-    expect(selectionActions(d, ["a", "q", "gone"])).toEqual({ canConvert: true, canFlatten: true });
+    expect(selectionActions(d, [])).toMatchObject({ canConvert: false, canFlatten: false });
+    expect(selectionActions(d, ["a"])).toMatchObject({ canConvert: true, canFlatten: false });
+    expect(selectionActions(d, ["p"])).toMatchObject({ canConvert: false, canFlatten: false });
+    expect(selectionActions(d, ["q"])).toMatchObject({ canConvert: false, canFlatten: true });
+    expect(selectionActions(d, ["a", "q", "gone"])).toMatchObject({
+      canConvert: true,
+      canFlatten: true,
+    });
   });
 });
 
@@ -223,5 +230,57 @@ describe("rect summary", () => {
     expect(summarizeRects(d, ["a", "e"])).toBeNull();
     expect(summarizeRects(d, ["b", "c"])).toEqual({ radius: 3 });
     expect(summarizeRects(d, ["a", "b"])).toEqual({ radius: null });
+  });
+});
+
+describe("group-aware selection helpers", () => {
+  const rect = (id: string, opacity = 1): Node => ({
+    kind: "rect",
+    id,
+    transform: IDENTITY,
+    style: { ...DEFAULT_STYLE, opacity },
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  });
+  const doc = (children: Node[]): Doc =>
+    deepFreeze({
+      ...createDoc(100, 100),
+      layers: [{ id: "L0", name: "L0", visible: true, locked: false, children }],
+    });
+  const g = (id: string, opacity: number, children: Node[]): Node => ({
+    kind: "group",
+    id,
+    transform: IDENTITY,
+    opacity,
+    children,
+  });
+
+  it("reports what can be grouped and ungrouped", () => {
+    const d = doc([rect("a"), g("g", 1, [rect("b")])]);
+    expect(selectionActions(d, ["a"]).canGroup).toBe(true);
+    expect(selectionActions(d, ["a"]).canUngroup).toBe(false);
+    expect(selectionActions(d, ["g"]).canUngroup).toBe(true);
+    expect(selectionActions(d, []).canGroup).toBe(false);
+  });
+
+  it("reads a group's own opacity alongside shape opacity", () => {
+    const d = doc([rect("a", 0.5), g("g", 0.5, [rect("b", 1)])]);
+    expect(selectionOpacity(d, ["a", "g"])).toEqual({ mixed: false, value: 0.5 });
+    expect(selectionOpacity(d, ["a", "b"])).toEqual({ mixed: true });
+    expect(selectionOpacity(d, [])).toBeNull();
+  });
+
+  it("writes opacity to groups and shapes without touching a group's children", () => {
+    const d = doc([rect("a", 1), g("g", 1, [rect("b", 1)])]);
+    const out = setNodeOpacity(d, ["a", "g"], 0.25);
+    const a = findNode(out, "a")!.node;
+    expect(a.kind === "group" ? null : a.style.opacity).toBe(0.25);
+    expect((findNode(out, "g")!.node as Group).opacity).toBe(0.25);
+    const b = findNode(out, "b")!.node;
+    expect(b.kind === "group" ? null : b.style.opacity).toBe(1);
+    expect(setNodeOpacity(d, ["a"], 1)).toBe(d);
   });
 });

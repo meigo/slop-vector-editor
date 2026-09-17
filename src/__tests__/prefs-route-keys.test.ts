@@ -187,6 +187,13 @@ describe("editActionForKey", () => {
     expect(k("]", { code: "BracketRight" })).toBeNull();
     expect(k("x", { metaKey: true, code: "KeyX" })).toBeNull();
   });
+
+  it("maps the group shortcuts", () => {
+    expect(k("g", { metaKey: true })).toEqual({ kind: "group" });
+    expect(k("g", { metaKey: true, shiftKey: true })).toEqual({ kind: "ungroup" });
+    expect(k("g", { ctrlKey: true })).toEqual({ kind: "group" });
+    expect(k("g")).toBeNull();
+  });
 });
 
 describe("watchOtherTabs", () => {

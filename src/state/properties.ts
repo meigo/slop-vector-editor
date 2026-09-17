@@ -62,7 +62,12 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
   };
 }
 
-export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
+export type SelectionActions = {
+  canConvert: boolean;
+  canFlatten: boolean;
+  canGroup: boolean;
+  canUngroup: boolean;
+};
 
 /** Which shape actions apply to the selection (shared by the top bar and the context menu). */
 export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
@@ -72,6 +77,8 @@ export function selectionActions(doc: Doc, ids: readonly string[]): SelectionAct
       (n) => n.kind === "rect" || n.kind === "ellipse" || n.kind === "polygon",
     ),
     canFlatten: nodes.some((n) => n.kind === "path" && !isIdentity(n.transform)),
+    canGroup: nodes.length > 0,
+    canUngroup: nodes.some((n) => n.kind === "group"),
   };
 }
 
@@ -113,6 +120,16 @@ export function selectionStyles(doc: Doc, ids: readonly string[]): Style[] {
     const f = findNode(doc, id);
     return f ? shapesOf(f.node).map((s) => s.style) : [];
   });
+}
+
+/** Spec (M3b) §7: the opacity the Opacity field edits — a group's own, or a shape's style. */
+export function selectionOpacity(doc: Doc, ids: readonly string[]): Field<number> | null {
+  const values = ids.flatMap((id) => {
+    const f = findNode(doc, id);
+    if (!f) return [];
+    return [f.node.kind === "group" ? f.node.opacity : f.node.style.opacity];
+  });
+  return values.length === 0 ? null : merge(values);
 }
 
 export function selectionGeometry(doc: Doc, ids: readonly string[]): Geometry | null {

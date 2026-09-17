@@ -45,7 +45,9 @@ export type EditAction =
   | { kind: "clear" }
   | { kind: "nudge"; dx: number; dy: number }
   | { kind: "toggleSnap" }
-  | { kind: "zorder"; op: ZOrderOp };
+  | { kind: "zorder"; op: ZOrderOp }
+  | { kind: "group" }
+  | { kind: "ungroup" };
 
 const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   v: "select",
@@ -61,6 +63,7 @@ export function editActionForKey(e: KeyLike): EditAction | null {
   const k = e.key.toLowerCase();
   if (e.metaKey || e.ctrlKey) {
     if (k === "d") return { kind: "duplicate" };
+    if (k === "g") return { kind: e.shiftKey ? "ungroup" : "group" };
     // By physical key: Shift turns "]" into "}" on many layouts.
     if (e.code === "BracketRight") return { kind: "zorder", op: e.shiftKey ? "front" : "forward" };
     if (e.code === "BracketLeft") return { kind: "zorder", op: e.shiftKey ? "back" : "backward" };

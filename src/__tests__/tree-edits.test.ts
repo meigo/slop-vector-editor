@@ -134,6 +134,14 @@ describe("edits", () => {
     expect(copy.transform).toEqual(translate(10, 5));
     expect(r.doc.nextId).toBe(103);
     expect(duplicateNodes(d, ["zz"], 0, 0)).toEqual({ doc: d, ids: [] });
+
+    // Duplicating a group gives the copy and every node inside it fresh ids: no id appears
+    // twice in the document, and nextId advances by the number of nodes copied (g, inner, a).
+    const collectIds = (n: Node): string[] =>
+      n.kind === "group" ? [n.id, ...n.children.flatMap(collectIds)] : [n.id];
+    const allIds = r.doc.layers.flatMap((l) => l.children.flatMap(collectIds));
+    expect(new Set(allIds).size).toBe(allIds.length);
+    expect(r.doc.nextId - d.nextId).toBe(3);
   });
 
   it("translates and rotates matrices only", () => {
