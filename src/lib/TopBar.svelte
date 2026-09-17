@@ -33,6 +33,7 @@
   let menuOpen = $state(false);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? "⌘" : "Ctrl+";
+  const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
 
   const none = $derived(app.selection.length === 0);
   const actions = $derived(selectionActions(app.doc, app.selection));
@@ -82,7 +83,7 @@
           Save <span class="kbd">{mod}S</span>
         </button>
         <button class="menu-item" role="menuitem" onclick={() => command("saveAs")}>
-          Save As… <span class="kbd">⇧{mod}S</span>
+          Save As… <span class="kbd">{shiftMod}S</span>
         </button>
         <div class="my-1 h-px bg-line"></div>
         <button class="menu-item" role="menuitem" onclick={() => dialog("settings")}>
@@ -108,7 +109,7 @@
   />
   <IconButton
     label="Redo"
-    title="Redo (⇧{mod}Z)"
+    title="Redo ({shiftMod}Z)"
     icon={Redo2}
     disabled={!app.canRedo}
     disabledTitle="Redo — nothing to redo"
@@ -191,7 +192,7 @@
     </button>
     <IconButton
       label="Zoom in"
-      title="Zoom in (+)"
+      title="Zoom in (=)"
       icon={ZoomIn}
       onclick={() => command("zoomIn")}
     />

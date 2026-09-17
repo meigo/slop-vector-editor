@@ -153,7 +153,8 @@ every user-visible change.
     "Cut (⌘X)". Top-bar actions that don't apply use `aria-disabled` with a reason title, e.g.
     "Cut — nothing selected". They never use `disabled` and are never hidden: a disabled button
     shows no tooltip, and a hidden one moves the bar. The top bar must never scroll or wrap,
-    because that would clip the File menu. Only the file name shrinks.
+    because that would clip the File menu. Only the file name shrinks. The file name's `title`
+    (full name when truncated) is the one non-action title and also shows in the status bar.
 
 ## Current state
 
