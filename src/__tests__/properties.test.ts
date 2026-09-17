@@ -15,6 +15,7 @@ import {
   selectionGeometry,
   selectionStyles,
   summarizePolygons,
+  summarizeRects,
   summarizeStyles,
 } from "../state/properties";
 import { deepFreeze } from "./helpers";
@@ -197,5 +198,30 @@ describe("polygon summary", () => {
   it("offers Convert to path for polygons", () => {
     const d = doc(poly("a"));
     expect(selectionActions(d, ["a"]).canConvert).toBe(true);
+  });
+});
+
+describe("rect summary", () => {
+  it("summarises rect radii, blanking values that differ", () => {
+    const e: Node = {
+      kind: "ellipse",
+      id: "e",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      cx: 5,
+      cy: 5,
+      rx: 5,
+      ry: 5,
+    };
+    const d = doc(
+      rect("a", 0, 0, 10, 10),
+      { ...rect("b", 20, 0, 10, 10), rx: 3 },
+      { ...rect("c", 40, 0, 10, 10), rx: 3 },
+      e,
+    );
+    expect(summarizeRects(d, [])).toBeNull();
+    expect(summarizeRects(d, ["a", "e"])).toBeNull();
+    expect(summarizeRects(d, ["b", "c"])).toEqual({ radius: 3 });
+    expect(summarizeRects(d, ["a", "b"])).toEqual({ radius: null });
   });
 });
