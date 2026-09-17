@@ -6,6 +6,7 @@
     convertSelectionToPath,
     copyToSystem,
     cutToSystem,
+    deleteSelectedNodes,
     deleteSelection,
     duplicateSelection,
     flattenSelection,
@@ -13,6 +14,7 @@
     pasteFromClipboard,
     sendSelectionBackward,
     sendSelectionToBack,
+    setSelectedNodeType,
     ungroupSelection,
   } from "../state/appState.svelte";
   import { selectionActions } from "../state/properties";
@@ -82,6 +84,33 @@
     <button class="menu-item" role="menuitem" onclick={() => run(() => void pasteFromClipboard())}>
       Paste <span class="kbd">⌘V</span>
     </button>
+    {#if app.toolId === "node" && app.nodeSel.length > 0}
+      <button class="menu-item" role="menuitem" onclick={() => run(deleteSelectedNodes)}>
+        Delete node{app.nodeSel.length > 1 ? "s" : ""} <span class="kbd">⌫</span>
+      </button>
+      <button
+        class="menu-item"
+        role="menuitem"
+        onclick={() => run(() => setSelectedNodeType("corner"))}
+      >
+        Corner
+      </button>
+      <button
+        class="menu-item"
+        role="menuitem"
+        onclick={() => run(() => setSelectedNodeType("smooth"))}
+      >
+        Smooth
+      </button>
+      <button
+        class="menu-item"
+        role="menuitem"
+        onclick={() => run(() => setSelectedNodeType("symmetric"))}
+      >
+        Symmetric
+      </button>
+      <div class="my-1 h-px bg-line"></div>
+    {/if}
     {#if app.selection.length > 0}
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>

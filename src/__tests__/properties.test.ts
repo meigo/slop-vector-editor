@@ -14,6 +14,7 @@ import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, rotateAbout, translate, type Mat } from "../geom/mat";
 import {
   applyGeometryField,
+  selectedNodeSummary,
   selectionActions,
   selectionGeometry,
   selectionOpacity,
@@ -282,5 +283,53 @@ describe("group-aware selection helpers", () => {
     const b = findNode(out, "b")!.node;
     expect(b.kind === "group" ? null : b.style.opacity).toBe(1);
     expect(setNodeOpacity(d, ["a"], 1)).toBe(d);
+  });
+});
+
+describe("selected node summary", () => {
+  const p = (x: number, y: number, type: "corner" | "smooth" | "symmetric") => ({
+    p: { x, y },
+    in: null,
+    out: null,
+    type,
+  });
+  const d = deepFreeze({
+    ...createDoc(100, 100),
+    layers: [
+      {
+        id: "L0",
+        name: "L0",
+        visible: true,
+        locked: false,
+        children: [
+          {
+            kind: "path",
+            id: "p",
+            transform: IDENTITY,
+            style: DEFAULT_STYLE,
+            subpaths: [{ closed: false, nodes: [p(0, 0, "corner"), p(10, 5, "smooth")] }],
+          } as Node,
+        ],
+      },
+    ],
+  });
+
+  it("reports one node's type and point, and mixed types", () => {
+    expect(selectedNodeSummary(d, "p", [{ sub: 0, i: 1 }])).toEqual({
+      type: "smooth",
+      point: { x: 10, y: 5 },
+    });
+    expect(
+      selectedNodeSummary(d, "p", [
+        { sub: 0, i: 0 },
+        { sub: 0, i: 1 },
+      ]),
+    ).toEqual({ type: "mixed", point: null });
+    expect(selectedNodeSummary(d, "p", [])).toBeNull();
+    expect(selectedNodeSummary(d, "nope", [{ sub: 0, i: 0 }])).toBeNull();
+  });
+
+  it("returns null when a node ref no longer exists on the path", () => {
+    expect(selectedNodeSummary(d, "p", [{ sub: 0, i: 5 }])).toBeNull();
   });
 });

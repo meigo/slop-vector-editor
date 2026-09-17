@@ -178,9 +178,9 @@ export function createNodeTool(): Tool {
             base: ctx.doc(),
             start: applyMat(t.inv, mode.start.doc),
             refs: refs.length > 0 ? refs : [pick.ref],
-            // Node-point snap targets ({ nodes: true }) land with the node-snapping task; for now
-            // this collects the artboard and other shapes' bounds, same as the select tool.
-            targets: ctx.snapEnabled() ? collectTargets(ctx.doc(), [t.path.id]) : null,
+            targets: ctx.snapEnabled()
+              ? collectTargets(ctx.doc(), [t.path.id], { nodes: true })
+              : null,
           };
         } else {
           return;
