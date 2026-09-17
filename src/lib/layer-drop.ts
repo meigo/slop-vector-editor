@@ -1,6 +1,6 @@
-import type { Doc } from "../doc/document";
+import type { Doc, Node } from "../doc/document";
 import { layerBlock, moveLayer, moveNodes } from "../doc/layers";
-import { findNode } from "../doc/tree";
+import { ancestorIds, findNode } from "../doc/tree";
 
 /** Spec (M3a) §5: where a row dragged in the layers panel would land. Rows are in display order
  *  (top first) with their on-screen top/bottom; `line` is where to draw the drop indicator. */
@@ -8,7 +8,7 @@ export type RowBox = { kind: "layer" | "node"; id: string; top: number; bottom: 
 export type Drag = { kind: "layer"; id: string } | { kind: "node"; ids: readonly string[] };
 export type Drop =
   | { kind: "layer"; index: number; line: number }
-  | { kind: "node"; layerId: string; index: number; line: number };
+  | { kind: "node"; parentId: string; index: number; line: number };
 
 const mid = (r: RowBox) => (r.top + r.bottom) / 2;
 
@@ -27,27 +27,43 @@ export function dropTarget(doc: Doc, rows: readonly RowBox[], y: number, drag: D
   const row =
     rows.find((r) => y >= r.top && y < r.bottom) ??
     (y < rows[0].top ? rows[0] : rows[rows.length - 1]);
-  let layerId: string;
+  const moving = new Set(drag.ids);
+  let parentId: string;
+  let siblings: readonly Node[];
   let slotIndex: number;
   let line: number;
+  let layerId: string;
   if (row.kind === "layer") {
     const layer = doc.layers.find((l) => l.id === row.id);
     if (!layer) return null;
+    parentId = layer.id;
     layerId = layer.id;
+    siblings = layer.children;
     slotIndex = layer.children.length;
     line = row.bottom;
   } else {
     const found = findNode(doc, row.id);
     if (!found) return null;
-    const upper = y < mid(row);
     layerId = found.layer.id;
-    slotIndex = upper ? found.index + 1 : found.index;
-    line = upper ? row.top : row.bottom;
+    if (found.node.kind === "group" && !moving.has(found.node.id)) {
+      // A group row takes a drop into the group, like a layer row does.
+      parentId = found.node.id;
+      siblings = found.node.children;
+      slotIndex = found.node.children.length;
+      line = row.bottom;
+    } else {
+      const container = found.parentGroup;
+      parentId = container ? container.id : found.layer.id;
+      siblings = container ? container.children : found.layer.children;
+      const upper = y < mid(row);
+      slotIndex = upper ? found.index + 1 : found.index;
+      line = upper ? row.top : row.bottom;
+    }
   }
   if (layerBlock(doc, layerId)) return null;
-  const target = doc.layers.find((l) => l.id === layerId)!;
-  const moving = new Set(drag.ids);
-  const index = target.children.slice(0, slotIndex).filter((n) => !moving.has(n.id)).length;
-  if (moveNodes(doc, drag.ids, layerId, index) === doc) return null;
-  return { kind: "node", layerId, index, line };
+  if (moving.has(parentId)) return null;
+  if (ancestorIds(doc, parentId).some((a) => moving.has(a))) return null;
+  const index = siblings.slice(0, slotIndex).filter((n) => !moving.has(n.id)).length;
+  if (moveNodes(doc, drag.ids, parentId, index) === doc) return null;
+  return { kind: "node", parentId, index, line };
 }

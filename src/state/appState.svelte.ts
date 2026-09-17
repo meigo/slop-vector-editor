@@ -260,11 +260,6 @@ export function setCurrentLayer(id: string): void {
   app.currentLayerId = resolveLayerId(app.doc, id);
 }
 
-export function clearSelection(): void {
-  cancelActiveGesture();
-  if (app.selection.length > 0) app.selection = [];
-}
-
 export function setTool(id: ToolId): void {
   if (app.toolId === id) return;
   app.toolId = id;

@@ -10,7 +10,7 @@
     Plus,
     Trash2,
   } from "@lucide/svelte";
-  import type { Layer } from "../doc/document";
+  import type { Layer, Node } from "../doc/document";
   import { rowLabel } from "../doc/layers";
   import {
     addLayerAboveCurrent,
@@ -116,7 +116,7 @@
     if (!apply || !target) return;
     if (drag.kind === "layer" && target.kind === "layer") moveLayerTo(drag.id, target.index);
     else if (drag.kind === "node" && target.kind === "node") {
-      moveNodesTo(drag.ids, target.layerId, target.index);
+      moveNodesTo(drag.ids, target.parentId, target.index);
     }
   }
 
@@ -136,6 +136,89 @@
     e.stopPropagation();
   }}
 />
+
+{#snippet nodeRow(node: Node, layer: Layer, depth: number, blocked: boolean)}
+  {@const isSelected = selected.has(node.id)}
+  {@const isGroup = node.kind === "group"}
+  {@const open = !collapsed[node.id]}
+  <li
+    data-row-id={node.id}
+    data-row-kind="node"
+    class={[
+      "flex h-8 items-center gap-0.5 pr-1",
+      isSelected && "ui-selected",
+      blocked && "text-muted",
+    ]}
+    style="padding-left: {depth * 20}px"
+    title={blockedTitle(layer)}
+  >
+    <button
+      type="button"
+      tabindex="-1"
+      class="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-muted"
+      style="touch-action: none"
+      aria-label="Drag “{rowLabel(node)}”"
+      onpointerdown={(e) => {
+        if (!blocked) startDrag(e, nodeDrag(node.id));
+      }}
+      onpointermove={moveDrag}
+      onpointerup={(e) => endDrag(e, true)}
+      onpointercancel={(e) => endDrag(e, false)}
+      onlostpointercapture={(e) => endDrag(e, false)}
+    >
+      <GripVertical size={14} />
+    </button>
+    {#if isGroup}
+      <button
+        type="button"
+        class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+        aria-label={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
+        aria-expanded={open}
+        onclick={() => (collapsed[node.id] = open)}
+      >
+        {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+      </button>
+    {:else}
+      <span class="w-5 shrink-0"></span>
+    {/if}
+    {#if editing?.kind === "node" && editing.id === node.id}
+      <input
+        class="field h-7 min-w-0 flex-1"
+        aria-label="Object name"
+        placeholder={rowLabel(node)}
+        bind:value={draft}
+        {@attach focusSelect}
+        onkeydown={(e) => {
+          if (e.key === "Enter") finishRename(true);
+          if (e.key === "Escape") finishRename(false);
+        }}
+        onblur={() => finishRename(true)}
+      />
+    {:else}
+      <button
+        type="button"
+        class="h-8 min-w-0 flex-1 truncate text-left"
+        title={blocked ? undefined : `Select “${rowLabel(node)}” — double-click to rename`}
+        onclick={(e) => {
+          if (editing) return;
+          if (!blocked) selectFromPanel(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
+        }}
+        onpointerup={(e) => {
+          if (!blocked) tapName("node", node.id, node.name ?? "", e);
+        }}
+      >
+        {rowLabel(node)}
+      </button>
+    {/if}
+  </li>
+  {#if isGroup && open}
+    <ul>
+      {#each [...node.children].reverse() as child (child.id)}
+        {@render nodeRow(child, layer, depth + 1, blocked)}
+      {/each}
+    </ul>
+  {/if}
+{/snippet}
 
 <section class="flex h-[45%] min-h-40 shrink-0 flex-col border-t border-line" aria-label="Layers">
   <div class="flex h-10 shrink-0 items-center gap-1 pr-2 pl-3">
@@ -238,66 +321,7 @@
           {#if open}
             <ul>
               {#each [...layer.children].reverse() as node (node.id)}
-                {@const isSelected = selected.has(node.id)}
-                <li
-                  data-row-id={node.id}
-                  data-row-kind="node"
-                  class={[
-                    "flex h-8 items-center gap-0.5 pr-1 pl-5",
-                    isSelected && "ui-selected",
-                    blocked && "text-muted",
-                  ]}
-                  title={blockedTitle(layer)}
-                >
-                  <button
-                    type="button"
-                    tabindex="-1"
-                    class="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-muted"
-                    style="touch-action: none"
-                    aria-label="Drag “{rowLabel(node)}”"
-                    onpointerdown={(e) => {
-                      if (!blocked) startDrag(e, nodeDrag(node.id));
-                    }}
-                    onpointermove={moveDrag}
-                    onpointerup={(e) => endDrag(e, true)}
-                    onpointercancel={(e) => endDrag(e, false)}
-                    onlostpointercapture={(e) => endDrag(e, false)}
-                  >
-                    <GripVertical size={14} />
-                  </button>
-                  {#if editing?.kind === "node" && editing.id === node.id}
-                    <input
-                      class="field h-7 min-w-0 flex-1"
-                      aria-label="Object name"
-                      placeholder={rowLabel(node)}
-                      bind:value={draft}
-                      {@attach focusSelect}
-                      onkeydown={(e) => {
-                        if (e.key === "Enter") finishRename(true);
-                        if (e.key === "Escape") finishRename(false);
-                      }}
-                      onblur={() => finishRename(true)}
-                    />
-                  {:else}
-                    <button
-                      type="button"
-                      class="h-8 min-w-0 flex-1 truncate text-left"
-                      title={blocked
-                        ? undefined
-                        : `Select “${rowLabel(node)}” — double-click to rename`}
-                      onclick={(e) => {
-                        if (editing) return;
-                        if (!blocked)
-                          selectFromPanel(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
-                      }}
-                      onpointerup={(e) => {
-                        if (!blocked) tapName("node", node.id, node.name ?? "", e);
-                      }}
-                    >
-                      {rowLabel(node)}
-                    </button>
-                  {/if}
-                </li>
+                {@render nodeRow(node, layer, 1, blocked)}
               {/each}
             </ul>
           {/if}
