@@ -78,6 +78,8 @@ class AppState {
   propertiesOpen = $state(false);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
+  /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
+  hoverHint = $state<string | null>(null);
 
   get doc(): Doc {
     return this.session.doc;

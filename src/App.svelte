@@ -3,7 +3,6 @@
   import type { Vec } from "./geom/vec";
   import Canvas from "./lib/Canvas.svelte";
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
-  import ContextBar from "./lib/ContextBar.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
   import ModifierDock from "./lib/ModifierDock.svelte";
@@ -13,6 +12,7 @@
   import StatusBar from "./lib/StatusBar.svelte";
   import ToolStrip from "./lib/ToolStrip.svelte";
   import TopBar from "./lib/TopBar.svelte";
+  import { hintFrom } from "./lib/hover-hint";
   import { flushAutosave, scheduleAutosave } from "./persist/autosave";
   import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
   import { watchOtherTabs } from "./persist/tab-presence";
@@ -119,6 +119,14 @@
     if (e.key === " ") app.spaceHeld = false;
   }
 
+  function onpointerover(e: PointerEvent) {
+    app.hoverHint = hintFrom(e.target as Element | null, e.pointerType);
+  }
+
+  function onpointerout(e: PointerEvent) {
+    if (!e.relatedTarget) app.hoverHint = null;
+  }
+
   /** Text fields and dialogs keep the browser's own clipboard behaviour. */
   function clipboardIgnored(e: Event): boolean {
     return app.dialog !== null || app.confirm !== null || isTextField(e.target);
@@ -170,11 +178,13 @@
   oncopy={(e) => writeClipboard(e, copySelection)}
   oncut={(e) => writeClipboard(e, cutSelection)}
   {onpaste}
+  {onpointerover}
+  {onpointerout}
+  onpointerdown={() => (app.hoverHint = null)}
 />
 
 <div class="flex h-full flex-col">
   <TopBar />
-  <ContextBar />
   <div class="flex min-h-0 flex-1">
     <ToolStrip />
     <main class="relative min-w-0 flex-1">
