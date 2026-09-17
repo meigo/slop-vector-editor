@@ -148,6 +148,7 @@ describe("editActionForKey", () => {
     expect(k("l")).toEqual({ kind: "tool", tool: "line" });
     expect(k("y")).toEqual({ kind: "tool", tool: "polygon" });
     expect(k("h")).toEqual({ kind: "tool", tool: "hand" });
+    expect(k("n")).toEqual({ kind: "tool", tool: "node" });
     expect(k("v", { shiftKey: true })).toBeNull();
     expect(k("x")).toBeNull();
   });

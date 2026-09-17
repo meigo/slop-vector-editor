@@ -1,7 +1,7 @@
 import type { Doc } from "../doc/document";
 import { nodeBounds } from "./bounds";
 import type { Box } from "./box";
-import { IDENTITY } from "./mat";
+import { applyMat, IDENTITY } from "./mat";
 import type { Vec } from "./vec";
 
 /** Snap distance in screen pixels; callers divide by the zoom. */
@@ -20,7 +20,11 @@ export function hasGuides(g: Guides): boolean {
 
 /** Candidate lines: the artboard's edges and centre, and the bounds of every top-level node on a
  *  visible layer (locked layers included — you can align to what you can't edit). */
-export function collectTargets(doc: Doc, exclude: readonly string[]): SnapTargets {
+export function collectTargets(
+  doc: Doc,
+  exclude: readonly string[],
+  opts: { nodes?: boolean } = {},
+): SnapTargets {
   const skip = new Set(exclude);
   const { w, h } = doc.artboard;
   const xs = [0, w / 2, w];
@@ -33,6 +37,16 @@ export function collectTargets(doc: Doc, exclude: readonly string[]): SnapTarget
       if (!b) continue;
       xs.push(b.x, b.x + b.w / 2, b.x + b.w);
       ys.push(b.y, b.y + b.h / 2, b.y + b.h);
+      // Spec (M4a) §7: node editing also snaps to other paths' node points.
+      if (opts.nodes && n.kind === "path") {
+        for (const sp of n.subpaths) {
+          for (const node of sp.nodes) {
+            const q = applyMat(n.transform, node.p);
+            xs.push(q.x);
+            ys.push(q.y);
+          }
+        }
+      }
     }
   }
   return { xs: xs.sort((a, b) => a - b), ys: ys.sort((a, b) => a - b) };

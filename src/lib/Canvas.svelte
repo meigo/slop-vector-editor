@@ -177,11 +177,18 @@
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
     if (app.lastPointerType !== "mouse") return;
-    if (app.toolId !== "select") return;
+    if (app.toolId !== "select" && app.toolId !== "node") return;
     cancelActiveGesture();
-    const p = screenToDoc(app.view, local(e));
-    const hit = hitTest(app.doc, p, pointerTolerance("mouse") / app.view.zoom, app.enteredGroupId);
-    if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
+    if (app.toolId === "select") {
+      const p = screenToDoc(app.view, local(e));
+      const hit = hitTest(
+        app.doc,
+        p,
+        pointerTolerance("mouse") / app.view.zoom,
+        app.enteredGroupId,
+      );
+      if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
+    }
     app.contextMenu = { x: e.clientX, y: e.clientY };
   }
 

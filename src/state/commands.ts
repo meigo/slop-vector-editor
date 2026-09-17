@@ -1,12 +1,15 @@
 import { openDocument, saveDocument } from "../persist/project-io";
 import {
+  app,
   bringSelectionForward,
   bringSelectionToFront,
   clearOrLeaveGroup,
+  deleteSelectedNodes,
   deleteSelection,
   duplicateSelection,
   fitArtboard,
   groupSelection,
+  moveSelectedNodes,
   nudgeSelection,
   redo,
   sendSelectionBackward,
@@ -54,13 +57,17 @@ export function runEditAction(a: EditAction): void {
     case "tool":
       return setTool(a.tool);
     case "delete":
-      return deleteSelection();
+      return app.toolId === "node" && app.nodeSel.length > 0
+        ? deleteSelectedNodes()
+        : deleteSelection();
     case "duplicate":
       return duplicateSelection();
     case "clear":
       return clearOrLeaveGroup();
     case "nudge":
-      return nudgeSelection(a.dx, a.dy);
+      return app.toolId === "node" && app.nodeSel.length > 0
+        ? moveSelectedNodes(a.dx, a.dy)
+        : nudgeSelection(a.dx, a.dy);
     case "toggleSnap":
       return toggleSnap();
     case "zorder":

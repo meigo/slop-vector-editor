@@ -2,15 +2,18 @@ import type {
   Doc,
   LineCap,
   LineJoin,
+  NodeType,
   Paint,
   PolygonShape,
   RectShape,
   Style,
 } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
+import type { NodeRef } from "../doc/path-edit";
 import { resizeNodes } from "../doc/resize";
 import { findNode, shapesOf } from "../doc/tree";
 import { isIdentity } from "../geom/mat";
+import type { Vec } from "../geom/vec";
 import { frameCenter, frameResizeMap, selectionBounds, selectionFrame } from "../tools/frame";
 import { normalizeAngle } from "../tools/gizmo";
 
@@ -164,4 +167,21 @@ export function applyGeometryField(
   if (value <= 0 || current === 0 || Math.abs(value - current) < EPS) return doc;
   const to = field === "w" ? { ...f.box, w: value } : { ...f.box, h: value };
   return resizeNodes(doc, ids, frameResizeMap(f.angle, f.box, to));
+}
+
+/** Spec (M4a) §9: the Node section's values. */
+export function selectedNodeSummary(
+  doc: Doc,
+  nodeTarget: string | null,
+  nodeSel: readonly NodeRef[],
+): { type: NodeType | "mixed"; point: Vec | null } | null {
+  if (nodeTarget === null || nodeSel.length === 0) return null;
+  const found = findNode(doc, nodeTarget);
+  if (!found || found.node.kind !== "path") return null;
+  const nodes = nodeSel.flatMap((r) =>
+    found.node.kind === "path" ? (found.node.subpaths[r.sub]?.nodes[r.i] ?? []) : [],
+  );
+  if (nodes.length === 0) return null;
+  const type = nodes.every((n) => n.type === nodes[0].type) ? nodes[0].type : "mixed";
+  return { type, point: nodes.length === 1 ? nodes[0].p : null };
 }

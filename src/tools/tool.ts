@@ -1,4 +1,5 @@
 import type { Doc } from "../doc/document";
+import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
 import type { Prefs } from "../persist/preferences";
@@ -20,6 +21,12 @@ export interface ToolContext {
   /** The group the user is working inside (spec M3b §3), or null at the top. */
   enteredGroupId(): string | null;
   setEnteredGroup(id: string | null): void;
+  /** The path being node-edited (spec M4a §2), or null. */
+  nodeTarget(): string | null;
+  setNodeTarget(id: string | null): void;
+  nodeSel(): readonly NodeRef[];
+  setNodeSel(refs: readonly NodeRef[]): void;
+  setTool(id: ToolId): void;
   setSelection(ids: readonly string[]): void;
   commit(doc: Doc): void;
   beginGesture(): void;

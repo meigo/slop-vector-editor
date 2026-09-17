@@ -3,13 +3,16 @@
   import {
     app,
     applyGeometry,
+    moveSelectedNodes,
     setPolygonPrefs,
+    setSelectedNodeType,
     setSelectionOpacity,
     setSelectionPolygon,
     setSelectionRectRadius,
     setSelectionStyle,
   } from "../state/appState.svelte";
   import {
+    selectedNodeSummary,
     selectionGeometry,
     selectionOpacity,
     selectionStyles,
@@ -33,6 +36,14 @@
     { field: "h", label: "H", min: 0.01 },
     { field: "r", label: "R", suffix: "°" },
   ];
+  const NODE_TYPES = [
+    { type: "corner" as const, label: "Corner" },
+    { type: "smooth" as const, label: "Smooth" },
+    { type: "symmetric" as const, label: "Symmetric" },
+  ];
+  const nodeSummary = $derived(
+    app.toolId === "node" && selectedNodeSummary(app.doc, app.nodeTarget, app.nodeSel),
+  );
 
   const hasSelection = $derived(app.selection.length > 0);
   const opacity = $derived(selectionOpacity(app.doc, app.selection));
@@ -186,6 +197,28 @@
           />
         {/if}
       </div>
+    </div>
+  {/if}
+
+  {#if nodeSummary}
+    <div class="flex flex-col gap-2 border-t border-line pt-3">
+      <span class="section-title">Node</span>
+      <div class="flex gap-1">
+        {#each NODE_TYPES as t (t.type)}
+          <ToggleButton
+            value={nodeSummary.type === "mixed" ? "mixed" : nodeSummary.type === t.type}
+            label={t.label}
+            onchange={() => setSelectedNodeType(t.type)}
+          />
+        {/each}
+      </div>
+      {#if nodeSummary.point}
+        {@const pt = nodeSummary.point}
+        <div class="flex gap-2">
+          <NumberField label="X" value={pt.x} onchange={(v) => moveSelectedNodes(v - pt.x, 0)} />
+          <NumberField label="Y" value={pt.y} onchange={(v) => moveSelectedNodes(0, v - pt.y)} />
+        </div>
+      {/if}
     </div>
   {/if}
 

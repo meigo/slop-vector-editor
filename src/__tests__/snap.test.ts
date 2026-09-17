@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Layer, type Node } from "../doc/document";
-import { IDENTITY } from "../geom/mat";
+import { IDENTITY, translate } from "../geom/mat";
 import {
   collectTargets,
   hasGuides,
@@ -10,6 +10,7 @@ import {
   snapPoint,
   snapValue,
 } from "../geom/snap";
+import { deepFreeze } from "./helpers";
 
 const rect = (id: string, x: number, y: number, w: number, h: number): Node => ({
   kind: "rect",
@@ -97,5 +98,45 @@ describe("snapBox and snapPoint", () => {
       x: 49,
       y: 25,
     });
+  });
+});
+
+describe("node snapping", () => {
+  it("offers path node points when asked", () => {
+    const d = deepFreeze({
+      ...createDoc(100, 100),
+      layers: [
+        {
+          id: "L0",
+          name: "L0",
+          visible: true,
+          locked: false,
+          children: [
+            {
+              kind: "path",
+              id: "p",
+              transform: translate(5, 0),
+              style: DEFAULT_STYLE,
+              subpaths: [
+                {
+                  closed: false,
+                  nodes: [
+                    { p: { x: 10, y: 20 }, in: null, out: null, type: "corner" },
+                    { p: { x: 30, y: 40 }, in: null, out: null, type: "corner" },
+                  ],
+                },
+              ],
+            } as Node,
+          ],
+        },
+      ],
+    });
+    const withNodes = collectTargets(d, [], { nodes: true });
+    expect(withNodes.xs).toContain(15);
+    expect(withNodes.ys).toContain(20);
+    // 15 is the first node's x; the bounds alone would only offer the box edges and centre.
+    expect(collectTargets(d, []).xs).not.toContain(20);
+    expect(collectTargets(d, [], { nodes: true }).xs).toContain(35);
+    expect(collectTargets(d, ["p"], { nodes: true }).xs).not.toContain(15);
   });
 });
