@@ -1,5 +1,5 @@
 import type { Doc, Node } from "../doc/document";
-import { findTopLevel } from "../doc/tree";
+import { findNode } from "../doc/tree";
 import { nodeBounds } from "../geom/bounds";
 import { boxCenter, boxMap, unionBox, type Box } from "../geom/box";
 import { applyMat, IDENTITY, isSkewed, multiply, rotate, rotationOf, type Mat } from "../geom/mat";
@@ -14,7 +14,7 @@ const rot = (a: number): Mat => (a === 0 ? IDENTITY : rotate(a));
 function nodesOf(doc: Doc, ids: readonly string[]): Node[] {
   const out: Node[] = [];
   for (const id of ids) {
-    const f = findTopLevel(doc, id);
+    const f = findNode(doc, id);
     if (f) out.push(f.node);
   }
   return out;

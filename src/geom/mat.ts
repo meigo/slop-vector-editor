@@ -70,9 +70,31 @@ export function isSkewed(m: Mat, eps = 1e-6): boolean {
   return Math.abs(m[0] * m[2] + m[1] * m[3]) / (la * lb) > eps;
 }
 
-/** True when the matrix has no rotation or shear (scale + translate only). */
+/** Skew measured against the matrix's own scale: a tiny matrix with a proportionally large shear
+ *  is not axis-aligned, and a huge one is not skewed by float dust. */
 export function isAxisAligned(m: Mat, eps = 1e-9): boolean {
-  return Math.abs(m[1]) <= eps && Math.abs(m[2]) <= eps;
+  const scale = Math.max(Math.abs(m[0]), Math.abs(m[1]), Math.abs(m[2]), Math.abs(m[3]));
+  if (scale === 0) return true;
+  return Math.abs(m[1]) <= eps * scale && Math.abs(m[2]) <= eps * scale;
+}
+
+/** Spec (M3b) §2.2. `W`, a document-space map, expressed in the space of a child under `parent`.
+ *  Null when `parent` is singular — the caller then leaves that node alone. */
+export function inParent(parent: Mat, W: Mat): Mat | null {
+  const inv = invert(parent);
+  return inv ? multiply(inv, multiply(W, parent)) : null;
+}
+
+/** The transform a node needs to keep its place on screen when its parent changes from `from` to
+ *  `to`. Its world matrix is `from ∘ t`, and must stay that under `to`. */
+export function reparent(from: Mat, to: Mat, t: Mat): Mat | null {
+  const inv = invert(to);
+  return inv ? multiply(inv, multiply(from, t)) : null;
+}
+
+/** Exact element-wise equality; used to tell "the parent did not change" from "it did". */
+export function sameMat(a: Mat, b: Mat): boolean {
+  return a.every((v, i) => v === b[i]);
 }
 
 export function rotateAbout(rad: number, c: Vec): Mat {

@@ -26,7 +26,7 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
-import { findTopLevel, pruneSelection } from "../doc/tree";
+import { findNode, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
@@ -243,7 +243,7 @@ export function setSelection(ids: readonly string[]): void {
   app.selection = pruneSelection(app.doc, ids);
   // The layer of the last selected object becomes current (spec M3a §2).
   const last = app.selection[app.selection.length - 1];
-  const found = last === undefined ? null : findTopLevel(app.doc, last);
+  const found = last === undefined ? null : findNode(app.doc, last);
   if (found && found.layer.id !== app.currentLayerId) app.currentLayerId = found.layer.id;
 }
 

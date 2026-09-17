@@ -1,6 +1,6 @@
 import type { Doc } from "../doc/document";
 import { layerBlock, moveLayer, moveNodes } from "../doc/layers";
-import { findTopLevel } from "../doc/tree";
+import { findNode } from "../doc/tree";
 
 /** Spec (M3a) §5: where a row dragged in the layers panel would land. Rows are in display order
  *  (top first) with their on-screen top/bottom; `line` is where to draw the drop indicator. */
@@ -37,7 +37,7 @@ export function dropTarget(doc: Doc, rows: readonly RowBox[], y: number, drag: D
     slotIndex = layer.children.length;
     line = row.bottom;
   } else {
-    const found = findTopLevel(doc, row.id);
+    const found = findNode(doc, row.id);
     if (!found) return null;
     const upper = y < mid(row);
     layerId = found.layer.id;

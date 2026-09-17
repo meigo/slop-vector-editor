@@ -22,14 +22,15 @@ import {
   translateNodes,
 } from "../doc/edits";
 import {
-  findTopLevel,
+  ancestorIds,
+  findNode,
+  mapNodes,
   mapShapes,
-  mapTopLevel,
   pruneSelection,
   selectableIds,
   shapesOf,
 } from "../doc/tree";
-import { applyMat, IDENTITY, translate } from "../geom/mat";
+import { applyMat, IDENTITY, translate, type Mat } from "../geom/mat";
 import { deepFreeze } from "./helpers";
 
 const rect = (id: string, x = 0): RectShape => ({
@@ -74,12 +75,15 @@ describe("tree", () => {
     { children: [rect("c")], visible: false },
   ]);
 
-  it("finds top-level nodes only", () => {
-    const f = findTopLevel(d, "g");
+  it("finds nodes at any depth", () => {
+    const f = findNode(d, "g");
     expect(f?.layerIndex).toBe(0);
     expect(f?.index).toBe(1);
     expect(f?.node.id).toBe("g");
-    expect(findTopLevel(d, "inner")).toBeNull();
+    const inner = findNode(d, "inner");
+    expect(inner?.node.id).toBe("inner");
+    expect(inner?.parentGroup?.id).toBe("g");
+    expect(findNode(d, "nope")).toBeNull();
   });
 
   it("lists selectable ids", () => {
@@ -89,15 +93,16 @@ describe("tree", () => {
   it("prunes selections", () => {
     const sel = ["a", "g"];
     expect(pruneSelection(d, sel)).toBe(sel);
-    expect(pruneSelection(d, ["b", "a", "inner", "a", "zz"])).toEqual(["a"]);
+    // "inner" is kept now: it exists on a visible, unlocked layer (spec M3b §2.1).
+    expect(pruneSelection(d, ["b", "a", "inner", "a", "zz"])).toEqual(["a", "inner"]);
   });
 
   it("maps top-level nodes and shapes with same-reference no-ops", () => {
-    expect(mapTopLevel(d, ["a"], (n) => n)).toBe(d);
-    const moved = mapTopLevel(d, ["a"], (n) => ({ ...n, transform: translate(1, 0) }));
+    expect(mapNodes(d, ["a"], (n) => n)).toBe(d);
+    const moved = mapNodes(d, ["a"], (n) => ({ ...n, transform: translate(1, 0) }));
     expect(moved).not.toBe(d);
     expect(moved.layers[1]).toBe(d.layers[1]);
-    const g = findTopLevel(d, "g")!.node;
+    const g = findNode(d, "g")!.node;
     expect(mapShapes(g, (s) => s)).toBe(g);
     expect(shapesOf(g).map((s) => s.id)).toEqual(["inner"]);
   });
@@ -236,5 +241,99 @@ describe("polygon edits", () => {
     const out = convertToPath(d(), ["b"]);
     expect(get(out, "b").kind).toBe("path");
     expect(get(out, "a").kind).toBe("polygon");
+  });
+});
+
+describe("nested lookup", () => {
+  const leaf = (id: string, t: Mat = IDENTITY): Node => ({
+    kind: "rect",
+    id,
+    transform: t,
+    style: DEFAULT_STYLE,
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  });
+  const grp = (id: string, t: Mat, children: Node[]): Node => ({
+    kind: "group",
+    id,
+    transform: t,
+    opacity: 1,
+    children,
+  });
+  const nested = deepFreeze({
+    ...createDoc(100, 100),
+    layers: [
+      {
+        id: "L0",
+        name: "L0",
+        visible: true,
+        locked: false,
+        children: [
+          leaf("a"),
+          grp("g", translate(10, 0), [leaf("b"), grp("h", translate(0, 5), [leaf("c")])]),
+        ],
+      },
+      { id: "L1", name: "L1", visible: false, locked: false, children: [leaf("hidden")] },
+    ],
+  });
+
+  it("finds a node at any depth with its parent matrix", () => {
+    expect(findNode(nested, "a")?.parent).toEqual(IDENTITY);
+    expect(findNode(nested, "a")?.parentGroup).toBeNull();
+    const b = findNode(nested, "b");
+    expect(b?.parent).toEqual(translate(10, 0));
+    expect(b?.parentGroup?.id).toBe("g");
+    expect(b?.path).toEqual([1, 0]);
+    const c = findNode(nested, "c");
+    expect(c?.parent).toEqual(translate(10, 5));
+    expect(c?.parentGroup?.id).toBe("h");
+    expect(c?.path).toEqual([1, 1, 0]);
+    expect(findNode(nested, "gone")).toBeNull();
+    expect(findNode(nested, "g")?.layerIndex).toBe(0);
+  });
+
+  it("lists the groups above a node, outermost first", () => {
+    expect(ancestorIds(nested, "c")).toEqual(["g", "h"]);
+    expect(ancestorIds(nested, "a")).toEqual([]);
+    expect(ancestorIds(nested, "gone")).toEqual([]);
+  });
+
+  it("edits nested nodes and hands each its parent matrix", () => {
+    const seen: string[] = [];
+    const out = mapNodes(nested, ["c"], (n, parent) => {
+      seen.push(`${n.id}:${parent.join(",")}`);
+      return { ...n, name: "named" };
+    });
+    expect(seen).toEqual(["c:1,0,0,1,10,5"]);
+    expect(findNode(out, "c")?.node.name).toBe("named");
+    // Untouched branches keep their references.
+    expect(out.layers[0].children[0]).toBe(nested.layers[0].children[0]);
+    expect(out.layers[1]).toBe(nested.layers[1]);
+    expect(mapNodes(nested, ["c"], (n) => n)).toBe(nested);
+    expect(mapNodes(nested, [], (n) => n)).toBe(nested);
+    expect(mapNodes(nested, ["gone"], (n) => n)).toBe(nested);
+  });
+
+  it("replaces a group without descending into it", () => {
+    const seen: string[] = [];
+    const out = mapNodes(nested, ["g", "b"], (n) => {
+      seen.push(n.id);
+      return { ...n, name: "x" };
+    });
+    expect(seen).toEqual(["g"]);
+    expect(findNode(out, "b")?.node.name).toBeUndefined();
+  });
+
+  it("selects within the entered group, and prunes by existence at any depth", () => {
+    expect([...selectableIds(nested)]).toEqual(["a", "g"]);
+    expect([...selectableIds(nested, "g")]).toEqual(["b", "h"]);
+    expect([...selectableIds(nested, "gone")]).toEqual(["a", "g"]);
+    expect(pruneSelection(nested, ["c", "b"])).toEqual(["c", "b"]);
+    expect(pruneSelection(nested, ["c", "gone", "hidden"])).toEqual(["c"]);
+    const kept = ["a", "g"];
+    expect(pruneSelection(nested, kept)).toBe(kept);
   });
 });

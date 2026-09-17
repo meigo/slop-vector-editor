@@ -9,7 +9,7 @@ import type {
 } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import { resizeNodes } from "../doc/resize";
-import { findTopLevel, shapesOf } from "../doc/tree";
+import { findNode, shapesOf } from "../doc/tree";
 import { isIdentity } from "../geom/mat";
 import { frameCenter, frameResizeMap, selectionBounds, selectionFrame } from "../tools/frame";
 import { normalizeAngle } from "../tools/gizmo";
@@ -66,7 +66,7 @@ export type SelectionActions = { canConvert: boolean; canFlatten: boolean };
 
 /** Which shape actions apply to the selection (shared by the top bar and the context menu). */
 export function selectionActions(doc: Doc, ids: readonly string[]): SelectionActions {
-  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  const nodes = ids.flatMap((id) => findNode(doc, id)?.node ?? []);
   return {
     canConvert: nodes.some(
       (n) => n.kind === "rect" || n.kind === "ellipse" || n.kind === "polygon",
@@ -84,7 +84,7 @@ export type PolygonSummary = {
 
 /** Shape-section values for a selection made only of polygons (spec M2c §5); null otherwise. */
 export function summarizePolygons(doc: Doc, ids: readonly string[]): PolygonSummary | null {
-  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  const nodes = ids.flatMap((id) => findNode(doc, id)?.node ?? []);
   const polys = nodes.filter((n): n is PolygonShape => n.kind === "polygon");
   if (polys.length === 0 || polys.length !== nodes.length) return null;
   const same = <T>(values: T[]): T | null =>
@@ -102,7 +102,7 @@ export type RectSummary = { radius: number | null };
 
 /** Shape-section value for a selection made only of rects (spec M2e §5); null otherwise. */
 export function summarizeRects(doc: Doc, ids: readonly string[]): RectSummary | null {
-  const nodes = ids.flatMap((id) => findTopLevel(doc, id)?.node ?? []);
+  const nodes = ids.flatMap((id) => findNode(doc, id)?.node ?? []);
   const rects = nodes.filter((n): n is RectShape => n.kind === "rect");
   if (rects.length === 0 || rects.length !== nodes.length) return null;
   return { radius: rects.every((r) => r.rx === rects[0].rx) ? rects[0].rx : null };
@@ -110,7 +110,7 @@ export function summarizeRects(doc: Doc, ids: readonly string[]): RectSummary | 
 
 export function selectionStyles(doc: Doc, ids: readonly string[]): Style[] {
   return ids.flatMap((id) => {
-    const f = findTopLevel(doc, id);
+    const f = findNode(doc, id);
     return f ? shapesOf(f.node).map((s) => s.style) : [];
   });
 }

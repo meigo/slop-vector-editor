@@ -1,5 +1,5 @@
 import { idFor, type Doc, type Layer, type Node } from "./document";
-import { mapTopLevel } from "./tree";
+import { mapNodes } from "./tree";
 
 /** Spec (M3a) §2–§3: pure layer, naming and z-order edits. Every edit returns the same document
  *  when nothing changes, and none leaves the document without a layer. */
@@ -128,7 +128,7 @@ export function moveNodes(doc: Doc, ids: readonly string[], layerId: string, ind
 /** An empty name removes it, so the row falls back to its default label. */
 export function renameNode(doc: Doc, id: string, name: string): Doc {
   const clean = cleanName(name);
-  return mapTopLevel(doc, [id], (n) => {
+  return mapNodes(doc, [id], (n) => {
     if ((n.name ?? null) === clean) return n;
     if (clean !== null) return { ...n, name: clean };
     const copy: Node = { ...n };

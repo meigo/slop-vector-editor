@@ -1,7 +1,7 @@
 import { applyMat, invert, isAxisAligned, isIdentity, multiply, type Mat } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
 import type { Doc, Node, PolygonShape, Shape } from "./document";
-import { mapTopLevel } from "./tree";
+import { mapNodes } from "./tree";
 
 /** Spec (M2a) §1: move/rotate touch the matrix; resize is baked into geometry so stroke widths
  *  and corner radii never scale. `L` is the resize expressed in the shape's own space. */
@@ -69,5 +69,5 @@ export function resizeNode(node: Node, A: Mat): Node {
 
 export function resizeNodes(doc: Doc, ids: readonly string[], A: Mat): Doc {
   if (isIdentity(A)) return doc;
-  return mapTopLevel(doc, ids, (n) => resizeNode(n, A));
+  return mapNodes(doc, ids, (n) => resizeNode(n, A));
 }

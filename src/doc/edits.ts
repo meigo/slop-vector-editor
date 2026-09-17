@@ -16,7 +16,7 @@ import {
 import { IDENTITY, isIdentity, multiply, rotateAbout, translate } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
 import type { Vec } from "../geom/vec";
-import { mapShapes, mapTopLevel } from "./tree";
+import { mapShapes, mapNodes } from "./tree";
 
 /** Pure document edits: `(doc, args) => doc`. An edit that changes nothing returns the SAME
  *  reference, which is how the undo session knows not to record a step. */
@@ -102,13 +102,13 @@ export function duplicateNodes(
 export function translateNodes(doc: Doc, ids: readonly string[], dx: number, dy: number): Doc {
   if (dx === 0 && dy === 0) return doc;
   const t = translate(dx, dy);
-  return mapTopLevel(doc, ids, (n) => ({ ...n, transform: multiply(t, n.transform) }));
+  return mapNodes(doc, ids, (n) => ({ ...n, transform: multiply(t, n.transform) }));
 }
 
 export function rotateNodes(doc: Doc, ids: readonly string[], angle: number, centre: Vec): Doc {
   if (angle === 0) return doc;
   const r = rotateAbout(angle, centre);
-  return mapTopLevel(doc, ids, (n) => ({ ...n, transform: multiply(r, n.transform) }));
+  return mapNodes(doc, ids, (n) => ({ ...n, transform: multiply(r, n.transform) }));
 }
 
 function styleMatches(s: Style, patch: Partial<Style>): boolean {
@@ -120,7 +120,7 @@ function styleMatches(s: Style, patch: Partial<Style>): boolean {
 }
 
 export function setStyle(doc: Doc, ids: readonly string[], patch: Partial<Style>): Doc {
-  return mapTopLevel(doc, ids, (n) =>
+  return mapNodes(doc, ids, (n) =>
     mapShapes(n, (s) =>
       styleMatches(s.style, patch) ? s : { ...s, style: { ...s.style, ...patch } },
     ),
@@ -129,7 +129,7 @@ export function setStyle(doc: Doc, ids: readonly string[], patch: Partial<Style>
 
 export function setRectRadius(doc: Doc, ids: readonly string[], rx: number): Doc {
   if (!Number.isFinite(rx)) return doc;
-  return mapTopLevel(doc, ids, (n) => {
+  return mapNodes(doc, ids, (n) => {
     if (n.kind !== "rect") return n;
     const r = Math.max(0, Math.min(rx, n.w / 2, n.h / 2));
     return r === n.rx ? n : { ...n, rx: r };
@@ -151,7 +151,7 @@ export function setPolygon(doc: Doc, ids: readonly string[], patch: PolygonPatch
       ? clamp(patch.innerRatio, MIN_INNER, MAX_INNER)
       : undefined;
   const star = patch.star;
-  return mapTopLevel(doc, ids, (n) => {
+  return mapNodes(doc, ids, (n) => {
     if (n.kind !== "polygon") return n;
     const next = {
       sides: sides ?? n.sides,
@@ -165,13 +165,13 @@ export function setPolygon(doc: Doc, ids: readonly string[], patch: PolygonPatch
 }
 
 export function convertToPath(doc: Doc, ids: readonly string[]): Doc {
-  return mapTopLevel(doc, ids, (n) =>
+  return mapNodes(doc, ids, (n) =>
     n.kind === "rect" || n.kind === "ellipse" || n.kind === "polygon" ? toPath(n) : n,
   );
 }
 
 export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
-  return mapTopLevel(doc, ids, (n) =>
+  return mapNodes(doc, ids, (n) =>
     n.kind === "path" && !isIdentity(n.transform)
       ? { ...n, subpaths: transformSubpaths(n.subpaths, n.transform), transform: IDENTITY }
       : n,
