@@ -17,7 +17,8 @@ Early development. What works today:
 - New document with size presets; artboard size and background (or transparent).
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser.
-- Drawing rectangles, ellipses, lines, polygons and stars.
+- Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
+  (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width),
   rotating (Shift snaps to 15°) and Alt-duplicating.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
@@ -54,7 +55,7 @@ Next: layers and groups, then pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 243 unit tests
+npm test          # 276 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

@@ -93,8 +93,10 @@ resize in the shape's local space.
   drag and the prefs (`r` = drag length; nothing is created when `r` = 0). It uses the snapped
   start and end points (M2b).
 - Rotation: with Shift, `transform = IDENTITY` (upright). Otherwise
-  `transform = rotateAbout(θ, c)` with `θ = atan2(dy, dx) + π/2`, so corner 0 points at the
-  pointer as before. When `θ` is exactly 0, use `IDENTITY` so no `-0` entries appear.
+  `transform = rotateAbout(θ, c)` with `θ = atan2(dy, dx) + π/2`, reduced modulo `2π/sides` into
+  `[−π/sides, π/sides]` (the same shape with the smallest rotation), so one of the corners points
+  at the pointer. When `|θ| < 1e-12`, use `IDENTITY`. (Amended at final review: a full drag angle
+  made most drawn polygons show large rotations and disabled resize snapping.)
 - The tool's context-bar fields (prefs) are unchanged.
 
 ## 7. File format (`src/svg/attrs.ts`, `src/svg/parse.ts`)
@@ -123,7 +125,10 @@ A `<path>` with `data-sv-polygon` becomes a polygon only when all of these hold:
 - `innerRatio` is in 0.1–0.95;
 - `cx` and `cy` are finite with `|v| ≤ MAX_COORD`;
 - `rx` and `ry` are finite, > 0 and ≤ MAX_COORD;
-- the element's `d` attribute equals the `d` regenerated from those numbers, string for string.
+- the element's `d` describes the same outline: one closed subpath of corner nodes without
+  handles, with the same number of corners, each within 2e-6 of the corner regenerated from those
+  numbers (amended at final review: exact string equality depended on identical trig results
+  across browsers).
 
 Otherwise the element imports as a normal path. Nothing is added to `dropped`, because the path
 itself is intact. This is the lossless rule from CLAUDE.md gotcha #10: an outline edited in

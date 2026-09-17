@@ -1,5 +1,6 @@
 import type { Group, Layer, Shape, Style } from "../doc/document";
 import { isIdentity, type Mat } from "../geom/mat";
+import { polygonSubpath, type PolygonGeometry } from "../geom/shapes";
 import { fmt } from "./fmt";
 import { nodeTypesAttr, subpathsToD } from "./pathdata";
 
@@ -30,6 +31,29 @@ export function styleAttrs(s: Style): Attrs {
   return a;
 }
 
+/** The parameters exactly as written (spec M2c §7.1). */
+function asWritten(p: PolygonGeometry): PolygonGeometry {
+  const r = (v: number) => Number(fmt(v));
+  return {
+    cx: r(p.cx),
+    cy: r(p.cy),
+    rx: r(p.rx),
+    ry: r(p.ry),
+    sides: p.sides,
+    star: p.star,
+    innerRatio: r(p.innerRatio),
+  };
+}
+
+/** `d` of a polygon, built from its written numbers so reopening regenerates it exactly. */
+export function polygonD(p: PolygonGeometry): string {
+  return subpathsToD([polygonSubpath(asWritten(p))]);
+}
+
+export function polygonAttr(p: PolygonGeometry): string {
+  return [p.sides, p.star ? 1 : 0, p.innerRatio, p.cx, p.cy, p.rx, p.ry].map(fmt).join(" ");
+}
+
 export function shapeAttrs(s: Shape): { tag: "rect" | "ellipse" | "path"; attrs: Attrs } {
   const common = { ...transformAttr(s.transform), ...nameAttr(s.name), ...styleAttrs(s.style) };
   switch (s.kind) {
@@ -50,6 +74,18 @@ export function shapeAttrs(s: Shape): { tag: "rect" | "ellipse" | "path"; attrs:
         tag: "ellipse",
         attrs: { cx: fmt(s.cx), cy: fmt(s.cy), rx: fmt(s.rx), ry: fmt(s.ry), ...common },
       };
+    case "polygon": {
+      const sp = polygonSubpath(asWritten(s));
+      return {
+        tag: "path",
+        attrs: {
+          d: subpathsToD([sp]),
+          "data-sv-nodes": nodeTypesAttr([sp]),
+          "data-sv-polygon": polygonAttr(s),
+          ...common,
+        },
+      };
+    }
     case "path":
       return {
         tag: "path",

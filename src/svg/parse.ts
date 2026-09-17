@@ -2,6 +2,10 @@ import {
   DOC_VERSION,
   idFor,
   isValidArtboardSize,
+  MAX_INNER,
+  MAX_SIDES,
+  MIN_INNER,
+  MIN_SIDES,
   type Doc,
   type Layer,
   type LineCap,
@@ -12,8 +16,10 @@ import {
   type Subpath,
 } from "../doc/document";
 import { isIdentity, multiply, translate, type Mat } from "../geom/mat";
-import { rectPath } from "../geom/shapes";
+import { polygonSubpath, rectPath } from "../geom/shapes";
+import type { PolygonGeometry } from "../geom/shapes";
 import { parseColor } from "./colors";
+import { fmt } from "./fmt";
 import { applyNodeTypes, parsePathData } from "./pathdata";
 import { parseTransform } from "./transform";
 import { parseXml, type XmlElement } from "./xml";
@@ -68,6 +74,48 @@ const JOINS: readonly string[] = ["miter", "round", "bevel"];
 /** Coordinates and lengths beyond this are rejected like non-finite ones: `fmt` overflows to
  *  "Infinity" well before this, so nothing bigger should ever reach the document. */
 export const MAX_COORD = 1e9;
+
+const POLY_NUM = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+
+/** Spec (M2c) §7.2, every rule except the `d` comparison (which the importer does). */
+export function parsePolygonAttr(attr: string): PolygonGeometry | null {
+  // ASCII whitespace only: `trim()` and `\s` would also accept NBSP and friends.
+  const parts = attr.replace(/^[ \t\n\r]+|[ \t\n\r]+$/g, "").split(/[ \t\n\r]+/);
+  if (parts.length !== 7 || !parts.every((x) => POLY_NUM.test(x))) return null;
+  const v = parts.map(Number);
+  if (v.some((x) => !Number.isFinite(x))) return null;
+  // The fractional values are taken as a save would write them (so the model holds exactly the
+  // file's numbers) before the range checks, so rounding can't produce a zero radius.
+  const r = (x: number) => Number(fmt(x));
+  const [sides, star] = v;
+  const [innerRatio, cx, cy, rx, ry] = v.slice(2).map(r);
+  if (!Number.isInteger(sides) || sides < MIN_SIDES || sides > MAX_SIDES) return null;
+  if (star !== 0 && star !== 1) return null;
+  if (innerRatio < MIN_INNER || innerRatio > MAX_INNER) return null;
+  if (Math.abs(cx) > MAX_COORD || Math.abs(cy) > MAX_COORD) return null;
+  if (!(rx > 0 && ry > 0 && rx <= MAX_COORD && ry <= MAX_COORD)) return null;
+  return { cx, cy, rx, ry, sides, star: star === 1, innerRatio };
+}
+
+/** Largest per-axis corner offset still read as the same outline: covers trig results that
+ *  differ by an ulp between engines and shift the 6-decimal rounding (spec M2c §7.2). */
+const OUTLINE_TOL = 2e-6;
+
+/** Whether `d` is one closed subpath of handle-less corners matching `p`'s corners in order. */
+function outlineMatches(d: string, p: PolygonGeometry): boolean {
+  const subpaths = parsePathData(d);
+  if (subpaths.length !== 1 || !subpaths[0].closed) return false;
+  const got = subpaths[0].nodes;
+  const want = polygonSubpath(p).nodes;
+  if (got.length !== want.length) return false;
+  return got.every(
+    (n, i) =>
+      n.in === null &&
+      n.out === null &&
+      Math.abs(n.p.x - want[i].p.x) <= OUTLINE_TOL &&
+      Math.abs(n.p.y - want[i].p.y) <= OUTLINE_TOL,
+  );
+}
 
 function num(v: string | undefined, fallback: number): number {
   if (v === undefined) return fallback;
@@ -269,6 +317,19 @@ export function parseSvg(src: string): ParseResult {
         return pathNode([sp], newId(), label, transform, style(i2, opacity));
       }
       case "path": {
+        // An intact polygon of ours comes back live; anything else stays a path (spec M2c §7.2).
+        const poly =
+          a["data-sv-polygon"] !== undefined ? parsePolygonAttr(a["data-sv-polygon"]) : null;
+        if (poly && outlineMatches(a.d ?? "", poly)) {
+          return {
+            kind: "polygon",
+            id: newId(),
+            name: label,
+            transform,
+            style: style(i2, opacity),
+            ...poly,
+          };
+        }
         let subpaths = parsePathData(a.d ?? "");
         if (a["data-sv-nodes"] !== undefined)
           subpaths = applyNodeTypes(subpaths, a["data-sv-nodes"]);

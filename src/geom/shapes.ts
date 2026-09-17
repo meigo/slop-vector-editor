@@ -1,4 +1,11 @@
-import type { EllipseShape, PathNode, PathShape, RectShape, Subpath } from "../doc/document";
+import type {
+  EllipseShape,
+  PathNode,
+  PathShape,
+  PolygonShape,
+  RectShape,
+  Subpath,
+} from "../doc/document";
 import { applyMat, type Mat } from "./mat";
 import type { Vec } from "./vec";
 
@@ -77,27 +84,19 @@ export function linePath(a: Vec, b: Vec): Subpath {
   return { closed: false, nodes: [node(a), node(b)] };
 }
 
-export function polygonPath(c: Vec, r: number, sides: number, rotation: number): Subpath {
-  const nodes: PathNode[] = [];
-  for (let i = 0; i < sides; i++) {
-    const t = rotation + (i * 2 * Math.PI) / sides;
-    nodes.push(node({ x: c.x + r * Math.cos(t), y: c.y + r * Math.sin(t) }));
-  }
-  return { closed: true, nodes };
-}
+export type PolygonGeometry = Pick<
+  PolygonShape,
+  "cx" | "cy" | "rx" | "ry" | "sides" | "star" | "innerRatio"
+>;
 
-export function starPath(
-  c: Vec,
-  r: number,
-  innerRatio: number,
-  points: number,
-  rotation: number,
-): Subpath {
+/** Spec (M2c) §3: corner 0 points up; a star's inner corners sit halfway between outer ones. */
+export function polygonSubpath(p: PolygonGeometry): Subpath {
+  const at = (a: number, k: number) =>
+    node({ x: p.cx + p.rx * k * Math.cos(a), y: p.cy + p.ry * k * Math.sin(a) });
   const nodes: PathNode[] = [];
-  for (let i = 0; i < 2 * points; i++) {
-    const t = rotation + (i * Math.PI) / points;
-    const radius = i % 2 === 0 ? r : r * innerRatio;
-    nodes.push(node({ x: c.x + radius * Math.cos(t), y: c.y + radius * Math.sin(t) }));
+  for (let i = 0; i < p.sides; i++) {
+    nodes.push(at(-Math.PI / 2 + (i * 2 * Math.PI) / p.sides, 1));
+    if (p.star) nodes.push(at(-Math.PI / 2 + ((2 * i + 1) * Math.PI) / p.sides, p.innerRatio));
   }
   return { closed: true, nodes };
 }
@@ -132,13 +131,15 @@ export function transformSubpaths(subpaths: readonly Subpath[], m: Mat): Subpath
 }
 
 /** An equivalent path in the same local space, with the same id, name, transform and style. */
-export function toPath(s: RectShape | EllipseShape): PathShape {
+export function toPath(s: RectShape | EllipseShape | PolygonShape): PathShape {
   let sp: Subpath;
   if (s.kind === "rect") {
     const r = Math.min(s.rx, s.w / 2, s.h / 2);
     sp = rectPath(s.x, s.y, s.w, s.h, r, r);
-  } else {
+  } else if (s.kind === "ellipse") {
     sp = ellipsePath(s.cx, s.cy, s.rx, s.ry);
+  } else {
+    sp = polygonSubpath(s);
   }
   const out: PathShape = {
     kind: "path",

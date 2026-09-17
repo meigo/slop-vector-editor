@@ -3,10 +3,12 @@ import {
   createDoc,
   type Doc,
   type PathShape,
+  type PolygonShape,
   type RectShape,
   type EllipseShape,
 } from "../doc/document";
-import { IDENTITY } from "../geom/mat";
+import { applyMat, IDENTITY } from "../geom/mat";
+import { polygonSubpath } from "../geom/shapes";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import {
   createEllipseTool,
@@ -172,19 +174,48 @@ describe("ellipse, line and polygon tools", () => {
     expect(line.subpaths[0].closed).toBe(false);
   });
 
-  it("draws polygons and stars from the preferences", () => {
+  it("draws live polygons and stars from the preferences", () => {
     const poly = fakeContext(blank());
     drag(createPolygonTool(), poly.ctx, [50, 50], [60, 50]);
-    const p = children(poly.state.session.doc)[0] as PathShape;
-    expect(p.subpaths[0].nodes).toHaveLength(5);
-    expect(p.subpaths[0].nodes[0].p).toEqual({ x: 60, y: 50 });
+    const p = children(poly.state.session.doc)[0] as PolygonShape;
+    expect(p).toMatchObject({
+      kind: "polygon",
+      cx: 50,
+      cy: 50,
+      rx: 10,
+      ry: 10,
+      sides: 5,
+      star: false,
+      innerRatio: 0.5,
+    });
+    // Some corner points at the pointer, using the smallest equivalent rotation.
+    const tips = polygonSubpath(p).nodes.map((n) => applyMat(p.transform, n.p));
+    expect(tips.some((t) => Math.abs(t.x - 60) < 1e-9 && Math.abs(t.y - 50) < 1e-9)).toBe(true);
+    const t = p.transform;
+    expect(Math.abs(Math.atan2(t[1], t[0]))).toBeLessThanOrEqual(Math.PI / 5 + 1e-12);
+
     const starPrefs = { ...DEFAULT_PREFS, polygon: { sides: 6, star: true, innerRatio: 0.4 } };
     const star = fakeContext(blank(), starPrefs);
     drag(createPolygonTool(), star.ctx, [50, 50], [60, 50], { shift: true });
-    const s = children(star.state.session.doc)[0] as PathShape;
-    expect(s.subpaths[0].nodes).toHaveLength(12);
-    expect(s.subpaths[0].nodes[0].p.x).toBeCloseTo(50);
-    expect(s.subpaths[0].nodes[0].p.y).toBeCloseTo(40);
+    const s = children(star.state.session.doc)[0] as PolygonShape;
+    expect(s).toMatchObject({ kind: "polygon", sides: 6, star: true, innerRatio: 0.4 });
+    expect(s.transform).toBe(IDENTITY);
+    expect(polygonSubpath(s).nodes).toHaveLength(12);
+    expect(polygonSubpath(s).nodes[0].p.x).toBeCloseTo(50);
+    expect(polygonSubpath(s).nodes[0].p.y).toBeCloseTo(40);
+  });
+
+  it("draws a square dragged sideways unrotated", () => {
+    const prefs = { ...DEFAULT_PREFS, polygon: { sides: 4, star: false, innerRatio: 0.5 } };
+    const { ctx, state } = fakeContext(blank(), prefs);
+    drag(createPolygonTool(), ctx, [50, 50], [60, 50]);
+    expect((children(state.session.doc)[0] as PolygonShape).transform).toBe(IDENTITY);
+  });
+
+  it("keeps an upward drag unrotated", () => {
+    const { ctx, state } = fakeContext(blank());
+    drag(createPolygonTool(), ctx, [50, 50], [50, 40]);
+    expect((children(state.session.doc)[0] as PolygonShape).transform).toBe(IDENTITY);
   });
 
   it("has a hand tool that never edits", () => {

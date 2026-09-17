@@ -180,3 +180,33 @@
   permission prompt and paste button, snapping by touch/Pencil, a real clipboard-read permission
   prompt, real ⌘C/⌘V key presses (automation used synthetic clipboard events), pasting directly
   from Inkscape/Illustrator/Figma.
+
+## 2026-09-17 — Milestone 2c: live polygons and stars
+
+- New `polygon` shape kind (centre, x/y radii, sides, star, inner ratio; rotation in the
+  transform). The polygon tool draws it; the context bar edits Sides / Star / Inner for a
+  selection made only of polygons (blank / indeterminate when they differ), one undo step each.
+- Resizing keeps it a polygon along its own axes (stretching changes the radii; a vertical flip of
+  an odd polygon adds a half-turn); an angled resize or Convert to path turns it into a path.
+- Saved as `<path … data-sv-polygon>` with `d` built from the written numbers; reopening restores
+  the polygon only when the attribute validates and `d` still matches, else it stays a path. Save
+  → open → save is byte-identical. Polygons drawn before this milestone stay paths.
+- Plan: `docs/superpowers/plans/2026-09-17-m2c-live-polygon.md`.
+- Browser-verified (desktop Chrome, M2c branch, separate dev server on port 5198; synthetic
+  PointerEvents/ClipboardEvents; `navigator.clipboard` stubbed): the polygon tool draws live
+  polygons — a free drag gives a rotated transform with corner 0 toward the pointer, a Shift drag
+  gives an upright star with an identity transform; one selected polygon shows Sides and Star in
+  the context bar, with Inner appearing only for a star; Sides 8 and Star on are one undo step
+  each and don't change the tool defaults, undo restores 8/off then 5/off; polygon + star selected
+  shows an indeterminate Star checkbox and blank Inner, setting Sides changes both, and a real
+  click on the indeterminate checkbox makes both stars in one undo step; polygon + rect selected
+  shows no polygon fields and no Radius, rect alone shows Radius only; stretching with the east
+  handle keeps a polygon (rx 55.77, ry 40, identity transform) with the fields intact; dragging
+  the bottom handle past the top of a pentagon flips it to a half-turn transform with corner 0
+  pointing down, still a polygon; a W change on a rotated polygon resizes along its own frame
+  (rotation unchanged, rx changed); Convert to path turns a polygon into a path and the fields
+  disappear; copy/paste of a polygon carries `data-sv-polygon` in the clipboard SVG and the pasted
+  copy is a polygon; serialize → parse → replace → serialize is byte-identical with nothing
+  dropped and kinds kept, and polygons survive autosave + reload; no console errors.
+- Owed: touch/Pencil editing of the fields on iPad; Safari/Firefox; opening a saved polygon in
+  Inkscape/Illustrator/Figma (should show as a plain path).

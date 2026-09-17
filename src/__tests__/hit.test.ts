@@ -167,6 +167,36 @@ describe("hitTest", () => {
   });
 });
 
+describe("polygon hit-testing", () => {
+  const star = (style: Style): Node => ({
+    kind: "polygon",
+    id: "s",
+    transform: IDENTITY,
+    style,
+    cx: 50,
+    cy: 50,
+    rx: 20,
+    ry: 20,
+    sides: 4,
+    star: true,
+    innerRatio: 0.25,
+  });
+
+  it("hits a filled polygon inside, not in the notch between points", () => {
+    const d = doc({ children: [star(filled)] });
+    expect(hitTest(d, { x: 50, y: 50 }, 1)?.nodeId).toBe("s");
+    expect(hitTest(d, { x: 50, y: 35 }, 1)?.nodeId).toBe("s");
+    // (62, 38) lies between the top and right points, outside the inner corner at (53.5, 46.5)
+    expect(hitTest(d, { x: 62, y: 38 }, 1)).toBeNull();
+  });
+
+  it("hits an outline-only polygon near its edge only", () => {
+    const d = doc({ children: [star(outlineOnly)] });
+    expect(hitTest(d, { x: 50, y: 50 }, 1)).toBeNull();
+    expect(hitTest(d, { x: 50, y: 31 }, 1)?.nodeId).toBe("s");
+  });
+});
+
 describe("marqueeSelect", () => {
   it("selects nodes fully inside, in document order, on selectable layers", () => {
     const d = doc(

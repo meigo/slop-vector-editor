@@ -1,10 +1,15 @@
 import {
   idFor,
   isValidArtboardSize,
+  MAX_INNER,
+  MAX_SIDES,
+  MIN_INNER,
+  MIN_SIDES,
   type Artboard,
   type Doc,
   type Node,
   type Paint,
+  type PolygonShape,
   type Shape,
   type Style,
 } from "./document";
@@ -131,8 +136,38 @@ export function setRectRadius(doc: Doc, ids: readonly string[], rx: number): Doc
   });
 }
 
+export type PolygonPatch = Partial<Pick<PolygonShape, "sides" | "star" | "innerRatio">>;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** Spec (M2c) §5: only selected top-level polygons change; values are rounded/clamped. */
+export function setPolygon(doc: Doc, ids: readonly string[], patch: PolygonPatch): Doc {
+  const sides =
+    patch.sides !== undefined && Number.isFinite(patch.sides)
+      ? clamp(Math.round(patch.sides), MIN_SIDES, MAX_SIDES)
+      : undefined;
+  const innerRatio =
+    patch.innerRatio !== undefined && Number.isFinite(patch.innerRatio)
+      ? clamp(patch.innerRatio, MIN_INNER, MAX_INNER)
+      : undefined;
+  const star = patch.star;
+  return mapTopLevel(doc, ids, (n) => {
+    if (n.kind !== "polygon") return n;
+    const next = {
+      sides: sides ?? n.sides,
+      star: star ?? n.star,
+      innerRatio: innerRatio ?? n.innerRatio,
+    };
+    return next.sides === n.sides && next.star === n.star && next.innerRatio === n.innerRatio
+      ? n
+      : { ...n, ...next };
+  });
+}
+
 export function convertToPath(doc: Doc, ids: readonly string[]): Doc {
-  return mapTopLevel(doc, ids, (n) => (n.kind === "rect" || n.kind === "ellipse" ? toPath(n) : n));
+  return mapTopLevel(doc, ids, (n) =>
+    n.kind === "rect" || n.kind === "ellipse" || n.kind === "polygon" ? toPath(n) : n,
+  );
 }
 
 export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
