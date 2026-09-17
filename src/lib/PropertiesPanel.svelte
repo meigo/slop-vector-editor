@@ -42,12 +42,14 @@
     <PaintField
       label="Fill"
       field={summary.fill}
+      present={summary.fillOn}
       fallback={app.prefs.style.fill ?? FILL_FALLBACK}
       onchange={(p) => setSelectionStyle({ fill: p })}
     />
     <PaintField
       label="Stroke"
       field={summary.stroke}
+      present={summary.strokeOn}
       fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
       onchange={(p) => setSelectionStyle({ stroke: p })}
     />

@@ -53,11 +53,20 @@ describe("style summary", () => {
     const one = summarizeStyles([DEFAULT_STYLE])!;
     expect(one.fill).toEqual({ mixed: false, value: DEFAULT_STYLE.fill });
     expect(one.strokeWidth).toEqual({ mixed: false, value: 1 });
+    expect(one.fillOn).toEqual({ mixed: false, value: true });
     const other: Style = { ...DEFAULT_STYLE, fill: null, stroke: { ...DEFAULT_STYLE.stroke! } };
     const two = summarizeStyles([DEFAULT_STYLE, other])!;
     expect(two.fill).toEqual({ mixed: true });
     expect(two.stroke).toEqual({ mixed: false, value: DEFAULT_STYLE.stroke });
     expect(two.cap).toEqual({ mixed: false, value: "butt" });
+    expect(two.fillOn).toEqual({ mixed: true });
+    expect(two.strokeOn).toEqual({ mixed: false, value: true });
+
+    // Different fill colours: `fill` is mixed, but every shape still has a fill, so `fillOn` is not.
+    const otherColor: Style = { ...DEFAULT_STYLE, fill: { color: "#0000ff", opacity: 1 } };
+    const three = summarizeStyles([DEFAULT_STYLE, otherColor])!;
+    expect(three.fill).toEqual({ mixed: true });
+    expect(three.fillOn).toEqual({ mixed: false, value: true });
   });
 
   it("collects styles from shapes inside groups", () => {

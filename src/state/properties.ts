@@ -11,6 +11,8 @@ export type Field<T> = { mixed: true } | { mixed: false; value: T };
 export type StyleSummary = {
   fill: Field<Paint | null>;
   stroke: Field<Paint | null>;
+  fillOn: Field<boolean>;
+  strokeOn: Field<boolean>;
   strokeWidth: Field<number>;
   cap: Field<LineCap>;
   join: Field<LineJoin>;
@@ -43,6 +45,8 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
       styles.map((s) => s.stroke),
       samePaint,
     ),
+    fillOn: merge(styles.map((s) => s.fill !== null)),
+    strokeOn: merge(styles.map((s) => s.stroke !== null)),
     strokeWidth: merge(styles.map((s) => s.strokeWidth)),
     cap: merge(styles.map((s) => s.cap)),
     join: merge(styles.map((s) => s.join)),

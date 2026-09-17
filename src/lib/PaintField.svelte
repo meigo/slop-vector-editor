@@ -7,11 +7,13 @@
   let {
     label,
     field,
+    present,
     fallback,
     onchange,
   }: {
     label: string;
     field: Field<Paint | null>;
+    present: Field<boolean>;
     fallback: Paint;
     onchange: (p: Paint | null) => void;
   } = $props();
@@ -32,7 +34,7 @@
     <ToggleButton
       label="On"
       ariaLabel={`${label} on`}
-      value={field.mixed ? "mixed" : paint !== null}
+      value={present.mixed ? "mixed" : present.value}
       onchange={(on) => onchange(on ? (paint ?? fallback) : null)}
     />
   </div>
