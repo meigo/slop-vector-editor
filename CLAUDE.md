@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 243 tests in 25 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 269 tests in 25 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -28,13 +28,15 @@ every user-visible change.
 - `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
   `insertNodes` for paste), `tree.ts` (`findTopLevel`, `selectableIds`, `targetLayerId`),
   `resize.ts` (bakes a resize into shape geometry; see gotcha below).
-- `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, and the other
-  shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`, `boxMap`), `bezier.ts`
-  (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds through the matrix),
-  `hit.ts` (hit-testing and marquee select; caches flattened outlines per shape object), `snap.ts`
-  (snap targets from the artboard and object bounds, `snapValue`/`snapBox`/`snapPoint`).
+- `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
+  and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
+  `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds
+  through the matrix), `hit.ts` (hit-testing and marquee select; caches flattened outlines per
+  shape object), `snap.ts` (snap targets from the artboard and object bounds,
+  `snapValue`/`snapBox`/`snapPoint`).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
-  `attrs.ts` (model → attributes, shared by canvas and export), `serialize.ts`, `parse.ts`.
+  `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
+  `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
@@ -124,10 +126,19 @@ every user-visible change.
     excluding what moves) and put guides in the overlay; they must clear the overlay on up/cancel.
     Resize snaps only unrotated frames; rotation and marquee never snap. The threshold is
     `SNAP_PX / zoom`.
+21. **Polygons are live shapes saved as paths** (spec M2c). A polygon is written as
+    `<path d … data-sv-polygon="sides star inner cx cy rx ry">`, with `d` built from the numbers
+    _as written_ (`polygonD`). The importer restores a polygon only when the attribute validates
+    and the regenerated `d` equals the file's `d`; otherwise it stays a path. Never build a
+    polygon's `d` from unrounded numbers, or reopened files silently lose their polygons.
+22. **Polygon resize flips:** the corner set is left-right symmetric, so a horizontal flip needs
+    nothing. A vertical flip of an odd polygon composes an exact half-turn
+    (`[−1, 0, 0, −1, 2cx, 2cy]`) into the transform, never `rotateAbout(π)`, which leaves float
+    noise in files.
 
 ## Current state
 
-Milestone 2b (clipboard, snapping) — see CHANGELOG. Next is milestone 3: layers and groups.
+Milestone 2c (live polygons) — see CHANGELOG. Next is milestone 3: layers and groups.
 
 ## Roadmap
 
