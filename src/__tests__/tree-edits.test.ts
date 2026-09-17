@@ -30,7 +30,7 @@ import {
   selectableIds,
   shapesOf,
 } from "../doc/tree";
-import { applyMat, IDENTITY, translate, type Mat } from "../geom/mat";
+import { applyMat, IDENTITY, multiply, rotate, translate, type Mat } from "../geom/mat";
 import { deepFreeze } from "./helpers";
 
 const rect = (id: string, x = 0): RectShape => ({
@@ -335,5 +335,77 @@ describe("nested lookup", () => {
     expect(pruneSelection(nested, ["c", "gone", "hidden"])).toEqual(["c"]);
     const kept = ["a", "g"];
     expect(pruneSelection(nested, kept)).toBe(kept);
+  });
+});
+
+describe("edits inside a group", () => {
+  const close = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    expect(a.x).toBeCloseTo(b.x, 9);
+    expect(a.y).toBeCloseTo(b.y, 9);
+  };
+  const leaf = (id: string, x: number): Node => ({
+    kind: "rect",
+    id,
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    x,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  });
+  const inLayer = (children: Node[]): Doc =>
+    deepFreeze({
+      ...createDoc(100, 100),
+      nextId: 50,
+      layers: [{ id: "L0", name: "L0", visible: true, locked: false, children }],
+    });
+  /** A group turned a quarter-turn. */
+  const turned = (children: Node[]): Node => ({
+    kind: "group",
+    id: "g",
+    transform: rotate(Math.PI / 2),
+    opacity: 1,
+    children,
+  });
+  const worldOf = (d: Doc, id: string) => {
+    const f = findNode(d, id)!;
+    return applyMat(multiply(f.parent, f.node.transform), { x: 0, y: 0 });
+  };
+
+  it("moves a nested node through its parent's transform", () => {
+    const d = inLayer([turned([leaf("a", 0)])]);
+    close(worldOf(translateNodes(d, ["a"], 10, 0), "a"), { x: 10, y: 0 });
+    expect(translateNodes(d, ["a"], 0, 0)).toBe(d);
+  });
+
+  it("rotates a nested node about a document-space centre", () => {
+    const d = inLayer([turned([leaf("a", 0)])]);
+    const out = rotateNodes(d, ["a"], Math.PI, { x: 0, y: 0 });
+    const f = findNode(out, "a")!;
+    // The child's own (1, 0) sits at (0, 1) in the document; a half-turn about the origin
+    // takes it to (0, -1).
+    close(applyMat(multiply(f.parent, f.node.transform), { x: 1, y: 0 }), { x: 0, y: -1 });
+  });
+
+  it("duplicates a nested node next to it, inside the same group", () => {
+    const d = inLayer([turned([leaf("a", 0), leaf("b", 20)])]);
+    const r = duplicateNodes(d, ["a"], 0, 0);
+    const g = findNode(r.doc, "g")!.node as Group;
+    expect(g.children.map((c) => c.id)).toEqual(["a", r.ids[0], "b"]);
+    expect(r.ids).toHaveLength(1);
+    expect(r.doc.nextId).toBe(51);
+  });
+
+  it("deletes a nested node and drops the group it empties", () => {
+    const d = inLayer([turned([leaf("a", 0)]), leaf("z", 50)]);
+    expect(deleteNodes(d, ["a"]).layers[0].children.map((c) => c.id)).toEqual(["z"]);
+    expect(deleteNodes(d, ["nope"])).toBe(d);
+  });
+
+  it("keeps a group that still has children", () => {
+    const d = inLayer([turned([leaf("a", 0), leaf("b", 20)])]);
+    const g = findNode(deleteNodes(d, ["a"]), "g")!.node as Group;
+    expect(g.children.map((c) => c.id)).toEqual(["b"]);
   });
 });
