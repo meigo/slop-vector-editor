@@ -12,7 +12,16 @@ import {
 } from "../doc/document";
 import { resizeNode, resizeNodes } from "../doc/resize";
 import { boxMap } from "../geom/box";
-import { applyMat, IDENTITY, multiply, rotate, rotateAbout, scale, translate } from "../geom/mat";
+import {
+  applyMat,
+  IDENTITY,
+  invert,
+  multiply,
+  rotate,
+  rotateAbout,
+  scale,
+  translate,
+} from "../geom/mat";
 import { linePath, polygonSubpath } from "../geom/shapes";
 import { deepFreeze } from "./helpers";
 
@@ -201,6 +210,32 @@ describe("polygon resize", () => {
     const out = resizeNode(s, A) as PolygonShape;
     expect(out.kind).toBe("polygon");
     expect(corners(out)).toEqual(expected(s, A));
+  });
+
+  it("restores a rotated odd star flipped vertically through its own axes twice", () => {
+    const s = poly({ sides: 5, star: true, ry: 20, transform: rotateAbout(0.4, { x: 10, y: 10 }) });
+    /** scale(1, -1) about the shape's own centre, in its local space. */
+    const flip = (t: PolygonShape) =>
+      multiply(
+        t.transform,
+        multiply(
+          translate(t.cx, t.cy),
+          multiply(scale(1, -1), multiply(translate(-t.cx, -t.cy), invert(t.transform)!)),
+        ),
+      );
+    const A = multiply(
+      s.transform,
+      multiply(
+        translate(10, 10),
+        multiply(scale(1, -1), multiply(translate(-10, -10), rotateAbout(-0.4, { x: 10, y: 10 }))),
+      ),
+    );
+    const once = resizeNode(s, A) as PolygonShape;
+    expect(once.kind).toBe("polygon");
+    expect(corners(once)).not.toEqual(corners(s));
+    const twice = resizeNode(once, flip(once)) as PolygonShape;
+    expect(twice.kind).toBe("polygon");
+    expect(corners(twice)).toEqual(corners(s));
   });
 
   it("becomes a path when resized at an angle to its axes", () => {
