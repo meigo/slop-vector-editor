@@ -2,6 +2,7 @@
 
 <script lang="ts">
   import { findNode } from "../doc/tree";
+  import { flattenSubpath } from "../geom/bezier";
   import { applyMat, multiply } from "../geom/mat";
   import type { Vec } from "../geom/vec";
   import { app } from "../state/appState.svelte";
@@ -45,10 +46,14 @@
     if (!found || found.node.kind !== "path") return null;
     const world = multiply(found.parent, found.node.transform);
     const toScreen = (p: Vec) => docToScreen(view, applyMat(world, p));
+    const worldScale = Math.sqrt(Math.abs(world[0] * world[3] - world[1] * world[2])) * view.zoom;
+    const scale = Number.isFinite(worldScale) && worldScale > 0 ? worldScale : 1;
     const selected = new Set(app.nodeSel.map((r) => `${r.sub}:${r.i}`));
     const knobs: { p: Vec; on: boolean }[] = [];
     const handles: { a: Vec; b: Vec }[] = [];
+    const outlines: Vec[][] = [];
     found.node.subpaths.forEach((sp, sub) => {
+      outlines.push(flattenSubpath(sp, scale).map(toScreen));
       sp.nodes.forEach((n, i) => {
         const on = selected.has(`${sub}:${i}`);
         knobs.push({ p: toScreen(n.p), on });
@@ -57,7 +62,7 @@
         if (n.out) handles.push({ a: toScreen(n.p), b: toScreen(n.out) });
       });
     });
-    return { knobs, handles };
+    return { knobs, handles, outlines };
   });
   const knobSize = $derived(handleSize(app.lastPointerType) - 1);
 
@@ -107,6 +112,9 @@
   {/if}
 
   {#if nodeView}
+    {#each nodeView.outlines as outline, i (i)}
+      <polyline points={points(outline)} style={LINE} stroke-width="1" />
+    {/each}
     {#each nodeView.handles as h, i (i)}
       <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
       <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />

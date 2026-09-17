@@ -109,7 +109,6 @@
       >
         Symmetric
       </button>
-      <div class="my-1 h-px bg-line"></div>
     {/if}
     {#if app.selection.length > 0}
       <div class="my-1 h-px bg-line"></div>
