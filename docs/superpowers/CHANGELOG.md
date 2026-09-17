@@ -309,3 +309,31 @@
   real ⌘[ / ⌘] presses in Safari, wheel-scroll during a row drag (drop line does not follow; no
   auto-scroll), a real (non-synthetic) mouse/pen row drag with pointer capture; top-bar width at
   iPad mini portrait (744px) — at 768px the file name is down to ~33px.
+
+## 2026-09-17 — Milestone 3b: groups
+
+- Group (⌘G) and Ungroup (⇧⌘G) in the top bar, the context menu and the keyboard. A group lands
+  where its frontmost member was; Ungroup composes the group's transform into its children and
+  folds its opacity into them.
+- The selection can name a node at any depth: `findNode`/`mapNodes` walk into groups and hand each
+  edit the node's parent matrix, so moving, resizing, rotating, styling, z-order, rename, duplicate
+  and delete all work inside a group. No edit leaves an empty group behind.
+- Double-click enters a group (dashed outline, status-bar hint); a click outside or Escape leaves.
+  Hit-testing and marquee select the group's own children while inside it.
+- The layers panel nests group rows, and rows can be dragged into and out of a group, keeping their
+  place on screen.
+- The Opacity field edits a group's own opacity.
+- `isAxisAligned` now measures skew against the matrix's own scale.
+- Plan: `docs/superpowers/plans/2026-09-17-m3b-groups.md`.
+- Browser-verified (desktop Chrome): group across two layers (positions kept, group lands in the
+  frontmost member's layer, one undo step), double-click to enter with the dashed frame and
+  status-bar hint, nested enter/leave with Escape, a click on empty canvas leaving the group,
+  right-click inside a group selecting the child, dragging a child inside a 25°-rotated group
+  (45.80 document units for an expected 45.77), ⌘G and ⇧⌘G, the Group/Ungroup buttons and their
+  disabled reasons, Ungroup restoring positions exactly and folding 50% opacity into both
+  children, panel drags into and out of a group with the drop line, a group dropped into its own
+  child refused, z-order inside a group, deleting a group's last child removing the group, undo
+  of each, the top bar staying one row down to 730px, and no console errors.
+- Owed: iPad (double-tap to enter a group, dragging nested rows), Safari/Firefox, a real
+  pointer-capture drag of panel rows, and the layers panel's row measuring on every pointermove
+  (unchanged from M3a).

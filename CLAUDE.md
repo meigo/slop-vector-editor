@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 303 tests in 29 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 350 tests in 30 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -26,9 +26,10 @@ every user-visible change.
 ## Architecture map
 
 - `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
-  `insertNodes` for paste), `tree.ts` (`findTopLevel`, `selectableIds`), `layers.ts` (layer,
-  naming and z-order edits; current-layer helpers), `resize.ts` (bakes a resize into shape
-  geometry; see gotcha below).
+  `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `selectableIds`, `ancestorIds` —
+  node lookup and editing at any depth, with parent matrices), `group.ts` (group/ungroup),
+  `layers.ts` (layer, naming and z-order edits; current-layer helpers), `resize.ts` (bakes a
+  resize into shape geometry; see gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds
@@ -44,7 +45,8 @@ every user-visible change.
   move, resize, rotate), `registry.ts` (`TOOLS`, one instance per id), `context.ts`
   (`storeContext`, the real `ToolContext` wired to `app`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
-  pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine).
+  pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
+  `double-tap.ts` (pure double-tap/double-click detection).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
   `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
@@ -57,9 +59,9 @@ every user-visible change.
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
-  (the Properties + Layers column), `PropertiesPanel`, `LayersPanel`, `double-tap.ts` and
-  `layer-drop.ts` (pure helpers), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`,
-  the pure state helper), `Modal`, dialogs, `Notices`.
+  (the Properties + Layers column), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
+  helper), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
+  `Modal`, dialogs, `Notices`.
 
 ## Invariants and gotchas
 
@@ -165,14 +167,26 @@ every user-visible change.
     `KeyboardEvent.code` (`BracketLeft`/`BracketRight`), because Shift changes `key`. The Layers
     panel also handles Escape in the window capture phase during a row drag, so the app's Escape
     ("clear selection") doesn't also run.
+26. **A node's transform is in its parent's space.** `findNode` hands you the parent matrix and
+    `mapNodes` passes it to the edit. A document-space map must go through `inParent` (and a node
+    changing parent through `reparent`); both return null for a singular matrix, and the edit then
+    leaves that node alone. A node whose parent doesn't change keeps its exact transform — never
+    re-derive it, or saved files fill with float noise.
+    No edit may leave an empty group: the importer drops them, so `deleteNodes` and `moveNodes`
+    remove a group they empty.
+    Entering a group is `app.enteredGroupId` (not saved, not undoable). It decides what
+    `hitTest`, `marqueeSelect` and `selectableIds` may select; Escape leaves one level before it
+    clears the selection. A click on empty canvas also leaves the group — the select tool does
+    that in its pointer-up handler, so a marquee drag starting on empty space still selects the
+    group's own children.
 
 ## Current state
 
-Milestone 3a (layers panel, z-order) — see CHANGELOG. Next is milestone 3b: groups.
+Milestone 3b (groups) — see CHANGELOG. Next is milestone 4: pen + node editing.
 
 ## Roadmap
 
-M3b groups, M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
+M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
 spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
@@ -182,9 +196,6 @@ not round-trip.
 M4 constraint: a closed subpath whose last node coincides with its first is merged on reload (one
 node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
 closing segment. Snapping to path nodes is M4 (spec M2b §1).
-
-M3b: a per-document id index for `findTopLevel` lookups during drags; the Opacity field should
-also edit group opacity.
 
 M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
 palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
