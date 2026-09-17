@@ -43,7 +43,7 @@
     <div class="flex items-center gap-3 text-xs">
       <ToggleButton
         label="On"
-        ariaLabel="Background"
+        ariaLabel="Background on"
         value={hasBackground}
         onchange={(on) => (hasBackground = on)}
       />

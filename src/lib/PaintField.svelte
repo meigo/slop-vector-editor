@@ -31,7 +31,7 @@
     <span class="section-title">{label}</span>
     <ToggleButton
       label="On"
-      ariaLabel={label}
+      ariaLabel={`${label} on`}
       value={field.mixed ? "mixed" : paint !== null}
       onchange={(on) => onchange(on ? (paint ?? fallback) : null)}
     />
