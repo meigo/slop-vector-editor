@@ -338,3 +338,40 @@
 - Owed: iPad (double-tap to enter a group, dragging nested rows), Safari/Firefox, a real
   pointer-capture drag of panel rows, and the layers panel's row measuring on every pointermove
   (unchanged from M3a).
+
+## 2026-09-18 — Milestone 4a: node editing
+
+- The Node tool (N): pick a path (click targets it, showing its outline), click/Shift-click/marquee
+  select its nodes, drag nodes and handles by type (Alt breaks a smooth/symmetric handle in two),
+  double-click a segment to add a node and double-click a node to cycle its type, arrow nudge
+  (1/10px), delete, and an Escape chain (node selection → node target → entered group → object
+  selection). Double-clicking a path from the select tool switches straight to the node tool with
+  that path targeted.
+- Six pure edits in `src/doc/path-edit.ts` — `movePathNodes`, `moveHandle`, `insertNode`,
+  `deletePathNodes`, `setNodeType`, `closeSubpath` — none of which may leave a subpath with fewer
+  than two nodes or a path with no subpaths.
+- Two geometry helpers in `src/geom/bezier.ts`: `splitCubic` (de Casteljau) for adding a node
+  mid-curve, and `nearestOnSubpath` for picking the segment under the pointer. Flattening now
+  scales with the accumulated matrix scale (segment cap 64 → 256), fixing coarse hit-testing on
+  scaled-up curves — a parked M2b/M4 finding.
+- The coincident-point tolerance in `src/svg/pathdata.ts` widened from exact float equality to
+  match the writer's 6-decimal rounding, so a closed subpath a hair off from its start still
+  merges on reload — another parked finding this milestone fixes.
+- Snapping to path nodes (`collectTargets`'s new `{ nodes: true }` option, spec M2b §1); a Node
+  section in Properties (type toggle + X/Y for a single selected node); node items (Delete
+  node(s), Corner, Smooth, Symmetric) in the context menu, gated to the node tool with a node
+  selection.
+- Fix: a tool's double-tap action now fires on pointer-up for a gesture that stayed a click,
+  instead of on pointer-down — a latent bug where a click followed within the double-tap window by
+  a drag would enter a group (or, now, switch tools) instead of dragging.
+- Plan: `docs/superpowers/plans/2026-09-17-m4a-node-editing.md`.
+- Browser-verified (desktop Chrome): convert-free editing of a pasted path — targeting a path,
+  dragging a node (handles follow) and a handle, double-click to add a node and to cycle a type,
+  marquee plus arrow nudge (1 and 10), deleting a node and then the path's last nodes (the path
+  goes, undo restores), the Escape chain, editing a path inside a 30°-rotated group (the node
+  tracked the pointer: 45.39 document units for an expected 45.77, with no vertical drift), a
+  serialize→parse round trip identical with nothing dropped, node snap targets offered for a
+  top-level path and excluded for the edited one, and the context menu's node items.
+- Owed: iPad (dragging nodes and handles with a finger, double-tap to add or cycle), Safari/Firefox,
+  the pen tool (milestone 4b), and a path inside a group contributes no snap targets —
+  `collectTargets` still walks only top-level nodes (a pre-existing limitation, now more visible).

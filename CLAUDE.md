@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 354 tests in 30 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 408 tests in 33 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -29,21 +29,24 @@ every user-visible change.
   `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `selectableIds`, `ancestorIds` —
   node lookup and editing at any depth, with parent matrices), `group.ts` (group/ungroup),
   `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
-  current-layer helpers), `resize.ts` (bakes a resize into shape geometry; see gotcha below).
+  current-layer helpers), `path-edit.ts` (pure node edits: move, handles, insert, delete, retype,
+  close), `resize.ts` (bakes a resize into shape geometry; see gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
-  `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers), `bounds.ts` (node/selection bounds
-  through the matrix), `hit.ts` (hit-testing and marquee select; caches flattened outlines per
-  shape object), `snap.ts` (snap targets from the artboard and object bounds,
-  `snapValue`/`snapBox`/`snapPoint`).
+  `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
+  `bounds.ts` (node/selection bounds through the matrix), `hit.ts` (hit-testing and marquee
+  select; caches flattened outlines per shape object), `snap.ts` (snap targets from the artboard
+  and object bounds, `snapValue`/`snapBox`/`snapPoint`).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
   `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
-  move, resize, rotate), `registry.ts` (`TOOLS`, one instance per id), `context.ts`
-  (`storeContext`, the real `ToolContext` wired to `app`; tests use `__tests__/fake-context.ts`).
+  move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and
+  handles, insert/delete, retype, close), `registry.ts` (`TOOLS`, one instance per id),
+  `context.ts` (`storeContext`, the real `ToolContext` wired to `app`; tests use
+  `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
   `double-tap.ts` (pure double-tap/double-click detection).
@@ -179,23 +182,33 @@ every user-visible change.
     clears the selection. A click on empty canvas also leaves the group — the select tool does
     that in its pointer-up handler, so a marquee drag starting on empty space still selects the
     group's own children.
+29. **Node coordinates are in the path's own space.** The node tool maps the pointer through the
+    inverse of the path's world matrix, and does nothing when that matrix is singular.
+30. **No edit may leave a subpath with fewer than two nodes, a path with no subpaths, or a closed
+    subpath whose last node repeats its first.** A path a store edit would leave with no subpaths
+    is deleted outright instead; the importer drops or merges the other two shapes on reload.
+31. **`app.nodeTarget`/`app.nodeSel` are store state** (not saved, not undoable), re-resolved in
+    `setSession`. Escape walks node selection → node target (back to the select tool) → entered
+    group → object selection.
+32. **A tool's double-tap action fires on pointer-up, for a gesture that stayed a click.** Acting
+    on pointer-down made a click followed by a quick drag change context instead of dragging.
 
 ## Current state
 
-Milestone 3b (groups) — see CHANGELOG. Next is milestone 4: pen + node editing.
+Milestone 4a (node editing) — see CHANGELOG. Next is milestone 4b: the pen tool.
 
 ## Roadmap
 
-M4 pen + node editing, M5 iPad polish + deploy (spec §9). Post-v1 list in
-spec §10.
+M4 was split into 4a (node editing, complete) and 4b (the pen tool), as M3 was split into 3a/3b.
+M5 iPad polish + deploy (spec §9). Post-v1 list in spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
 not round-trip.
 
-M4 constraint: a closed subpath whose last node coincides with its first is merged on reload (one
-node fewer) — the pen/node tools must not create that shape, or the writer must emit an explicit
-closing segment. Snapping to path nodes is M4 (spec M2b §1).
+M4b constraint: a closed subpath whose last node coincides with its first is merged on reload (one
+node fewer) — the pen tool must not create that shape, or the writer must emit an explicit closing
+segment.
 
 M3b (parked, spec §9): a per-document id index for `findNode` lookups during drags — nesting makes
 it more relevant, since `dropTarget` runs `findNode` + `ancestorIds` + `moveNodes` on every

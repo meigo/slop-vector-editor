@@ -33,6 +33,8 @@ Early development. What works today:
   new shapes; z-order (bring forward/backward, to front/back).
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the
   layers panel.
+- Node editing: the Node tool (N) moves nodes and handles, adds and deletes nodes, changes node
+  type and closes a path.
 
 ## Keyboard
 
@@ -53,10 +55,11 @@ Early development. What works today:
 | Bring forward / Send backward                   | ⌘] / ⌘[                               |
 | Bring to front / Send to back                   | ⇧⌘] / ⇧⌘[                             |
 | Group / Ungroup                                 | ⌘G / ⇧⌘G                              |
+| Edit nodes                                      | N                                     |
 
 ## Roadmap
 
-Next: pen and node editing.
+Next: the pen tool.
 
 ## Development
 
@@ -64,7 +67,7 @@ Next: pen and node editing.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 354 unit tests
+npm test          # 408 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
