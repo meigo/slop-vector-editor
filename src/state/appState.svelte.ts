@@ -10,7 +10,21 @@ import {
   translateNodes,
   type PolygonPatch,
 } from "../doc/edits";
-import { resolveLayerId } from "../doc/layers";
+import {
+  addLayer,
+  bringForward,
+  bringToFront,
+  deleteLayer,
+  moveLayer,
+  moveNodes,
+  renameLayer,
+  renameNode,
+  resolveLayerId,
+  sendBackward,
+  sendToBack,
+  setLayerLocked,
+  setLayerVisible,
+} from "../doc/layers";
 import { findTopLevel, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
@@ -57,7 +71,7 @@ export type DockState = { shift: Latch; alt: Latch };
 class AppState {
   session = $state.raw<Session>(newSession(createDoc(1920, 1080), true));
   /** Where new objects go (spec M3a §2). Not saved, not undoable. */
-  currentLayerId = $state<string>(resolveLayerId(createDoc(1920, 1080), null));
+  currentLayerId = $state<string>(resolveLayerId(this.session.doc, null));
   fileName = $state("Untitled.svg");
   view = $state.raw<View>({ x: 0, y: 0, zoom: 1 });
   viewportSize = $state.raw({ w: 0, h: 0 });
@@ -391,4 +405,92 @@ export function copyToSystem(): void {
 export function cutToSystem(): void {
   const text = cutSelection();
   if (text !== null) void writeClipboardText(text);
+}
+
+// ----- layers, objects and z-order (spec M3a §4) -----
+
+export function addLayerAboveCurrent(): void {
+  cancelActiveGesture();
+  const r = addLayer(app.doc, app.currentLayerId);
+  commitDoc(r.doc);
+  app.currentLayerId = r.id;
+}
+
+export async function deleteCurrentLayer(): Promise<void> {
+  cancelActiveGesture();
+  const layer = app.doc.layers.find((l) => l.id === app.currentLayerId);
+  if (!layer || app.doc.layers.length <= 1) return;
+  const n = layer.children.length;
+  if (n > 0) {
+    const what = `${n} ${n === 1 ? "object" : "objects"}`;
+    if (!(await askConfirm(`Delete layer “${layer.name}” and its ${what}?`, "Delete"))) return;
+  }
+  cancelActiveGesture();
+  commitDoc(deleteLayer(app.doc, layer.id));
+}
+
+export function renameLayerById(id: string, name: string): void {
+  cancelActiveGesture();
+  commitDoc(renameLayer(app.doc, id, name));
+}
+
+export function toggleLayerVisible(id: string): void {
+  cancelActiveGesture();
+  const layer = app.doc.layers.find((l) => l.id === id);
+  if (layer) commitDoc(setLayerVisible(app.doc, id, !layer.visible));
+}
+
+export function toggleLayerLocked(id: string): void {
+  cancelActiveGesture();
+  const layer = app.doc.layers.find((l) => l.id === id);
+  if (layer) commitDoc(setLayerLocked(app.doc, id, !layer.locked));
+}
+
+export function moveLayerTo(id: string, index: number): void {
+  cancelActiveGesture();
+  commitDoc(moveLayer(app.doc, id, index));
+}
+
+/** The moved objects become the selection (and so their new layer becomes current). */
+export function moveNodesTo(ids: readonly string[], layerId: string, index: number): void {
+  cancelActiveGesture();
+  commitDoc(moveNodes(app.doc, ids, layerId, index));
+  setSelection(ids);
+}
+
+export function renameNodeById(id: string, name: string): void {
+  cancelActiveGesture();
+  commitDoc(renameNode(app.doc, id, name));
+}
+
+/** A panel row tap: replace the selection, or toggle the row in it. */
+export function selectFromPanel(id: string, additive: boolean): void {
+  cancelActiveGesture();
+  if (!additive) {
+    setSelection([id]);
+    return;
+  }
+  setSelection(
+    app.selection.includes(id) ? app.selection.filter((s) => s !== id) : [...app.selection, id],
+  );
+}
+
+export function bringSelectionForward(): void {
+  cancelActiveGesture();
+  commitDoc(bringForward(app.doc, app.selection));
+}
+
+export function sendSelectionBackward(): void {
+  cancelActiveGesture();
+  commitDoc(sendBackward(app.doc, app.selection));
+}
+
+export function bringSelectionToFront(): void {
+  cancelActiveGesture();
+  commitDoc(bringToFront(app.doc, app.selection));
+}
+
+export function sendSelectionToBack(): void {
+  cancelActiveGesture();
+  commitDoc(sendToBack(app.doc, app.selection));
 }

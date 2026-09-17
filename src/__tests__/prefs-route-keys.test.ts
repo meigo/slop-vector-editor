@@ -138,7 +138,7 @@ describe("routePointerDown", () => {
 describe("editActionForKey", () => {
   const k = (
     key: string,
-    mods: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean }> = {},
+    mods: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; code: string }> = {},
   ) => editActionForKey({ key, metaKey: false, ctrlKey: false, shiftKey: false, ...mods });
 
   it("maps tool keys without modifiers", () => {
@@ -165,6 +165,27 @@ describe("editActionForKey", () => {
     expect(k("ArrowRight", { shiftKey: true })).toEqual({ kind: "nudge", dx: 10, dy: 0 });
     expect(k("%", { shiftKey: true })).toEqual({ kind: "toggleSnap" });
     expect(k("%", { metaKey: true })).toBeNull();
+  });
+
+  it("maps bracket keys with a modifier to z-order", () => {
+    expect(k("]", { metaKey: true, code: "BracketRight" })).toEqual({
+      kind: "zorder",
+      op: "forward",
+    });
+    expect(k("}", { metaKey: true, shiftKey: true, code: "BracketRight" })).toEqual({
+      kind: "zorder",
+      op: "front",
+    });
+    expect(k("[", { ctrlKey: true, code: "BracketLeft" })).toEqual({
+      kind: "zorder",
+      op: "backward",
+    });
+    expect(k("{", { ctrlKey: true, shiftKey: true, code: "BracketLeft" })).toEqual({
+      kind: "zorder",
+      op: "back",
+    });
+    expect(k("]", { code: "BracketRight" })).toBeNull();
+    expect(k("x", { metaKey: true, code: "KeyX" })).toBeNull();
   });
 });
 
