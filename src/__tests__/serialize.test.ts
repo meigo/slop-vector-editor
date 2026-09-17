@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Shape } from "../doc/document";
 import { IDENTITY } from "../geom/mat";
-import { layerAttrs, shapeAttrs, styleAttrs } from "../svg/attrs";
+import { layerAttrs, polygonD, shapeAttrs, styleAttrs } from "../svg/attrs";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 
@@ -94,6 +94,64 @@ describe("shapeAttrs", () => {
     expect(attrs.d).toBe("M0 0 L1 1");
     expect(attrs["data-sv-nodes"]).toBe("cc");
     expect(attrs.transform).toBeUndefined();
+  });
+});
+
+describe("polygon attributes", () => {
+  it("writes a polygon as a path with its parameters", () => {
+    const s: Shape = {
+      kind: "polygon",
+      id: "p",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      cx: 10,
+      cy: 20,
+      rx: 5,
+      ry: 5,
+      sides: 4,
+      star: false,
+      innerRatio: 0.5,
+    };
+    expect(shapeAttrs(s)).toEqual({
+      tag: "path",
+      attrs: {
+        d: "M10 15 L15 20 L10 25 L5 20 Z",
+        "data-sv-nodes": "cccc",
+        "data-sv-polygon": "4 0 0.5 10 20 5 5",
+        fill: "#d9d9d9",
+        stroke: "#000000",
+        "stroke-width": "1",
+      },
+    });
+  });
+
+  it("builds d from the rounded numbers it writes", () => {
+    const s: Shape = {
+      kind: "polygon",
+      id: "p",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      cx: 0.12345678,
+      cy: 0,
+      rx: 33.3333333,
+      ry: 33.3333333,
+      sides: 3,
+      star: false,
+      innerRatio: 0.5,
+    };
+    const { attrs } = shapeAttrs(s);
+    expect(attrs["data-sv-polygon"]).toBe("3 0 0.5 0.123457 0 33.333333 33.333333");
+    expect(attrs.d).toBe(
+      polygonD({
+        cx: 0.123457,
+        cy: 0,
+        rx: 33.333333,
+        ry: 33.333333,
+        sides: 3,
+        star: false,
+        innerRatio: 0.5,
+      }),
+    );
   });
 });
 

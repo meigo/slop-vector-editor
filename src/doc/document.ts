@@ -6,6 +6,10 @@ import type { Vec } from "../geom/vec";
 
 export const DOC_VERSION = 1;
 export const MAX_ARTBOARD = 100000;
+export const MIN_SIDES = 3;
+export const MAX_SIDES = 32;
+export const MIN_INNER = 0.1;
+export const MAX_INNER = 0.95;
 
 export type Paint = { color: string /* #rrggbb, lowercase */; opacity: number };
 export type LineCap = "butt" | "round" | "square";
@@ -42,8 +46,21 @@ export type EllipseShape = ShapeBase & {
   rx: number;
   ry: number;
 };
+/** Spec (M2c) §2. Corners sit on the ellipse (rx, ry); rotation lives in `transform`. */
+export type PolygonShape = ShapeBase & {
+  kind: "polygon";
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  /** Integer MIN_SIDES–MAX_SIDES; for a star, the number of points. */
+  sides: number;
+  star: boolean;
+  /** MIN_INNER–MAX_INNER; kept while `star` is off. */
+  innerRatio: number;
+};
 export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[] };
-export type Shape = RectShape | EllipseShape | PathShape;
+export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
 export type Group = {
   kind: "group";

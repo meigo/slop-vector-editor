@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_STYLE, type EllipseShape, type RectShape } from "../doc/document";
+import {
+  DEFAULT_STYLE,
+  type EllipseShape,
+  type PolygonShape,
+  type RectShape,
+} from "../doc/document";
 import { translate } from "../geom/mat";
 import {
   ellipsePath,
   KAPPA,
   linePath,
   polygonPath,
+  polygonSubpath,
   rectPath,
   starPath,
   toPath,
@@ -117,5 +123,50 @@ describe("toPath", () => {
     const p = toPath(e);
     expect(p.subpaths[0].nodes[0].p).toEqual({ x: 4, y: 2 });
     expect("name" in p).toBe(false);
+  });
+});
+
+describe("polygonSubpath", () => {
+  const poly = (over: Partial<PolygonShape> = {}): PolygonShape => ({
+    kind: "polygon",
+    id: "p",
+    transform: translate(0, 0),
+    style: DEFAULT_STYLE,
+    cx: 0,
+    cy: 0,
+    rx: 10,
+    ry: 10,
+    sides: 5,
+    star: false,
+    innerRatio: 0.5,
+    ...over,
+  });
+
+  it("puts corner 0 at the top and walks clockwise on screen", () => {
+    const sp = polygonSubpath(poly());
+    expect(sp.closed).toBe(true);
+    expect(sp.nodes).toHaveLength(5);
+    expect(sp.nodes.every((n) => n.type === "corner" && !n.in && !n.out)).toBe(true);
+    closeTo(sp.nodes[0].p, 0, -10);
+    const a = -Math.PI / 2 + (2 * Math.PI) / 5;
+    closeTo(sp.nodes[1].p, 10 * Math.cos(a), 10 * Math.sin(a));
+  });
+
+  it("interleaves a star's inner corners and uses both radii", () => {
+    const sp = polygonSubpath(poly({ rx: 10, ry: 20, sides: 4, star: true, innerRatio: 0.5 }));
+    expect(sp.nodes).toHaveLength(8);
+    closeTo(sp.nodes[0].p, 0, -20);
+    closeTo(sp.nodes[1].p, 5 * Math.SQRT1_2, -10 * Math.SQRT1_2);
+    closeTo(sp.nodes[2].p, 10, 0);
+    closeTo(sp.nodes[4].p, 0, 20);
+    closeTo(sp.nodes[6].p, -10, 0);
+  });
+
+  it("converts to a path with the same identity, transform and style", () => {
+    const p = poly({ name: "Star", transform: translate(3, 4), star: true, sides: 3 });
+    const path = toPath(p);
+    expect(path).toMatchObject({ kind: "path", id: "p", name: "Star", style: DEFAULT_STYLE });
+    expect(path.transform).toBe(p.transform);
+    expect(path.subpaths).toEqual([polygonSubpath(p)]);
   });
 });

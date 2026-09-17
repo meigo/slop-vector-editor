@@ -123,4 +123,25 @@ describe("nodeBounds", () => {
     expectBox(nodeBounds(g, IDENTITY), 100, -5, 55, 15);
     expect(nodeBounds({ ...g, children: [] }, IDENTITY)).toBeNull();
   });
+
+  it("bounds a polygon by its corners", () => {
+    const p: Node = {
+      kind: "polygon",
+      id: "p",
+      transform: translate(5, 5),
+      style: DEFAULT_STYLE,
+      cx: 0,
+      cy: 0,
+      rx: 10,
+      ry: 10,
+      sides: 5,
+      star: false,
+      innerRatio: 0.5,
+    };
+    const b = nodeBounds(p, IDENTITY)!;
+    expect(b.x).toBeCloseTo(5 - 10 * Math.cos(Math.PI / 10));
+    expect(b.y).toBeCloseTo(-5);
+    expect(b.w).toBeCloseTo(20 * Math.cos(Math.PI / 10));
+    expect(b.h).toBeCloseTo(10 + 10 * Math.cos(Math.PI / 5));
+  });
 });

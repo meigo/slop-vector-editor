@@ -1,8 +1,17 @@
-import type { Doc, EllipseShape, Node, PathShape, Shape, Subpath } from "../doc/document";
+import type {
+  Doc,
+  EllipseShape,
+  Node,
+  PathShape,
+  PolygonShape,
+  Shape,
+  Subpath,
+} from "../doc/document";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
 import { applyMat, IDENTITY, invert } from "./mat";
+import { polygonSubpath } from "./shapes";
 import type { Vec } from "./vec";
 
 export type Hit = { layerId: string; nodeId: string };
@@ -34,6 +43,18 @@ function ellipsePolylines(s: EllipseShape): Vec[][] {
     }
     polys = [pts];
     ellipseCache.set(s, polys);
+  }
+  return polys;
+}
+
+/** Polygon outline, cached per (immutable) polygon object. */
+const polygonCache = new WeakMap<PolygonShape, Vec[][]>();
+
+function polygonPolylines(s: PolygonShape): Vec[][] {
+  let polys = polygonCache.get(s);
+  if (!polys) {
+    polys = [flattenSubpath(polygonSubpath(s))];
+    polygonCache.set(s, polys);
   }
   return polys;
 }
@@ -94,6 +115,11 @@ function shapeHit(s: Shape, p: Vec, tol: number): boolean {
       const q = Math.sqrt(nx * nx + ny * ny);
       if (q <= 1 && s.style.fill) return true;
       return distToPolylines(p, ellipsePolylines(s)) <= reach;
+    }
+    case "polygon": {
+      const polys = polygonPolylines(s);
+      if (s.style.fill && insideNonzero(p, polys)) return true;
+      return distToPolylines(p, polys) <= reach;
     }
     case "path": {
       const polys = polylines(s);

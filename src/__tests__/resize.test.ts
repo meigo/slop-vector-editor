@@ -7,12 +7,13 @@ import {
   type Group,
   type Node,
   type PathShape,
+  type PolygonShape,
   type RectShape,
 } from "../doc/document";
 import { resizeNode, resizeNodes } from "../doc/resize";
 import { boxMap } from "../geom/box";
-import { IDENTITY, multiply, rotate, rotateAbout, scale, translate } from "../geom/mat";
-import { linePath } from "../geom/shapes";
+import { applyMat, IDENTITY, multiply, rotate, rotateAbout, scale, translate } from "../geom/mat";
+import { linePath, polygonSubpath } from "../geom/shapes";
 import { deepFreeze } from "./helpers";
 
 const style = { ...DEFAULT_STYLE, strokeWidth: 3 };
@@ -125,6 +126,86 @@ describe("resizeNode", () => {
     expect(resizeNode(r, IDENTITY)).toBe(r);
     const s = rect({ transform: [0, 0, 0, 0, 0, 0] });
     expect(resizeNode(s, scale(2))).toBe(s);
+  });
+});
+
+describe("polygon resize", () => {
+  const poly = (over: Partial<PolygonShape> = {}): PolygonShape => ({
+    kind: "polygon",
+    id: "p",
+    transform: IDENTITY,
+    style,
+    cx: 10,
+    cy: 10,
+    rx: 10,
+    ry: 10,
+    sides: 5,
+    star: false,
+    innerRatio: 0.5,
+    ...over,
+  });
+  /** Rendered corners, rounded and sorted, so shapes are compared as point sets. */
+  const corners = (s: PolygonShape) =>
+    polygonSubpath(s)
+      .nodes.map((n) => applyMat(s.transform, n.p))
+      .map((p) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`.replace(/-0\.000000/g, "0.000000"))
+      .sort();
+  const expected = (s: PolygonShape, A: ReturnType<typeof scale>) =>
+    polygonSubpath(s)
+      .nodes.map((n) => applyMat(A, applyMat(s.transform, n.p)))
+      .map((p) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`.replace(/-0\.000000/g, "0.000000"))
+      .sort();
+
+  it("scales and stretches into the radii, keeping the stroke", () => {
+    const out = resizeNode(poly(), scale(2, 3)) as PolygonShape;
+    expect(out).toMatchObject({ kind: "polygon", cx: 20, cy: 30, rx: 20, ry: 30, sides: 5 });
+    expect(out.transform).toEqual(IDENTITY);
+    expect(out.style.strokeWidth).toBe(3);
+  });
+
+  it("needs nothing extra for a horizontal flip", () => {
+    const A = scale(-1, 1);
+    const out = resizeNode(poly(), A) as PolygonShape;
+    expect(out.kind).toBe("polygon");
+    expect(out.transform).toEqual(IDENTITY);
+    expect(corners(out)).toEqual(expected(poly(), A));
+  });
+
+  it("adds a half-turn when flipping an odd polygon vertically", () => {
+    const A = scale(1, -2);
+    const out = resizeNode(poly(), A) as PolygonShape;
+    expect(out).toMatchObject({ cx: 10, cy: -20, rx: 10, ry: 20 });
+    expect(out.transform).toEqual([-1, 0, 0, -1, 20, -40]);
+    expect(corners(out)).toEqual(expected(poly(), A));
+  });
+
+  it("needs no half-turn for an even polygon or star", () => {
+    const A = scale(1, -1);
+    for (const s of [poly({ sides: 6 }), poly({ sides: 4, star: true })]) {
+      const out = resizeNode(s, A) as PolygonShape;
+      expect(out.transform).toEqual(IDENTITY);
+      expect(corners(out)).toEqual(expected(s, A));
+    }
+  });
+
+  it("flips a rotated odd star correctly through its own axes", () => {
+    const s = poly({ sides: 5, star: true, transform: rotateAbout(0.4, { x: 10, y: 10 }) });
+    // A resize along the shape's own axes: in its local space this is scale(1, -1) about (10, 10)
+    const A = multiply(
+      s.transform,
+      multiply(
+        translate(10, 10),
+        multiply(scale(1, -1), multiply(translate(-10, -10), rotateAbout(-0.4, { x: 10, y: 10 }))),
+      ),
+    );
+    const out = resizeNode(s, A) as PolygonShape;
+    expect(out.kind).toBe("polygon");
+    expect(corners(out)).toEqual(expected(s, A));
+  });
+
+  it("becomes a path when resized at an angle to its axes", () => {
+    const out = resizeNode(poly(), multiply(rotate(0.3), multiply(scale(2, 1), rotate(-0.3))));
+    expect(out.kind).toBe("path");
   });
 });
 

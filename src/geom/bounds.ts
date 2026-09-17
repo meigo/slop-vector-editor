@@ -2,6 +2,7 @@ import type { Node, PathNode, Subpath } from "../doc/document";
 import { cubicBounds, segmentCubic } from "./bezier";
 import { boxFromPoints, unionBox, type Box } from "./box";
 import { applyMat, multiply, type Mat } from "./mat";
+import { polygonSubpath } from "./shapes";
 
 function mapNode(m: Mat, n: PathNode): PathNode {
   return {
@@ -52,6 +53,8 @@ export function nodeBounds(node: Node, m: Mat): Box | null {
       const ey = Math.hypot(t[1] * node.rx, t[3] * node.ry);
       return { x: c.x - ex, y: c.y - ey, w: 2 * ex, h: 2 * ey };
     }
+    case "polygon":
+      return boxFromPoints(polygonSubpath(node).nodes.map((n) => applyMat(t, n.p)));
     case "path":
       return pathBounds(node.subpaths, t);
   }

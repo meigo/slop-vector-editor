@@ -1,6 +1,6 @@
 import { applyMat, invert, isAxisAligned, isIdentity, multiply, type Mat } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import type { Doc, Node, Shape } from "./document";
+import type { Doc, Node, PolygonShape, Shape } from "./document";
 import { mapTopLevel } from "./tree";
 
 /** Spec (M2a) §1: move/rotate touch the matrix; resize is baked into geometry so stroke widths
@@ -26,6 +26,23 @@ function bakeShape(s: Shape, L: Mat): Shape {
     case "ellipse": {
       const c = applyMat(L, { x: s.cx, y: s.cy });
       return { ...s, cx: c.x, cy: c.y, rx: s.rx * Math.abs(L[0]), ry: s.ry * Math.abs(L[3]) };
+    }
+    case "polygon": {
+      const c = applyMat(L, { x: s.cx, y: s.cy });
+      const out: PolygonShape = {
+        ...s,
+        cx: c.x,
+        cy: c.y,
+        rx: s.rx * Math.abs(L[0]),
+        ry: s.ry * Math.abs(L[3]),
+      };
+      // Spec (M2c) §4: the corners are left-right symmetric, so a horizontal flip needs nothing.
+      // A vertical flip of an odd polygon must point down: add an exact half-turn about the centre.
+      if (L[3] < 0 && s.sides % 2 === 1) {
+        const half: Mat = [-1, 0, 0, -1, 2 * c.x, 2 * c.y];
+        out.transform = multiply(s.transform, half);
+      }
+      return out;
     }
     case "path":
       return { ...s, subpaths: transformSubpaths(s.subpaths, L) };

@@ -1,4 +1,11 @@
-import type { EllipseShape, PathNode, PathShape, RectShape, Subpath } from "../doc/document";
+import type {
+  EllipseShape,
+  PathNode,
+  PathShape,
+  PolygonShape,
+  RectShape,
+  Subpath,
+} from "../doc/document";
 import { applyMat, type Mat } from "./mat";
 import type { Vec } from "./vec";
 
@@ -102,6 +109,23 @@ export function starPath(
   return { closed: true, nodes };
 }
 
+export type PolygonGeometry = Pick<
+  PolygonShape,
+  "cx" | "cy" | "rx" | "ry" | "sides" | "star" | "innerRatio"
+>;
+
+/** Spec (M2c) §3: corner 0 points up; a star's inner corners sit halfway between outer ones. */
+export function polygonSubpath(p: PolygonGeometry): Subpath {
+  const at = (a: number, k: number) =>
+    node({ x: p.cx + p.rx * k * Math.cos(a), y: p.cy + p.ry * k * Math.sin(a) });
+  const nodes: PathNode[] = [];
+  for (let i = 0; i < p.sides; i++) {
+    nodes.push(at(-Math.PI / 2 + (i * 2 * Math.PI) / p.sides, 1));
+    if (p.star) nodes.push(at(-Math.PI / 2 + ((2 * i + 1) * Math.PI) / p.sides, p.innerRatio));
+  }
+  return { closed: true, nodes };
+}
+
 /** A closed ellipse from four symmetric nodes: right, bottom, left, top (clockwise on screen). */
 export function ellipsePath(cx: number, cy: number, rx: number, ry: number): Subpath {
   const kx = KAPPA * rx;
@@ -132,13 +156,15 @@ export function transformSubpaths(subpaths: readonly Subpath[], m: Mat): Subpath
 }
 
 /** An equivalent path in the same local space, with the same id, name, transform and style. */
-export function toPath(s: RectShape | EllipseShape): PathShape {
+export function toPath(s: RectShape | EllipseShape | PolygonShape): PathShape {
   let sp: Subpath;
   if (s.kind === "rect") {
     const r = Math.min(s.rx, s.w / 2, s.h / 2);
     sp = rectPath(s.x, s.y, s.w, s.h, r, r);
-  } else {
+  } else if (s.kind === "ellipse") {
     sp = ellipsePath(s.cx, s.cy, s.rx, s.ry);
+  } else {
+    sp = polygonSubpath(s);
   }
   const out: PathShape = {
     kind: "path",
