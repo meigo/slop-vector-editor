@@ -150,7 +150,8 @@ every user-visible change.
 
 ## Current state
 
-Milestone 2c (live polygons) — see CHANGELOG. Next is milestone 3: layers and groups.
+Milestone 2d (UI alignment with slop-animator) — see CHANGELOG. Next is milestone 3a: the layers
+panel and z-order.
 
 ## Roadmap
 
