@@ -1,17 +1,21 @@
 import type { Doc } from "../doc/document";
 import { resolveLayerId } from "../doc/layers";
+import type { NodeRef } from "../doc/path-edit";
 import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
 import { beginGesture, commit, endGesture, newSession, type Session } from "../state/session";
 import type { View } from "../state/viewport";
 import type { Overlay, ToolContext, ToolEvent } from "../tools/tool";
-import { NO_MODS, type Mods } from "../tools/types";
+import { NO_MODS, type Mods, type ToolId } from "../tools/types";
 
 export type FakeState = {
   session: Session;
   selection: readonly string[];
   currentLayerId: string;
   enteredGroupId: string | null;
+  nodeTarget: string | null;
+  nodeSel: readonly NodeRef[];
+  toolId: ToolId;
   overlay: Overlay;
   notices: string[];
   view: View;
@@ -27,6 +31,9 @@ export function fakeContext(
     selection: [],
     currentLayerId: resolveLayerId(doc, null),
     enteredGroupId: null,
+    nodeTarget: null,
+    nodeSel: [],
+    toolId: "select",
     overlay: null,
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
@@ -39,6 +46,18 @@ export function fakeContext(
     enteredGroupId: () => state.enteredGroupId,
     setEnteredGroup: (id) => {
       state.enteredGroupId = id;
+    },
+    nodeTarget: () => state.nodeTarget,
+    setNodeTarget: (id) => {
+      state.nodeTarget = id;
+      state.nodeSel = [];
+    },
+    nodeSel: () => state.nodeSel,
+    setNodeSel: (refs) => {
+      state.nodeSel = refs;
+    },
+    setTool: (id) => {
+      state.toolId = id;
     },
     setSelection: (ids) => {
       state.selection = pruneSelection(state.session.doc, ids);
@@ -64,13 +83,17 @@ export function fakeContext(
   return { ctx, state };
 }
 
+/** Synthetic events are a second apart unless a test says otherwise, so an ordinary click followed
+ *  by a drag is never mistaken for a double tap. */
+let clock = 0;
+
 /** A pointer event at (x, y); the fake view is the identity, so doc = screen. */
 export function ev(
   x: number,
   y: number,
   mods: Partial<Mods> = {},
   pointerType = "mouse",
-  time = 0,
+  time = (clock += 1000),
 ): ToolEvent {
   return { doc: { x, y }, screen: { x, y }, pointerType, mods: { ...NO_MODS, ...mods }, time };
 }

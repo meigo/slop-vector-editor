@@ -1,4 +1,4 @@
-import { createDoc, type Doc, type Style } from "../doc/document";
+import { createDoc, type Doc, type NodeType, type PathShape, type Style } from "../doc/document";
 import {
   convertToPath,
   deleteNodes,
@@ -28,7 +28,14 @@ import {
   setLayerVisible,
 } from "../doc/layers";
 import { groupNodes, ungroupNodes } from "../doc/group";
-import { ancestorIds, findNode, pruneSelection } from "../doc/tree";
+import {
+  closeSubpath,
+  deletePathNodes,
+  movePathNodes,
+  setNodeType,
+  type NodeRef,
+} from "../doc/path-edit";
+import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
@@ -77,6 +84,9 @@ class AppState {
   currentLayerId = $state<string>(resolveLayerId(this.session.doc, null));
   /** The group being worked inside (spec M3b §3). Not saved, not undoable. */
   enteredGroupId = $state<string | null>(null);
+  /** The path being node-edited and the nodes selected in it (spec M4a §2). Not saved, not undoable. */
+  nodeTarget = $state<string | null>(null);
+  nodeSel = $state.raw<readonly NodeRef[]>([]);
   fileName = $state("Untitled.svg");
   view = $state.raw<View>({ x: 0, y: 0, zoom: 1 });
   viewportSize = $state.raw({ w: 0, h: 0 });
@@ -151,6 +161,17 @@ function setSession(s: Session): void {
       app.enteredGroupId = null;
     }
   }
+  if (app.nodeTarget !== null) {
+    const target = findNode(s.doc, app.nodeTarget);
+    const path = target && target.node.kind === "path" ? target.node : null;
+    if (!path || !target?.layer.visible || target?.layer.locked) {
+      app.nodeTarget = null;
+      app.nodeSel = [];
+    } else {
+      const kept = app.nodeSel.filter((r) => (path.subpaths[r.sub]?.nodes.length ?? 0) > r.i);
+      if (kept.length !== app.nodeSel.length) app.nodeSel = kept;
+    }
+  }
 }
 
 export function commitDoc(next: Doc): void {
@@ -187,6 +208,8 @@ export function replaceDocument(
   setSession(newSession(doc, saved));
   app.currentLayerId = resolveLayerId(doc, null);
   app.enteredGroupId = null;
+  app.nodeTarget = null;
+  app.nodeSel = [];
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
@@ -520,9 +543,70 @@ export function setEnteredGroup(id: string | null): void {
   app.enteredGroupId = id;
 }
 
+export function setNodeTarget(id: string | null): void {
+  app.nodeTarget = id;
+  app.nodeSel = [];
+}
+
+export function setNodeSel(refs: readonly NodeRef[]): void {
+  app.nodeSel = refs;
+}
+
+/** The path being node-edited, or null when there isn't one. */
+function targetPath(): PathShape | null {
+  if (app.nodeTarget === null) return null;
+  const found = findNode(app.doc, app.nodeTarget);
+  return found && found.node.kind === "path" ? found.node : null;
+}
+
+export function moveSelectedNodes(dx: number, dy: number): void {
+  cancelActiveGesture();
+  const path = targetPath();
+  if (!path || app.nodeSel.length === 0) return;
+  commitDoc(mapNodes(app.doc, [path.id], () => movePathNodes(path, app.nodeSel, dx, dy)));
+}
+
+export function deleteSelectedNodes(): void {
+  cancelActiveGesture();
+  const path = targetPath();
+  if (!path || app.nodeSel.length === 0) return;
+  const next = deletePathNodes(path, app.nodeSel);
+  if (next === path) return;
+  if (next === null) {
+    commitDoc(deleteNodes(app.doc, [path.id]));
+    app.nodeTarget = null;
+  } else {
+    commitDoc(mapNodes(app.doc, [path.id], () => next));
+  }
+  app.nodeSel = [];
+}
+
+export function setSelectedNodeType(type: NodeType): void {
+  cancelActiveGesture();
+  const path = targetPath();
+  if (!path || app.nodeSel.length === 0) return;
+  commitDoc(mapNodes(app.doc, [path.id], () => setNodeType(path, app.nodeSel, type)));
+}
+
+export function closeTargetSubpath(sub: number): void {
+  cancelActiveGesture();
+  const path = targetPath();
+  if (!path) return;
+  commitDoc(mapNodes(app.doc, [path.id], () => closeSubpath(path, sub)));
+}
+
 /** Escape: leave the group one level at a time, and only then clear the selection. */
 export function clearOrLeaveGroup(): void {
   cancelActiveGesture();
+  if (app.toolId === "node" && app.nodeSel.length > 0) {
+    app.nodeSel = [];
+    return;
+  }
+  if (app.toolId === "node" && app.nodeTarget !== null) {
+    app.nodeTarget = null;
+    setTool("select");
+    return;
+  }
   const entered = app.enteredGroupId;
   if (entered === null) {
     if (app.selection.length > 0) app.selection = [];
