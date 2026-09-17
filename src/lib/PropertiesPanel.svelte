@@ -44,7 +44,7 @@
 </script>
 
 <aside
-  class="flex h-full w-60 shrink-0 flex-col gap-4 overflow-y-auto border-l border-line bg-panel p-3 text-xs"
+  class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3 text-xs"
   aria-label="Properties"
 >
   <h2 class="section-title">
