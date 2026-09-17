@@ -2,10 +2,18 @@ import { describe, expect, it } from "vitest";
 import figma from "../../fixtures/figma-flat.svg?raw";
 import illustrator from "../../fixtures/illustrator-classes.svg?raw";
 import inkscape from "../../fixtures/inkscape-layers.svg?raw";
-import { createDoc, DEFAULT_STYLE, type Doc, type PathShape, type Shape } from "../doc/document";
-import { IDENTITY } from "../geom/mat";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  type Doc,
+  type PathShape,
+  type PolygonShape,
+  type Shape,
+} from "../doc/document";
+import { IDENTITY, rotateAbout } from "../geom/mat";
 import { rectPath } from "../geom/shapes";
-import { parseSvg, SvgError } from "../svg/parse";
+import { parsePolygonAttr, parseSvg, SvgError } from "../svg/parse";
+import { polygonD } from "../svg/attrs";
 import { serializeDoc } from "../svg/serialize";
 import { XmlError } from "../svg/xml";
 import { stripIds } from "./helpers";
@@ -295,5 +303,95 @@ describe("parseSvg — non-finite numbers and invalid artboards", () => {
     const { doc, dropped } = parseSvg(`<svg viewBox="0 0 1e999 10" width="50" height="60"/>`);
     expect(doc.artboard).toEqual({ w: 50, h: 60, background: null });
     expect(dropped).toEqual(["invalid artboard size"]);
+  });
+});
+
+describe("live polygons", () => {
+  const poly: PolygonShape = {
+    kind: "polygon",
+    id: "p",
+    name: "Badge",
+    transform: rotateAbout(0.3, { x: 100, y: 0 }),
+    style: { ...DEFAULT_STYLE, strokeWidth: 2 },
+    cx: 100.1234567,
+    cy: -3,
+    rx: 33.3333333,
+    ry: 12,
+    sides: 7,
+    star: true,
+    innerRatio: 0.37,
+  };
+  const withPoly = (): Doc => {
+    const d = createDoc(300, 200);
+    return { ...d, layers: [{ ...d.layers[0], children: [poly] }] };
+  };
+
+  it("round-trips a polygon byte for byte", () => {
+    const text = serializeDoc(withPoly());
+    const back = parseSvg(text);
+    expect(back.dropped).toEqual([]);
+    const p = back.doc.layers[0].children[0] as PolygonShape;
+    expect(p).toMatchObject({
+      kind: "polygon",
+      name: "Badge",
+      cx: 100.123457,
+      cy: -3,
+      rx: 33.333333,
+      ry: 12,
+      sides: 7,
+      star: true,
+      innerRatio: 0.37,
+    });
+    expect(serializeDoc(back.doc)).toBe(text);
+  });
+
+  it("imports an edited outline as a plain path", () => {
+    const text = serializeDoc(withPoly()).replace(/ d="[^"]*"/, ' d="M0 0 L10 0 L10 10 Z"');
+    const back = parseSvg(text);
+    expect(back.dropped).toEqual([]);
+    const p = back.doc.layers[0].children[0] as PathShape;
+    expect(p.kind).toBe("path");
+    expect(p.subpaths[0].nodes.map((n) => n.p)).toEqual([
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+  });
+
+  it("imports a path with an invalid polygon attribute as a path", () => {
+    const d = polygonD({ cx: 0, cy: 0, rx: 10, ry: 10, sides: 5, star: false, innerRatio: 0.5 });
+    const back = parseSvg(`<svg><path d="${d}" data-sv-polygon="5 0 0.5 0 0 10 -10"/></svg>`);
+    expect(back.doc.layers[0].children[0].kind).toBe("path");
+    expect(back.dropped).toEqual([]);
+  });
+
+  it("validates the polygon attribute", () => {
+    expect(parsePolygonAttr(" 5 1 0.5 1 -2 10 20 ")).toEqual({
+      sides: 5,
+      star: true,
+      innerRatio: 0.5,
+      cx: 1,
+      cy: -2,
+      rx: 10,
+      ry: 20,
+    });
+    for (const bad of [
+      "",
+      "5 0 0.5 0 0 10",
+      "5 0 0.5 0 0 10 10 1",
+      "2 0 0.5 0 0 10 10",
+      "33 0 0.5 0 0 10 10",
+      "5.5 0 0.5 0 0 10 10",
+      "5 2 0.5 0 0 10 10",
+      "5 0 0.05 0 0 10 10",
+      "5 0 0.99 0 0 10 10",
+      "5 0 0.5 2e9 0 10 10",
+      "5 0 0.5 0 0 0 10",
+      "5 0 0.5 0 0 10 2e9",
+      "5 0 0.5 0 0 10 NaN",
+      "5 0 0.5 0 0 10 abc",
+    ]) {
+      expect(parsePolygonAttr(bad), bad).toBeNull();
+    }
   });
 });

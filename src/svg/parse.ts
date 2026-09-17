@@ -2,6 +2,10 @@ import {
   DOC_VERSION,
   idFor,
   isValidArtboardSize,
+  MAX_INNER,
+  MAX_SIDES,
+  MIN_INNER,
+  MIN_SIDES,
   type Doc,
   type Layer,
   type LineCap,
@@ -13,8 +17,10 @@ import {
 } from "../doc/document";
 import { isIdentity, multiply, translate, type Mat } from "../geom/mat";
 import { rectPath } from "../geom/shapes";
+import type { PolygonGeometry } from "../geom/shapes";
 import { parseColor } from "./colors";
 import { applyNodeTypes, parsePathData } from "./pathdata";
+import { polygonD } from "./attrs";
 import { parseTransform } from "./transform";
 import { parseXml, type XmlElement } from "./xml";
 
@@ -68,6 +74,21 @@ const JOINS: readonly string[] = ["miter", "round", "bevel"];
 /** Coordinates and lengths beyond this are rejected like non-finite ones: `fmt` overflows to
  *  "Infinity" well before this, so nothing bigger should ever reach the document. */
 export const MAX_COORD = 1e9;
+
+/** Spec (M2c) §7.2, every rule except the `d` comparison (which the importer does). */
+export function parsePolygonAttr(attr: string): PolygonGeometry | null {
+  const parts = attr.trim().split(/\s+/);
+  if (parts.length !== 7) return null;
+  const v = parts.map(Number);
+  if (v.some((x) => !Number.isFinite(x))) return null;
+  const [sides, star, innerRatio, cx, cy, rx, ry] = v;
+  if (!Number.isInteger(sides) || sides < MIN_SIDES || sides > MAX_SIDES) return null;
+  if (star !== 0 && star !== 1) return null;
+  if (innerRatio < MIN_INNER || innerRatio > MAX_INNER) return null;
+  if (Math.abs(cx) > MAX_COORD || Math.abs(cy) > MAX_COORD) return null;
+  if (!(rx > 0 && ry > 0 && rx <= MAX_COORD && ry <= MAX_COORD)) return null;
+  return { cx, cy, rx, ry, sides, star: star === 1, innerRatio };
+}
 
 function num(v: string | undefined, fallback: number): number {
   if (v === undefined) return fallback;
@@ -269,6 +290,19 @@ export function parseSvg(src: string): ParseResult {
         return pathNode([sp], newId(), label, transform, style(i2, opacity));
       }
       case "path": {
+        // An intact polygon of ours comes back live; anything else stays a path (spec M2c §7.2).
+        const poly =
+          a["data-sv-polygon"] !== undefined ? parsePolygonAttr(a["data-sv-polygon"]) : null;
+        if (poly && polygonD(poly) === (a.d ?? "")) {
+          return {
+            kind: "polygon",
+            id: newId(),
+            name: label,
+            transform,
+            style: style(i2, opacity),
+            ...poly,
+          };
+        }
         let subpaths = parsePathData(a.d ?? "");
         if (a["data-sv-nodes"] !== undefined)
           subpaths = applyNodeTypes(subpaths, a["data-sv-nodes"]);
