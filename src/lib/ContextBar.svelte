@@ -12,9 +12,10 @@
     flattenSelection,
     pasteFromClipboard,
     setPolygonPrefs,
+    setSelectionPolygon,
     setSelectionRectRadius,
   } from "../state/appState.svelte";
-  import { selectionActions } from "../state/properties";
+  import { selectionActions, summarizePolygons } from "../state/properties";
   import { TOOLS } from "../tools/registry";
   import NumberField from "./NumberField.svelte";
 
@@ -29,6 +30,7 @@
   const radius = $derived(
     onlyRects && rects.every((r) => r.rx === rects[0].rx) ? rects[0].rx : null,
   );
+  const polygons = $derived(summarizePolygons(app.doc, app.selection));
   const poly = $derived(app.prefs.polygon);
 </script>
 
@@ -80,6 +82,34 @@
     {/if}
     {#if onlyRects}
       <NumberField label="Radius" value={radius} min={0} onchange={setSelectionRectRadius} />
+    {/if}
+    {#if polygons}
+      <NumberField
+        label="Sides"
+        value={polygons.sides}
+        min={3}
+        max={32}
+        onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
+      />
+      <label class="flex items-center gap-1">
+        <input
+          type="checkbox"
+          checked={polygons.star === true}
+          indeterminate={polygons.star === "mixed"}
+          onchange={(e) => setSelectionPolygon({ star: e.currentTarget.checked })}
+        />
+        Star
+      </label>
+      {#if polygons.anyStar}
+        <NumberField
+          label="Inner"
+          value={polygons.innerRatio === null ? null : Math.round(polygons.innerRatio * 100)}
+          min={10}
+          max={95}
+          suffix="%"
+          onchange={(v) => setSelectionPolygon({ innerRatio: v / 100 })}
+        />
+      {/if}
     {/if}
   {:else}
     {#if app.toolId === "select"}

@@ -4,9 +4,11 @@ import {
   deleteNodes,
   duplicateNodes,
   flattenTransform,
+  setPolygon,
   setRectRadius,
   setStyle,
   translateNodes,
+  type PolygonPatch,
 } from "../doc/edits";
 import { pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
@@ -288,6 +290,11 @@ export function flattenSelection(): void {
 export function setSelectionRectRadius(rx: number): void {
   cancelActiveGesture();
   commitDoc(setRectRadius(app.doc, app.selection, rx));
+}
+
+export function setSelectionPolygon(patch: PolygonPatch): void {
+  cancelActiveGesture();
+  commitDoc(setPolygon(app.doc, app.selection, patch));
 }
 
 /** With nothing selected, style edits change the defaults for new shapes instead. */
