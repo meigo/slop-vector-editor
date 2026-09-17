@@ -84,31 +84,6 @@ export function linePath(a: Vec, b: Vec): Subpath {
   return { closed: false, nodes: [node(a), node(b)] };
 }
 
-export function polygonPath(c: Vec, r: number, sides: number, rotation: number): Subpath {
-  const nodes: PathNode[] = [];
-  for (let i = 0; i < sides; i++) {
-    const t = rotation + (i * 2 * Math.PI) / sides;
-    nodes.push(node({ x: c.x + r * Math.cos(t), y: c.y + r * Math.sin(t) }));
-  }
-  return { closed: true, nodes };
-}
-
-export function starPath(
-  c: Vec,
-  r: number,
-  innerRatio: number,
-  points: number,
-  rotation: number,
-): Subpath {
-  const nodes: PathNode[] = [];
-  for (let i = 0; i < 2 * points; i++) {
-    const t = rotation + (i * Math.PI) / points;
-    const radius = i % 2 === 0 ? r : r * innerRatio;
-    nodes.push(node({ x: c.x + radius * Math.cos(t), y: c.y + radius * Math.sin(t) }));
-  }
-  return { closed: true, nodes };
-}
-
 export type PolygonGeometry = Pick<
   PolygonShape,
   "cx" | "cy" | "rx" | "ry" | "sides" | "star" | "innerRatio"

@@ -10,10 +10,8 @@ import {
   ellipsePath,
   KAPPA,
   linePath,
-  polygonPath,
   polygonSubpath,
   rectPath,
-  starPath,
   toPath,
   transformSubpaths,
 } from "../geom/shapes";
@@ -32,24 +30,6 @@ describe("shape generators", () => {
         { p: { x: 3, y: 4 }, in: null, out: null, type: "corner" },
       ],
     });
-  });
-
-  it("makes a polygon starting at the rotation angle", () => {
-    const sp = polygonPath({ x: 0, y: 0 }, 10, 4, -Math.PI / 2);
-    expect(sp.closed).toBe(true);
-    expect(sp.nodes).toHaveLength(4);
-    closeTo(sp.nodes[0].p, 0, -10);
-    closeTo(sp.nodes[1].p, 10, 0);
-    closeTo(sp.nodes[2].p, 0, 10);
-    closeTo(sp.nodes[3].p, -10, 0);
-  });
-
-  it("makes a star with alternating radii", () => {
-    const sp = starPath({ x: 0, y: 0 }, 10, 0.5, 5, -Math.PI / 2);
-    expect(sp.nodes).toHaveLength(10);
-    closeTo(sp.nodes[0].p, 0, -10);
-    const a = -Math.PI / 2 + Math.PI / 5;
-    closeTo(sp.nodes[1].p, 5 * Math.cos(a), 5 * Math.sin(a));
   });
 
   it("makes an ellipse from four symmetric nodes", () => {

@@ -2,8 +2,8 @@ import type { Doc, Shape, Style } from "../doc/document";
 import { addShape } from "../doc/edits";
 import { targetLayerId } from "../doc/tree";
 import { boxFromPoints, type Box } from "../geom/box";
-import { IDENTITY } from "../geom/mat";
-import { linePath, polygonPath, starPath } from "../geom/shapes";
+import { IDENTITY, rotateAbout } from "../geom/mat";
+import { linePath } from "../geom/shapes";
 import {
   collectTargets,
   hasGuides,
@@ -196,12 +196,22 @@ export function createPolygonTool(): Tool {
     (a, b, mods, prefs) => {
       const r = Math.hypot(b.x - a.x, b.y - a.y);
       if (r === 0) return null;
-      const rotation = mods.shift ? -Math.PI / 2 : Math.atan2(b.y - a.y, b.x - a.x);
+      // Corner 0 points up; turn it towards the pointer unless Shift keeps it upright.
+      const theta = mods.shift ? 0 : Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2;
       const { sides, star, innerRatio } = prefs.polygon;
-      const sp = star
-        ? starPath(a, r, innerRatio, sides, rotation)
-        : polygonPath(a, r, sides, rotation);
-      return { ...base, kind: "path", style: prefs.style, subpaths: [sp] };
+      return {
+        ...base,
+        kind: "polygon",
+        transform: theta === 0 ? IDENTITY : rotateAbout(theta, a),
+        style: prefs.style,
+        cx: a.x,
+        cy: a.y,
+        rx: r,
+        ry: r,
+        sides,
+        star,
+        innerRatio,
+      };
     },
   );
 }
