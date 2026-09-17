@@ -46,6 +46,7 @@
       max={32}
       onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
     />
+    <span class="bar-sep"></span>
     <ToggleButton label="Star" value={poly.star} onchange={(star) => setPolygonPrefs({ star })} />
     {#if poly.star}
       <NumberField
@@ -58,21 +59,29 @@
       />
     {/if}
   {:else if app.selection.length > 0}
-    <span class="text-muted">{app.selection.length} selected</span>
+    <span class="shrink-0 whitespace-nowrap text-muted">{app.selection.length} selected</span>
+    <span class="bar-sep"></span>
     <button class="btn gap-1" onclick={cutToSystem}><Scissors size={14} /> Cut</button>
     <button class="btn gap-1" onclick={copyToSystem}><Copy size={14} /> Copy</button>
     <button class="btn gap-1" onclick={() => void pasteFromClipboard()}>
       <ClipboardPaste size={14} /> Paste
     </button>
+    <span class="bar-sep"></span>
     <button class="btn gap-1" onclick={duplicateSelection}>
       <CopyPlus size={14} /> Duplicate
     </button>
     <button class="btn gap-1" onclick={deleteSelection}><Trash2 size={14} /> Delete</button>
+    {#if actions.canConvert || actions.canFlatten}
+      <span class="bar-sep"></span>
+    {/if}
     {#if actions.canConvert}
       <button class="btn" onclick={convertSelectionToPath}>Convert to path</button>
     {/if}
     {#if actions.canFlatten}
       <button class="btn" onclick={flattenSelection}>Flatten transform</button>
+    {/if}
+    {#if onlyRects || polygons}
+      <span class="bar-sep"></span>
     {/if}
     {#if onlyRects}
       <NumberField label="Radius" value={radius} min={0} onchange={setSelectionRectRadius} />

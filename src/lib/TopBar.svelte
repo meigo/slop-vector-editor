@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Maximize, Menu, Redo2, SlidersHorizontal, Undo2, ZoomIn, ZoomOut } from "@lucide/svelte";
+  import { Maximize, Redo2, SlidersHorizontal, Undo2, ZoomIn, ZoomOut } from "@lucide/svelte";
   import { app, type DialogKind } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
@@ -19,15 +19,20 @@
   }
 </script>
 
-<header class="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-panel px-2 text-xs">
+<header
+  class="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-panel px-2 text-xs"
+>
   <div class="relative">
     <button
-      class="icon-btn"
-      aria-label="File menu"
+      class={[
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        menuOpen && "ui-on",
+      ]}
+      aria-haspopup="menu"
       aria-expanded={menuOpen}
       onclick={() => (menuOpen = !menuOpen)}
     >
-      <Menu size={18} />
+      File<span class="text-[10px] opacity-70">▾</span>
     </button>
     {#if menuOpen}
       <button
@@ -58,11 +63,16 @@
     {/if}
   </div>
 
-  <span class="ml-1 min-w-0 truncate" title={app.fileName}>
-    {app.fileName}{#if app.dirty}<span class="text-warn" aria-label="unsaved changes"> ●</span>{/if}
+  <!-- Unsaved = recoloured name, never an inserted glyph (guide §5: state must not move layout). -->
+  <span
+    class={["ml-1 min-w-0 truncate", app.dirty && "text-accent"]}
+    title={app.fileName}
+    aria-label={app.dirty ? `${app.fileName}, unsaved changes` : app.fileName}
+  >
+    {app.fileName}
   </span>
 
-  <div class="ml-auto flex items-center gap-1">
+  <div class="ml-auto flex shrink-0 items-center gap-1">
     <button
       class="icon-btn min-[900px]:hidden"
       aria-label="Properties"
@@ -72,6 +82,7 @@
     >
       <SlidersHorizontal size={18} />
     </button>
+    <span class="bar-sep min-[900px]:hidden"></span>
     <button
       class="icon-btn"
       aria-label="Undo"
@@ -90,7 +101,7 @@
     >
       <Redo2 size={18} />
     </button>
-    <span class="mx-1 h-5 w-px bg-line"></span>
+    <span class="bar-sep"></span>
     <button
       class="icon-btn"
       aria-label="Zoom out"
@@ -100,7 +111,7 @@
       <ZoomOut size={18} />
     </button>
     <button
-      class="h-8 w-14 rounded text-center tabular-nums hover:bg-raised"
+      class="h-8 w-14 shrink-0 rounded text-center tabular-nums hover:bg-raised"
       title="Zoom to 100% ({mod}1)"
       onclick={() => command("zoom100")}
     >
