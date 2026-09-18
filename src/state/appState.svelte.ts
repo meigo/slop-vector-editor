@@ -142,6 +142,20 @@ export function cancelActiveGesture(): void {
   fn?.();
 }
 
+/** Set once by `tools/context.ts`: drops the active tool's draft without committing it (spec M4b
+ *  §2). A draft is not a registered gesture, so `cancelActiveGesture` deliberately doesn't reach
+ *  it; only the three store paths that replace the whole document do. */
+let toolDiscard: (() => void) | null = null;
+
+export function registerToolDiscard(fn: (() => void) | null): void {
+  toolDiscard = fn;
+}
+
+/** A draft is built on a document that these paths throw away, so it can't be committed after. */
+function discardToolDraft(): void {
+  toolDiscard?.();
+}
+
 /** Every session change goes through here, so the selection never names a node that is gone,
  *  hidden or locked. */
 function setSession(s: Session): void {
@@ -188,11 +202,13 @@ export function endDocGesture(): void {
 
 export function undo(): void {
   cancelActiveGesture();
+  discardToolDraft();
   setSession(undoSession(app.session));
 }
 
 export function redo(): void {
   cancelActiveGesture();
+  discardToolDraft();
   setSession(redoSession(app.session));
 }
 
@@ -203,6 +219,7 @@ export function replaceDocument(
   saved: boolean,
 ): void {
   cancelActiveGesture();
+  discardToolDraft();
   app.selection = [];
   app.overlay = null;
   setSession(newSession(doc, saved));

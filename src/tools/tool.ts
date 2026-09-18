@@ -61,7 +61,11 @@ export interface Tool {
   keydown?(ctx: ToolContext, key: "escape" | "enter" | "backspace"): boolean;
   /** Whether a gesture or draft is in progress — the store asks before routing those keys. */
   busy?(): boolean;
-  /** Pointer movement with no button down. The canvas calls it when no gesture is running. */
+  /** Drop an in-progress draft without committing it, and clear the overlay. The store calls this
+   *  when the whole document changes under the draft: replace, undo, redo. */
+  discard?(ctx: ToolContext): void;
+  /** Pointer movement the canvas reports while no gesture is running — usually a plain hover, but
+   *  also a held right-button drag or a pointer the router ignored. */
   hover?(ctx: ToolContext, e: ToolEvent): void;
 }
 

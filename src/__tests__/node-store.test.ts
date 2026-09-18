@@ -15,6 +15,7 @@ import {
   commitDoc,
   deleteSelectedNodes,
   nudgeSelection,
+  redo,
   replaceDocument,
   setEnteredGroup,
   setNodeSel,
@@ -23,6 +24,7 @@ import {
   setTool,
   toggleLayerLocked,
   toggleLayerVisible,
+  undo,
 } from "../state/appState.svelte";
 import { runEditAction } from "../state/commands";
 import { TOOLS } from "../tools/registry";
@@ -297,6 +299,37 @@ describe("keys reach the active tool", () => {
     setSelection(["r"]);
     runEditAction({ kind: "commit" });
     expect(app.selection).toEqual(["r"]);
+  });
+
+  it("reports whether Enter was consumed, so App.svelte only cancels a key it used", () => {
+    // Enter with no busy tool must keep activating the focused button.
+    expect(runEditAction({ kind: "commit" })).toBe(false);
+    const stub: Tool = { ...TOOLS.select, busy: () => true, keydown: () => true };
+    withStub(stub, () => {
+      expect(runEditAction({ kind: "commit" })).toBe(true);
+    });
+    // Every other editing key is the app's own.
+    expect(runEditAction({ kind: "clear" })).toBe(true);
+    expect(runEditAction({ kind: "toggleSnap" })).toBe(true);
+    runEditAction({ kind: "toggleSnap" });
+  });
+
+  it("drops a tool's draft when the whole document changes", () => {
+    const dropped: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      discard: () => {
+        dropped.push(app.toolId);
+      },
+    };
+    withStub(stub, () => {
+      replaceDocument(makeDoc(), "Untitled.svg", null, true);
+      undo();
+      redo();
+    });
+    // A draft was built on a document all three of these throw away (spec M4b §2).
+    expect(dropped).toEqual(["select", "select", "select"]);
   });
 });
 

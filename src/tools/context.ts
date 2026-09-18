@@ -4,6 +4,7 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  registerToolDiscard,
   registerToolFinish,
   setEnteredGroup,
   setNodeSel,
@@ -42,4 +43,10 @@ export const storeContext: ToolContext = {
 registerToolFinish(() => {
   const tool = TOOLS[app.toolId];
   if (tool.busy?.()) tool.keydown?.(storeContext, "enter");
+});
+
+// A draft built on a document the store is about to throw away is dropped, not committed into the
+// new one (spec M4b §2).
+registerToolDiscard(() => {
+  TOOLS[app.toolId].discard?.(storeContext);
 });
