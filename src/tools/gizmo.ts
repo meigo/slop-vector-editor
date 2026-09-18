@@ -22,10 +22,31 @@ export function handleFramePoint(h: ResizeHandle, b: Box): Vec {
   return { x, y };
 }
 
-export function handlePositions(f: Frame, view: View): Record<Handle, Vec> {
+/** A handle's reach from its centre — the same 6/10px `handleAt` uses. */
+const reachOf = (size: number) => size / 2 + 2;
+
+/** Spec (M5) §3: an object shorter than three reaches is covered by its own handles, so every press
+ *  resizes it and none moves it. The box is expanded on screen — symmetrically, so the centre and
+ *  therefore the resize maths are unchanged — and only for an axis that has a size at all: a zero
+ *  axis keeps its handles coincident, which is what leaves a line draggable by its middle. */
+function padBox(box: Box, zoom: number, size: number): Box {
+  const span = 3 * reachOf(size);
+  const grow = (v: number, len: number): [number, number] => {
+    const abs = Math.abs(len);
+    if (abs === 0 || abs * zoom >= span) return [v, len];
+    const d = ((span / zoom - abs) / 2) * (len < 0 ? -1 : 1);
+    return [v - d, len + 2 * d];
+  };
+  const [x, w] = grow(box.x, box.w);
+  const [y, h] = grow(box.y, box.h);
+  return { x, y, w, h };
+}
+
+export function handlePositions(f: Frame, view: View, size?: number): Record<Handle, Vec> {
+  const box = size === undefined ? f.box : padBox(f.box, view.zoom, size);
   const out = {} as Record<Handle, Vec>;
   for (const h of RESIZE_HANDLES)
-    out[h] = docToScreen(view, frameToDoc(f, handleFramePoint(h, f.box)));
+    out[h] = docToScreen(view, frameToDoc(f, handleFramePoint(h, box)));
   out.rotate = {
     x: out.n.x + ROTATE_OFFSET * Math.sin(f.angle),
     y: out.n.y - ROTATE_OFFSET * Math.cos(f.angle),
@@ -51,8 +72,8 @@ export function activeHandles(f: Frame): readonly ResizeHandle[] {
 }
 
 export function handleAt(f: Frame, view: View, screen: Vec, size: number): Handle | null {
-  const pos = handlePositions(f, view);
-  const reach = size / 2 + 2;
+  const pos = handlePositions(f, view, size);
+  const reach = reachOf(size);
   const active: readonly Handle[] = activeHandles(f);
   for (const h of PRIORITY) {
     if (h !== "rotate" && !active.includes(h)) continue;

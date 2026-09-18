@@ -30,8 +30,8 @@
     app.enteredGroupId === null ? null : selectionFrame(app.doc, [app.enteredGroupId]),
   );
   const enteredOutline = $derived(entered ? frameOutline(entered, view) : null);
-  const handles = $derived(frame ? handlePositions(frame, view) : null);
   const size = $derived(handleSize(app.lastPointerType));
+  const handles = $derived(frame ? handlePositions(frame, view, size) : null);
   const marquee = $derived(app.overlay?.kind === "marquee" ? app.overlay.box : null);
   const marqueeA = $derived(marquee ? docToScreen(view, { x: marquee.x, y: marquee.y }) : null);
   const marqueeB = $derived(
