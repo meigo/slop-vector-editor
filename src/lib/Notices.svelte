@@ -3,7 +3,12 @@
   import { app, dismissNotice } from "../state/appState.svelte";
 </script>
 
-<div class="pointer-events-none fixed right-3 bottom-10 z-40 flex max-w-sm flex-col gap-2">
+<div
+  class={[
+    "pointer-events-none fixed bottom-10 z-40 flex max-w-sm flex-col gap-2",
+    app.propertiesOpen ? "right-3 max-[900px]:right-63" : "right-3",
+  ]}
+>
   {#each app.notices as n (n.id)}
     <div
       class="pointer-events-auto flex items-start gap-2 rounded border bg-panel px-3 py-2 text-xs shadow-lg"

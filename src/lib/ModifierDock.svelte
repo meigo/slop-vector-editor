@@ -28,12 +28,16 @@
 </script>
 
 <div
-  class="absolute right-3 bottom-3 z-10 flex gap-1 rounded-lg border border-line bg-panel p-1 shadow-lg"
+  class={[
+    "absolute bottom-3 z-10 flex gap-1 rounded-lg border border-line bg-panel p-1 shadow-lg",
+    app.propertiesOpen ? "right-3 max-[900px]:right-63" : "right-3",
+  ]}
   role="toolbar"
   aria-label="Modifier keys"
 >
   <button
     class={["h-10 w-14 rounded border border-line text-xs select-none", app.prefs.snap && "ui-on"]}
+    style="touch-action: none"
     aria-pressed={app.prefs.snap}
     title="Snap to the artboard and objects (%)"
     onclick={toggleSnap}
