@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { Circle, Hand, MousePointer2, Pentagon, Slash, Spline, Square } from "@lucide/svelte";
+  import {
+    Circle,
+    Hand,
+    MousePointer2,
+    Pentagon,
+    PenTool,
+    Slash,
+    Spline,
+    Square,
+  } from "@lucide/svelte";
   import { app, setTool } from "../state/appState.svelte";
   import type { ToolId } from "../tools/types";
 
@@ -9,6 +18,7 @@
     { id: "ellipse", label: "Ellipse", key: "E", icon: Circle },
     { id: "line", label: "Line", key: "L", icon: Slash },
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
+    { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "node", label: "Edit nodes", key: "N", icon: Spline },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];

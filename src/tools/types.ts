@@ -1,4 +1,4 @@
-export type ToolId = "select" | "rect" | "ellipse" | "line" | "polygon" | "node" | "hand";
+export type ToolId = "select" | "rect" | "ellipse" | "line" | "polygon" | "pen" | "node" | "hand";
 
 /** Modifier state for tools: physical keys combined with the on-screen modifier dock. */
 export type Mods = { shift: boolean; alt: boolean };

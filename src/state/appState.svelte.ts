@@ -290,8 +290,17 @@ export function setCurrentLayer(id: string): void {
   app.currentLayerId = resolveLayerId(app.doc, id);
 }
 
+/** Set once by `tools/context.ts`: finishes a tool that still holds a draft (spec M4b §3). The
+ *  store can't import the registry itself without a cycle through the tool context. */
+let finishActiveTool: (() => void) | null = null;
+
+export function registerToolFinish(fn: (() => void) | null): void {
+  finishActiveTool = fn;
+}
+
 export function setTool(id: ToolId): void {
   if (app.toolId === id) return;
+  finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
 }

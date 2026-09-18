@@ -4,6 +4,7 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  registerToolFinish,
   setEnteredGroup,
   setNodeSel,
   setNodeTarget,
@@ -11,6 +12,7 @@ import {
   setSelection,
   setTool,
 } from "../state/appState.svelte";
+import { TOOLS } from "./registry";
 import type { ToolContext } from "./tool";
 
 /** The real ToolContext: tools reach the store only through this object. */
@@ -35,3 +37,9 @@ export const storeContext: ToolContext = {
   notify,
   setOverlay,
 };
+
+// A tool that still holds a draft finishes when the user picks another tool (spec M4b §3).
+registerToolFinish(() => {
+  const tool = TOOLS[app.toolId];
+  if (tool.busy?.()) tool.keydown?.(storeContext, "enter");
+});

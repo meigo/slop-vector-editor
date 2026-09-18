@@ -56,6 +56,7 @@ const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   e: "ellipse",
   l: "line",
   y: "polygon",
+  p: "pen",
   n: "node",
   h: "hand",
 };

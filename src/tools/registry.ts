@@ -1,4 +1,5 @@
 import { createNodeTool } from "./node-tool";
+import { createPenTool } from "./pen";
 import { createSelectTool } from "./select";
 import {
   createEllipseTool,
@@ -17,6 +18,7 @@ export const TOOLS: Readonly<Record<ToolId, Tool>> = {
   ellipse: createEllipseTool(),
   line: createLineTool(),
   polygon: createPolygonTool(),
+  pen: createPenTool(),
   node: createNodeTool(),
   hand: createHandTool(),
 };
