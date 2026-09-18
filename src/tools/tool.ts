@@ -10,7 +10,17 @@ export type ToolEvent = { doc: Vec; screen: Vec; pointerType: string; mods: Mods
 
 /** Transient drawing that is not part of the document (doc-space coordinates). */
 export type Overlay =
-  { kind: "marquee"; box: Box } | { kind: "guides"; xs: number[]; ys: number[] } | null;
+  | { kind: "marquee"; box: Box }
+  | { kind: "guides"; xs: number[]; ys: number[] }
+  | {
+      kind: "pen";
+      /** Document-space polylines of the draft's outline. */
+      outline: Vec[][];
+      knobs: Vec[];
+      handles: { a: Vec; b: Vec }[];
+      rubber: { a: Vec; b: Vec } | null;
+    }
+  | null;
 
 /** Everything a tool may read or change. The app binds it to the store; tests use a fake. */
 export interface ToolContext {
@@ -47,6 +57,12 @@ export interface Tool {
   move(ctx: ToolContext, e: ToolEvent): void;
   up(ctx: ToolContext, e: ToolEvent): void;
   cancel(ctx: ToolContext): void;
+  /** True when the tool consumed the key; the store then does nothing else. */
+  keydown?(ctx: ToolContext, key: "escape" | "enter" | "backspace"): boolean;
+  /** Whether a gesture or draft is in progress — the store asks before routing those keys. */
+  busy?(): boolean;
+  /** Pointer movement with no button down. The canvas calls it when no gesture is running. */
+  hover?(ctx: ToolContext, e: ToolEvent): void;
 }
 
 export const MIN_DRAG_PX = 2;

@@ -142,6 +142,7 @@
   function onpointermove(e: PointerEvent) {
     const p = local(e);
     oncursor(screenToDoc(app.view, p));
+    if (!gesture) TOOLS[app.toolId].hover?.(storeContext, toolEvent(e));
     const prev = pointers.get(e.pointerId);
     if (!prev || !gesture) return;
     if (gesture.kind === "pinch") {

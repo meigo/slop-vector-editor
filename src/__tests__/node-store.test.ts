@@ -25,6 +25,8 @@ import {
   toggleLayerVisible,
 } from "../state/appState.svelte";
 import { runEditAction } from "../state/commands";
+import { TOOLS } from "../tools/registry";
+import type { Tool } from "../tools/tool";
 
 /** Real-store coverage for the M4a node-editing state: `setSession`'s node re-resolution, the
  *  Escape chain, `runEditAction`'s routing, and `deleteSelectedNodes`. Drives the store through
@@ -238,6 +240,63 @@ describe("runEditAction routing", () => {
       x: 41,
       y: 42,
     });
+  });
+});
+
+describe("keys reach the active tool", () => {
+  /** Swaps the registry's select entry for a stub, so the store's routing can be driven directly. */
+  function withStub(stub: Tool, run: () => void): void {
+    const registry = TOOLS as Record<string, Tool>;
+    const original = registry.select;
+    registry.select = stub;
+    try {
+      run();
+    } finally {
+      registry.select = original;
+    }
+  }
+
+  it("lets a busy tool consume Escape, Enter and Backspace", () => {
+    const seen: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      keydown: (_ctx, key) => {
+        seen.push(key);
+        return true;
+      },
+    };
+    withStub(stub, () => {
+      setNodeTarget("p");
+      setNodeSel([{ sub: 0, i: 0 }]);
+      setEnteredGroup(null);
+      runEditAction({ kind: "clear" });
+      runEditAction({ kind: "commit" });
+      runEditAction({ kind: "delete" });
+    });
+    expect(seen).toEqual(["escape", "enter", "backspace"]);
+    // Nothing else ran: the node target and its selection are untouched.
+    expect(app.nodeTarget).toBe("p");
+    expect(app.nodeSel).toEqual([{ sub: 0, i: 0 }]);
+  });
+
+  it("falls through to the store when the tool is not busy", () => {
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => false,
+      keydown: () => true,
+    };
+    withStub(stub, () => {
+      setSelection(["r"]);
+      runEditAction({ kind: "delete" });
+    });
+    expect(findNode(app.doc, "r")).toBeNull();
+  });
+
+  it("ignores commit for a tool with no keydown", () => {
+    setSelection(["r"]);
+    runEditAction({ kind: "commit" });
+    expect(app.selection).toEqual(["r"]);
   });
 });
 

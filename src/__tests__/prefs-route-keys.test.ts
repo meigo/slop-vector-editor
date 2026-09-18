@@ -195,6 +195,11 @@ describe("editActionForKey", () => {
     expect(k("g", { ctrlKey: true })).toEqual({ kind: "group" });
     expect(k("g")).toBeNull();
   });
+
+  it("maps Enter to commit", () => {
+    expect(k("Enter")).toEqual({ kind: "commit" });
+    expect(k("Enter", { metaKey: true })).toBeNull();
+  });
 });
 
 describe("watchOtherTabs", () => {

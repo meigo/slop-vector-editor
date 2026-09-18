@@ -1,4 +1,6 @@
 import { openDocument, saveDocument } from "../persist/project-io";
+import { storeContext } from "../tools/context";
+import { TOOLS } from "../tools/registry";
 import {
   app,
   bringSelectionForward,
@@ -24,6 +26,12 @@ import {
 import type { Command, EditAction } from "./keys";
 
 export const ZOOM_STEP = 1.25;
+
+/** Keys the active tool may consume while it has a gesture or draft in progress (spec M4b §8). */
+function toolTook(key: "escape" | "enter" | "backspace"): boolean {
+  const tool = TOOLS[app.toolId];
+  return tool.busy?.() === true && tool.keydown?.(storeContext, key) === true;
+}
 
 /** One place that maps a command to its action, shared by keyboard and buttons. */
 export function runCommand(cmd: Command): void {
@@ -57,13 +65,17 @@ export function runEditAction(a: EditAction): void {
     case "tool":
       return setTool(a.tool);
     case "delete":
+      if (toolTook("backspace")) return;
       return app.toolId === "node" && app.nodeSel.length > 0
         ? deleteSelectedNodes()
         : deleteSelection();
     case "duplicate":
       return duplicateSelection();
     case "clear":
-      return clearOrLeaveGroup();
+      return toolTook("escape") ? undefined : clearOrLeaveGroup();
+    case "commit":
+      toolTook("enter");
+      return;
     case "nudge":
       return app.toolId === "node" && app.nodeSel.length > 0
         ? moveSelectedNodes(a.dx, a.dy)
