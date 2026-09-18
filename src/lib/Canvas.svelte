@@ -116,9 +116,13 @@
     if (route === "menu") return;
     // A Pencil that took over from fingers: their pan or pinch stops here. Both only moved the
     // view, so there is nothing to roll back, and the fingers stay down but do nothing until they
-    // lift (`gesture` no longer names them).
-    if (gesture && route !== "pinch") {
-      if (gesture.kind === "tool") {
+    // lift (`gesture` no longer names them). The test is on the tracked pointers, not on
+    // `gesture`: a gesture can already be null while fingers are still down (a tool drag cancelled
+    // from the store, e.g. by tapping Undo mid-drag), and those fingers must be forgotten too. The
+    // new pointer is not tracked yet at this line, and routing only lets a pointer through with
+    // others already down via the Pencil takeover, so this states the takeover condition directly.
+    if (pointers.size > 0 && route !== "pinch") {
+      if (gesture?.kind === "tool") {
         gesture.tool.cancel(storeContext);
         registerGestureCancel(null);
       }
@@ -167,7 +171,11 @@
     const p = local(e);
     oncursor(screenToDoc(app.view, p));
     if (!gesture) TOOLS[app.toolId].hover?.(storeContext, toolEvent(e));
+    // A tracked pointer keeps its position current even when no gesture owns it. Otherwise a
+    // finger whose gesture was cancelled from the store freezes at its last coordinate, and the
+    // next finger to land anchors a pinch on that stale point, jumping the view.
     const prev = pointers.get(e.pointerId);
+    if (prev !== undefined) pointers.set(e.pointerId, p);
     if (!prev || !gesture) return;
     if (gesture.kind === "pinch") {
       // Pinch with the first two pointers; any further finger is ignored.
@@ -180,7 +188,6 @@
       if (gesture.kind === "pan") setView(panBy(app.view, p.x - prev.x, p.y - prev.y));
       else gesture.tool.move(storeContext, toolEvent(e));
     }
-    pointers.set(e.pointerId, p);
   }
 
   function endPointer(e: PointerEvent, cancelled: boolean) {

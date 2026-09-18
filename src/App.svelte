@@ -122,8 +122,13 @@
     app.hoverHint = hintFrom(e.target as Element | null, e.pointerType);
   }
 
+  /** Only a mouse leaving the window clears the hint. A direct pointer (touch, and pen on iPad)
+   *  gets a `pointerout` with a null `relatedTarget` the instant it lifts — the pointer has ceased
+   *  to exist — so clearing on that would erase the press hint a moment after it was set. A touch
+   *  or pen hint therefore stands until the next press replaces it (spec M5 §5, invariant 24),
+   *  including after a hovering Pencil is lifted off the glass. */
   function onpointerout(e: PointerEvent) {
-    if (!e.relatedTarget) app.hoverHint = null;
+    if (e.pointerType === "mouse" && !e.relatedTarget) app.hoverHint = null;
   }
 
   /** A device with no hover gets its hints from a press instead (spec M5 §5). A mouse clears the
