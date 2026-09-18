@@ -123,6 +123,12 @@
         registerGestureCancel(null);
       }
       gesture = null;
+      // Forget the pointers that were superseded. They are still physically down, but they must
+      // stop counting toward activeTouches — otherwise a finger arriving after the Pencil lifts
+      // re-anchors a pinch on their last-known position, which froze when the gesture ended.
+      // `endPointer` ignores an untracked pointer, so their eventual pointerup is harmless.
+      pointers.clear();
+      pointerTypes.clear();
     }
     // No native text selection or drag; keep keyboard shortcuts working after a click here.
     e.preventDefault();
