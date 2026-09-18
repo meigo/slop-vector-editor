@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_STYLE,
   type EllipseShape,
+  type PathNode,
   type PolygonShape,
   type RectShape,
 } from "../doc/document";
@@ -10,6 +11,7 @@ import {
   ellipsePath,
   KAPPA,
   linePath,
+  mergeCoincident,
   polygonSubpath,
   rectPath,
   toPath,
@@ -62,6 +64,25 @@ describe("shape generators", () => {
     expect(sp.nodes[0].p).toEqual({ x: 110, y: 0 });
     expect(sp.nodes[0].out).toEqual({ x: 110, y: 5 * KAPPA });
     expect(sp.closed).toBe(true);
+  });
+});
+
+describe("coincident node merging", () => {
+  const at = (x: number, y: number): PathNode => ({
+    p: { x, y },
+    in: null,
+    out: null,
+    type: "corner",
+  });
+
+  it("merges nodes a rounding step apart", () => {
+    const nodes = [at(0, 0), at(10, 0), at(4e-7, 3e-7)];
+    expect(mergeCoincident(nodes)).toHaveLength(2);
+    expect(mergeCoincident([at(0, 0), at(10, 0), at(0.001, 0)])).toHaveLength(3);
+  });
+
+  it("still merges a rect whose radius is half its side", () => {
+    expect(rectPath(0, 0, 10, 10, 5, 5).nodes).toHaveLength(4);
   });
 });
 

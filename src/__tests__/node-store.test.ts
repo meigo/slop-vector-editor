@@ -15,6 +15,7 @@ import {
   commitDoc,
   deleteSelectedNodes,
   nudgeSelection,
+  redo,
   replaceDocument,
   setEnteredGroup,
   setNodeSel,
@@ -23,8 +24,11 @@ import {
   setTool,
   toggleLayerLocked,
   toggleLayerVisible,
+  undo,
 } from "../state/appState.svelte";
 import { runEditAction } from "../state/commands";
+import { TOOLS } from "../tools/registry";
+import type { Tool } from "../tools/tool";
 
 /** Real-store coverage for the M4a node-editing state: `setSession`'s node re-resolution, the
  *  Escape chain, `runEditAction`'s routing, and `deleteSelectedNodes`. Drives the store through
@@ -238,6 +242,116 @@ describe("runEditAction routing", () => {
       x: 41,
       y: 42,
     });
+  });
+});
+
+describe("keys reach the active tool", () => {
+  /** Swaps the registry's select entry for a stub, so the store's routing can be driven directly. */
+  function withStub(stub: Tool, run: () => void): void {
+    const registry = TOOLS as Record<string, Tool>;
+    const original = registry.select;
+    registry.select = stub;
+    try {
+      run();
+    } finally {
+      registry.select = original;
+    }
+  }
+
+  it("lets a busy tool consume Escape, Enter and Backspace", () => {
+    const seen: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      keydown: (_ctx, key) => {
+        seen.push(key);
+        return true;
+      },
+    };
+    withStub(stub, () => {
+      setNodeTarget("p");
+      setNodeSel([{ sub: 0, i: 0 }]);
+      setEnteredGroup(null);
+      runEditAction({ kind: "clear" });
+      runEditAction({ kind: "commit" });
+      runEditAction({ kind: "delete" });
+    });
+    expect(seen).toEqual(["escape", "enter", "backspace"]);
+    // Nothing else ran: the node target and its selection are untouched.
+    expect(app.nodeTarget).toBe("p");
+    expect(app.nodeSel).toEqual([{ sub: 0, i: 0 }]);
+  });
+
+  it("falls through to the store when the tool is not busy", () => {
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => false,
+      keydown: () => true,
+    };
+    withStub(stub, () => {
+      setSelection(["r"]);
+      runEditAction({ kind: "delete" });
+    });
+    expect(findNode(app.doc, "r")).toBeNull();
+  });
+
+  it("ignores commit for a tool with no keydown", () => {
+    setSelection(["r"]);
+    runEditAction({ kind: "commit" });
+    expect(app.selection).toEqual(["r"]);
+  });
+
+  it("reports whether Enter was consumed, so App.svelte only cancels a key it used", () => {
+    // Enter with no busy tool must keep activating the focused button.
+    expect(runEditAction({ kind: "commit" })).toBe(false);
+    const stub: Tool = { ...TOOLS.select, busy: () => true, keydown: () => true };
+    withStub(stub, () => {
+      expect(runEditAction({ kind: "commit" })).toBe(true);
+    });
+    // Every other editing key is the app's own.
+    expect(runEditAction({ kind: "clear" })).toBe(true);
+    expect(runEditAction({ kind: "toggleSnap" })).toBe(true);
+    runEditAction({ kind: "toggleSnap" });
+  });
+
+  it("drops a tool's draft when the whole document changes", () => {
+    const dropped: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      discard: () => {
+        dropped.push(app.toolId);
+      },
+    };
+    withStub(stub, () => {
+      replaceDocument(makeDoc(), "Untitled.svg", null, true);
+      setSelection(["r"]);
+      runEditAction({ kind: "delete" });
+      undo();
+      redo();
+    });
+    // A draft was built on a document all three of these throw away (spec M4b §2).
+    expect(dropped).toEqual(["select", "select", "select"]);
+  });
+
+  it("keeps the draft when there is nothing to undo or redo", () => {
+    const dropped: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      discard: () => {
+        dropped.push(app.toolId);
+      },
+    };
+    withStub(stub, () => {
+      replaceDocument(makeDoc(), "Untitled.svg", null, true);
+      dropped.length = 0;
+      // Both stacks are empty, so neither key changes the document — and a stroke in progress is
+      // not a thing to throw away.
+      undo();
+      redo();
+    });
+    expect(dropped).toEqual([]);
   });
 });
 

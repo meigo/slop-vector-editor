@@ -375,3 +375,117 @@
 - Owed: iPad (dragging nodes and handles with a finger, double-tap to add or cycle), Safari/Firefox,
   the pen tool (milestone 4b), and a path inside a group contributes no snap targets —
   `collectTargets` still walks only top-level nodes (a pre-existing limitation, now more visible).
+
+## 2026-09-18 — Milestone 4b: the pen tool
+
+- The Pen tool (P): draws a path node by node. A click places a corner node; a click-drag places a
+  node and pulls its handles, `out` following the pointer and `in` mirrored, so the stroke curves on
+  both sides of the node; Alt during the drag breaks the mirror, moving only `out` and leaving the
+  node a corner. Shift constrains the next node to 45° steps from the previous one; snapping (when
+  Snap is on) applies to placed points, including other paths' nodes, the same targets the other
+  tools use.
+- Clicking the draft's first node closes the path and finishes; Enter or a double-click finishes an
+  open one. Backspace removes the last placed node without touching the document. Escape discards
+  the whole draft — a new path is never created, and a resumed path is left exactly as it was.
+- Resuming an open path: with no draft, a press near either end of an open path continues it instead
+  of starting a new one. Starting from the path's first node reverses the subpath first
+  (`reverseSubpath`), so drawing always appends; clicking the far end closes the path and finishes.
+  A closed path has no ends and can't be resumed.
+- **The path being drawn never enters the document.** The pen keeps a draft (nodes, the path's own
+  matrix, the layer a new path will land in) and shows it in the overlay; the document is touched
+  once, on finish. This is what keeps a one- or two-node-short draft out of the file and gives a
+  whole stroke a single undo step. It also means the pen's `cancel()` keeps the draft instead of
+  rolling it back, unlike every other tool: a lost press (palm, pointer capture) should not cost a
+  half-drawn path, so only Escape, a finish or a tool change ends a stroke.
+- A blocked current layer (hidden or locked) refuses the first press of a stroke with the same
+  message the other draw tools use; a stroke already running is unaffected by a later layer change,
+  since it commits against the document as it is at finish time.
+- Two pure edits in `src/doc/path-edit.ts`: `appendNode` (refuses a closed subpath or an unknown
+  index) and `reverseSubpath` (swaps each node's handles and order; applying it twice is the
+  identity). `mergeCoincident` (`src/geom/shapes.ts`) moved from exact float equality to the same
+  1e-6 tolerance as the writer's rounding, so a pen-drawn path that's later converted to a shape
+  doesn't fail to merge a coincident corner; `rectPath`'s existing half-side-radius merge is
+  unchanged.
+- `Tool` gained three optional hooks: `keydown(ctx, "escape" | "enter" | "backspace")` (true if the
+  tool consumed the key), `busy()` (a draft or gesture is in progress), and `hover(ctx, e)` (pointer
+  movement with no button down). `runEditAction` asks the active tool for `clear`/`commit`/`delete`
+  before its own handling; `Canvas.svelte` calls `hover` from the pointer tracking it already had,
+  but only when no gesture is running. Only the pen implements any of the three — `hover` is what
+  drives the rubber band between clicks.
+- Not in the spec, added during review: the double-click that finishes a path also requires the
+  second press to land within pointer tolerance of the first, not merely inside the double-click
+  timing window. Without that check, placing nodes quickly could end a stroke by accident.
+- Plan: `docs/superpowers/plans/2026-09-18-m4b-pen-tool.md`.
+- Browser-verified (controller, Chrome, port 5198, fresh 400×300 document): a three-click straight
+  path finishing with Enter (3 nodes, one undo step, `prefs.style`, selected); click-drag curves
+  with exactly mirrored handles; the dashed rubber band following the pointer between clicks;
+  closing by clicking the first node (3 nodes, no repeated node); finishing with Enter and with a
+  double-click; Backspace taking a draft from 3 knobs to 2 without touching the document; Escape
+  leaving the document at the same reference; Shift holding a point on the previous node's axis; a
+  press 2 units from another path's node snapping exactly onto it; both blocked-layer messages
+  verbatim with nothing drawn; resuming from the last node (same shape id, one undo step) and from
+  the first node (the draft comes back reversed) and closing by clicking the far end; a serialize +
+  re-parse round-trip with `dropped: []` and every node count and closed flag unchanged; the Node
+  tool editing a pen-drawn path; and no console errors, including after a reload. Alt was verified
+  through the on-screen modifier dock (the iPad path), which drives the same `mods.alt`: with Alt
+  latched, a click-drag produced a corner node with only `out` set.
+- Owed: Alt from a physical keyboard — the desktop automation delivers `altKey: false` on pointer
+  events, so the desktop Alt-break is unverified (Alt via the on-screen dock is verified, above).
+  The whole iPad pass (touch and Apple Pencil, palm rejection during a stroke), Safari and Firefox,
+  and the still-parked items: snap guides are not drawn while a draft exists (the overlay has one
+  slot), a path inside a group contributes no snap targets, hit-testing flattens at document scale,
+  and `movePathNodes` can still drag a node onto its subpath's first node.
+
+### 2026-09-18 — Milestone 4b review fixes
+
+Nine findings from the whole-branch review, each pinned by a test that fails without its fix
+(`src/__tests__/pen-tool.test.ts`, `src/__tests__/node-store.test.ts`; 446 tests in 34 files).
+
+- `finish` resolves the layer against the document it is about to write: the id captured at the
+  first press can be a layer the user has since deleted, and `addShape` throws for an unknown one.
+  It falls back to `ctx.currentLayerId()` and drops the drawing if neither exists — the throw
+  escaped the window keydown handler, and through `registerToolFinish` it also made a tool click
+  look dead.
+- `Tool` gained `discard(ctx)`: drop the draft, commit nothing, clear the overlay. The store owns
+  the hook (`registerToolDiscard`, registered in `tools/context.ts` beside `registerToolFinish`) and
+  calls it from `replaceDocument`, `undo` and `redo` — the three paths that throw away the document
+  a draft was built on. `cancelActiveGesture()` deliberately still doesn't reach a draft: a draft is
+  not a registered gesture.
+- The close test now runs against the placed point as well as the raw pointer. The close tolerance
+  is 6px for a mouse but `SNAP_PX` is 8, so a press in that band placed a copy of the first node —
+  the closed-subpath-repeating-its-first-node shape the M4b constraint forbids, which loses a node
+  on reload. A press whose placed point lands on the previous node (within `mergeCoincident`'s 1e-6)
+  is now ignored, since it could only make a zero-length segment.
+- A resumed draft no longer carries the original nodes into the commit. It records how many nodes it
+  copied and whether it reversed them; at commit it re-reads the path, reverses the *current*
+  subpath if needed, and appends only this stroke's nodes (`appendNode`, which until now had no
+  production caller). An edit made to that subpath while the draft is open survives.
+- `runEditAction` returns whether it consumed the action, and `App.svelte` only calls
+  `preventDefault()` when it did. Enter was cancelled app-wide, so no focused button — tool strip,
+  top bar, layers panel, notices — could be activated from the keyboard.
+- The pen passes Shift's implied `axes` into `snapPoint`, as the node and select tools do, so a snap
+  target near the locked-out axis can't pull a point off the 45° ray it just drew.
+- The draft's outline is flattened at world × zoom scale, like the node overlay, instead of document
+  scale: a curve drawn zoomed in no longer looks polygonal while it is being drawn.
+- The first knob fills only while a press would close the path (spec §7). The pen carries
+  `closeHint` in the `pen` overlay variant; it was unconditionally filled before, so the close
+  affordance signalled nothing.
+- Backspace stops at the resume boundary: it removes the last node *you placed* and does nothing
+  once there is none, instead of eating the resumed path's own nodes.
+- Tests the review found missing: the pen drawing into a non-default `currentLayerId`; `resumeAt`
+  for a path nested in a group (its world matrix comes through the parent) and for a path whose
+  world matrix is singular (skipped, never thrown).
+- Correction to this milestone's entry above and to CLAUDE.md invariant 34: `hover` is not "pointer
+  movement with no button down". `Canvas.svelte` calls it on every pointer move while no gesture is
+  running, which includes a held right-button drag and a pointer the router ignored.
+- An undo with nothing to undo keeps the draft. The discard hook above ran before the undo was
+  known to be possible, so ⌘Z on an empty history threw away a stroke in progress and changed
+  nothing else.
+- Browser-verified (controller, Chrome, port 5198) — the four of these that are not unit-testable:
+  deleting the draft's layer mid-stroke then pressing Enter (no throw; the path lands in the
+  surviving current layer); ⌘Z with a draft open (the draft is discarded, the previous commit is
+  undone, a following Enter creates nothing); Enter activating a focused tool-strip button; and
+  `closeHint` false away from the start, true on it, with the first knob filled only then. No
+  console errors.
+- Owed: still the iPad pass, Safari and Firefox, and Alt from a physical keyboard (the desktop
+  automation delivers `altKey: false`; Alt through the on-screen dock is verified).

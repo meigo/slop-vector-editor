@@ -67,6 +67,19 @@
   const knobSize = $derived(handleSize(app.lastPointerType) - 1);
 
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
+
+  const pen = $derived(app.overlay?.kind === "pen" ? app.overlay : null);
+  const penView = $derived.by(() => {
+    if (!pen) return null;
+    const toScreen = (p: Vec) => docToScreen(view, p);
+    return {
+      outline: pen.outline.map((poly) => poly.map(toScreen)),
+      knobs: pen.knobs.map(toScreen),
+      handles: pen.handles.map((h) => ({ a: toScreen(h.a), b: toScreen(h.b) })),
+      rubber: pen.rubber ? { a: toScreen(pen.rubber.a), b: toScreen(pen.rubber.b) } : null,
+      closeHint: pen.closeHint,
+    };
+  });
 </script>
 
 <g pointer-events="none">
@@ -126,6 +139,37 @@
         width={knobSize}
         height={knobSize}
         style={k.on ? SELECTED_KNOB : KNOB}
+        stroke-width="1"
+      />
+    {/each}
+  {/if}
+
+  {#if penView}
+    {#each penView.outline as poly, i (i)}
+      <polyline points={points(poly)} style={LINE} stroke-width="1" />
+    {/each}
+    {#if penView.rubber}
+      <line
+        x1={penView.rubber.a.x}
+        y1={penView.rubber.a.y}
+        x2={penView.rubber.b.x}
+        y2={penView.rubber.b.y}
+        style={LINE}
+        stroke-width="1"
+        stroke-dasharray="4 3"
+      />
+    {/if}
+    {#each penView.handles as h, i (i)}
+      <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
+      <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />
+    {/each}
+    {#each penView.knobs as k, i (i)}
+      <rect
+        x={k.x - knobSize / 2}
+        y={k.y - knobSize / 2}
+        width={knobSize}
+        height={knobSize}
+        style={i === 0 && penView.closeHint ? SELECTED_KNOB : KNOB}
         stroke-width="1"
       />
     {/each}

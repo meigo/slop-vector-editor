@@ -142,6 +142,20 @@ export function cancelActiveGesture(): void {
   fn?.();
 }
 
+/** Set once by `tools/context.ts`: drops the active tool's draft without committing it (spec M4b
+ *  §2). A draft is not a registered gesture, so `cancelActiveGesture` deliberately doesn't reach
+ *  it; only the three store paths that replace the whole document do. */
+let toolDiscard: (() => void) | null = null;
+
+export function registerToolDiscard(fn: (() => void) | null): void {
+  toolDiscard = fn;
+}
+
+/** A draft is built on a document that these paths throw away, so it can't be committed after. */
+function discardToolDraft(): void {
+  toolDiscard?.();
+}
+
 /** Every session change goes through here, so the selection never names a node that is gone,
  *  hidden or locked. */
 function setSession(s: Session): void {
@@ -188,11 +202,15 @@ export function endDocGesture(): void {
 
 export function undo(): void {
   cancelActiveGesture();
+  if (!canUndo(app.session.history)) return;
+  discardToolDraft();
   setSession(undoSession(app.session));
 }
 
 export function redo(): void {
   cancelActiveGesture();
+  if (!canRedo(app.session.history)) return;
+  discardToolDraft();
   setSession(redoSession(app.session));
 }
 
@@ -203,6 +221,7 @@ export function replaceDocument(
   saved: boolean,
 ): void {
   cancelActiveGesture();
+  discardToolDraft();
   app.selection = [];
   app.overlay = null;
   setSession(newSession(doc, saved));
@@ -290,8 +309,17 @@ export function setCurrentLayer(id: string): void {
   app.currentLayerId = resolveLayerId(app.doc, id);
 }
 
+/** Set once by `tools/context.ts`: finishes a tool that still holds a draft (spec M4b §3). The
+ *  store can't import the registry itself without a cycle through the tool context. */
+let finishActiveTool: (() => void) | null = null;
+
+export function registerToolFinish(fn: (() => void) | null): void {
+  finishActiveTool = fn;
+}
+
 export function setTool(id: ToolId): void {
   if (app.toolId === id) return;
+  finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
 }

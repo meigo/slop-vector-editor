@@ -43,6 +43,7 @@ export type EditAction =
   | { kind: "delete" }
   | { kind: "duplicate" }
   | { kind: "clear" }
+  | { kind: "commit" }
   | { kind: "nudge"; dx: number; dy: number }
   | { kind: "toggleSnap" }
   | { kind: "zorder"; op: ZOrderOp }
@@ -55,6 +56,7 @@ const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   e: "ellipse",
   l: "line",
   y: "polygon",
+  p: "pen",
   n: "node",
   h: "hand",
 };
@@ -73,6 +75,7 @@ export function editActionForKey(e: KeyLike): EditAction | null {
   if (e.key === "%") return { kind: "toggleSnap" };
   if (k === "delete" || k === "backspace") return { kind: "delete" };
   if (k === "escape") return { kind: "clear" };
+  if (k === "enter") return { kind: "commit" };
   const step = e.shiftKey ? 10 : 1;
   switch (e.key) {
     case "ArrowLeft":

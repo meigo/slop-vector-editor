@@ -36,6 +36,8 @@ Early development. What works today:
   layers panel.
 - Node editing: double-click a path with the Select tool, or press N, to edit its nodes — move
   nodes and handles, add and delete nodes, change node type and close a path.
+- Pen: draw paths node by node (P) — click for corners, drag for curves, click the first node to
+  close, or pick up an open path where you left it.
 
 ## Keyboard
 
@@ -57,10 +59,12 @@ Early development. What works today:
 | Bring to front / Send to back                   | ⇧⌘] / ⇧⌘[                             |
 | Group / Ungroup                                 | ⌘G / ⇧⌘G                              |
 | Edit nodes                                      | N                                     |
+| Pen                                             | P                                     |
+| Finish a path                                   | Enter                                 |
 
 ## Roadmap
 
-Next: the pen tool.
+Next: iPad polish and deploy.
 
 ## Development
 
@@ -68,7 +72,7 @@ Next: the pen tool.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 409 unit tests
+npm test          # 433 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

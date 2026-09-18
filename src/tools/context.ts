@@ -4,6 +4,8 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  registerToolDiscard,
+  registerToolFinish,
   setEnteredGroup,
   setNodeSel,
   setNodeTarget,
@@ -11,6 +13,7 @@ import {
   setSelection,
   setTool,
 } from "../state/appState.svelte";
+import { TOOLS } from "./registry";
 import type { ToolContext } from "./tool";
 
 /** The real ToolContext: tools reach the store only through this object. */
@@ -35,3 +38,15 @@ export const storeContext: ToolContext = {
   notify,
   setOverlay,
 };
+
+// A tool that still holds a draft finishes when the user picks another tool (spec M4b §3).
+registerToolFinish(() => {
+  const tool = TOOLS[app.toolId];
+  if (tool.busy?.()) tool.keydown?.(storeContext, "enter");
+});
+
+// A draft built on a document the store is about to throw away is dropped, not committed into the
+// new one (spec M4b §2).
+registerToolDiscard(() => {
+  TOOLS[app.toolId].discard?.(storeContext);
+});

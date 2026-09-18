@@ -109,10 +109,9 @@
       return;
     }
     const action = editActionForKey(e);
-    if (action) {
-      e.preventDefault();
-      runEditAction(action);
-    }
+    // Only a consumed action is cancelled: Enter with no tool to finish must still activate the
+    // focused button, which is a default action of keydown.
+    if (action && runEditAction(action)) e.preventDefault();
   }
 
   function onkeyup(e: KeyboardEvent) {

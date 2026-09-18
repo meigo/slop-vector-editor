@@ -147,6 +147,7 @@ describe("editActionForKey", () => {
     expect(k("e")).toEqual({ kind: "tool", tool: "ellipse" });
     expect(k("l")).toEqual({ kind: "tool", tool: "line" });
     expect(k("y")).toEqual({ kind: "tool", tool: "polygon" });
+    expect(k("p")).toEqual({ kind: "tool", tool: "pen" });
     expect(k("h")).toEqual({ kind: "tool", tool: "hand" });
     expect(k("n")).toEqual({ kind: "tool", tool: "node" });
     expect(k("v", { shiftKey: true })).toBeNull();
@@ -194,6 +195,11 @@ describe("editActionForKey", () => {
     expect(k("g", { metaKey: true, shiftKey: true })).toEqual({ kind: "ungroup" });
     expect(k("g", { ctrlKey: true })).toEqual({ kind: "group" });
     expect(k("g")).toBeNull();
+  });
+
+  it("maps Enter to commit", () => {
+    expect(k("Enter")).toEqual({ kind: "commit" });
+    expect(k("Enter", { metaKey: true })).toBeNull();
   });
 });
 

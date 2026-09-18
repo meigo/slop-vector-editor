@@ -1,4 +1,6 @@
 import { openDocument, saveDocument } from "../persist/project-io";
+import { storeContext } from "../tools/context";
+import { TOOLS } from "../tools/registry";
 import {
   app,
   bringSelectionForward,
@@ -24,6 +26,12 @@ import {
 import type { Command, EditAction } from "./keys";
 
 export const ZOOM_STEP = 1.25;
+
+/** Keys the active tool may consume while it has a gesture or draft in progress (spec M4b §8). */
+function toolTook(key: "escape" | "enter" | "backspace"): boolean {
+  const tool = TOOLS[app.toolId];
+  return tool.busy?.() === true && tool.keydown?.(storeContext, key) === true;
+}
 
 /** One place that maps a command to its action, shared by keyboard and buttons. */
 export function runCommand(cmd: Command): void {
@@ -52,39 +60,56 @@ export function runCommand(cmd: Command): void {
   }
 }
 
-export function runEditAction(a: EditAction): void {
+/** Runs the action and reports whether it was consumed, so the caller knows to `preventDefault`.
+ *  Only `commit` can decline: Enter with no busy tool does nothing, and must keep activating the
+ *  focused button. */
+export function runEditAction(a: EditAction): boolean {
   switch (a.kind) {
     case "tool":
-      return setTool(a.tool);
+      setTool(a.tool);
+      return true;
     case "delete":
-      return app.toolId === "node" && app.nodeSel.length > 0
-        ? deleteSelectedNodes()
-        : deleteSelection();
+      if (!toolTook("backspace")) {
+        if (app.toolId === "node" && app.nodeSel.length > 0) deleteSelectedNodes();
+        else deleteSelection();
+      }
+      return true;
     case "duplicate":
-      return duplicateSelection();
+      duplicateSelection();
+      return true;
     case "clear":
-      return clearOrLeaveGroup();
+      if (!toolTook("escape")) clearOrLeaveGroup();
+      return true;
+    case "commit":
+      return toolTook("enter");
     case "nudge":
-      return app.toolId === "node" && app.nodeSel.length > 0
-        ? moveSelectedNodes(a.dx, a.dy)
-        : nudgeSelection(a.dx, a.dy);
+      if (app.toolId === "node" && app.nodeSel.length > 0) moveSelectedNodes(a.dx, a.dy);
+      else nudgeSelection(a.dx, a.dy);
+      return true;
     case "toggleSnap":
-      return toggleSnap();
+      toggleSnap();
+      return true;
     case "zorder":
       switch (a.op) {
         case "forward":
-          return bringSelectionForward();
+          bringSelectionForward();
+          break;
         case "backward":
-          return sendSelectionBackward();
+          sendSelectionBackward();
+          break;
         case "front":
-          return bringSelectionToFront();
+          bringSelectionToFront();
+          break;
         case "back":
-          return sendSelectionToBack();
+          sendSelectionToBack();
+          break;
       }
-      return;
+      return true;
     case "group":
-      return groupSelection();
+      groupSelection();
+      return true;
     case "ungroup":
-      return ungroupSelection();
+      ungroupSelection();
+      return true;
   }
 }
