@@ -1,9 +1,10 @@
-import type { Doc, PathNode, PathShape, Subpath } from "../doc/document";
+import type { Doc, Node, PathNode, PathShape, Subpath } from "../doc/document";
 import { addShape } from "../doc/edits";
 import { blockMessage, layerBlock } from "../doc/layers";
+import { reverseSubpath } from "../doc/path-edit";
 import { findNode, mapNodes } from "../doc/tree";
 import { flattenSubpath } from "../geom/bezier";
-import { applyMat, IDENTITY, type Mat } from "../geom/mat";
+import { applyMat, IDENTITY, invert, multiply, type Mat } from "../geom/mat";
 import { collectTargets, SNAP_PX, snapPoint, type SnapTargets } from "../geom/snap";
 import type { Vec } from "../geom/vec";
 import { isDoubleTap, type Tap } from "../input/double-tap";
@@ -238,7 +239,50 @@ export function createPenTool(): Tool {
   };
 }
 
-/** Spec (M4b) §5 — filled in by Task 4; until then the pen always starts a new path. */
-function resumeAt(_doc: Doc, _at: Vec, _tol: number, _snap: boolean): Draft | null {
-  return null;
+/** Spec (M4b) §5: a press near an open path's end continues that path. The subpath is reversed when
+ *  the pen starts from its first node, so drawing always appends. */
+function resumeAt(doc: Doc, at: Vec, tol: number, snap: boolean): Draft | null {
+  let best: Draft | null = null;
+  let bestDist = Infinity;
+
+  const visit = (node: Node, parent: Mat, layerId: string) => {
+    const world = multiply(parent, node.transform);
+    if (node.kind === "group") {
+      for (const child of node.children) visit(child, world, layerId);
+      return;
+    }
+    if (node.kind !== "path") return;
+    const inv = invert(world);
+    if (!inv) return;
+    node.subpaths.forEach((sp, sub) => {
+      if (sp.closed || sp.nodes.length < 2) return;
+      const ends = [
+        { index: 0, reverse: true },
+        { index: sp.nodes.length - 1, reverse: false },
+      ];
+      for (const end of ends) {
+        const d = dist(applyMat(world, sp.nodes[end.index].p), at);
+        if (d > tol || d >= bestDist) continue;
+        bestDist = d;
+        const nodes = end.reverse
+          ? reverseSubpath(node, sub).subpaths[sub].nodes.slice()
+          : sp.nodes.slice();
+        best = {
+          pathId: node.id,
+          sub,
+          world,
+          inv,
+          nodes,
+          layerId,
+          targets: snap ? collectTargets(doc, [node.id], { nodes: true }) : null,
+        };
+      }
+    });
+  };
+
+  for (const layer of doc.layers) {
+    if (!layer.visible || layer.locked) continue;
+    for (const node of layer.children) visit(node, IDENTITY, layer.id);
+  }
+  return best;
 }

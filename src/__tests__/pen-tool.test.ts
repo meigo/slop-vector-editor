@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, type Doc, type PathShape } from "../doc/document";
+import { translate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import { createPenTool } from "../tools/pen";
 import { ev, fakeContext } from "./fake-context";
@@ -168,5 +169,80 @@ describe("pen: drawing a new path", () => {
     expect(o.rubber).toEqual({ a: { x: 40, y: 0 }, b: { x: 60, y: 20 } });
     tool.cancel(ctx);
     expect(tool.busy?.()).toBe(true);
+  });
+});
+
+describe("pen: resuming an open path", () => {
+  const withPath = (closed = false): Doc => {
+    const d = createDoc(200, 200);
+    const path: PathShape = {
+      kind: "path",
+      id: "p",
+      transform: translate(100, 0),
+      style: DEFAULT_PREFS.style,
+      subpaths: [
+        {
+          closed,
+          nodes: [
+            { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 40, y: 0 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    return { ...d, layers: [{ ...d.layers[0], children: [path] }] };
+  };
+
+  it("continues from the last node", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    // The path sits at x 100–140 in document space.
+    click(tool, ctx, 140, 0);
+    expect(tool.busy?.()).toBe(true);
+    click(tool, ctx, 180, 0);
+    tool.keydown?.(ctx, "enter");
+    const sp = paths(state.session.doc)[0].subpaths[0];
+    expect(sp.nodes.map((n) => n.p.x)).toEqual([0, 40, 80]);
+    expect(state.session.history.past).toHaveLength(1);
+    expect(state.selection).toEqual(["p"]);
+  });
+
+  it("reverses when it starts from the first node, so drawing still appends", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 100, 0);
+    click(tool, ctx, 60, 0);
+    tool.keydown?.(ctx, "enter");
+    const sp = paths(state.session.doc)[0].subpaths[0];
+    expect(sp.nodes.map((n) => n.p.x)).toEqual([40, 0, -40]);
+  });
+
+  it("closes the path when the other end is clicked", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 140, 0);
+    click(tool, ctx, 140, 40);
+    click(tool, ctx, 100, 0);
+    const sp = paths(state.session.doc)[0].subpaths[0];
+    expect(sp.closed).toBe(true);
+    expect(sp.nodes).toHaveLength(3);
+  });
+
+  it("leaves the path untouched on Escape, and ignores a closed path", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    const before = state.session.doc;
+    click(tool, ctx, 140, 0);
+    click(tool, ctx, 180, 0);
+    tool.keydown?.(ctx, "escape");
+    expect(state.session.doc).toBe(before);
+
+    const shut = fakeContext(withPath(true), noSnap);
+    const t2 = createPenTool();
+    click(t2, shut.ctx, 140, 0);
+    click(t2, shut.ctx, 180, 0);
+    t2.keydown?.(shut.ctx, "enter");
+    // A closed path can't be resumed, so this drew a new one.
+    expect(paths(shut.state.session.doc)).toHaveLength(2);
   });
 });
