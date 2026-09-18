@@ -478,6 +478,14 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
 - Correction to this milestone's entry above and to CLAUDE.md invariant 34: `hover` is not "pointer
   movement with no button down". `Canvas.svelte` calls it on every pointer move while no gesture is
   running, which includes a held right-button drag and a pointer the router ignored.
-- Owed: the browser pass for these nine is not done. Worth checking by hand — Enter activating a
-  focused top-bar button; ⌘Z with a draft open; deleting the draft's layer mid-stroke; and the
-  first knob filling as the pointer nears the start.
+- An undo with nothing to undo keeps the draft. The discard hook above ran before the undo was
+  known to be possible, so ⌘Z on an empty history threw away a stroke in progress and changed
+  nothing else.
+- Browser-verified (controller, Chrome, port 5198) — the four of these that are not unit-testable:
+  deleting the draft's layer mid-stroke then pressing Enter (no throw; the path lands in the
+  surviving current layer); ⌘Z with a draft open (the draft is discarded, the previous commit is
+  undone, a following Enter creates nothing); Enter activating a focused tool-strip button; and
+  `closeHint` false away from the start, true on it, with the first knob filled only then. No
+  console errors.
+- Owed: still the iPad pass, Safari and Firefox, and Alt from a physical keyboard (the desktop
+  automation delivers `altKey: false`; Alt through the on-screen dock is verified).
