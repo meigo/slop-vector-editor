@@ -13,9 +13,12 @@ describe("status-bar hover hints", () => {
     expect(hintFrom(within("Cut (⌘X)"), "mouse")).toBe("Cut (⌘X)");
   });
 
-  it("ignores touch and pen, missing targets and empty titles", () => {
-    expect(hintFrom(within("Cut (⌘X)"), "touch")).toBeNull();
-    expect(hintFrom(within("Cut (⌘X)"), "pen")).toBeNull();
+  it("uses the nearest title under a touch or a pen too (spec M5 §5)", () => {
+    expect(hintFrom(within("Cut (⌘X)"), "touch")).toBe("Cut (⌘X)");
+    expect(hintFrom(within("Cut (⌘X)"), "pen")).toBe("Cut (⌘X)");
+  });
+
+  it("ignores missing targets and empty titles", () => {
     expect(hintFrom(null, "mouse")).toBeNull();
     expect(hintFrom(within(null), "mouse")).toBeNull();
     expect(hintFrom(within(""), "mouse")).toBeNull();

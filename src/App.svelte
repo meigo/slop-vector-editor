@@ -126,6 +126,13 @@
     if (!e.relatedTarget) app.hoverHint = null;
   }
 
+  /** A device with no hover gets its hints from a press instead (spec M5 §5). A mouse clears the
+   *  hint on press as before — hover will set it again. */
+  function onpointerdown(e: PointerEvent) {
+    app.hoverHint =
+      e.pointerType === "mouse" ? null : hintFrom(e.target as Element | null, e.pointerType);
+  }
+
   /** Text fields and dialogs keep the browser's own clipboard behaviour. */
   function clipboardIgnored(e: Event): boolean {
     return app.dialog !== null || app.confirm !== null || isTextField(e.target);
@@ -179,7 +186,7 @@
   {onpaste}
   {onpointerover}
   {onpointerout}
-  onpointerdown={() => (app.hoverHint = null)}
+  {onpointerdown}
 />
 
 <div class="flex h-full flex-col">
