@@ -45,6 +45,7 @@ export function createPenTool(): Tool {
   let draft: Draft | null = null;
   let pulling: { start: Vec; dragging: boolean } | null = null;
   let lastTap: Tap | null = null;
+  let lastTapPos: Vec | null = null;
 
   const toDoc = (d: Draft, p: Vec) => applyMat(d.world, p);
   const toLocal = (d: Draft, p: Vec) => applyMat(d.inv, p);
@@ -84,6 +85,7 @@ export function createPenTool(): Tool {
     draft = null;
     pulling = null;
     lastTap = null;
+    lastTapPos = null;
     ctx.setOverlay(null);
     if (!d || d.nodes.length < 2) return;
     const subpath: Subpath = { nodes: d.nodes, closed: close };
@@ -124,6 +126,7 @@ export function createPenTool(): Tool {
         if (resumed) {
           draft = resumed;
           lastTap = null;
+          lastTapPos = null;
           paint(ctx, e.doc);
           return;
         }
@@ -145,13 +148,20 @@ export function createPenTool(): Tool {
       }
 
       const d = draft;
-      // A second press in the same place finishes the path (spec M4b §3).
+      // A second press finishes the path, but only when it lands where the first one did (spec
+      // M4b §3) — isDoubleTap alone only checks timing, so a fast, distant press must not count.
       const tap = { id: "pen", time: e.time };
-      if (d.nodes.length >= 2 && isDoubleTap(lastTap, tap)) {
+      if (
+        d.nodes.length >= 2 &&
+        isDoubleTap(lastTap, tap) &&
+        lastTapPos &&
+        dist(lastTapPos, e.doc) <= tol
+      ) {
         finish(ctx, false);
         return;
       }
       lastTap = tap;
+      lastTapPos = e.doc;
 
       const first = d.nodes[0];
       if (d.nodes.length >= 2 && first && dist(toDoc(d, first.p), e.doc) <= tol) {
@@ -208,6 +218,7 @@ export function createPenTool(): Tool {
         draft = null;
         pulling = null;
         lastTap = null;
+        lastTapPos = null;
         ctx.setOverlay(null);
         return true;
       }

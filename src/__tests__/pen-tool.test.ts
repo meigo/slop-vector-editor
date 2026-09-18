@@ -124,6 +124,28 @@ describe("pen: drawing a new path", () => {
     expect(paths(state.session.doc)[0].subpaths[0].nodes).toHaveLength(2);
   });
 
+  it("requires both timing and proximity for the second press to finish", () => {
+    const { ctx, state } = fakeContext(blank(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 0, 0, {}, 0);
+    click(tool, ctx, 40, 0, {}, 100);
+    // Within the double-tap time window, but far from where the last press landed: places a
+    // third node instead of finishing the path.
+    click(tool, ctx, 100, 0, {}, 200);
+    expect(tool.busy?.()).toBe(true);
+    tool.keydown?.(ctx, "enter");
+    expect(paths(state.session.doc)[0].subpaths[0].nodes).toHaveLength(3);
+
+    const second = fakeContext(blank(), noSnap);
+    const t2 = createPenTool();
+    click(t2, second.ctx, 0, 0, {}, 0);
+    click(t2, second.ctx, 40, 0, {}, 100);
+    // Within the window and at the same point as the last press: finishes.
+    click(t2, second.ctx, 40, 0, {}, 200);
+    expect(t2.busy?.()).toBe(false);
+    expect(paths(second.state.session.doc)[0].subpaths[0].nodes).toHaveLength(2);
+  });
+
   it("refuses a blocked layer and draws into the current one", () => {
     const d = blank();
     const locked: Doc = { ...d, layers: [{ ...d.layers[0], locked: true }] };
