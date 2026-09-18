@@ -71,6 +71,13 @@
     });
   });
 
+  /** True while a pen or mouse gesture is running: a finger arriving now is a palm (spec M5 §2). */
+  function penGestureActive(): boolean {
+    if (!gesture || gesture.kind === "pinch") return false;
+    const t = pointerTypes.get(gesture.pointerId);
+    return t === "pen" || t === "mouse";
+  }
+
   function local(e: { clientX: number; clientY: number }): Vec {
     const r = host.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -101,11 +108,22 @@
       spaceHeld: app.spaceHeld,
       tool: app.toolId,
       pencilSeen,
+      penActive: penGestureActive(),
     });
     if (route === "ignore") return;
     // Only routed pointers set the handle size (a stray palm must not); right-click counts as mouse.
     app.lastPointerType = e.pointerType;
     if (route === "menu") return;
+    // A Pencil that took over from fingers: their pan or pinch stops here. Both only moved the
+    // view, so there is nothing to roll back, and the fingers stay down but do nothing until they
+    // lift (`gesture` no longer names them).
+    if (gesture && route !== "pinch") {
+      if (gesture.kind === "tool") {
+        gesture.tool.cancel(storeContext);
+        registerGestureCancel(null);
+      }
+      gesture = null;
+    }
     // No native text selection or drag; keep keyboard shortcuts working after a click here.
     e.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
