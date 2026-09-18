@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_STYLE, type PathShape, type Subpath } from "../doc/document";
 import {
+  appendNode,
   closeSubpath,
   deletePathNodes,
   insertNode,
   moveHandle,
   movePathNodes,
+  reverseSubpath,
   setNodeType,
 } from "../doc/path-edit";
-import { cubicPoint, segmentCubic } from "../geom/bezier";
+import { cubicPoint, flattenSubpath, segmentCubic } from "../geom/bezier";
 import { IDENTITY } from "../geom/mat";
 import { deepFreeze } from "./helpers";
 
@@ -209,6 +211,62 @@ describe("setNodeType", () => {
     expect(out.subpaths[0].nodes[0].in).toBeNull();
     expect(setNodeType(out, [{ sub: 0, i: 0 }], "smooth")).toBe(out);
     expect(setNodeType(p, [{ sub: 0, i: 0 }], "corner")).toBe(p);
+  });
+});
+
+describe("appendNode", () => {
+  it("adds a node to the end of an open subpath", () => {
+    const p = path({ closed: false, nodes: [corner(0, 0), corner(10, 0)] });
+    const out = appendNode(p, 0, corner(20, 0));
+    expect(out.subpaths[0].nodes.map((n) => n.p.x)).toEqual([0, 10, 20]);
+    expect(out.subpaths[0].nodes[0]).toBe(p.subpaths[0].nodes[0]);
+  });
+
+  it("refuses a closed subpath and an unknown index", () => {
+    const closed = path({ closed: true, nodes: [corner(0, 0), corner(10, 0)] });
+    expect(appendNode(closed, 0, corner(20, 0))).toBe(closed);
+    const p = path({ closed: false, nodes: [corner(0, 0), corner(10, 0)] });
+    expect(appendNode(p, 9, corner(20, 0))).toBe(p);
+  });
+});
+
+describe("reverseSubpath", () => {
+  it("reverses the order and swaps the handles", () => {
+    const p = path({
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: { x: 0, y: 10 }, type: "smooth" },
+        { p: { x: 10, y: 0 }, in: { x: 10, y: 10 }, out: null, type: "smooth" },
+      ],
+    });
+    const out = reverseSubpath(p, 0);
+    const nodes = out.subpaths[0].nodes;
+    expect(nodes.map((n) => n.p.x)).toEqual([10, 0]);
+    expect(nodes[0].out).toEqual({ x: 10, y: 10 });
+    expect(nodes[0].in).toBeNull();
+    expect(nodes[1].in).toEqual({ x: 0, y: 10 });
+    expect(nodes[1].out).toBeNull();
+  });
+
+  it("draws the same shape, and is its own inverse", () => {
+    const p = path(curved());
+    const once = reverseSubpath(p, 0);
+    const twice = reverseSubpath(once, 0);
+    expect(twice.subpaths[0]).toEqual(p.subpaths[0]);
+    const before = flattenSubpath(p.subpaths[0]);
+    const after = flattenSubpath(once.subpaths[0]).reverse();
+    expect(after).toHaveLength(before.length);
+    after.forEach((q, i) => {
+      expect(q.x).toBeCloseTo(before[i].x, 9);
+      expect(q.y).toBeCloseTo(before[i].y, 9);
+    });
+  });
+
+  it("leaves a one-node subpath and an unknown index alone", () => {
+    const one = path({ closed: false, nodes: [corner(0, 0)] });
+    expect(reverseSubpath(one, 0)).toBe(one);
+    const p = path(curved());
+    expect(reverseSubpath(p, 9)).toBe(p);
   });
 });
 

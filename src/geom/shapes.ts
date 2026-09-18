@@ -19,9 +19,14 @@ const node = (p: Vec, inH: Vec | null = null, out: Vec | null = null): PathNode 
   type: "corner",
 });
 
+/** The writer rounds to 6 decimals, so two points that were identical can be that far apart by the
+ *  time they come back; anything tighter leaves a duplicate node behind (spec M4b §9). */
+const COINCIDENT = 1e-6;
+
 /** Merges consecutive nodes at the same point (including last → first of a closed path). */
-function mergeCoincident(nodes: PathNode[]): PathNode[] {
-  const same = (a: PathNode, b: PathNode) => a.p.x === b.p.x && a.p.y === b.p.y;
+export function mergeCoincident(nodes: PathNode[]): PathNode[] {
+  const same = (a: PathNode, b: PathNode) =>
+    Math.abs(a.p.x - b.p.x) <= COINCIDENT && Math.abs(a.p.y - b.p.y) <= COINCIDENT;
   const merge = (a: PathNode, b: PathNode): PathNode => ({
     p: a.p,
     in: a.in,

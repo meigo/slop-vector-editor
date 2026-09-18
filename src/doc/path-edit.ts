@@ -230,3 +230,23 @@ export function closeSubpath(path: PathShape, sub: number): PathShape {
   subpaths[sub] = { ...sp, closed: true };
   return { ...path, subpaths };
 }
+
+/** Spec (M4b) §6. Adds `node` to the end of an open subpath; a closed one is left alone. */
+export function appendNode(path: PathShape, sub: number, node: PathNode): PathShape {
+  const sp = path.subpaths[sub];
+  if (!sp || sp.closed) return path;
+  const subpaths = path.subpaths.slice();
+  subpaths[sub] = { ...sp, nodes: [...sp.nodes, node] };
+  return { ...path, subpaths };
+}
+
+/** Reverses a subpath's nodes and swaps each one's handles, so the drawn shape is unchanged.
+ *  The pen uses it to resume from a path's first node while still appending (spec M4b §5). */
+export function reverseSubpath(path: PathShape, sub: number): PathShape {
+  const sp = path.subpaths[sub];
+  if (!sp || sp.nodes.length < 2) return path;
+  const nodes = sp.nodes.map((n) => ({ ...n, in: n.out, out: n.in })).reverse();
+  const subpaths = path.subpaths.slice();
+  subpaths[sub] = { ...sp, nodes };
+  return { ...path, subpaths };
+}
