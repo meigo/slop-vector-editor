@@ -435,3 +435,49 @@
   and the still-parked items: snap guides are not drawn while a draft exists (the overlay has one
   slot), a path inside a group contributes no snap targets, hit-testing flattens at document scale,
   and `movePathNodes` can still drag a node onto its subpath's first node.
+
+### 2026-09-18 — Milestone 4b review fixes
+
+Nine findings from the whole-branch review, each pinned by a test that fails without its fix
+(`src/__tests__/pen-tool.test.ts`, `src/__tests__/node-store.test.ts`; 446 tests in 34 files).
+
+- `finish` resolves the layer against the document it is about to write: the id captured at the
+  first press can be a layer the user has since deleted, and `addShape` throws for an unknown one.
+  It falls back to `ctx.currentLayerId()` and drops the drawing if neither exists — the throw
+  escaped the window keydown handler, and through `registerToolFinish` it also made a tool click
+  look dead.
+- `Tool` gained `discard(ctx)`: drop the draft, commit nothing, clear the overlay. The store owns
+  the hook (`registerToolDiscard`, registered in `tools/context.ts` beside `registerToolFinish`) and
+  calls it from `replaceDocument`, `undo` and `redo` — the three paths that throw away the document
+  a draft was built on. `cancelActiveGesture()` deliberately still doesn't reach a draft: a draft is
+  not a registered gesture.
+- The close test now runs against the placed point as well as the raw pointer. The close tolerance
+  is 6px for a mouse but `SNAP_PX` is 8, so a press in that band placed a copy of the first node —
+  the closed-subpath-repeating-its-first-node shape the M4b constraint forbids, which loses a node
+  on reload. A press whose placed point lands on the previous node (within `mergeCoincident`'s 1e-6)
+  is now ignored, since it could only make a zero-length segment.
+- A resumed draft no longer carries the original nodes into the commit. It records how many nodes it
+  copied and whether it reversed them; at commit it re-reads the path, reverses the *current*
+  subpath if needed, and appends only this stroke's nodes (`appendNode`, which until now had no
+  production caller). An edit made to that subpath while the draft is open survives.
+- `runEditAction` returns whether it consumed the action, and `App.svelte` only calls
+  `preventDefault()` when it did. Enter was cancelled app-wide, so no focused button — tool strip,
+  top bar, layers panel, notices — could be activated from the keyboard.
+- The pen passes Shift's implied `axes` into `snapPoint`, as the node and select tools do, so a snap
+  target near the locked-out axis can't pull a point off the 45° ray it just drew.
+- The draft's outline is flattened at world × zoom scale, like the node overlay, instead of document
+  scale: a curve drawn zoomed in no longer looks polygonal while it is being drawn.
+- The first knob fills only while a press would close the path (spec §7). The pen carries
+  `closeHint` in the `pen` overlay variant; it was unconditionally filled before, so the close
+  affordance signalled nothing.
+- Backspace stops at the resume boundary: it removes the last node *you placed* and does nothing
+  once there is none, instead of eating the resumed path's own nodes.
+- Tests the review found missing: the pen drawing into a non-default `currentLayerId`; `resumeAt`
+  for a path nested in a group (its world matrix comes through the parent) and for a path whose
+  world matrix is singular (skipped, never thrown).
+- Correction to this milestone's entry above and to CLAUDE.md invariant 34: `hover` is not "pointer
+  movement with no button down". `Canvas.svelte` calls it on every pointer move while no gesture is
+  running, which includes a held right-button drag and a pointer the router ignored.
+- Owed: the browser pass for these nine is not done. Worth checking by hand — Enter activating a
+  focused top-bar button; ⌘Z with a draft open; deleting the draft's layer mid-stroke; and the
+  first knob filling as the pointer nears the start.

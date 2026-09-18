@@ -77,6 +77,7 @@
       knobs: pen.knobs.map(toScreen),
       handles: pen.handles.map((h) => ({ a: toScreen(h.a), b: toScreen(h.b) })),
       rubber: pen.rubber ? { a: toScreen(pen.rubber.a), b: toScreen(pen.rubber.b) } : null,
+      closeHint: pen.closeHint,
     };
   });
 </script>
@@ -168,7 +169,7 @@
         y={k.y - knobSize / 2}
         width={knobSize}
         height={knobSize}
-        style={i === 0 ? SELECTED_KNOB : KNOB}
+        style={i === 0 && penView.closeHint ? SELECTED_KNOB : KNOB}
         stroke-width="1"
       />
     {/each}

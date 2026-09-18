@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 433 tests in 34 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 446 tests in 34 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -207,10 +207,13 @@ every user-visible change.
     handles being pulled, and only Escape, a finish or a tool change ends a stroke.
 34. **A tool may take Escape, Enter and Backspace through `Tool.keydown` while `busy()`.**
     `runEditAction` (`state/commands.ts`) asks the active tool before its own clear/commit/delete
-    handling; only the pen implements `keydown`/`busy` today. `hover` (pointer movement with no
-    button down) runs only when no gesture is active — `Canvas.svelte` already tracked movement for
-    the cursor readout and now calls `hover` from the same place, which is what drives the pen's
-    rubber band between clicks.
+    handling; only the pen implements `keydown`/`busy` today. `hover` is every pointer move
+    `Canvas.svelte` sees while no gesture is running — usually a plain hover, but also a held
+    right-button drag or a pointer the router ignored. The canvas already tracked movement for the
+    cursor readout and now calls `hover` from the same place, which is what drives the pen's rubber
+    band between clicks. A tool with a draft also gets `discard(ctx)`, which the store calls from
+    `replaceDocument`, `undo` and `redo` (registered like `registerToolFinish`, in
+    `tools/context.ts`): a draft is built on a document those three throw away.
 
 ## Current state
 
