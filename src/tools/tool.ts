@@ -19,6 +19,8 @@ export type Overlay =
       knobs: Vec[];
       handles: { a: Vec; b: Vec }[];
       rubber: { a: Vec; b: Vec } | null;
+      /** Whether a press at the pointer would close the path — the first knob fills (spec §7). */
+      closeHint: boolean;
     }
   | null;
 
