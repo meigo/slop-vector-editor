@@ -5,7 +5,10 @@
 
 <div
   class={[
-    "pointer-events-none fixed bottom-10 z-40 flex max-w-sm flex-col gap-2",
+    // Clear of the modifier dock, which shares this corner: the status bar (h-7 and its border),
+    // the dock's own bottom-3 and its 50px height put the dock's top edge 96px above the viewport
+    // bottom, so 100px leaves a 4px gap above it (spec M5 §4).
+    "pointer-events-none fixed bottom-25 z-40 flex max-w-sm flex-col gap-2",
     app.propertiesOpen ? "right-3 max-[900px]:right-63" : "right-3",
   ]}
 >
