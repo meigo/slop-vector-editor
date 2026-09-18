@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 409 tests in 33 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 433 tests in 34 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -30,7 +30,8 @@ every user-visible change.
   node lookup and editing at any depth, with parent matrices), `group.ts` (group/ungroup),
   `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
   current-layer helpers), `path-edit.ts` (pure node edits: move, handles, insert, delete, retype,
-  close), `resize.ts` (bakes a resize into shape geometry; see gotcha below).
+  close, `appendNode`, `reverseSubpath`), `resize.ts` (bakes a resize into shape geometry; see
+  gotcha below).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
@@ -45,8 +46,9 @@ every user-visible change.
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
   move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and
-  handles, insert/delete, retype, close), `registry.ts` (`TOOLS`, one instance per id),
-  `context.ts` (`storeContext`, the real `ToolContext` wired to `app`; tests use
+  handles, insert/delete, retype, close), `pen.ts` (the pen tool: draws a path node by node,
+  keeping its own draft; resumes an open path from either end), `registry.ts` (`TOOLS`, one
+  instance per id), `context.ts` (`storeContext`, the real `ToolContext` wired to `app`; tests use
   `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
@@ -198,15 +200,26 @@ every user-visible change.
     of dragging. The node tool's own double-tap actions — inserting a node, cycling a node's
     type — deliberately fire on pointer-down instead: there's no context to hand off, so nothing
     is lost by not waiting for the up.
+33. **The pen's draft never enters the document** (`tools/pen.ts`, spec M4b §2). It lives in the
+    tool and the overlay until the path is finished, which is what keeps a one-node path — the
+    importer drops it — out of the file and makes a whole stroke one undo step. This is why the
+    pen's `cancel()` keeps the draft instead of rolling it back: a `pointercancel` only stops the
+    handles being pulled, and only Escape, a finish or a tool change ends a stroke.
+34. **A tool may take Escape, Enter and Backspace through `Tool.keydown` while `busy()`.**
+    `runEditAction` (`state/commands.ts`) asks the active tool before its own clear/commit/delete
+    handling; only the pen implements `keydown`/`busy` today. `hover` (pointer movement with no
+    button down) runs only when no gesture is active — `Canvas.svelte` already tracked movement for
+    the cursor readout and now calls `hover` from the same place, which is what drives the pen's
+    rubber band between clicks.
 
 ## Current state
 
-Milestone 4a (node editing) — see CHANGELOG. Next is milestone 4b: the pen tool.
+Milestone 4b (the pen) — see CHANGELOG. Next is milestone 5: iPad polish and deploy.
 
 ## Roadmap
 
-M4 was split into 4a (node editing, complete) and 4b (the pen tool), as M3 was split into 3a/3b.
-M5 iPad polish + deploy (spec §9). Post-v1 list in spec §10.
+M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. Both are
+complete. M5 iPad polish + deploy (spec §9). Post-v1 list in spec §10.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
@@ -223,7 +236,10 @@ pointermove.
 M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
 palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
 small-object handle policy; the drawer covers the modifier dock at iPad portrait widths; a path
-inside a group contributes no snap targets, because `collectTargets` walks only top-level nodes.
+inside a group contributes no snap targets, because `collectTargets` walks only top-level nodes;
+snap guides are not drawn while a pen draft exists (the overlay has one slot); hit-testing flattens
+at document scale rather than viewport zoom; `movePathNodes` can still drag a node onto its
+subpath's first node.
 
 ## Verification debt
 
