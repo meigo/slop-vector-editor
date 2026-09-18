@@ -116,9 +116,11 @@ every user-visible change.
     shows the true geometry while only the handles move out. Only a non-zero axis is expanded: a
     zero-size axis keeps its handles coincident, which is what leaves a horizontal/vertical line
     draggable by its middle (`activeHandles`). Drawing and hit-testing read the same padded
-    positions, so they can't disagree. The resize maths are unaffected — `select.ts`'s `grab`
-    offset is computed from the handle's own (possibly padded) position, so it already carries the
-    difference back to the true corner.
+    positions, so they can't disagree. The resize maths are unaffected, and must stay that way:
+    `handleFramePoint` keeps receiving the **unpadded** `frame.box` in `select.ts`, so `grab` is
+    the true handle point minus the press point — and that offset is exactly what carries a press
+    on a pushed-out handle back to the true corner. Padding the box there would zero the offset and
+    snap the true corner to the finger, a jump of up to 15px on a tiny object.
 15. **A running tool drag commits from its own base document**, so the store has a gesture-cancel
     hook: `Canvas` registers `registerGestureCancel` while a tool gesture runs; undo, redo,
     `replaceDocument`, every selection action (delete/duplicate/nudge/convert/flatten/rect
@@ -236,7 +238,10 @@ every user-visible change.
 35. **Deploy assets live in `public/`.** `manifest.webmanifest` (name, icons, standalone display),
     `apple-touch-icon.png` (180×180, opaque — iOS does not composite transparency, so it's
     rendered on the app's `#1e1e22` background) and `_headers` (immutable caching for
-    `/assets/*`, plus the CSP). Regenerate the icon from `favicon.svg` when the mark changes; the
+    `/assets/*`, plus the CSP). Never hand-place a file under `public/assets/`: it lands in
+    `dist/assets/` unhashed, and the immutable year-long `Cache-Control` then pins it in every
+    browser cache with no way to bust it — that rule is safe only because everything Vite emits
+    there is content-hashed. Regenerate the icon from `favicon.svg` when the mark changes; the
     favicon's own fill is theme-dependent and will not rasterise white. The CSP's `style-src`
     needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such

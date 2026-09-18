@@ -20,7 +20,8 @@ Early development. What works today:
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width),
-  rotating (Shift snaps to 15°) and Alt-duplicating.
+  rotating (Shift snaps to 15°) and Alt-duplicating. On an object too small to hold them, the
+  resize handles move outside it, so its middle stays grabbable.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
   defaults for new shapes when nothing is selected.
 - Convert to path and flatten transform.
@@ -28,8 +29,10 @@ Early development. What works today:
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
 - An on-screen Shift/Alt/Snap pad for touch.
-- An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
-  polygon sides/star) live in the properties panel.
+- An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover
+  and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
+  — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties
+  panel.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back).
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the

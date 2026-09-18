@@ -509,9 +509,11 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   `frameOutline` still asks for the unpadded positions, so the drawn frame keeps showing the true
   geometry. Only a non-zero axis is expanded: a zero-size axis keeps its handles coincident, which
   is what leaves a horizontal or vertical line draggable by its middle. Drawing and hit-testing read
-  the same padded positions, so they can't disagree, and the resize maths need no change —
-  `select.ts`'s `grab` offset is computed from the handle's own (possibly padded) position and
-  already carries the difference back to the true corner.
+  the same padded positions, so they can't disagree, and the resize maths need no change:
+  `handleFramePoint` keeps receiving the unpadded `frame.box`, so `select.ts`'s `grab` is the true
+  handle point minus the press point, and that offset is what carries a press on a pushed-out
+  handle back to the true corner. Padding the box there would zero the offset instead and snap the
+  true corner to the finger.
 - The modifier dock and the notices move to `right-63` (the drawer's 240px plus the usual gutter)
   whenever the Properties/Layers drawer is open below the 900px breakpoint, instead of sitting
   under it — at iPad-portrait widths an open drawer used to hide the Shift and Alt latches
@@ -554,4 +556,62 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   widths, touch hints on a device, and the installed standalone app. Also Safari and Firefox; Alt
   from a physical keyboard (the automation delivers `altKey: false`, so it is verified only through
   the on-screen dock); and the deploy itself, which the user runs — `npm run deploy` was
-  deliberately not run.
+  deliberately not run. Also: the save fallback (`URL.createObjectURL` → `a[download]` in
+  `persist/file-io.ts`) under the real CSP — that is the path iPad Safari and Firefox take, while
+  the CSP was exercised only in desktop Chrome, which uses File System Access instead. And one
+  explicit question for the iPad pass: **after a Pencil stroke over a resting hand, does the view
+  zoom when the hand moves?** `Canvas.svelte`'s Safari `gesturechange` guard is
+  `if (pointers.size > 0) return;`, and the takeover deliberately untracks the resting fingers — so
+  once the Pencil lifts, `pointers.size` is 0 while fingers are still on the glass, and iOS
+  Safari's `gesturechange` from them could zoom the view. Strictly pre-existing, but the palm-first
+  sequence makes it common rather than exotic.
+
+## 2026-09-18 — Milestone 5 review fixes
+
+- The touch hint was erased the instant the finger lifted, so §5 did not work on a device at all.
+  `App.svelte`'s pre-existing `onpointerout` cleared `app.hoverHint` whenever `relatedTarget` was
+  null; that handler was inert for touch only while `hintFrom` filtered non-mouse pointers out, and
+  M5 removed the filter. For a direct pointer (touch, and pen on iPad) the browser fires
+  `pointerout` with a null `relatedTarget` immediately after `pointerup` — the pointer has ceased
+  to exist — and it bubbles to the `<svelte:window>` listener, so a tap set the hint and cleared it
+  a moment later. The clear is now `e.pointerType === "mouse" && !e.relatedTarget`: a mouse leaving
+  the window still clears, while a touch or pen hint stands until the next press replaces it, which
+  is what spec §5 and invariant 24 say. The consequence is accepted: a hovering Pencil lifted off
+  the glass leaves its last hint standing, the same rule as touch. The M5 browser pass missed this
+  because synthetic `PointerEvent`s generate no follow-up `pointerout`.
+- The Pencil takeover's pointer-forgetting was gated on `gesture`, which left the stale-pinch jump
+  reachable: `gesture` can be null while `pointers` is still populated — a finger starts a tool
+  drag, the user taps Undo, `cancelActiveGesture()` runs the hook registered in `onpointerdown` and
+  sets `gesture = null` while the finger stays tracked. The guard is now
+  `pointers.size > 0 && route !== "pinch"`, which states the takeover condition directly (the new
+  pointer is not tracked yet at that line, and routing only lets a pointer through with others
+  already down via the takeover).
+- The root cause of the same jump, fixed alongside it: `onpointermove` returned before its trailing
+  `pointers.set` whenever no gesture was running, so a tracked pointer's coordinates froze. The
+  write is hoisted above the early return, so a tracked pointer stays current with no gesture at
+  all (finger drags → Undo tap → finger drifts → second finger lands → pinch off a stale anchor, no
+  Pencil involved). `prev` is still read before the write, so the pinch and pan maths are unchanged.
+- Notices covered the docked Properties/Layers column at 900px and up — the sibling of the defect
+  the browser pass caught at narrow widths. They are `fixed` to the viewport, while the dock is
+  `absolute` inside `<main>` and so already narrowed by the in-flow column. Notices now sit at
+  `right-63` at 900px and up always, and below 900px only while the drawer is open. The dock is
+  unchanged.
+- `Notices.svelte`'s comment had the right value but the wrong arithmetic: status bar 28px + its
+  1px border = 29, the dock's `bottom-3` = 12 → the dock's bottom edge at 41px, its 50px height →
+  its top edge at 91px, so `bottom-25` (100px) leaves a 9px gap, which is what the browser
+  measured. The comment said 96 and 4.
+- CLAUDE.md invariant 14 and the M5 entry above described `select.ts`'s `grab` offset backwards —
+  both said it is computed from the handle's own (possibly padded) position. It is computed from
+  the **unpadded** `frame.box`, and that difference is precisely what carries a press on a
+  pushed-out handle back to the true corner; padding the box there would zero the offset and snap
+  the corner to the finger. Both are reworded, and the milestone's riskiest maths finally has the
+  test it lacked: a 4×4 shape pressed at its pushed-out `se` handle resizes from the true corner
+  (`select-tool.test.ts`). It was confirmed to fail when the box is padded in the `grab`
+  computation.
+- CLAUDE.md invariant 35 spells out the caching trap: nothing may be hand-placed under
+  `public/assets/`, because it would land in `dist/assets/` unhashed and the immutable year-long
+  `Cache-Control` would pin it in browser caches with no way to bust it. README gained the two
+  user-visible M5 changes it was missing (the touch press showing a control's hint, and resize
+  handles moving outside a too-small object).
+- 460 tests in 34 files. No device verification: nothing here has been on an iPad, and the two new
+  owed items are recorded on the milestone entry's `Owed:` line above.
