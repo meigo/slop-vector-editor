@@ -153,8 +153,9 @@ describe("gizmo handles", () => {
     expect(handleAt(f, view, { x: 50, y: -24 }, 8)).toBe("rotate");
     expect(handleAt(f, view, { x: 56, y: 1 }, 8)).toBe("n");
     expect(handleAt(f, view, { x: 60, y: 25 }, 8)).toBeNull();
+    // A tiny object's handles are pushed outside it (spec M5 §3), so its middle is free to drag.
     const tiny = { angle: 0, box: { x: 0, y: 0, w: 2, h: 2 } };
-    expect(handleAt(tiny, view, { x: 1, y: 0 }, 8)).toBe("nw");
+    expect(handleAt(tiny, view, { x: 1, y: 0 }, 8)).toBeNull();
   });
 
   it("drops handles that would act on a zero-size axis", () => {
@@ -163,6 +164,68 @@ describe("gizmo handles", () => {
     expect(handleAt(line, view, { x: 50, y: 10 }, 8)).toBeNull();
     expect(handleAt(line, view, { x: 100, y: 10 }, 8)).toBe("ne");
     expect(activeHandles({ angle: 0, box: { x: 0, y: 0, w: 0, h: 0 } })).toEqual([]);
+  });
+});
+
+describe("small-object handle policy", () => {
+  const small = { angle: 0, box: { x: 0, y: 0, w: 4, h: 4 } };
+  const big = { angle: 0, box: { x: 0, y: 0, w: 200, h: 120 } };
+
+  it("pushes the handles of a tight object out to a usable span", () => {
+    // reach = 8/2 + 2 = 6, so a mouse span is 18px: 4px wide becomes 18, centred on the same point.
+    const p = handlePositions(small, view, 8);
+    expect(p.w.x).toBeCloseTo(-7, 9);
+    expect(p.e.x).toBeCloseTo(11, 9);
+    expect(p.n.y).toBeCloseTo(-7, 9);
+    expect(p.s.y).toBeCloseTo(11, 9);
+    // The centre is unmoved, so the pushed-out frame is symmetric about the object.
+    expect((p.w.x + p.e.x) / 2).toBeCloseTo(2, 9);
+  });
+
+  it("uses a bigger span for touch, and scales with zoom", () => {
+    // reach = 16/2 + 2 = 10 → 30px.
+    const p = handlePositions(small, view, 16);
+    expect(p.e.x - p.w.x).toBeCloseTo(30, 9);
+    // At 4x zoom the object is already 16px across, so 18px still needs a nudge but a small one.
+    const z = handlePositions(small, { x: 0, y: 0, zoom: 4 }, 8);
+    expect(z.e.x - z.w.x).toBeCloseTo(18, 9);
+  });
+
+  it("leaves a big object, and an unsized call, exactly alone", () => {
+    expect(handlePositions(big, view, 8)).toEqual(handlePositions(big, view));
+    expect(handlePositions(small, view).e.x).toBeCloseTo(4, 9);
+  });
+
+  it("never pads a zero-size axis, so a line keeps its draggable middle", () => {
+    const line = { angle: 0, box: { x: 0, y: 10, w: 100, h: 0 } };
+    const p = handlePositions(line, view, 16);
+    expect(p.n.y).toBeCloseTo(10, 9);
+    expect(p.s.y).toBeCloseTo(10, 9);
+    expect(p.e.x).toBeCloseTo(100, 9);
+  });
+
+  it("hit-tests where it draws", () => {
+    const p = handlePositions(small, view, 8);
+    expect(handleAt(small, view, { x: p.se.x, y: p.se.y }, 8)).toBe("se");
+    // The object's own middle is now free for a move drag.
+    expect(handleAt(small, view, { x: 2, y: 2 }, 8)).toBeNull();
+  });
+
+  it("keeps the frame outline on the true geometry", () => {
+    expect(frameOutline(small, view)).toEqual([
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 4, y: 4 },
+      { x: 0, y: 4 },
+    ]);
+  });
+
+  it("pads along the frame's own axes when it is rotated", () => {
+    const turned = { angle: Math.PI / 2, box: { x: 0, y: 0, w: 4, h: 4 } };
+    const p = handlePositions(turned, view, 8);
+    // A quarter turn swaps the axes: the frame's e handle points down the screen.
+    expect(p.e.y).toBeCloseTo(11, 9);
+    expect(p.w.y).toBeCloseTo(-7, 9);
   });
 });
 

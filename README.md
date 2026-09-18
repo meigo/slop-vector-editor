@@ -20,7 +20,8 @@ Early development. What works today:
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width),
-  rotating (Shift snaps to 15°) and Alt-duplicating.
+  rotating (Shift snaps to 15°) and Alt-duplicating. On an object too small to hold them, the
+  resize handles move outside it, so its middle stays grabbable.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
   defaults for new shapes when nothing is selected.
 - Convert to path and flatten transform.
@@ -28,8 +29,10 @@ Early development. What works today:
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
 - An on-screen Shift/Alt/Snap pad for touch.
-- An icon toolbar with tooltips (also shown in the status bar); shape options (corner radius,
-  polygon sides/star) live in the properties panel.
+- An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover
+  and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
+  — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties
+  panel.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back).
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the
@@ -38,6 +41,7 @@ Early development. What works today:
   nodes and handles, add and delete nodes, change node type and close a path.
 - Pen: draw paths node by node (P) — click for corners, drag for curves, click the first node to
   close, or pick up an open path where you left it.
+- Installs to the Home Screen and runs standalone (web app manifest + icon).
 
 ## Keyboard
 
@@ -64,7 +68,9 @@ Early development. What works today:
 
 ## Roadmap
 
-Next: iPad polish and deploy.
+iPad polish and deploy was the last planned milestone. Next up, unplanned: text; gradients;
+boolean operations; a freehand pencil/brush tool; PNG export; grid and smart guides; multiple
+artboards; masks/clipping; align & distribute; a light theme; system-clipboard image paste.
 
 ## Development
 
@@ -72,9 +78,14 @@ Next: iPad polish and deploy.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 433 unit tests
+npm test          # 459 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
 
 Svelte 5, TypeScript, Vite, Tailwind CSS 4, Vitest.
+
+## Deploy
+
+`npm run deploy` builds and publishes to Cloudflare (assets-only Worker); it needs `wrangler`
+auth.

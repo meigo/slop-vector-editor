@@ -104,6 +104,7 @@ describe("routePointerDown", () => {
     spaceHeld: false,
     tool: "select",
     pencilSeen: false,
+    penActive: false,
   };
   const r = (over: Partial<RouteInput>) => routePointerDown({ ...base, ...over });
 
@@ -132,6 +133,37 @@ describe("routePointerDown", () => {
     expect(r({ pointerType: "pen", pencilSeen: true })).toBe("tool");
     expect(r({ pointerType: "pen", activePointers: 1 })).toBe("ignore");
     expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 0 })).toBe("ignore");
+  });
+
+  it("lets a Pencil take over from fingers already down", () => {
+    // A palm (or a whole resting hand) landed first and started a pan or a pinch.
+    expect(r({ pointerType: "pen", activePointers: 1, activeTouches: 1 })).toBe("tool");
+    expect(r({ pointerType: "pen", activePointers: 2, activeTouches: 2 })).toBe("tool");
+    expect(r({ pointerType: "pen", activePointers: 3, activeTouches: 3 })).toBe("tool");
+  });
+
+  it("still routes a taking-over Pencil by the tool and the space key", () => {
+    expect(r({ pointerType: "pen", activePointers: 1, activeTouches: 1, tool: "hand" })).toBe(
+      "pan",
+    );
+    expect(r({ pointerType: "pen", activePointers: 1, activeTouches: 1, spaceHeld: true })).toBe(
+      "pan",
+    );
+  });
+
+  it("does not let a pen take over from another pen or a mouse", () => {
+    expect(r({ pointerType: "pen", activePointers: 1, activeTouches: 0 })).toBe("ignore");
+    expect(r({ pointerType: "pen", activePointers: 2, activeTouches: 1 })).toBe("ignore");
+  });
+
+  it("ignores a finger while a pen or mouse gesture is running", () => {
+    // Without penActive this would start a pinch — a palm landing beside the Pencil (spec M5 §2).
+    expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 1, penActive: true })).toBe(
+      "ignore",
+    );
+    expect(r({ pointerType: "touch", activePointers: 1, activeTouches: 0, penActive: true })).toBe(
+      "ignore",
+    );
   });
 });
 
