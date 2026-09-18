@@ -38,6 +38,7 @@ Early development. What works today:
   nodes and handles, add and delete nodes, change node type and close a path.
 - Pen: draw paths node by node (P) — click for corners, drag for curves, click the first node to
   close, or pick up an open path where you left it.
+- Installs to the Home Screen and runs standalone (web app manifest + icon).
 
 ## Keyboard
 
@@ -64,7 +65,9 @@ Early development. What works today:
 
 ## Roadmap
 
-Next: iPad polish and deploy.
+iPad polish and deploy was the last planned milestone. Next up, unplanned: text; gradients;
+boolean operations; a freehand pencil/brush tool; PNG export; grid and smart guides; multiple
+artboards; masks/clipping; align & distribute; a light theme; system-clipboard image paste.
 
 ## Development
 
@@ -72,9 +75,14 @@ Next: iPad polish and deploy.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 433 unit tests
+npm test          # 459 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
 
 Svelte 5, TypeScript, Vite, Tailwind CSS 4, Vitest.
+
+## Deploy
+
+`npm run deploy` builds and publishes to Cloudflare (assets-only Worker); it needs `wrangler`
+auth.

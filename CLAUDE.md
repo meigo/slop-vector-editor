@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 446 tests in 34 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 459 tests in 34 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -108,11 +108,17 @@ every user-visible change.
     `__tests__/fake-context.ts` for tests). This is what makes them unit-testable.
 13. **Every session change goes through `setSession`,** which prunes the selection. Don't assign
     `app.session` directly anywhere else.
-14. **Handles on tiny objects cover the whole shape.** Reach is 6/10 px from the handle centre,
-    and corners take priority. Tests use 40×40 shapes for this reason. Handles that would act on
-    a zero-size axis are not drawn or hit-tested (`activeHandles` in `tools/gizmo.ts`), so a
-    horizontal/vertical line can be dragged by its middle. Tiny (non-zero) objects are still
-    handle-dominated — a small-object handle policy is an M5 item.
+14. **Handles on a too-small object move outside it.** Reach is 6/10 px from the handle centre
+    (mouse/touch), and corners take priority. An axis whose on-screen span is under
+    `3 * (size / 2 + 2)` — three reaches, the smallest span that leaves a reach-wide gap between
+    opposite handles — is expanded to that minimum, symmetrically, in `handlePositions`
+    (`tools/gizmo.ts`); `frameOutline` asks for the unpadded positions, so the drawn frame still
+    shows the true geometry while only the handles move out. Only a non-zero axis is expanded: a
+    zero-size axis keeps its handles coincident, which is what leaves a horizontal/vertical line
+    draggable by its middle (`activeHandles`). Drawing and hit-testing read the same padded
+    positions, so they can't disagree. The resize maths are unaffected — `select.ts`'s `grab`
+    offset is computed from the handle's own (possibly padded) position, so it already carries the
+    difference back to the true corner.
 15. **A running tool drag commits from its own base document**, so the store has a gesture-cancel
     hook: `Canvas` registers `registerGestureCancel` while a tool gesture runs; undo, redo,
     `replaceDocument`, every selection action (delete/duplicate/nudge/convert/flatten/rect
@@ -120,7 +126,14 @@ every user-visible change.
     store actions must do the same, or an edit made while a drag is in flight can be clobbered
     when the drag commits.
 16. **Pointer routing (`input/route.ts`) uses `activeTouches`**: only a second finger starts a
-    pinch; a touch while a pen/mouse gesture is already running is ignored (palm rejection). The
+    pinch; a touch while a pen/mouse gesture is already running is ignored — `penActive` states
+    this palm rejection outright, rather than leaving it to emerge from the counting. A Pencil
+    down over one or more resting fingers takes over from them — pen only, never a second pen or
+    a mouse (`i.activePointers === i.activeTouches`) — falling through to the ordinary rules
+    rather than returning `"tool"` directly, so the Hand tool and a held Space still pan with a
+    Pencil. `Canvas.svelte` ends any running pan/pinch gesture first (nothing to roll back) and
+    drops the superseded pointers from its own bookkeeping, so they don't keep counting toward
+    `activeTouches` or re-anchor a pinch on a stale coordinate once the Pencil lifts. The
     right-click menu opens only for mouse input. A plain tap on a member of a multi-selection
     narrows the selection to it; a new pointer-down cancels an active drag.
 17. **Ellipse hit-testing (`geom/hit.ts`) measures outline distance against a sampled 64-point
@@ -158,13 +171,19 @@ every user-visible change.
       name.
     - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
       with slop-animator, because it suits touch.
-24. **Every `title` is also a status-bar hint** (spec M2e). On mouse hover, the status bar shows
-    the nearest `title`. Write titles as short action descriptions with the shortcut, e.g.
-    "Cut (⌘X)". Top-bar actions that don't apply use `aria-disabled` with a reason title, e.g.
-    "Cut — nothing selected". They never use `disabled` and are never hidden: a disabled button
-    shows no tooltip, and a hidden one moves the bar. The top bar must never scroll or wrap,
-    because that would clip the File menu. Only the file name shrinks. The file name's `title`
-    (full name when truncated) is the one non-action title and also shows in the status bar.
+24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
+    status bar shows the nearest `title`; on touch and pen, which have no hover, it shows the
+    title of whatever was just pressed (`onpointerdown`, `hintFrom` in `lib/hover-hint.ts`) — the
+    hint stays until another press replaces it, and a mouse still clears it on press since hover
+    will set it again. This is the only way an icon-only control's label, or a disabled control's
+    reason, is readable on iPadOS, which shows no tooltip for `title` at all. Write titles as
+    short action descriptions with the shortcut, e.g. "Cut (⌘X)". Top-bar actions that don't apply
+    use `aria-disabled` with a reason title, e.g. "Cut — nothing selected" (a press doesn't
+    activate it, so the reason is exactly what a touch press reveals). They never use `disabled`
+    and are never hidden: a disabled button shows no tooltip, and a hidden one moves the bar. The
+    top bar must never scroll or wrap, because that would clip the File menu. Only the file name
+    shrinks. The file name's `title` (full name when truncated) is the one non-action title and
+    also shows in the status bar.
 25. **New objects go into the current layer** (`app.currentLayerId`, spec M3a). It is store state
     (not saved or undoable), re-resolved in `setSession`, set from the last selected object in
     `setSelection`, and reset by `replaceDocument`. Tools read it through
@@ -214,15 +233,28 @@ every user-visible change.
     band between clicks. A tool with a draft also gets `discard(ctx)`, which the store calls from
     `replaceDocument`, `undo` and `redo` (registered like `registerToolFinish`, in
     `tools/context.ts`): a draft is built on a document those three throw away.
+35. **Deploy assets live in `public/`.** `manifest.webmanifest` (name, icons, standalone display),
+    `apple-touch-icon.png` (180×180, opaque — iOS does not composite transparency, so it's
+    rendered on the app's `#1e1e22` background) and `_headers` (immutable caching for
+    `/assets/*`, plus the CSP). Regenerate the icon from `favicon.svg` when the mark changes; the
+    favicon's own fill is theme-dependent and will not rasterise white. The CSP's `style-src`
+    needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
+    attributes on every rendered element, which CSP counts as inline styles; scripts need no such
+    exception.
 
 ## Current state
 
-Milestone 4b (the pen) — see CHANGELOG. Next is milestone 5: iPad polish and deploy.
+Milestone 5 (iPad polish and deploy) — see CHANGELOG. This closes the milestone list. What
+follows is the post-v1 list (project design §10): text; gradients; boolean operations (possibly
+Paper.js as a geometry-only helper); a freehand pencil/brush tool simplified to bezier with
+pressure; PNG export; grid and smart guides; multiple artboards; masks/clipping; an align &
+distribute panel; a light theme; system-clipboard image paste.
 
 ## Roadmap
 
-M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. Both are
-complete. M5 iPad polish + deploy (spec §9). Post-v1 list in spec §10.
+M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
+polish + deploy) is complete and was the last milestone on the roadmap — see CHANGELOG. What
+follows is the post-v1 list above (project design §10).
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
@@ -236,13 +268,16 @@ M3b (parked, spec §9): a per-document id index for `findNode` lookups during dr
 it more relevant, since `dropTarget` runs `findNode` + `ancestorIds` + `moveNodes` on every
 pointermove.
 
-M5: manifest.webmanifest, apple-touch-icon, public/_headers (immutable asset caching + CSP);
-palm-before-Pencil routing (a pen pointer-down should take over from a touch-only pan); a
-small-object handle policy; the drawer covers the modifier dock at iPad portrait widths; a path
-inside a group contributes no snap targets, because `collectTargets` walks only top-level nodes;
-snap guides are not drawn while a pen draft exists (the overlay has one slot); hit-testing flattens
-at document scale rather than viewport zoom; `movePathNodes` can still drag a node onto its
-subpath's first node.
+Parked, not tied to a milestone: a path inside a group contributes no snap targets, because
+`collectTargets` walks only top-level nodes; snap guides are not drawn while a pen draft exists
+(the overlay has one slot); hit-testing flattens at document scale rather than viewport zoom;
+`movePathNodes` can still drag a node onto its subpath's first node.
+
+Parked as a group, for a milestone of its own (spec M5 §1 "Out"): accessibility and keyboard work
+— Space not activating a focused button, the Modal focus trap, File-menu keyboard navigation,
+`aria-current`/`aria-selected` on layer rows, the PaintField opacity label, `.ui-mixed`'s
+contrast; and performance — the id index for `findNode`, layer-row measurement caching,
+`collectTargets` recomputing every bounds per pointer-down, `nearestOnSubpath`'s cost.
 
 ## Verification debt
 

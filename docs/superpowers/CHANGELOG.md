@@ -489,3 +489,69 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   console errors.
 - Owed: still the iPad pass, Safari and Firefox, and Alt from a physical keyboard (the desktop
   automation delivers `altKey: false`; Alt through the on-screen dock is verified).
+
+## 2026-09-18 — Milestone 5: iPad polish and deploy
+
+- Palm-before-Pencil routing (`input/route.ts`): a Pencil down over one or more resting fingers now
+  takes over the gesture instead of being ignored (`activePointers === activeTouches`, pen only — a
+  second pen or a mouse is never overridden), falling through to the ordinary rules so the Hand
+  tool and a held Space still pan with a Pencil. A finger arriving mid-stroke was already rejected,
+  but only because the counting happened to make `activeTouches` 0; `RouteInput` gains `penActive`,
+  and a touch is now ignored outright whenever a pen or mouse gesture is running, stating the palm
+  rejection outright instead of leaving it to emerge from the counting. `Canvas.svelte` ends a
+  running pan/pinch before starting the Pencil's gesture (a view-only change, nothing to roll back)
+  and drops the superseded fingers from its own pointer bookkeeping — without that they kept
+  counting toward `activeTouches` and their coordinates froze when the Pencil lifted, so the next
+  finger re-anchored a pinch on a stale point and the view jumped (commit 09fac59).
+- A small-object handle policy (`tools/gizmo.ts`): an axis whose on-screen span is under
+  `3 * (size / 2 + 2)` — three reaches, the smallest span that leaves a reach-wide gap between
+  opposite handles — is expanded to that minimum, symmetrically, in `handlePositions`;
+  `frameOutline` still asks for the unpadded positions, so the drawn frame keeps showing the true
+  geometry. Only a non-zero axis is expanded: a zero-size axis keeps its handles coincident, which
+  is what leaves a horizontal or vertical line draggable by its middle. Drawing and hit-testing read
+  the same padded positions, so they can't disagree, and the resize maths need no change —
+  `select.ts`'s `grab` offset is computed from the handle's own (possibly padded) position and
+  already carries the difference back to the true corner.
+- The modifier dock and the notices move to `right-63` (the drawer's 240px plus the usual gutter)
+  whenever the Properties/Layers drawer is open below the 900px breakpoint, instead of sitting
+  under it — at iPad-portrait widths an open drawer used to hide the Shift and Alt latches
+  completely, and notices painted on top of the drawer. `ModifierDock.svelte`'s Snap toggle gets the
+  same `touch-action: none` as its neighbours, so a touch beginning on it can no longer be claimed
+  as a scroll or a double-tap zoom.
+- A late fix on top of that: notices and the dock shared the same bottom-right corner, and at
+  `bottom-10` a notice's lower edge sat inside the dock's band, over the Shift and Alt latches — a
+  parked M5 item the plan had not picked up, caught by the browser pass at 768px. `bottom-10` →
+  `bottom-25`, measured against the dock's real geometry (commit ae34e3c).
+- Discoverability by touch: a non-mouse pointer-down now sets the status bar hint from the pressed
+  control's `title`, through the same `app.hoverHint` channel a mouse hover uses (`lib/hover-hint.ts`,
+  `App.svelte`'s `onpointerdown`). iPadOS shows no tooltip for `title` at all, so without this an
+  icon-only top bar explained nothing, and an `aria-disabled` button's reason ("Cut — nothing
+  selected") was unreachable. A mouse still clears the hint on press, since hover sets it again; the
+  hint costs no long-press timer and no new surface.
+- Deploy preparation: `public/manifest.webmanifest` (name, icons, `display: standalone`),
+  `public/apple-touch-icon.png` (180×180, rendered on the app's `#1e1e22` background since iOS does
+  not composite transparency), and `public/_headers` — immutable `Cache-Control` for `/assets/*`
+  (Vite fingerprints those filenames) plus a Content-Security-Policy on every path. The CSP's
+  `style-src` needs `'unsafe-inline'`: the overlay and `svg/attrs.ts` set `style` attributes on
+  every rendered element, which CSP counts as inline styles; scripts need no such exception.
+- Considered and deliberately not adopted: `viewport-fit=cover` (spec §1 "Out"). Without it, iOS
+  insets the visual viewport itself, so no app chrome can land under the home indicator; adopting it
+  would make the page edge-to-edge and *create* the padding problem this milestone has no device to
+  verify a fix for.
+- Plan: `docs/superpowers/plans/2026-09-18-m5-ipad-polish-deploy.md`. 459 tests in 34 files.
+- Browser-verified (controller, desktop Chrome, port 5198, synthetic pointer events — not a
+  device): a Pencil superseding a resting finger's in-progress gesture and drawing; a second finger
+  arriving mid-stroke changing nothing; both leftover fingers drifting after the Pencil lifted
+  moving nothing at all; an 11px-wide rect at 12% zoom drawing its handles outside itself; at a real
+  `innerWidth` of 768, the drawer open with the dock computing `right: 220.5px` and its right edge
+  clear of the drawer, and a notice stacking above the dock with a gap; a touch press putting
+  "Undo (⌘Z)" in the status bar and "Redo — nothing to redo" for a disabled control, a canvas touch
+  clearing it, a mouse press still clearing it; and the built app served behind the real `_headers`
+  with styled shapes, restored autosave, manifest and icon fetching 200, a creatable blob URL and no
+  CSP violations. No console errors.
+- Owed: the entire iPad pass on real hardware — Pencil drawing, palm rejection with a real hand,
+  pinch and two-finger pan, the dock under a held finger, the drawer at real portrait and landscape
+  widths, touch hints on a device, and the installed standalone app. Also Safari and Firefox; Alt
+  from a physical keyboard (the automation delivers `altKey: false`, so it is verified only through
+  the on-screen dock); and the deploy itself, which the user runs — `npm run deploy` was
+  deliberately not run.
