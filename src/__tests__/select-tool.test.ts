@@ -3,6 +3,8 @@ import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from ".
 import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
+import { selectionFrame } from "../tools/frame";
+import { handlePositions } from "../tools/gizmo";
 import { createSelectTool } from "../tools/select";
 import type { Tool } from "../tools/tool";
 import { ev, fakeContext } from "./fake-context";
@@ -263,6 +265,27 @@ describe("select tool: transforms", () => {
     drag(t, ctx, [50, 50], [50, 80]);
     expect(node(state.session.doc, "l").transform).toEqual(translate(0, 30));
     expect(state.session.history.past).toHaveLength(1);
+  });
+
+  it("resizes from the true corner when the handle has been pushed outside the object", () => {
+    // A 4×4 rect: both axes are under MIN_SPAN (3 reaches = 18px for a mouse), so the handles are
+    // padded out — `se` sits at (11, 11) while the true corner is at (4, 4). `grab` is the true
+    // handle point minus the press point, and that offset is what carries the drag back to the
+    // corner: padding the box inside select.ts's `grab` would zero it and snap the corner to the
+    // finger, so this test fails if anyone "simplifies" it that way (CLAUDE.md invariant 14).
+    const d = createDoc(200, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      nextId: 10,
+      layers: [{ ...d.layers[0], children: [{ ...(rect("s", 0) as RectShape), w: 4, h: 4 }] }],
+    });
+    const t = createSelectTool();
+    tap(t, ctx, 2, 2);
+    expect(state.selection).toEqual(["s"]);
+    const se = handlePositions(selectionFrame(state.session.doc, ["s"])!, state.view, 8).se;
+    expect(se).toEqual({ x: 11, y: 11 });
+    drag(t, ctx, [se.x, se.y], [se.x + 10, se.y + 10]);
+    expect(node(state.session.doc, "s")).toMatchObject({ x: 0, y: 0, w: 14, h: 14 });
   });
 });
 

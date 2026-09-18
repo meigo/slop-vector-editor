@@ -5,11 +5,16 @@
 
 <div
   class={[
-    // Clear of the modifier dock, which shares this corner: the status bar (h-7 and its border),
-    // the dock's own bottom-3 and its 50px height put the dock's top edge 96px above the viewport
-    // bottom, so 100px leaves a 4px gap above it (spec M5 §4).
+    // Clear of the modifier dock, which shares this corner: the status bar (h-7 = 28px plus its
+    // 1px border) and the dock's own bottom-3 put the dock's bottom edge 41px above the viewport
+    // bottom, and its 50px height puts its top edge at 91px — so 100px leaves a 9px gap above it
+    // (spec M5 §4).
     "pointer-events-none fixed bottom-25 z-40 flex max-w-sm flex-col gap-2",
-    app.propertiesOpen ? "right-3 max-[900px]:right-63" : "right-3",
+    // Clear of the Properties/Layers column too. Unlike the dock, which is absolute inside
+    // <main> and so already narrowed by the docked column, these notices are fixed to the
+    // viewport: they must step aside for the column at 900px and up, where it is always present,
+    // and below 900px only while the drawer is open.
+    app.propertiesOpen ? "right-63" : "right-3 min-[900px]:right-63",
   ]}
 >
   {#each app.notices as n (n.id)}
