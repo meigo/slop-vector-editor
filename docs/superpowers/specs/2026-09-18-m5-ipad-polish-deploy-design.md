@@ -133,8 +133,11 @@ Both move aside while the drawer is open, and only at widths where the drawer is
   `app.propertiesOpen` is true and the viewport is under 900 px, and at `right-3` otherwise;
 - classes stay one expression per element, per CLAUDE.md invariant 23 — no `class:` directive over a
   positioned base;
-- nothing changes at 900 px and above, where the column is docked in the flow and the dock already
-  clears it.
+- nothing changes at 900 px and above **for the dock**, which is `absolute` inside `<main>` and so
+  already narrowed by the docked column. The notices are `fixed` to the viewport, so they must step
+  aside at every width where the column is present — including 900 px and above, where it always is.
+  (Corrected during the final review: the original wording said "nothing changes at 900 px and
+  above", which was true of the dock and false of the notices.)
 
 ## 5. Discoverability by touch
 
