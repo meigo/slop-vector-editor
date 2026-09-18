@@ -325,11 +325,33 @@ describe("keys reach the active tool", () => {
     };
     withStub(stub, () => {
       replaceDocument(makeDoc(), "Untitled.svg", null, true);
+      setSelection(["r"]);
+      runEditAction({ kind: "delete" });
       undo();
       redo();
     });
     // A draft was built on a document all three of these throw away (spec M4b §2).
     expect(dropped).toEqual(["select", "select", "select"]);
+  });
+
+  it("keeps the draft when there is nothing to undo or redo", () => {
+    const dropped: string[] = [];
+    const stub: Tool = {
+      ...TOOLS.select,
+      busy: () => true,
+      discard: () => {
+        dropped.push(app.toolId);
+      },
+    };
+    withStub(stub, () => {
+      replaceDocument(makeDoc(), "Untitled.svg", null, true);
+      dropped.length = 0;
+      // Both stacks are empty, so neither key changes the document — and a stroke in progress is
+      // not a thing to throw away.
+      undo();
+      redo();
+    });
+    expect(dropped).toEqual([]);
   });
 });
 

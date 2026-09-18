@@ -202,12 +202,14 @@ export function endDocGesture(): void {
 
 export function undo(): void {
   cancelActiveGesture();
+  if (!canUndo(app.session.history)) return;
   discardToolDraft();
   setSession(undoSession(app.session));
 }
 
 export function redo(): void {
   cancelActiveGesture();
+  if (!canRedo(app.session.history)) return;
   discardToolDraft();
   setSession(redoSession(app.session));
 }
