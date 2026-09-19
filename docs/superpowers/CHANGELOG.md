@@ -952,3 +952,54 @@ browser pass could not:
   No console errors.
 - Owed: verified with the extension's synthetic modifier on a mouse. A real Pencil or finger with
   the latch on is part of the iPad pass owed since M5.
+
+## 2026-09-19 — Milestone 9: per-object visibility and lock
+
+- Every shape and group now has its own **eye and lock**, beside the ones layer rows already had.
+  A hidden or locked node cannot be clicked, dragged or marquee-selected and is pruned from the
+  selection the moment it is hidden — Illustrator's rule, and the one a locked *layer* already
+  followed here. Its row's own two buttons stay live while the row is greyed, because that row is
+  the only way back.
+- **The bigger half: the importer was silently destroying hidden content.** `parse.ts` returned
+  null for any element with `display:none`. Measured on a five-element file before the fix:
+
+  | In the file | Before | After |
+  | --- | --- | --- |
+  | a plain `<rect>` | kept | kept |
+  | `display="none"` | **deleted** | kept, hidden |
+  | `style="display:none"` | **deleted** | kept, hidden |
+  | `visibility="hidden"` | kept, **made visible** | kept, hidden |
+  | `<g display="none">…</g>` | **whole subtree deleted** | kept, group hidden, children intact |
+
+  `dropped` reported none of it, so the notice that exists to say what an import lost said nothing.
+  Open a file with a hidden layer of guides, save, and that work was gone — the loss invariant 10
+  guards against, arriving during the parse instead of at save time.
+- A `visibility="visible"` descendant under a hidden parent is something one flag per node cannot
+  express, so it is **reported** as `nested visibility override` rather than changed silently.
+- The flags are **optional** — `hidden?: true`, `locked?: true`, absent meaning normal — where
+  `Layer` carries plain booleans. Three reasons: a document can hold thousands of nodes, 136 places
+  in this repo build a node literal, and "not hidden" then has exactly one representation, so a
+  no-op edit returns the same reference (invariant 1). Turning a flag off **deletes the key**, so
+  hide-then-show saves byte-identically to never having touched it — there is a test for that.
+- **The reach rule is no longer written three times.** `selectableIds`, `hitTest` and
+  `marqueeSelect` now build on `enteredReach`/`topLevelReach` in `tree.ts`, so this milestone's new
+  clause was added once. Invariant 36 is amended to match.
+- **What the dry run caught, and it was load-bearing:** the first attempt gave all three functions
+  one shared verdict, and two existing tests failed. `hitTest` deliberately searches **two tiers** —
+  the entered group's children, then the top level — which is what lets a click on a sibling outside
+  a group select it and a click on empty canvas leave the group. A single shared rule broke group
+  navigation. `enteredReach` therefore returns **null**, not an empty list, when the group cannot be
+  entered, so every caller falls through to the top level rather than the canvas going dead when the
+  group you are inside gets hidden.
+- One existing test asserted the old behaviour ("skips hidden … content") and was rewritten, since
+  that behaviour was the bug.
+- Spec: `docs/superpowers/specs/2026-09-19-m9-object-visibility-design.md`.
+  Plan: `docs/superpowers/plans/2026-09-19-m9-object-visibility.md`.
+- Browser-verified (port 5195): hiding a rect from its row removes it from the canvas, greys the
+  row, sets the title `“Rectangle” is hidden` and clears the selection; clicking where it was hits
+  nothing; the eye brings it back; locking greys the row and makes the shape unclickable while
+  leaving it drawn; hiding a group hides both children and greys all three rows; one undo restores
+  each; and after a reload through the SVG autosave a hidden child and a locked sibling inside a
+  group both come back with their flags. 539 tests in 43 files. No console errors.
+- Owed: two more 20px targets on every layer row, which is the part most likely to be wrong on a
+  device — it joins the iPad pass owed since M5.

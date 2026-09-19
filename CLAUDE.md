@@ -14,7 +14,7 @@ entries supersede earlier ones — mark superseded entries).
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
   build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
   72 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
-- `npm test` — Vitest, node env, no DOM — 521 tests in 40 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 539 tests in 43 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -28,8 +28,9 @@ every user-visible change.
 ## Architecture map
 
 - `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
-  `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `selectableIds`, `ancestorIds` —
-  node lookup and editing at any depth, with parent matrices), `group.ts` (group/ungroup),
+  `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `ancestorIds` — node lookup and
+  editing at any depth, with parent matrices — plus THE reach rule: `enteredReach`,
+  `topLevelReach`, `reachableNodes`, `selectableIds`, `blocked`), `group.ts` (group/ungroup),
   `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
   current-layer helpers), `path-edit.ts` (pure node edits: move, handles, insert, delete, retype,
   close, `appendNode`, `reverseSubpath`), `resize.ts` (bakes a resize into shape geometry; see
@@ -86,7 +87,9 @@ every user-visible change.
    never mutate. Deep `$state` would proxy the doc and break reference equality.
 3. **Canvas and export share `src/svg/attrs.ts`.** Never style a shape on the canvas any other way,
    or the screen and the saved file drift.
-4. **The importer never throws on unsupported content**; it reports it in `dropped`. It can throw
+4. **The importer never throws on unsupported content**; it reports it in `dropped`. It **keeps**
+   hidden and locked content rather than dropping it (M9): `display:none`, `style="display:none"`
+   and `visibility="hidden"` all become `hidden: true`, and a hidden group keeps its children. It can throw
    `XmlError` (malformed XML), `SvgError` (non-SVG root) or, for a pathologically deep file,
    `RangeError` (recursion) — callers (`openText`, `restoreAutosave`) catch every error, not just
    the named ones. `openText` parses fully before replacing the document.
@@ -296,10 +299,16 @@ every user-visible change.
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such
     exception.
 36. **The selection commands' reach is `selectableIds(doc, enteredGroupId)`** (`src/doc/tree.ts`,
-    spec M6 §4), reused as-is from `src/doc/select-match.ts`. That function had no production
-    caller before this milestone — `hitTest` and `marqueeSelect` re-implement its rule inline —
-    and this milestone exists in part to give it callers again, so the three must not drift back
-    apart. Paints (`{ color, opacity }`) compare exactly, with no tolerance; `null` matches only
+    spec M6 §4), reused as-is from `src/doc/select-match.ts`. `hitTest` and `marqueeSelect` used to
+    re-implement its rule inline; since M9 all three build on the same two pieces in `tree.ts` —
+    `enteredReach` (the entered group's children, or **null** when that group is gone, is not a
+    group, or is hidden or locked) and `topLevelReach`. A new reach clause goes there and nowhere
+    else. **`hitTest` still differs on purpose**: it searches two tiers, the entered group's
+    children and then the top level, which is what lets a click on a sibling outside the group
+    select it and a click on empty canvas leave the group (invariant 28). `selectableIds` and
+    `marqueeSelect` stop at the first tier. `enteredReach` returning null — not an empty list — is
+    what makes every caller fall through to the top level when the group the user is inside gets
+    hidden, instead of the canvas going dead. Paints (`{ color, opacity }`) compare exactly, with no tolerance; `null` matches only
     `null`. Several selected shapes union rather than intersect, and a seed always matches itself,
     so Select Same never shrinks the selection. A group has no `Style`, so it contributes no
     matches to the three paint-based commands and is never returned as one, and still matches on
@@ -335,9 +344,21 @@ every user-visible change.
     and treats the two alike, including the additive marquee. `Select ▸ Deselect`, and the same
     entry in the context menu, are the route that always works.
 
+39. **`hidden` and `locked` on a node are optional, and absent means normal** (spec M9 §3).
+    `Layer` carries `visible`/`locked` as plain booleans; a node carries a flag only in its `true`
+    state, because a document can hold thousands of nodes, 136 places in this repo build a node
+    literal, and — the reason that matters — "not hidden" then has exactly one representation, so
+    an edit that changes nothing returns the same reference (invariant 1). **Turning a flag off
+    deletes the key**, so a node hidden and shown again is structurally identical to one that never
+    was and still saves byte-identically. Nothing reads the fields directly: use `isHidden` /
+    `isLocked` from `src/doc/document.ts`. They are ordinary document data — saved, and undoable.
+    A hidden or locked node **cannot be selected at all** (Illustrator's behaviour, and what a
+    locked layer already does here), which is why its row's own eye and lock stay live while the
+    row is blocked: that row is the only way back.
+
 ## Current state
 
-Milestone 8 (the sidebar split) — see CHANGELOG. What comes next is unplanned: the post-v1 list
+Milestone 9 (per-object visibility and lock) — see CHANGELOG. What comes next is unplanned: the post-v1 list
 (project design §10) still holds text, gradients, a freehand tool, PNG export, grid and smart
 guides, multiple artboards, masks, align and distribute, a light theme and image paste. The
 accessibility group and the performance group (both parked below) remain the two obvious
@@ -346,8 +367,8 @@ milestones.
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
-polish + deploy), M6 (selection conveniences), M7 (boolean operations) and M8 (the sidebar split)
-are complete — see CHANGELOG.
+polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split) and
+M9 (per-object visibility and lock) are complete — see CHANGELOG.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
