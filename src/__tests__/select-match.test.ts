@@ -102,6 +102,23 @@ describe("invertIds", () => {
   });
 });
 
+/** A tripwire, not a behaviour test: `sameStyle` in select-match.ts enumerates Style's fields by
+ *  hand, and TypeScript cannot tell it has fallen behind — a field added to Style would simply go
+ *  uncompared, and "Same Style" would call two different styles identical. If this fails, add the
+ *  new field to `sameStyle` before updating the list here. */
+describe("Style's shape", () => {
+  it("has exactly the fields Same Style compares", () => {
+    expect(Object.keys(DEFAULT_STYLE).sort()).toEqual([
+      "cap",
+      "fill",
+      "join",
+      "opacity",
+      "stroke",
+      "strokeWidth",
+    ]);
+  });
+});
+
 describe("sameIds", () => {
   it("matches fill across kinds, and never reaches a hidden or locked layer", () => {
     expect(sameIds(makeDoc(), ["a"], null, "fill")).toEqual(["a", "c"]);
