@@ -3,6 +3,7 @@
   import {
     addFontFile,
     fontsChangedTick,
+    rerollTitle,
     setTitleFont,
     setTitleOpts,
     setTitleText,
@@ -26,6 +27,23 @@
   const missing = $derived(`Needs the font “${label}”, which isn't loaded — add it from a file`);
 
   let picker: HTMLInputElement | null = $state(null);
+
+  /** Spec M10 §6 sketches sliders; this app has no range input anywhere, and `NumberField` is the
+   *  control it does have — already styled, already 32px for touch, and it already guards a no-op
+   *  change, which invariant 1 needs. */
+  const AMOUNTS = [
+    { key: "rotate", label: "Rotation", max: 45, suffix: "°" },
+    { key: "scale", label: "Scale", max: 50, suffix: "%" },
+    { key: "offset", label: "Baseline", max: 50, suffix: "px" },
+    { key: "skew", label: "Skew", max: 45, suffix: "°" },
+  ] as const;
+
+  /** Scale is stored as a fraction and shown as a percentage. */
+  const amountValue = (k: (typeof AMOUNTS)[number]["key"]) =>
+    k === "scale" ? Math.round(meta.amounts.scale * 100) : meta.amounts[k];
+
+  const setAmount = (k: (typeof AMOUNTS)[number]["key"], v: number) =>
+    void setTitleOpts({ amounts: { ...meta.amounts, [k]: k === "scale" ? v / 100 : v } });
 
   const ALIGNS = [
     { v: "left", label: "Align left" },
@@ -119,6 +137,31 @@
       >
         {a.v === "left" ? "⇤" : a.v === "center" ? "⇔" : "⇥"}
       </button>
+    {/each}
+  </div>
+
+  <div class="mt-1 flex items-center justify-between">
+    <span class="section-title">Randomise</span>
+    <button
+      class="btn"
+      aria-disabled={!ready}
+      title={ready ? "Re-roll the randomiser" : missing}
+      onclick={() => ready && void rerollTitle()}
+    >
+      ↻ Seed {meta.seed}
+    </button>
+  </div>
+
+  <div class="grid grid-cols-2 gap-2">
+    {#each AMOUNTS as a (a.key)}
+      <NumberField
+        label={a.label}
+        value={amountValue(a.key)}
+        min={0}
+        max={a.max}
+        suffix={a.suffix}
+        onchange={(v) => ready && setAmount(a.key, v)}
+      />
     {/each}
   </div>
 </div>

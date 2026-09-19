@@ -1100,3 +1100,46 @@ and a refused string stayed in the field while the canvas showed the real title.
   one entry; and an abandoned drag (`input` then `blur`, no `change`) still closes its own step,
   proven by a later edit getting its own. No console errors.
 - Owed: with a very large selection each live step re-styles every selected shape; unmeasured.
+
+## 2026-09-19 — Milestone 10b: the randomiser
+
+- A title's characters can now be jittered individually: **Rotation, Scale, Baseline and Skew**,
+  each with its own amount, driven by a seed with a **Re-roll** button. This is the feature the
+  request was actually about — "characters transforms can be randomized".
+- `src/text/random.ts` is pure and integer-only. Three properties of the hash matter and each is
+  tested: the **index goes into** the hash rather than being consumed in order, so inserting a
+  letter at the front cannot reshuffle the ones after it; each property has **its own salt**, so
+  rotation and scale are independent rather than one stream read twice; and everything is
+  `Math.imul`/`>>> 0`, so a title looks **identical on every machine** — one that re-rolled itself
+  because it was opened elsewhere would be a data bug, not a surprise.
+- The jitter is baked into the outlines **about each character's own advance-box centre on the
+  baseline** (invariant 40 — never carried as a matrix). About the origin, distant letters would
+  swing out of the line. An identity transform is skipped rather than applied, so a title with no
+  jitter stays byte-identical to M10a's — there is a test for that.
+- Overrides layer on top, replacing **per property**, so a hand-tweaked letter survives a re-roll.
+  Nothing writes them yet; that is M10c.
+- The controls are `NumberField`s, not sliders. The spec sketched sliders, but this app has no range
+  input anywhere and `NumberField` is already styled, already 32px for touch, and already guards a
+  no-op change — which invariant 1 needs.
+
+### The regression the dry run caught
+
+**`newSeed()` returns a full 32-bit integer, and the M10a review had added a coordinate ceiling of
+1e9 to every number in `data-sv-text-opts`.** So a re-rolled title validated fine in memory and then
+came back from a reload as an **ordinary path with its text gone for good** — silent, permanent data
+loss, on the milestone's headline action. The seed is an id, not a length: it is now checked as a
+32-bit integer while sizes and amounts keep the coordinate ceiling. Two regression tests cover it,
+one on `parseTextOpts` and one through the real serializer.
+
+Also caught: a negative roll times an amount of zero is `-0`, which `===` calls `0` but `Object.is`
+does not — so an "identity" transform passed the skip check and failed a deep comparison. Normalised
+with `+ 0`. And a botched edit of mine rendered the whole Randomise block **twice**; the browser pass
+found it immediately.
+
+- Browser-verified (port 5191): setting Rotation 22 and Baseline 6 visibly jitters each character;
+  Re-roll changes the seed, keeps the amounts and produces a different arrangement (two zoomed
+  screenshots, clearly different); one undo restores the previous seed. **582 tests in 47 files.**
+- Owed: the reload round-trip after the seed fix is covered by unit tests through the real
+  serializer rather than in the browser — the extension stopped delivering clicks and keystrokes to
+  the page part-way through the pass, and I stopped rather than keep guessing coordinates.
+  Per-character selection and hand-tweaking are **M10c**; `overrides` already round-trips.

@@ -15,6 +15,8 @@ beforeAll(async () => {
   f = { id: "anton", label: "Anton", font };
 });
 
+const ZERO = { rotate: 0, scale: 0, offset: 0, skew: 0 };
+
 const meta = (text: string, over: Partial<TextMeta> = {}): TextMeta => ({
   text,
   font: "anton",
@@ -75,6 +77,44 @@ describe("outlineText", () => {
     const a = boxOf("SLOP", { size: 50 });
     const b = boxOf("SLOP", { size: 100 });
     expect(b.w / a.w).toBeCloseTo(2, 2);
+  });
+
+  it("leaves a title with no jitter exactly where it was", () => {
+    // An unjittered title must be byte-identical to M10a's: the transform is skipped, not applied
+    // as an identity matrix, so no float noise creeps into saved files.
+    const plain = outlineText(f, meta("SLOP"));
+    const rolled = outlineText(f, meta("SLOP", { seed: 999, amounts: ZERO }));
+    expect(rolled).toEqual(plain);
+  });
+
+  it("makes the run taller when characters are rotated", () => {
+    const plain = boxOf("SLOP");
+    const jittered = boxOf("SLOP", { amounts: { ...ZERO, rotate: 30 } });
+    expect(jittered.h).toBeGreaterThan(plain.h);
+  });
+
+  it("turns each character about its own centre, not the origin", () => {
+    // With a big rotation, a glyph rotated about the run's origin would swing far away. About its
+    // own advance box it stays roughly where it was.
+    const one = boxOf("S");
+    const plain = boxOf("SS");
+    const jittered = boxOf("SS", { amounts: { ...ZERO, rotate: 40 } });
+    const drift = Math.abs(jittered.x + jittered.w / 2 - (plain.x + plain.w / 2));
+    expect(drift).toBeLessThan(one.w);
+  });
+
+  it("lets an override change one character and leave the next alone", () => {
+    const base = meta("SS", { amounts: { ...ZERO, rotate: 10 }, seed: 5 });
+    const withOv = meta("SS", {
+      amounts: { ...ZERO, rotate: 10 },
+      seed: 5,
+      overrides: { 0: { r: 35 } },
+    });
+    const a = outlineText(f, base);
+    const b = outlineText(f, withOv);
+    expect(b).not.toEqual(a);
+    // The last subpath belongs to the second glyph, which no override touched.
+    expect(b[b.length - 1]).toEqual(a[a.length - 1]);
   });
 
   it("returns nothing for an empty string", () => {

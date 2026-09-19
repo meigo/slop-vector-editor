@@ -57,6 +57,7 @@ import type { Vec } from "../geom/vec";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
+import { newSeed } from "../text/random";
 import {
   loadFont,
   outlineText,
@@ -871,7 +872,7 @@ function defaultMeta(text: string): TextMeta {
     size: 96,
     letterSpacing: 0,
     align: "left",
-    seed: (Math.random() * 1e9) | 0,
+    seed: newSeed(),
     amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
     overrides: {},
   };
@@ -1023,6 +1024,12 @@ function sameMeta(a: TextMeta, b: TextMeta): boolean {
 
 export const setTitleText = (text: string): Promise<void> => reshapeTitle({ text });
 export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> => reshapeTitle(patch);
+
+/** Spec M10 §4. Amounts of zero make this a visible no-op, which is correct and needs no special
+ *  case: the seed changes, `sameMeta` lets it through, and the outlines come back identical. */
+export function rerollTitle(): Promise<void> {
+  return setTitleOpts({ seed: newSeed() });
+}
 
 export async function setTitleFont(id: string): Promise<void> {
   currentFontId = id;
