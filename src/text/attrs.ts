@@ -43,7 +43,12 @@ export function parseTextOpts(s: string): TextOpts | null {
   if (n.some((v) => v === null)) return null;
   const [size, letterSpacing, seed, rotate, scale, offset, skew] = n as number[];
   if (size <= 0) return null;
-  if (n.some((v) => Math.abs(v as number) > MAX_TEXT_NUM)) return null;
+  // The seed is an opaque 32-bit integer, not a length: measuring it against MAX_TEXT_NUM rejected
+  // any seed above 1e9 and silently turned the title back into an ordinary path on reload.
+  if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) return null;
+  if ([size, letterSpacing, rotate, scale, offset, skew].some((v) => Math.abs(v) > MAX_TEXT_NUM)) {
+    return null;
+  }
   return {
     size,
     letterSpacing,

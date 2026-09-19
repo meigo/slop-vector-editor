@@ -55,10 +55,19 @@ describe("the text-opts attribute", () => {
     expect(parseTextOpts(formatTextOpts(opts))).toEqual(opts);
   });
 
+  it("accepts a full 32-bit seed — it is an id, not a length", () => {
+    // Regression: `newSeed()` returns up to 2^32, and measuring it against the coordinate ceiling
+    // rejected the attribute, so every title with a large seed reloaded as an ordinary path.
+    const o = parseTextOpts("96 0 left 4294967295 12 0.08 4 0");
+    expect(o?.seed).toBe(4294967295);
+    expect(parseTextOpts("96 0 left 4294967296 12 0.08 4 0")).toBeNull();
+    expect(parseTextOpts("96 0 left -1 12 0.08 4 0")).toBeNull();
+    expect(parseTextOpts("96 0 left 1.5 12 0.08 4 0")).toBeNull();
+  });
+
   it("refuses numbers big enough to overflow the writer (invariant 8's ceiling)", () => {
     expect(parseTextOpts("1e300 0 left 1 0 0 0 0")).toBeNull();
     expect(parseTextOpts("96 -1e200 left 1 0 0 0 0")).toBeNull();
-    expect(parseTextOpts("96 0 left 1e300 0 0 0 0")).toBeNull();
     expect(parseTextOpts("96 0 left 1 0 0 0 0")).not.toBeNull();
   });
 

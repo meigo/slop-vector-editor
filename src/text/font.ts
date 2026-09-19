@@ -2,9 +2,12 @@
  *  stays a lazy chunk — 67.7 KB gzipped, measured in the M10 spike, against 0.14 KB added to the
  *  app's own chunk. Everything outside this file sees plain `Subpath[]`. */
 import type { Subpath, TextMeta } from "../doc/document";
+import { multiply, rotate, scale, skewX, translate, type Mat } from "../geom/mat";
+import { transformSubpaths } from "../geom/shapes";
 import { parsePathData } from "../svg/pathdata";
 import { BUNDLED } from "./fonts";
 import { layoutRun } from "./layout";
+import { charTransform, isIdentityChar, withOverride, type CharTransform } from "./random";
 
 type OT = (typeof import("opentype.js"))["default"];
 type ParsedFont = import("opentype.js").Font;
@@ -186,7 +189,30 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
   for (let i = 0; i < chars.length && i < pen.length; i++) {
     const d = font.getPath(chars[i], pen[i], 0, m.size).toPathData(3);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
-    for (const sp of parsePathData(d)) if (sp.nodes.length > 0) out.push(sp);
+    const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
+    const t = withOverride(charTransform(m.seed, i, m.amounts), m.overrides[i]);
+    if (isIdentityChar(t)) {
+      out.push(...glyph);
+      continue;
+    }
+    // About the centre of the character's own advance box, on the baseline. Rotating about the
+    // origin would swing distant letters out of the line entirely (spec M10 §4).
+    const cx = pen[i] + (advances[i] * m.size) / 2;
+    out.push(...transformSubpaths(glyph, charMatrix(t, cx)));
   }
   return out;
+}
+
+const RAD = Math.PI / 180;
+
+/** Baked into the outlines, never carried as a matrix (invariant 40): that is what lets booleans,
+ *  the node tool and a future warp treat a title as ordinary artwork. */
+function charMatrix(t: CharTransform, cx: number): Mat {
+  return multiply(
+    translate(cx + t.dx, t.dy),
+    multiply(
+      rotate(t.rotate * RAD),
+      multiply(skewX(t.skew * RAD), multiply(scale(t.scale), translate(-cx, 0))),
+    ),
+  );
 }

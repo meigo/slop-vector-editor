@@ -52,6 +52,14 @@ describe("a title round-trips as a path", () => {
     expect(back.text).toEqual(meta);
   });
 
+  it("survives a full 32-bit seed", () => {
+    // Regression, found in the M10b dry run: `newSeed()` returns up to 2^32, and the coordinate
+    // ceiling added in the M10a review rejected it — so a re-rolled title silently came back as an
+    // ordinary path on the next reload, losing its text for good.
+    const big = title({ text: { ...meta, seed: 4294967295 } });
+    expect(reload(docWith(big)).text?.seed).toBe(4294967295);
+  });
+
   it("writes no text attributes for an ordinary path", () => {
     const svg = serializeDoc(docWith(title({ text: undefined })));
     expect(svg).not.toContain("data-sv-text");

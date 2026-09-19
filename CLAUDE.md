@@ -393,6 +393,20 @@ every user-visible change.
       title in a reopened file read-only.
     - Scripts needing shaping or RTL (`unshapedScript`) and strings the font has no glyphs for
       (`noGlyphsFor`) are **refused with a notice**, never drawn wrongly.
+    - **The randomiser is integer-only** (`src/text/random.ts`). The index goes _into_ a hash rather
+      than being consumed in order, so inserting a letter at the front cannot reshuffle the ones
+      after it; each property has its own salt, so rotation and scale are independent rather than
+      one stream read twice; and everything is `Math.imul`/`>>> 0`, so a title looks identical on
+      every machine. A title that re-rolled itself because it was opened elsewhere would be a data
+      bug. A negative roll times an amount of zero is `-0`, which `===` calls `0` but `Object.is`
+      does not, so the amounts are normalised with `+ 0`.
+    - The jitter is baked **about the centre of each character's own advance box, on the baseline**;
+      about the origin, distant letters would swing out of the line. An identity transform is
+      skipped rather than applied, so an unjittered title's outlines stay byte-identical.
+    - **The seed is an id, not a length.** `parseTextOpts` measures sizes and amounts against
+      `MAX_TEXT_NUM` but checks the seed as a 32-bit integer: measuring it as a coordinate rejected
+      every seed above 1e9, and a re-rolled title then came back from a reload as an ordinary path
+      with its text lost for good.
 
 41. **A live UI drag belongs in a document gesture.** `PaintField`'s colour swatch updates the
     artwork on `input` — the live event, where `change` fires only once the picker closes — and
