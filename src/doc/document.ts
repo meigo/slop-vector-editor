@@ -71,6 +71,8 @@ export type TextMeta = {
   font: string;
   size: number;
   letterSpacing: number;
+  /** A multiple of `size`. Absent from files written before M10d; see `parseTextOpts`. */
+  lineHeight: number;
   align: "left" | "center" | "right";
   seed: number;
   amounts: { rotate: number; scale: number; offset: number; skew: number };

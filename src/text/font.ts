@@ -7,7 +7,7 @@ import type { Vec } from "../geom/vec";
 import { transformSubpaths } from "../geom/shapes";
 import { parsePathData } from "../svg/pathdata";
 import { BUNDLED } from "./fonts";
-import { layoutRun } from "./layout";
+import { layoutRun, splitLines } from "./layout";
 import { charTransform, isIdentityChar, withOverride, type CharTransform } from "./random";
 
 type OT = (typeof import("opentype.js"))["default"];
@@ -175,19 +175,42 @@ export function noGlyphsFor(f: LoadedFont, text: string): boolean {
 /** string + font + options → outlines, in the title's own space with the baseline at y = 0.
  *  M10a applies no per-character transform; `seed`, `amounts` and `overrides` ride along unused
  *  and M10b adds that step here. */
+/** One placed glyph. `index` is into the whole string, newlines included, so overrides survive.
+ *  Newlines themselves never appear here — they have no glyph. */
+type Placed = { char: string; index: number; penX: number; penY: number; advance: number };
+
 /** The shared layout behind both `outlineText` and `charQuads`, so a character's outline and its
- *  hit box can never disagree about where it is. */
-function runLayout(f: LoadedFont, m: TextMeta) {
-  const chars = [...m.text];
+ *  hit box can never disagree about where it is.
+ *
+ *  Alignment across lines needs no new arithmetic: applying the per-line rule to every line aligns
+ *  the block on its own. With `left` every line starts at 0, with `center` every line is centred on
+ *  0, with `right` every line ends at 0 — so the block is aligned because each line is. */
+function runLayout(f: LoadedFont, m: TextMeta): { placed: Placed[]; font: ParsedFont; upm: number } {
   const font = f.font;
   const upm = font.unitsPerEm;
-  const glyphs = font.stringToGlyphs(m.text);
-  const advances = glyphs.map((g: Glyph) => (g.advanceWidth ?? 0) / upm);
-  const kerns = glyphs.map((g: Glyph, i: number) =>
-    i === 0 ? 0 : font.getKerningValue(glyphs[i - 1], g) / upm,
-  );
-  const { pen } = layoutRun(advances, kerns, m.size, m.letterSpacing, m.align);
-  return { chars, advances, pen, font, upm };
+  const placed: Placed[] = [];
+  const lines = splitLines(m.text);
+  lines.forEach((line, lineNo) => {
+    const chars = [...line.text];
+    if (chars.length === 0) return;
+    const glyphs = font.stringToGlyphs(line.text);
+    const advances = glyphs.map((g: Glyph) => (g.advanceWidth ?? 0) / upm);
+    const kerns = glyphs.map((g: Glyph, i: number) =>
+      i === 0 ? 0 : font.getKerningValue(glyphs[i - 1], g) / upm,
+    );
+    const { pen } = layoutRun(advances, kerns, m.size, m.letterSpacing, m.align);
+    const penY = lineNo * m.lineHeight * m.size;
+    for (let i = 0; i < chars.length && i < pen.length; i++) {
+      placed.push({
+        char: chars[i],
+        index: line.start + i,
+        penX: pen[i],
+        penY,
+        advance: advances[i] ?? 0,
+      });
+    }
+  });
+  return { placed, font, upm };
 }
 
 /** The transform a character ends up with: the roll, with any hand override on top. */
@@ -195,63 +218,60 @@ function transformFor(m: TextMeta, i: number): CharTransform {
   return withOverride(charTransform(m.seed, i, m.amounts), m.overrides[i]);
 }
 
-/** string + font + options → outlines, in the title's own space with the baseline at y = 0. */
+/** string + font + options → outlines, in the title's own space with the first baseline at y = 0. */
 export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
-  const { chars, advances, pen, font } = runLayout(f, m);
-  if (chars.length === 0) return [];
+  const { placed, font } = runLayout(f, m);
   const out: Subpath[] = [];
-  for (let i = 0; i < chars.length && i < pen.length; i++) {
-    const d = font.getPath(chars[i], pen[i], 0, m.size).toPathData(3);
+  for (const p of placed) {
+    const d = font.getPath(p.char, p.penX, p.penY, m.size).toPathData(3);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
-    const t = transformFor(m, i);
+    const t = transformFor(m, p.index);
     if (isIdentityChar(t)) {
       out.push(...glyph);
       continue;
     }
-    out.push(...transformSubpaths(glyph, charMatrix(t, centreOf(pen[i], advances[i], m.size))));
+    out.push(...transformSubpaths(glyph, charMatrix(t, centreOf(p, m.size), p.penY)));
   }
   return out;
 }
 
-/** Each character's advance box, jittered like its outline, in the title's own space — four
- *  corners, clockwise from the top left. This is what a click is tested against (spec M10 §6). */
+/** Each glyph's advance box, jittered like its outline, in the title's own space — four corners,
+ *  clockwise from the top left. This is what a click is tested against (spec M10 §6). One per
+ *  **glyph**, so a newline contributes none. */
 export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
-  const { chars, advances, pen, font, upm } = runLayout(f, m);
+  const { placed, font, upm } = runLayout(f, m);
   const top = (-font.ascender / upm) * m.size;
   const bottom = (-font.descender / upm) * m.size;
-  const out: Vec[][] = [];
-  for (let i = 0; i < chars.length && i < pen.length; i++) {
-    const x0 = pen[i];
-    const x1 = pen[i] + advances[i] * m.size;
+  return placed.map((p) => {
+    const x1 = p.penX + p.advance * m.size;
     const corners: Vec[] = [
-      { x: x0, y: top },
-      { x: x1, y: top },
-      { x: x1, y: bottom },
-      { x: x0, y: bottom },
+      { x: p.penX, y: p.penY + top },
+      { x: x1, y: p.penY + top },
+      { x: x1, y: p.penY + bottom },
+      { x: p.penX, y: p.penY + bottom },
     ];
-    const t = transformFor(m, i);
-    const mat = isIdentityChar(t) ? null : charMatrix(t, centreOf(pen[i], advances[i], m.size));
-    out.push(mat ? corners.map((c) => applyMat(mat, c)) : corners);
-  }
-  return out;
+    const t = transformFor(m, p.index);
+    if (isIdentityChar(t)) return corners;
+    const mat = charMatrix(t, centreOf(p, m.size), p.penY);
+    return corners.map((c) => applyMat(mat, c));
+  });
 }
 
-/** The centre of a character's own advance box, on the baseline — the anchor every per-character
- *  transform turns about (spec M10 §4). */
-const centreOf = (penX: number, advance: number, size: number): number =>
-  penX + (advance * size) / 2;
+/** The centre of a glyph's own advance box, on its own baseline — the anchor every per-character
+ *  transform turns about (spec M10 §4). `advance` is in em units, so it scales with the size. */
+const centreOf = (p: Placed, size: number): number => p.penX + (p.advance * size) / 2;
 
 const RAD = Math.PI / 180;
 
 /** Baked into the outlines, never carried as a matrix (invariant 40): that is what lets booleans,
  *  the node tool and a future warp treat a title as ordinary artwork. */
-function charMatrix(t: CharTransform, cx: number): Mat {
+function charMatrix(t: CharTransform, cx: number, cy: number): Mat {
   return multiply(
-    translate(cx + t.dx, t.dy),
+    translate(cx + t.dx, cy + t.dy),
     multiply(
       rotate(t.rotate * RAD),
-      multiply(skewX(t.skew * RAD), multiply(scale(t.scale), translate(-cx, 0))),
+      multiply(skewX(t.skew * RAD), multiply(scale(t.scale), translate(-cx, -cy))),
     ),
   );
 }

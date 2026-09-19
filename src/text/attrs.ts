@@ -6,9 +6,13 @@ import type { Align } from "./layout";
 
 export type CharOverride = { r?: number; s?: number; dx?: number; dy?: number; k?: number };
 export type Amounts = { rotate: number; scale: number; offset: number; skew: number };
+/** The line height a file written before M10d is read with. */
+export const DEFAULT_LINE_HEIGHT = 1.2;
+
 export type TextOpts = {
   size: number;
   letterSpacing: number;
+  lineHeight: number;
   align: Align;
   seed: number;
   amounts: Amounts;
@@ -31,16 +35,20 @@ export function formatTextOpts(o: TextOpts): string {
   const a = o.amounts;
   return [o.size, o.letterSpacing]
     .map(fmt)
-    .concat(o.align, [o.seed, a.rotate, a.scale, a.offset, a.skew].map(fmt))
+    .concat(o.align, [o.seed, a.rotate, a.scale, a.offset, a.skew, o.lineHeight].map(fmt))
     .join(" ");
 }
 
 export function parseTextOpts(s: string): TextOpts | null {
   const p = s.trim().split(/\s+/);
-  if (p.length !== 8) return null;
+  // **Eight or nine.** M10d appended `lineHeight`; demanding nine would turn every title saved
+  // before it into a plain path with its text lost — the same silent loss the seed ceiling caused.
+  if (p.length !== 8 && p.length !== 9) return null;
   if (!ALIGNS.includes(p[2])) return null;
   const n = [0, 1, 3, 4, 5, 6, 7].map((i) => num(p[i]));
   if (n.some((v) => v === null)) return null;
+  const lineHeight = p.length === 9 ? num(p[8]) : DEFAULT_LINE_HEIGHT;
+  if (lineHeight === null || lineHeight <= 0) return null;
   const [size, letterSpacing, seed, rotate, scale, offset, skew] = n as number[];
   if (size <= 0) return null;
   // The seed is an opaque 32-bit integer, not a length: measuring it against MAX_TEXT_NUM rejected
@@ -52,6 +60,7 @@ export function parseTextOpts(s: string): TextOpts | null {
   return {
     size,
     letterSpacing,
+    lineHeight,
     align: p[2] as Align,
     seed,
     amounts: { rotate, scale, offset, skew },

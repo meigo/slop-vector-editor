@@ -210,7 +210,10 @@ never lost, only its editability.
 - **Importing other tools' `<text>`.** It stays in `dropped`. Converting foreign text would mean
   matching fonts we do not have and shaping we cannot do, and would produce artwork that silently
   differs from the original.
-- **Multi-line, text on a path, vertical text.** Each is its own feature; none serves titles.
+- ~~**Multi-line**~~ — **superseded 2026-09-19 (M10d).** Excluded here as "not serving titles",
+  which stopped being true the moment the panel carried an alignment control: alignment describes
+  how lines relate to each other, so with one line its effect was invisible. Multi-line is in.
+- **Text on a path, vertical text.** Each is its own feature; neither serves titles.
 - **Complex scripts.** opentype.js gives outlines and legacy kerning, not HarfBuzz shaping. Arabic,
   Devanagari, Thai and similar need joining and reordering we cannot do, and would render as
   detached glyphs. The tool detects characters in those ranges and **refuses with a notice** rather

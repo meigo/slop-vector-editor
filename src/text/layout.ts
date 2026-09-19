@@ -25,3 +25,16 @@ export function layoutRun(
   const shift = align === "center" ? -width / 2 : align === "right" ? -width : 0;
   return { pen: shift === 0 ? pen : pen.map((p) => p + shift), width };
 }
+
+/** Splits a title into lines, each carrying the index its first character has in the **whole
+ *  string**. Indices stay true to the raw text — newlines included — so M10c's per-character
+ *  overrides keep pointing at the characters they were made for. */
+export function splitLines(text: string): { text: string; start: number }[] {
+  const out: { text: string; start: number }[] = [];
+  let start = 0;
+  for (const line of text.split("\n")) {
+    out.push({ text: line, start });
+    start += [...line].length + 1; // + 1 for the newline itself
+  }
+  return out;
+}

@@ -1241,3 +1241,33 @@ be the wrong words for the final behaviour, so they are not used.
   which edge holds still while that happens.
 - Verified in the browser: three distinct flush-line icons, the active one on, the titles correct.
   No console errors.
+
+## 2026-09-19 — Milestone 10d: multi-line titles
+
+- Press Return in the title field and get a second line. A **Line height** control sits beside Size
+  and Spacing, and the alignment buttons finally do the job their name and icons promise.
+- **Why this reverses a decision.** M10 §9 excluded multi-line as "not serving titles". That
+  stopped being true the moment the panel carried an alignment control: alignment describes how
+  lines relate to each other, so with a single line all it could do was pin an edge to the anchor —
+  real, but invisible until you edit. The spec's §9 is struck through and dated rather than
+  rewritten, per this changelog's convention.
+- **Block alignment needed no new arithmetic.** Applying the existing per-line rule to every line
+  aligns the block on its own: with `left` every line starts at 0, with `center` every line is
+  centred on 0, with `right` every line ends at 0. `layoutRun` is untouched.
+- **The format change was the dangerous part.** `data-sv-text-opts` had exactly 8 fields and
+  `parseTextOpts` demanded exactly 8; appending `lineHeight` would have turned **every title already
+  saved — including the ones pushed an hour ago — into a plain path with its text gone**. It now
+  accepts 8 or 9 and defaults the missing line height to 1.2. That is the same silent loss the seed
+  ceiling caused in M10b, caught this time before writing the code rather than after.
+- **Character indices stay indices into the raw string**, newlines included. `runLayout` skips the
+  newlines — they have no glyph — but never renumbers what follows, so M10c's per-character
+  overrides keep pointing at the characters they were made for. There is a test for exactly that.
+- Caught on re-reading my own code: `centreOf` dropped the `size` multiplier while being made
+  line-aware, which would have put the per-character rotation anchor in the wrong place at every
+  size but 1.
+- Browser-verified (port 5185): `"SLOP\nEDITOR"` renders on two baselines; left, centre and right
+  each visibly rearrange the two lines (three zoomed screenshots); a real Return in the field
+  inserts a break instead of committing; the text and its 9-field opts survive a reload; and a
+  hand-written **8-field** file from before this change still opens as a title with its line height
+  defaulted and nothing reported dropped. No console errors.
+- 607 tests in 48 files. Build 0 errors / 0 warnings.

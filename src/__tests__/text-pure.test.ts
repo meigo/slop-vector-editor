@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutRun } from "../text/layout";
+import { layoutRun, splitLines } from "../text/layout";
 import {
   formatOverrides,
   formatTextOpts,
@@ -11,6 +11,7 @@ import {
 const opts: TextOpts = {
   size: 96,
   letterSpacing: 2.5,
+  lineHeight: 1.2,
   align: "center",
   seed: 418,
   amounts: { rotate: 12, scale: 0.08, offset: 4, skew: 0 },
@@ -53,6 +54,30 @@ describe("layoutRun", () => {
 describe("the text-opts attribute", () => {
   it("round-trips", () => {
     expect(parseTextOpts(formatTextOpts(opts))).toEqual(opts);
+  });
+
+  it("still reads a file written before line heights existed", () => {
+    // THE regression guard for M10d. `data-sv-text-opts` had eight fields; demanding nine would
+    // turn every title already saved into a plain path with its text gone.
+    const old = parseTextOpts("96 2.5 center 418 12 0.08 4 0");
+    expect(old).not.toBeNull();
+    expect(old?.lineHeight).toBe(1.2);
+    expect(old?.size).toBe(96);
+    expect(old?.align).toBe("center");
+  });
+
+  it("round-trips a line height when the file has one", () => {
+    const nine = parseTextOpts("96 2.5 center 418 12 0.08 4 0 1.65");
+    expect(nine?.lineHeight).toBe(1.65);
+    expect(formatTextOpts(nine!).split(" ")).toHaveLength(9);
+  });
+
+  it("refuses a line height that is absent-but-malformed, or the wrong field count", () => {
+    expect(parseTextOpts("96 2.5 center 418 12 0.08 4 0 0")).toBeNull();
+    expect(parseTextOpts("96 2.5 center 418 12 0.08 4 0 -1")).toBeNull();
+    expect(parseTextOpts("96 2.5 center 418 12 0.08 4 0 x")).toBeNull();
+    expect(parseTextOpts("96 2.5 center 418 12 0.08 4")).toBeNull();
+    expect(parseTextOpts("96 2.5 center 418 12 0.08 4 0 1.2 9")).toBeNull();
   });
 
   it("accepts a full 32-bit seed — it is an id, not a length", () => {
@@ -101,5 +126,31 @@ describe("the overrides attribute", () => {
     expect(parseOverrides(":r=5", 10)).toEqual({}); // Number("") is 0 — must not land on char 0
     expect(parseOverrides("1.5:r=5", 10)).toEqual({});
     expect(parseOverrides("2:r=5;garbage;3:dy=1", 10)).toEqual({ 2: { r: 5 }, 3: { dy: 1 } });
+  });
+});
+
+describe("splitLines", () => {
+  it("keeps each line's index into the whole string, newline included", () => {
+    expect(splitLines("AB\nCD")).toEqual([
+      { text: "AB", start: 0 },
+      { text: "CD", start: 3 },
+    ]);
+  });
+
+  it("leaves a single line alone", () => {
+    expect(splitLines("AB")).toEqual([{ text: "AB", start: 0 }]);
+  });
+
+  it("gives a trailing newline its empty final line", () => {
+    expect(splitLines("A\n")).toEqual([
+      { text: "A", start: 0 },
+      { text: "", start: 2 },
+    ]);
+    expect(splitLines("\n")).toHaveLength(2);
+  });
+
+  it("counts by code point, so an astral character does not shift later indices", () => {
+    // "\u{1D400}" is one character but two UTF-16 units; [...s] is what the layout iterates.
+    expect(splitLines("\u{1D400}\nB")[1].start).toBe(2);
   });
 });
