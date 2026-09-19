@@ -156,12 +156,23 @@ describe("sameIds", () => {
     expect(sameIds(makeDoc(), ["g"], null, "kind")).toEqual(["g"]);
   });
 
-  it("skips groups for the style fields, as seed and as candidate", () => {
+  it("skips groups for the style fields, as matcher and as candidate", () => {
     const doc = makeDoc();
-    // A group seed has no style, so a style match finds nothing at all.
-    expect(sameIds(doc, ["g"], null, "fill")).toEqual([]);
-    // And a group is never returned by one.
+    // A group has no style, so it contributes no matches and is never returned as one…
     expect(sameIds(doc, ["a"], null, "fill")).not.toContain("g");
+    // …but a group seed is still kept, because a Select Same never shrinks the selection.
+    expect(sameIds(doc, ["g"], null, "fill")).toEqual(["g"]);
+  });
+
+  it("keeps a seed that is out of reach instead of clearing the selection", () => {
+    // The layers panel can select a row at any depth while `enteredGroupId` points elsewhere, so a
+    // seed need not be in reach. Matching alone would find nothing and wipe the selection.
+    const doc = makeDoc();
+    // Blue seed "b" is outside the entered group, and nothing inside it is blue: without keeping
+    // the seed this returns [] and the selection is gone.
+    expect(sameIds(doc, ["b"], "g", "fill")).toEqual(["b"]);
+    // A reachable match is still found, with the out-of-reach seed kept ahead of it.
+    expect(sameIds(doc, ["a"], "g", "fill")).toEqual(["a", "e"]);
   });
 
   it("stays inside an entered group", () => {

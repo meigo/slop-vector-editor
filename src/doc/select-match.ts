@@ -41,8 +41,14 @@ export function invertIds(doc: Doc, ids: readonly string[], entered: string | nu
   return allIds(doc, entered).filter((id) => !selected.has(id));
 }
 
-/** Every id in reach matching any selected node on `field`. The seeds match themselves, so the
- *  selection never shrinks (spec M6 §3). */
+/** Every id in reach matching any selected node on `field`, plus any seed that still exists, so the
+ *  selection never shrinks (spec M6 §3).
+ *
+ *  Keeping the seeds is not redundant. The layers panel selects a row at any depth and points
+ *  `enteredGroupId` at that row's parent, so the selection can legitimately hold ids that are not
+ *  in reach — select a child of one group, then toggle a child of another off again, and the
+ *  surviving id belongs to neither the entered group nor the top level. Matching alone would then
+ *  find nothing and quietly throw the whole selection away. */
 export function sameIds(
   doc: Doc,
   ids: readonly string[],
@@ -51,8 +57,13 @@ export function sameIds(
 ): string[] {
   const seeds = ids.flatMap((id) => findNode(doc, id)?.node ?? []);
   if (seeds.length === 0) return [];
-  return allIds(doc, entered).filter((id) => {
+  const kept = new Set(seeds.map((n) => n.id));
+  const found = allIds(doc, entered).filter((id) => {
     const node = findNode(doc, id)?.node;
     return node !== undefined && seeds.some((seed) => matches(field, node, seed));
   });
+  for (const id of found) kept.add(id);
+  // Document order for the ids in reach, with any out-of-reach seed kept ahead of them.
+  const inReach = new Set(found);
+  return [...seeds.map((n) => n.id).filter((id) => !inReach.has(id)), ...found];
 }

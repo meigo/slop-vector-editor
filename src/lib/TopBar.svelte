@@ -42,6 +42,7 @@
   } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
+  import { allIds } from "../doc/select-match";
   import { selectionActions } from "../state/properties";
   import IconButton from "./IconButton.svelte";
 
@@ -53,6 +54,9 @@
 
   const none = $derived(app.selection.length === 0);
   const actions = $derived(selectionActions(app.doc, app.selection));
+  /** Spec (M6) §6: with every layer hidden or locked there is nothing to select, and Select All
+   *  says so rather than doing nothing silently. */
+  const anyInReach = $derived(allIds(app.doc, app.enteredGroupId).length > 0);
   const sameStyleReason = $derived(
     app.selection.length === 0 ? "— nothing selected" : "— a group has no fill",
   );
@@ -147,7 +151,13 @@
         class="absolute top-full left-0 z-50 mt-1 w-56 rounded border border-line bg-panel py-1 shadow-lg"
         role="menu"
       >
-        <button class="menu-item" role="menuitem" onclick={() => runSelect(selectAll)}>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!anyInReach}
+          title={anyInReach ? `Select every object (${mod}A)` : "Select All — nothing to select"}
+          onclick={() => anyInReach && runSelect(selectAll)}
+        >
           Select All <span class="kbd">{mod}A</span>
         </button>
         <button class="menu-item" role="menuitem" onclick={() => runSelect(invertSelection)}>

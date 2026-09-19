@@ -60,9 +60,15 @@ Four commands, each reading the current selection and selecting everything in re
   make the command useless on a mixed selection, which is exactly when it is reached for.
 - **The seeds match themselves**, so the selection never shrinks — Same Fill on one orange shape
   returns at least that shape.
-- **Groups have no `Style`.** A group can be a seed and a match for Same Kind, and is skipped by the
-  three style commands, both as a seed and as a candidate. A selection of only groups therefore
-  disables the three style commands (§6).
+- **Groups have no `Style`.** A group can be a seed and a match for Same Kind. For the three style
+  commands it contributes no matches and is never returned as one — but a group already selected is
+  **kept**, because the selection never shrinks. A selection of only groups disables those three
+  commands anyway (§6), so this only matters for a mixed selection.
+- **A seed that is out of reach is kept too.** The layers panel selects a row at any depth and
+  points `enteredGroupId` at that row's parent, so the selection can hold ids that
+  `selectableIds` would not offer. Matching alone would then find nothing and silently clear the
+  selection; keeping the seeds makes "never shrinks" true in every case rather than only when the
+  seeds happen to be in reach.
 - The result is ordered by document order, not by when each shape matched, so the selection is
   stable and reproducible.
 
