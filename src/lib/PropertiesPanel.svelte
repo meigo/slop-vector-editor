@@ -62,18 +62,11 @@
   const poly = $derived(app.prefs.polygon);
   const value = <T,>(f: Field<T>): T | null => (f.mixed ? null : f.value);
 
-  let {
-    expanded,
-    ontoggle,
-    grow,
-  }: { expanded: boolean; ontoggle: () => void; grow: number | boolean } = $props();
+  let { expanded, ontoggle, flex }: { expanded: boolean; ontoggle: () => void; flex: string } =
+    $props();
 </script>
 
-<section
-  class="flex min-h-0 flex-col"
-  style:flex={typeof grow === "number" ? `${grow} 1 0%` : grow ? "1 1 0%" : "0 0 auto"}
-  aria-label="Properties"
->
+<section class="flex min-h-0 flex-col" style:flex aria-label="Properties">
   <PanelHeader
     title="Properties"
     open={expanded}

@@ -874,3 +874,54 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   joins the iPad pass owed since M5, with the header bars' 40px targets. The narrow-width drawer
   was exercised by mounting it, not by resizing the window, which this harness will not do.
   Keyboard resize of the divider is parked with the accessibility group.
+
+## 2026-09-19 — Milestone 8 review fixes
+
+A whole-branch review before the merge found six defects that the green suite and the happy-path
+browser pass could not:
+
+- **R1: `sanitizePrefs` rejected ratios `clampRatio` legitimately produces.** `num(v, 0.1, 0.9, …)`
+  returns the fallback, not a clamp, and the geometry clamp is in pixels — on a column taller than
+  ~1700px its low bound drops below 0.1. Dragging the divider to either extreme on a 4K or portrait
+  display was therefore thrown away and reset to 0.55 on pointer-up. The sanitizer now only checks
+  that the value is a finite fraction; the pixel minimum belongs to `clampRatio`, which is the
+  function that knows the column's height.
+- **R2: the drag stranded its state when the strip unmounted mid-drag.** The strip lives inside
+  `{#if split}`, and Escape, undo or a delete flips the selection's emptiness and removes it. An
+  unmounted element releases pointer capture silently and takes its listeners with it, so `drag`
+  and `live` were never cleared: the divider became permanently undraggable, and once the strip
+  remounted a **bare hover resized the panels** from the stale origin. Fixed with
+  `onlostpointercapture`, a `live !== null` guard in `move`, and an `$effect` that ends the drag
+  whenever `split` goes false — the unmount case capture events cannot rescue.
+- **R3: two paths assigned `app.selection` directly** and so never cleared the override —
+  `clearOrLeaveGroup` (which is Escape, the primary deselect) and `replaceDocument`. Both now sync,
+  and `replaceDocument` resets `propsOverride` beside the other transient state it already reset.
+- **R4: a transient empty selection inside one action cleared an override the user had just set.**
+  Unite and Ungroup delete every selected id and select the replacement on the next statement, so
+  per assignment that reads as a flip to empty and back, and Properties sprang open again. The sync
+  is now deferred to a microtask and keeps only the first "was empty" of a tick, so an action is
+  judged by its net effect.
+- **R5: collapsing the Layers panel removed the only route to New layer and Delete layer** — they
+  have no menu entry and no shortcut, and `layersOpen: false` persists across reload. Hiding a
+  collapsed panel's actions was my own fix for a smaller problem and it was worse than the problem:
+  invariant 24's exception is about width, not state. The buttons stay, and both open the panel so
+  the result is visible.
+- **R6: with Properties collapsed — the default state — the two stacked headers reinstated the very
+  boundary this milestone removes.** `border-line` (#2e2e35) against `bg-raised` (#2d2d33) is one
+  palette step. A panel header's rule is now `border-panel`: below an open panel it continues the
+  body, and between two headers it is a real line.
+- Nits also fixed: the ratio no longer falls back to an even split on the frame before the
+  ResizeObserver measures (the effect takes one synchronous measurement first); `sharePx` is read
+  live during a drag rather than frozen at pointer-down; `setPointerCapture` is wrapped in
+  `try/catch` like `LayersPanel`'s row drag; the separator carries `aria-valuenow/min/max`; and the
+  `grow: number | boolean` prop that duplicated a flex ternary in both panels is now one `flex`
+  string computed in `Sidebar`.
+- Browser-verified after the fixes (port 5197): the stranded-drag repro — a live drag (0.55 → 0.631)
+  interrupted by Escape — leaves no resize on a bare hover and writes nothing; Escape after an
+  explicit expand collapses Properties again; Unite no longer springs it open; a collapsed Layers
+  header still carries both buttons and New layer opens the panel; the rule between two stacked
+  headers is visible. No console errors.
+- Owed: the stranded-drag check used **synthetic** pointer events, because the harness has no
+  press-and-hold primitive — the M5 lesson applies, so a real press-hold-Escape-release on a device
+  is on the iPad list. R1's repro needs a column taller than ~1700px, which was reasoned about and
+  unit-tested, not seen.

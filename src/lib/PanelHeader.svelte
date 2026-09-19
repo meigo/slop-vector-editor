@@ -23,7 +23,11 @@
   } = $props();
 </script>
 
-<div class="flex h-10 shrink-0 items-center gap-1 border-b border-line bg-raised pr-2 pl-1">
+<!-- The rule is panel-coloured, not `border-line`: below an open panel it simply continues the body
+     it sits on, and between two collapsed headers it is the darker line that keeps them apart.
+     `border-line` (#2e2e35) against `bg-raised` (#2d2d33) would be the very non-boundary this
+     milestone exists to remove — and two stacked headers is the default state. -->
+<div class="flex h-10 shrink-0 items-center gap-1 border-b border-panel bg-raised pr-2 pl-1">
   <button
     type="button"
     class="flex h-8 items-center gap-1 rounded px-1 text-muted hover:text-text"
@@ -38,9 +42,7 @@
     {/if}
     <span class="section-title text-inherit">{title}</span>
   </button>
-  <!-- A collapsed panel's actions go with it: New layer on a folded-away list would add one with
-       nothing to show for it. -->
-  {#if actions && open}
+  {#if actions}
     <div class="ml-auto flex items-center gap-1">{@render actions()}</div>
   {/if}
 </div>

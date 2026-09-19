@@ -71,7 +71,16 @@ export function sanitizePrefs(raw: unknown): Prefs {
     },
     snap: typeof r.snap === "boolean" ? r.snap : d.snap,
     dockExpanded: typeof r.dockExpanded === "boolean" ? r.dockExpanded : d.dockExpanded,
-    splitRatio: num(r.splitRatio, 0.1, 0.9, d.splitRatio),
+    // Any fraction of the column is legal here; how small a panel may actually get is a question
+    // about pixels, and `clampRatio` is the one that knows the column's height. A window range
+    // hard-coded here would silently reject — not clamp — the ratios a tall column produces.
+    splitRatio:
+      typeof r.splitRatio === "number" &&
+      Number.isFinite(r.splitRatio) &&
+      r.splitRatio > 0 &&
+      r.splitRatio < 1
+        ? r.splitRatio
+        : d.splitRatio,
     layersOpen: typeof r.layersOpen === "boolean" ? r.layersOpen : d.layersOpen,
   };
 }

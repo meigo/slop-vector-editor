@@ -37,9 +37,13 @@ describe("preferences", () => {
     layersOpen: false,
   };
 
-  it("keeps the sidebar split inside a usable range", () => {
+  it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {
     expect(sanitizePrefs({}).splitRatio).toBe(0.55);
     expect(sanitizePrefs({ splitRatio: 0.3 }).splitRatio).toBe(0.3);
+    // A tall column legitimately clamps below 0.1 — 160px of 2078px is 0.077 — so a range hard
+    // coded here would throw away the value the divider just produced and snap back to 0.55.
+    expect(sanitizePrefs({ splitRatio: 0.077 }).splitRatio).toBe(0.077);
+    expect(sanitizePrefs({ splitRatio: 0.95 }).splitRatio).toBe(0.95);
     expect(sanitizePrefs({ splitRatio: 0 }).splitRatio).toBe(0.55);
     expect(sanitizePrefs({ splitRatio: 1 }).splitRatio).toBe(0.55);
     expect(sanitizePrefs({ splitRatio: Number.NaN }).splitRatio).toBe(0.55);

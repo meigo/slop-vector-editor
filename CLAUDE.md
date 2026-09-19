@@ -183,7 +183,10 @@ every user-visible change.
       flag, a hover, a mode — does not shuffle controls under a finger; it is not meant to make a
       panel whose entire content is the selection hold half a column while it has nothing to say.
       Clicking its header overrides that, and the override is dropped wherever `app.selection` is
-      assigned, the moment the selection's emptiness flips — never from an effect.
+      assigned, the moment the selection's emptiness flips — never from an effect. The comparison is
+      deferred to a microtask and only the first "was empty" of a tick counts, so one user action is
+      judged by its net effect: Unite and Ungroup both delete every selected id and select the
+      result on the next statement, and per-assignment that reads as a flip to empty and back.
     - **The root font-size stays at the browser's 16px.** Tailwind's whole scale is in `rem`, which
       resolves against `html`, so setting a root size silently rescales every size in the app:
       `font-size: 14px` on `html` made `text-xs` 10.5px, `h-8` controls 28px, the 240px sidebar
@@ -203,7 +206,17 @@ every user-visible change.
       slop-paint ships for the same job. It is rendered only when both panels are open — with one
       collapsed there is nothing to distribute. **Its clamp counts whole panels, not bodies**
       (`MIN_PANEL_PX`, header + body): flex distributes whole `<section>`s, so clamping the ratio
-      against the bodies alone silently left the losing panel 40px short of its minimum.
+      against the bodies alone silently left the losing panel 40px short of its minimum. The pixel
+      minimum is `clampRatio`'s alone: `sanitizePrefs` only checks that `splitRatio` is a fraction,
+      because a tall column legitimately clamps below 0.1 and a range hard-coded in the sanitizer
+      would reject — not clamp — the value the divider had just produced.
+    - **A panel header's rule is `border-panel`, not `border-line`.** Below an open panel it simply
+      continues the body; between two collapsed headers it is what keeps them apart. `border-line`
+      (#2e2e35) against `bg-raised` (#2d2d33) is the non-boundary M8 exists to remove, and two
+      stacked headers is the default state.
+    - **The Layers header keeps its New layer and Delete layer buttons while collapsed**, because
+      they are the only route to those commands — no menu, no shortcut. Both open the panel as a
+      side effect, so the result is visible.
 24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
     status bar shows the nearest `title`; on touch and pen, which have no hover, it shows the
     title of whatever was just pressed (`onpointerdown`, `hintFrom` in `lib/hover-hint.ts`) — the

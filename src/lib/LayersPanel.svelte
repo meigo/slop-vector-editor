@@ -51,11 +51,16 @@
         ? `Layer “${l.name}” is locked`
         : undefined;
 
-  let {
-    expanded,
-    ontoggle,
-    grow,
-  }: { expanded: boolean; ontoggle: () => void; grow: number | boolean } = $props();
+  let { expanded, ontoggle, flex }: { expanded: boolean; ontoggle: () => void; flex: string } =
+    $props();
+
+  /** These two buttons are the only route to adding or deleting a layer — no menu, no shortcut — so
+   *  they stay in the header while the panel is collapsed. Opening the panel is what makes the
+   *  result visible; without it, New layer would add one with nothing to show for it. */
+  function reveal(run: () => void) {
+    run();
+    if (!expanded) ontoggle();
+  }
 
   const focusSelect = (el: HTMLInputElement) => {
     el.focus();
@@ -229,11 +234,7 @@
   </li>
 {/snippet}
 
-<section
-  class="flex min-h-0 flex-col"
-  style:flex={typeof grow === "number" ? `${grow} 1 0%` : grow ? "1 1 0%" : "0 0 auto"}
-  aria-label="Layers"
->
+<section class="flex min-h-0 flex-col" style:flex aria-label="Layers">
   <PanelHeader
     title="Layers"
     open={expanded}
@@ -242,14 +243,19 @@
     hideTitle="Hide the layers"
   >
     {#snippet actions()}
-      <IconButton label="New layer" title="New layer" icon={Plus} onclick={addLayerAboveCurrent} />
+      <IconButton
+        label="New layer"
+        title="New layer"
+        icon={Plus}
+        onclick={() => reveal(addLayerAboveCurrent)}
+      />
       <IconButton
         label="Delete layer"
         title={current ? `Delete layer “${current.name}”` : "Delete layer"}
         icon={Trash2}
         disabled={app.doc.layers.length <= 1}
         disabledTitle="Delete layer — it is the only layer"
-        onclick={() => void deleteCurrentLayer()}
+        onclick={() => reveal(() => void deleteCurrentLayer())}
       />
     {/snippet}
   </PanelHeader>

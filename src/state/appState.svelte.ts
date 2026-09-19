@@ -165,10 +165,23 @@ function discardToolDraft(): void {
 }
 
 /** Keeps the Properties panel's override tied to the selection state it was made in (spec M8 §5).
- *  Called from the two functions that assign `app.selection`, never from an effect. */
+ *  Called from every path that assigns `app.selection`, never from an effect.
+ *
+ *  The comparison is deferred to a microtask, and only the first `wasEmpty` of a tick is kept, so
+ *  one user action is judged by its net effect. Unite and Ungroup both delete every selected id and
+ *  select the result on the next statement: seen per assignment, that is a flip to empty and back,
+ *  which would throw away a collapse the user had just asked for. */
+let pendingWasEmpty: boolean | null = null;
+
 function syncPropsOverride(wasEmpty: boolean): void {
-  const next = clearedOverride(app.propsOverride, wasEmpty, app.selection.length === 0);
-  if (next !== app.propsOverride) app.propsOverride = next;
+  if (pendingWasEmpty !== null) return;
+  pendingWasEmpty = wasEmpty;
+  queueMicrotask(() => {
+    const was = pendingWasEmpty ?? false;
+    pendingWasEmpty = null;
+    const next = clearedOverride(app.propsOverride, was, app.selection.length === 0);
+    if (next !== app.propsOverride) app.propsOverride = next;
+  });
 }
 
 /** Every session change goes through here, so the selection never names a node that is gone,
@@ -240,6 +253,7 @@ export function replaceDocument(
   cancelActiveGesture();
   discardToolDraft();
   app.selection = [];
+  app.propsOverride = null;
   app.overlay = null;
   setSession(newSession(doc, saved));
   app.currentLayerId = resolveLayerId(doc, null);
@@ -362,7 +376,10 @@ export function setPrefs(p: Prefs): void {
 }
 
 /** The Properties panel's header chevron (spec M8 §5). It records the opposite of what is showing,
- *  and `setSelection`/`setSession` drop it again when the selection's emptiness flips. */
+ *  and every path that assigns the selection drops it again when the selection's emptiness flips.
+ *  Unlike `prefs.dockExpanded`, this never returns to `null` by toggling: "undecided" is the state
+ *  the selection puts it in, not one the user can ask for, and the two agree in every case a click
+ *  can reach (`propsOpen(false, false) === propsOpen(null, false)`). */
 export function togglePropsPanel(): void {
   app.propsOverride = !propsOpen(app.propsOverride, app.selection.length > 0);
 }
@@ -739,7 +756,10 @@ export function clearOrLeaveGroup(): void {
   }
   const entered = app.enteredGroupId;
   if (entered === null) {
-    if (app.selection.length > 0) app.selection = [];
+    if (app.selection.length > 0) {
+      app.selection = [];
+      syncPropsOverride(false);
+    }
     return;
   }
   const above = ancestorIds(app.doc, entered);
