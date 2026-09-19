@@ -1378,3 +1378,27 @@ the available desktop height. Measured before: 1058px of content for a selected 
   four columns, every label/field pair sharing a row, **no input clipped**, panel content 512 →
   414px. The default 240px sidebar is unaffected.
 - First asked for at 400px, lowered to 320 on the user's request to switch at a narrower width.
+
+## 2026-09-20 — The title field updates the canvas as you type
+
+- `oninput` reshapes the title live; `blur` is the commit. Previously nothing happened until the
+  field lost focus, which made typing a title a guessing game.
+- The burst is **one undo step**, bracketed in a document gesture like `PaintField`'s picker drag.
+- Live reshapes are **quiet**: no notices, and no snapping the field back. Both exist because the
+  states a burst passes through — an empty field, a half-typed word the font lacks a glyph for —
+  are ordinary, and reporting them per keystroke raised an error notice per keypress and yanked the
+  caret back mid-word. The commit on blur is what reports and corrects.
+- **The bug this exposed:** `reshapeTitle` returns immediately when a run is in flight, queueing the
+  patch — so `await setTitleText(...)` on blur resolved *before* the typing had drained, and
+  `endDocGesture` closed the bracket while the last keystrokes were still committing, outside it.
+  `reshapeTitleDraining` now keeps the in-flight drain in `titleWork` and returns it to a caller
+  that only queued, so awaiting it awaits the settle. This affected `setTitleFont` and `addFontFile`
+  too, which awaited the same way.
+- Browser-verified (desktop Chrome, :5191): typing shows on canvas per keystroke with the caret
+  still in the field; console tracing confirmed all five commits of a five-letter burst ran with
+  `gestureBase` set, followed by one close on blur; with focus on `BODY`, one undo took "ZEBRA"
+  back to "HELL" in a single step.
+- **Noted, not fixed:** Cmd+Z while the field has focus is the browser's *native* text-field undo —
+  one typed chunk — which then flows through the live handler as an ordinary edit. That is standard
+  behaviour for a text field. It cost three misleading "one character back" readings during
+  development before it was identified.

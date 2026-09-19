@@ -913,12 +913,14 @@ function defaultMeta(text: string): TextMeta {
 }
 
 /** True when the string needs shaping we cannot do (spec M10 §9) — refused, not drawn wrongly. */
-function refuseUnshaped(text: string): boolean {
+function refuseUnshaped(text: string, quiet = false): boolean {
   if (!unshapedScript(text)) return false;
-  notify(
-    "error",
-    "That script needs letter shaping this editor can't do yet — the glyphs would come out detached.",
-  );
+  if (!quiet) {
+    notify(
+      "error",
+      "That script needs letter shaping this editor can't do yet — the glyphs would come out detached.",
+    );
+  }
   return true;
 }
 
@@ -1001,10 +1003,19 @@ export function selectedTitle(): PathShape | null {
  *  the "one outline at a time" property the guard exists for, while making the **last** intent the
  *  one that lands. */
 let queuedPatch: Partial<TextMeta> | null = null;
+/** True while the text field is being typed in (spec M10e §5). A live keystroke is a state the
+ *  user is passing THROUGH, not one they asked for: an empty field on the way to retyping, or a
+ *  half-typed word the font has no glyph for, are both ordinary. So a live reshape fails silently
+ *  and the panel keeps whatever is in the field; the commit on blur is what reports and corrects.
+ *  Without this, typing raised an error notice per keystroke and yanked the caret back. */
+let titleQuiet = false;
 
-async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
+async function reshapeTitle(patch: Partial<TextMeta>, quiet = false): Promise<void> {
   if (titleRunning) {
     queuedPatch = { ...queuedPatch, ...patch };
+    // A burst that ends on a live keystroke must stay quiet when it drains, and one that ends on
+    // the commit must not — so the flag follows the newest arrival, like the patch itself.
+    titleQuiet = quiet;
     return;
   }
   cancelActiveGesture();
@@ -1014,7 +1025,7 @@ async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
   // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
   // Re-picking the current font, or tapping the alignment button already on, reached here.
   if (sameMeta(meta, target.text)) return;
-  if (refuseUnshaped(meta.text)) return;
+  if (refuseUnshaped(meta.text, quiet)) return;
   // Overrides never outlive the string they were made for (spec M10 §4).
   const len = [...meta.text].length;
   meta.overrides = Object.fromEntries(
@@ -1033,7 +1044,7 @@ async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
   });
   if (!subpaths) return;
   if (noGlyphs) {
-    notify("error", "This font has no letters for that text.");
+    if (!quiet) notify("error", "This font has no letters for that text.");
     return;
   }
   if (app.doc !== before || app.selection !== beforeSel) {
@@ -1043,7 +1054,7 @@ async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
   if (subpaths.length === 0) {
     // The importer drops a path with no subpaths (the M2 constraint), so an empty title may not
     // be written. The old outlines stay until there is something to replace them with.
-    notify("info", "A title needs at least one character.");
+    if (!quiet) notify("info", "A title needs at least one character.");
     return;
   }
   cancelActiveGesture();
@@ -1068,16 +1079,40 @@ function sameMeta(a: TextMeta, b: TextMeta): boolean {
 }
 
 /** Runs `reshapeTitle` and then whatever arrived while it was busy, newest wins. */
-async function reshapeTitleDraining(patch: Partial<TextMeta>): Promise<void> {
-  await reshapeTitle(patch);
-  while (queuedPatch !== null && !titleRunning) {
-    const next = queuedPatch;
-    queuedPatch = null;
-    await reshapeTitle(next);
+/** The drain currently in flight, so a caller that only queued a patch can still await the work
+ *  that will pick it up. Without this, `await setTitleText(...)` resolved the instant it queued —
+ *  and the typing gesture closed while keystrokes were still draining, so those last commits
+ *  landed outside the bracket and became undo steps of their own. */
+let titleWork: Promise<void> | null = null;
+
+function reshapeTitleDraining(patch: Partial<TextMeta>, quiet = false): Promise<void> {
+  if (titleRunning) {
+    // Queued onto the running drain; awaiting *that* is what makes the caller wait for this patch.
+    queuedPatch = { ...queuedPatch, ...patch };
+    titleQuiet = quiet;
+    return titleWork ?? Promise.resolve();
   }
+  titleQuiet = quiet;
+  titleWork = (async () => {
+    await reshapeTitle(patch, quiet);
+    while (queuedPatch !== null && !titleRunning) {
+      const next = queuedPatch;
+      queuedPatch = null;
+      await reshapeTitle(next, titleQuiet);
+    }
+  })().finally(() => {
+    titleWork = null;
+  });
+  return titleWork;
 }
 
 export const setTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text });
+
+/** A keystroke in the text field (spec M10e §5). The canvas follows the typing, and the whole
+ *  burst is one undo step because `TextPanel` brackets it in a document gesture (invariant 41) —
+ *  the same shape as dragging the colour picker. `quiet`, so the states a burst passes through
+ *  raise nothing. */
+export const typeTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text }, true);
 export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> =>
   reshapeTitleDraining(patch);
 

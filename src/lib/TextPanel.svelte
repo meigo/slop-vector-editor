@@ -3,6 +3,8 @@
   import type { PathShape } from "../doc/document";
   import {
     addFontFile,
+    beginDocGesture,
+    endDocGesture,
     fontsChangedTick,
     app,
     clearCharOverride,
@@ -11,6 +13,7 @@
     setTitleFont,
     setTitleOpts,
     setTitleText,
+    typeTitleText,
   } from "../state/appState.svelte";
   import { fontAvailable, fontChoices } from "../text/font";
   import { charTransform, withOverride } from "../text/random";
@@ -35,6 +38,27 @@
   const missing = $derived(`Needs the font “${label}”, which isn't loaded — add it from a file`);
 
   let picker: HTMLInputElement | null = $state(null);
+
+  /** Typing is a live drag by another name (invariant 41): the whole burst is bracketed in one
+   *  document gesture, so undo steps back over the word you typed rather than the letter. The
+   *  bracket must close on every way typing can end — the blur, and destruction of this component,
+   *  because clearing the selection removes the panel mid-burst and a gesture left open silently
+   *  stops recording undo history for everything after it. */
+  let typing = false;
+
+  function startTyping() {
+    if (typing) return;
+    typing = true;
+    beginDocGesture();
+  }
+
+  function endTyping() {
+    if (!typing) return;
+    typing = false;
+    endDocGesture();
+  }
+
+  $effect(() => () => endTyping());
 
   /** Spec M10 §6 sketches sliders; this app has no range input anywhere, and `NumberField` is the
    *  control it does have — already styled, already 32px for touch, and it already guards a no-op
@@ -85,7 +109,8 @@
 
 <FieldSection id="text" title="Text">
   <!-- A textarea, not an input: Return must insert a line break, so it is deliberately NOT
-       intercepted. The commit still happens on change/blur, exactly as the input did. -->
+       intercepted. The canvas follows every keystroke (spec M10e §5); `blur` is the commit, and
+       the only place a refusal is reported or the field put back. -->
   <textarea
     class="field field-full resize-y py-1 leading-snug"
     rows="2"
@@ -93,13 +118,22 @@
     value={meta.text}
     aria-disabled={!ready}
     title={ready ? "Change the text" : missing}
-    onchange={async (e) => {
+    oninput={(e) => {
+      if (!ready) return;
+      startTyping();
+      void typeTitleText(e.currentTarget.value);
+    }}
+    onblur={async (e) => {
       if (!ready) return;
       const el = e.currentTarget;
+      // Commit first, THEN close the gesture: `endDocGesture` records the burst as one undo step,
+      // and a commit after it would be a second step of its own.
       await setTitleText(el.value);
+      endTyping();
       // A refusal — an unshaped script, a font with no such glyphs, an empty string — leaves the
-      // title alone, so put the field back rather than leaving the rejected text in it. The panel
-      // may have been destroyed while awaiting, so `isConnected` is checked first.
+      // title alone, so put the field back rather than leaving the rejected text in it. Only here:
+      // doing it per keystroke would yank the caret back mid-word. The panel may have been
+      // destroyed while awaiting, so `isConnected` is checked first.
       if (el.isConnected) el.value = title.text?.text ?? el.value;
     }}></textarea>
 

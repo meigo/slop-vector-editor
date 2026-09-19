@@ -497,7 +497,28 @@ every user-visible change.
       every seed above 1e9, and a re-rolled title then came back from a reload as an ordinary path
       with its text lost for good.
 
-41. **A live UI drag belongs in a document gesture.** `PaintField`'s colour swatch updates the
+41. **The title field is live, and a typing burst is one undo step** (M10e §5). `oninput` calls
+    `typeTitleText` (quiet), `blur` calls `setTitleText` (reporting) and `TextPanel` brackets the
+    burst in `beginDocGesture`/`endDocGesture`, exactly as `PaintField` does for a picker drag
+    (invariant 41). Three things this needs, each of which was a bug first:
+    - **Quiet.** A live keystroke is a state the user is passing _through_ — an empty field on the
+      way to retyping, a half-typed word with no glyph in this font. `reshapeTitle` takes a `quiet`
+      flag that suppresses the notices and `refuseUnshaped`'s; without it, typing raised an error
+      notice per keystroke.
+    - **No snap-back until the commit.** The field is only put back from the document on `blur`.
+      Doing it per keystroke yanked the caret back mid-word on every refused intermediate.
+    - **`await` must actually wait.** `reshapeTitle` returns immediately when a run is already in
+      flight — it only queues the patch — so the blur's `await` resolved while keystrokes were
+      still draining and `endDocGesture` closed the bracket early, leaving the last commits outside
+      it as undo steps of their own. `reshapeTitleDraining` now keeps the in-flight drain in
+      `titleWork` and hands it back to a caller that only queued, so awaiting it awaits the settle.
+    - **Cmd+Z inside the focused field is the browser's own text undo**, not the app's: it removes
+      one typed chunk and fires `input`, which this handler then commits as an ordinary edit. That
+      is standard text-field behaviour and is deliberately not fought. It also makes the app's undo
+      granularity untestable without blurring first — three "one character back" results during
+      development were this, not a broken bracket.
+
+42. **A live UI drag belongs in a document gesture.** `PaintField`'s colour swatch updates the
     artwork on `input` — the live event, where `change` fires only once the picker closes — and
     brackets the drag in `beginDocGesture`/`endDocGesture`, so a drag across the picker is **one**
     undo step rather than one per colour. The bracket must close on every way a drag can end:
