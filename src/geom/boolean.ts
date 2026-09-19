@@ -55,6 +55,9 @@ async function load(): Promise<Paper> {
 /** Our handles are absolute in the shape's own space; paper's are relative to the segment point. */
 function toPaperPath(P: Paper, sp: Subpath): PaperPath {
   return new P.Path({
+    // Never attach to paper's project: an item created here would stay in the module-level project
+    // for the life of the page, and there would be nothing to clean it up if an operation threw.
+    insert: false,
     segments: sp.nodes.map(
       (n) =>
         new P.Segment(
@@ -69,7 +72,7 @@ function toPaperPath(P: Paper, sp: Subpath): PaperPath {
 
 function toPaperItem(P: Paper, subpaths: readonly Subpath[]): PaperItem {
   const paths = subpaths.map((sp) => toPaperPath(P, sp));
-  return paths.length === 1 ? paths[0] : new P.CompoundPath({ children: paths });
+  return paths.length === 1 ? paths[0] : new P.CompoundPath({ children: paths, insert: false });
 }
 
 function nodeFrom(s: PaperSegment): PathNode {
@@ -109,11 +112,7 @@ export async function booleanOf(
   const P = await load();
   const items = operands.map((o) => toPaperItem(P, o));
   let acc = items[0];
-  for (const next of items.slice(1)) acc = acc[op](next);
-  const out = fromPaperItem(acc);
-  // Every path built above was added to paper's project, and the result too. We have our own copy
-  // now, so drop them: without this the project grows by three items per operation and holds every
-  // intermediate path for the life of the page.
-  P.project.activeLayer.removeChildren();
-  return out;
+  // The result is not inserted either, for the same reason.
+  for (const next of items.slice(1)) acc = acc[op](next, { insert: false });
+  return fromPaperItem(acc);
 }
