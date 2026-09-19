@@ -703,7 +703,7 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   in the ordinary Vitest/Node environment, the same as any other pure module. It is loaded on first
   use, not at startup: bundled at load time it would double the initial download for a feature most
   sessions never touch, so `booleanOf` does a dynamic `import()` and Vite emits it as its own chunk.
-  Measured: the app's own chunk went from 69.18 to 71.76 KB gzipped; paper's own chunk is 72.39 KB,
+  Measured: the app's own chunk went from 69.18 to 71.82 KB gzipped; paper's own chunk is 72.39 KB,
   fetched the first time someone runs an operation. The refusal rules the menus read stay pure and
   synchronous, so no menu ever waits on that download — only the operation itself, and the store
   action, are async.
