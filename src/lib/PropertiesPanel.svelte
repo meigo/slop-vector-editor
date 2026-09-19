@@ -2,6 +2,8 @@
   import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
   import {
     app,
+    beginDocGesture,
+    endDocGesture,
     applyGeometry,
     moveSelectedNodes,
     setPolygonPrefs,
@@ -97,6 +99,8 @@
           present={summary.fillOn}
           fallback={app.prefs.style.fill ?? FILL_FALLBACK}
           onchange={(p) => setSelectionStyle({ fill: p })}
+          onlivestart={beginDocGesture}
+          onliveend={endDocGesture}
         />
         <PaintField
           label="Stroke"
@@ -104,6 +108,8 @@
           present={summary.strokeOn}
           fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
           onchange={(p) => setSelectionStyle({ stroke: p })}
+          onlivestart={beginDocGesture}
+          onliveend={endDocGesture}
         />
         <div class="flex flex-wrap items-center gap-2">
           <NumberField

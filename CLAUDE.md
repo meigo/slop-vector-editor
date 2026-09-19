@@ -394,6 +394,18 @@ every user-visible change.
     - Scripts needing shaping or RTL (`unshapedScript`) and strings the font has no glyphs for
       (`noGlyphsFor`) are **refused with a notice**, never drawn wrongly.
 
+41. **A live UI drag belongs in a document gesture.** `PaintField`'s colour swatch updates the
+    artwork on `input` — the live event, where `change` fires only once the picker closes — and
+    brackets the drag in `beginDocGesture`/`endDocGesture`, so a drag across the picker is **one**
+    undo step rather than one per colour. The bracket must close on every way a drag can end:
+    `change`, `blur` (dismissing the picker without altering the colour fires no `change`) and
+    component destruction via an `$effect` cleanup, because clearing the selection removes the
+    field mid-drag. A gesture left open silently stops recording undo history for everything after
+    it — the M8 stranded-drag failure in a new place. `PaintField` stays presentational: the caller
+    owns the gesture and passes `onlivestart`/`onliveend`. `setSelectionStyle`'s
+    `cancelActiveGesture()` is unrelated — it cancels a running _tool_ drag and never touches
+    `session.gestureBase`.
+
 ## Current state
 
 Milestone 10a (titles) — see CHANGELOG. What comes next is unplanned: the
