@@ -13,7 +13,10 @@
     duplicateSelection,
     flattenSelection,
     groupSelection,
+    invertSelection,
     pasteFromClipboard,
+    selectAll,
+    selectSame,
     sendSelectionBackward,
     sendSelectionToBack,
     setSelectedNodeType,
@@ -168,6 +171,29 @@
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
         Delete <span class="kbd">⌫</span>
+      </button>
+    {/if}
+    <div class="my-1 h-px bg-line"></div>
+    <button class="menu-item" role="menuitem" onclick={() => run(selectAll)}>
+      Select All <span class="kbd">⌘A</span>
+    </button>
+    <button class="menu-item" role="menuitem" onclick={() => run(invertSelection)}>
+      Invert Selection <span class="kbd">⇧⌘A</span>
+    </button>
+    {#if actions.canSelectSameStyle}
+      <button class="menu-item" role="menuitem" onclick={() => run(() => selectSame("fill"))}>
+        Same Fill Colour
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(() => selectSame("stroke"))}>
+        Same Stroke Colour
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(() => selectSame("style"))}>
+        Same Style
+      </button>
+    {/if}
+    {#if actions.canSelectSameKind}
+      <button class="menu-item" role="menuitem" onclick={() => run(() => selectSame("kind"))}>
+        Same Kind
       </button>
     {/if}
   </div>
