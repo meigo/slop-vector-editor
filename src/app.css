@@ -89,8 +89,12 @@ body {
   /* A section heading is also the rule above it: the divider has to span all three columns, and
      wrapping the section in a `<div>` to carry the border would start a second grid whose label
      column sizes itself independently — exactly the raggedness this grid exists to remove. */
+  /* `pt-2`, not `pt-3` + `mt-1`: the grid's own `gap-y-2` already puts 8px above the rule, so the
+     larger values stacked 24px of dead space above every heading — double what the compositor's
+     Inspector uses for the same job, and the one part of this panel's height that is not the
+     deliberate 32px touch-control size (invariant 23). */
   .field-divider {
-    @apply col-span-3 mt-1 border-t border-line pt-3;
+    @apply col-span-3 border-t border-line pt-2;
   }
 
   .field {

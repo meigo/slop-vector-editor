@@ -1300,3 +1300,15 @@ be the wrong words for the final behaviour, so they are not used.
 - Invariant 40's "`NumberField` never goes in a fixed-width cell / use `flex flex-wrap`" note is
   marked superseded by invariant 23's panel grid: `minmax(0, 1fr)` solves the overflow it described.
 - Browser-verified (desktop Chrome, :5195): both swatches measure 32×32.
+
+## 2026-09-20 — Tighter section dividers in the properties panel
+
+- `.field-divider` is `border-t pt-2`, not `mt-1 border-t pt-3`. The grid's own `gap-y-2` already
+  puts 8px above the rule, so the old values stacked 24px of dead space above every section
+  heading — double what slop-video-compositor's Inspector uses for the same job.
+- Measured (desktop Chrome, :5194) after the user observed the panel is taller than the
+  compositor's: they share the heading token and the 8px row gap, and the height difference is
+  almost entirely the **field height** — `h-8` (32px) here against the compositor's `h-6` (24px).
+  That 32px is invariant 23's deliberate touch size and was left alone. The divider was the only
+  part not justified by it, and tightening it saves 8px per section — 16px on a selected title,
+  32px on a rectangle, against ~1060px of content. The perceived difference is the 32px controls.
