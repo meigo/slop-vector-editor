@@ -1210,3 +1210,18 @@ on the release point, which is robust to any pattern of move delivery; but "brow
 be the wrong words for the final behaviour, so they are not used.
 
 594 tests in 48 files. Build 0 errors / 0 warnings.
+
+## 2026-09-19 — The randomiser's field labels overlapped
+
+- Reported from a screenshot: the Randomise fields rendered as "S°cale" and "Slp0xw" — one field's
+  suffix drawn over the next field's label.
+- Measured rather than guessed: the `grid grid-cols-2` gave each cell **104px** in the 215px-wide
+  panel, while the four fields need **125, 114, 133 and 108**. All four overflowed. `NumberField`'s
+  root is `shrink-0 whitespace-nowrap` with no overflow containment, so the excess spilled into the
+  next column instead of being clipped or wrapped.
+- Fixed by using `flex flex-wrap items-center gap-2` — which the Size/Spacing row and the Geometry
+  section already use. Each field now takes its natural width and wraps. The fixed grid was the
+  only place in the app that put a `NumberField` in a fixed-width cell; it was mine, from M10b.
+- Both blocks had it: the title's Randomise fields and M10c's per-character fields.
+- Verified in the browser: every field's `scrollWidth` now equals its rendered width, so nothing
+  overflows, in both blocks. No console errors.

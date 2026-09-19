@@ -412,6 +412,12 @@ every user-visible change.
       collapsed Properties panel would have silently stopped character picking working. The Overlay
       draws the highlight from that state directly, never through the single `app.overlay` slot
       that the marquee, the snap guides and the pen draft already share.
+    - **`NumberField` never goes in a fixed-width cell.** Its root is `shrink-0 whitespace-nowrap`
+      and it contains a label, a `w-16` input and a suffix, so it needs 108-133px; in a
+      `grid-cols-2` cell of the 240px sidebar (104px) every field overflowed onto its neighbour and
+      painted over that label. Lay these out with `flex flex-wrap items-center gap-2`, as the
+      Size/Spacing row and the Geometry section already do, so each keeps its natural width and
+      wraps when it must.
     - **The panel shows ranges for the title and absolute values for a character.** `±12°` and
       `−12°` are different quantities, so they never share a field.
     - **The seed is an id, not a length.** `parseTextOpts` measures sizes and amounts against
