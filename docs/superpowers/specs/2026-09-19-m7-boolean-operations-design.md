@@ -27,7 +27,7 @@ Out:
 
 ## 2. The library
 
-`paper`, imported as `paper/dist/paper-core.js` — core only, no PaperScript.
+`paper`, imported as `paper/dist/paper-core` — core only, no PaperScript.
 
 Verified in a spike before this spec was written:
 
