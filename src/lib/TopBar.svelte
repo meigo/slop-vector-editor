@@ -108,12 +108,12 @@
      back ~58px without hiding a control, which matters because the context menu — the only other
      route to most of these — is mouse-only. -->
 <header
-  class="flex h-11 shrink-0 items-center gap-0.5 border-b border-line bg-panel px-1 text-xs min-[900px]:gap-1 min-[900px]:px-2"
+  class="flex h-11 shrink-0 items-center gap-0.5 border-b border-line bg-panel px-1 min-[900px]:gap-1 min-[900px]:px-2"
 >
   <div class="relative shrink-0">
     <button
       class={[
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
         menuOpen && "ui-on",
       ]}
       aria-haspopup="menu"
@@ -158,7 +158,7 @@
   <div class="relative shrink-0">
     <button
       class={[
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
         selectOpen && "ui-on",
       ]}
       aria-haspopup="menu"
@@ -251,7 +251,7 @@
   <div class="relative shrink-0">
     <button
       class={[
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
         pathOpen && "ui-on",
       ]}
       aria-haspopup="menu"

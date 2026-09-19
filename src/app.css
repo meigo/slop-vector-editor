@@ -74,10 +74,12 @@ body {
     @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text;
   }
   .menu-item {
-    @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;
+    @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-raised aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;
   }
+  /* A shortcut sits beside its command's name and must not compete with it: the hint stays 12px
+     while the menu itself reads at the 14px body size. */
   .kbd {
-    @apply text-muted;
+    @apply text-xs text-muted;
   }
   .section-title {
     @apply text-[11px] font-medium tracking-wide text-muted uppercase;

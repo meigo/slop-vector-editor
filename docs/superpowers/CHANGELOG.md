@@ -800,3 +800,13 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
 - Owed: the 744px and 768px widths were computed from measured element widths, not seen — the
   window would not resize this session. The iPad pass owed since M5 now also covers the tightened
   bar at portrait widths.
+- Follow-up, from a side-by-side with slop-animator: its menu triggers and menu items are `text-sm`
+  (14px at a 16px root) while ours were `text-xs`, so the labels still read smaller even after the
+  root fix. Both now match it. The top bar also carried `text-xs` on the header itself, which held
+  the file name at 12px beside 14px menu labels — two sizes in one row, each centred by its own box,
+  which is why the bar looked vertically misaligned. The header no longer sets a size: everything in
+  it is 14px and the baselines agree to within 0.2px. Shortcut hints in menus stay 12px, because a
+  hint should not compete with the command it belongs to.
+- The wider labels cost the bar ~15px, so the menu triggers' gutters also tighten below 900px
+  (`px-1`, `px-2` above). Measured requirement at narrow widths: 714px, leaving 54px for the file
+  name at 768px and 30px at 744px.
