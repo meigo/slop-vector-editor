@@ -10,16 +10,41 @@
     present,
     fallback,
     onchange,
+    onlivestart,
+    onliveend,
   }: {
     label: string;
     field: Field<Paint | null>;
     present: Field<boolean>;
     fallback: Paint;
     onchange: (p: Paint | null) => void;
+    /** Brackets a live drag of the swatch so the whole drag is one undo step. The caller owns the
+     *  document gesture; this component stays presentational and never touches the store. */
+    onlivestart?: () => void;
+    onliveend?: () => void;
   } = $props();
 
   const paint = $derived(field.mixed ? null : field.value);
   let hexDraft = $state<string | null>(null);
+  /** True between the first `input` of a picker drag and the `change`/`blur` that ends it. */
+  let live = $state(false);
+
+  function startLive() {
+    if (live) return;
+    live = true;
+    onlivestart?.();
+  }
+
+  /** Must run on every way the drag can end, including ones that fire no `change`: dismissing the
+   *  picker without altering the colour fires only `blur`, and clearing the selection destroys this
+   *  component outright. A gesture left open would silently stop recording undo history. */
+  function endLive() {
+    if (!live) return;
+    live = false;
+    onliveend?.();
+  }
+
+  $effect(() => () => endLive());
 
   function setColor(raw: string) {
     const hex = (raw.startsWith("#") ? raw : `#${raw}`).trim().toLowerCase();
@@ -45,7 +70,15 @@
         class="h-8 w-10 cursor-pointer rounded border border-line bg-raised"
         value={paint.color}
         aria-label="{label} colour"
-        onchange={(e) => setColor(e.currentTarget.value)}
+        oninput={(e) => {
+          startLive();
+          setColor(e.currentTarget.value);
+        }}
+        onchange={(e) => {
+          setColor(e.currentTarget.value);
+          endLive();
+        }}
+        onblur={endLive}
       />
       <input
         class="field w-20 font-mono tabular-nums"

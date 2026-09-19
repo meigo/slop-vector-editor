@@ -1076,3 +1076,27 @@ and a refused string stayed in the field while the canvas showed the real title.
 - **566 tests in 46 files.** Build 0 errors / 0 warnings, three chunks.
 - Owed: the iPad pass now also covers the Text panel and the font picker. Per-character selection
   and the randomiser are **M10b**. Performance on a long string at a large size is unmeasured.
+
+## 2026-09-19 — The colour swatch updates live
+
+- Dragging in the colour picker now repaints the selection as you go, instead of only when the
+  picker closes. `<input type="color">` fires `change` on commit and `input` continuously, so the
+  swatch listens to `input`.
+- **The whole drag is one undo step.** Naively switching to `input` would push an undo entry per
+  colour, so ⌘Z would walk back through a hundred near-identical shades. The session already has
+  the mechanism tools use for this — `beginGesture` records a base and suppresses history,
+  `endGesture` records it once — so the drag is bracketed in `beginDocGesture`/`endDocGesture`.
+- The bracket closes on `change`, on `blur` and on the component being destroyed. Dismissing the
+  picker without altering the colour fires **no** `change`, and clearing the selection removes the
+  field outright; either would otherwise leave the gesture open, which silently stops recording
+  undo history for every later edit. That failure mode is the M8 stranded-drag bug in a new place,
+  so it was guarded from the start rather than found later.
+- `PaintField` stays presentational and never imports the store: it takes `onlivestart`/`onliveend`,
+  which `PropertiesPanel` wires to the gesture actions.
+- The hex field and opacity still commit on Enter/blur. A half-typed hex should not repaint the
+  artwork, and opacity is a typed number with no drag to make live.
+- Browser-verified (port 5192): six live colour changes repaint the shape as they arrive, one ⌘Z
+  restores the original colour and a second removes the rectangle itself — so the drag left exactly
+  one entry; and an abandoned drag (`input` then `blur`, no `change`) still closes its own step,
+  proven by a later edit getting its own. No console errors.
+- Owed: with a very large selection each live step re-styles every selected shape; unmeasured.
