@@ -11,7 +11,7 @@ import {
   type RectShape,
 } from "../doc/document";
 import { translateNodes } from "../doc/edits";
-import { resizeNode, resizeNodes } from "../doc/resize";
+import { droppedTitle, resizeNode, resizeNodes, uniformScale } from "../doc/resize";
 import { findNode } from "../doc/tree";
 import { boxMap } from "../geom/box";
 import {
@@ -335,5 +335,82 @@ describe("resize edge cases", () => {
     };
     const out = resizeNode(p, [-1, 0, 0, 1, 0, 0]) as PathShape;
     expect(out.subpaths[0].nodes.map((n) => n.p.x)).toEqual([-2, -6]);
+  });
+});
+
+describe("a title through a resize", () => {
+  const meta = {
+    text: "Hi",
+    font: "anton",
+    size: 100,
+    letterSpacing: 4,
+    lineHeight: 1.2,
+    align: "left" as const,
+    seed: 7,
+    amounts: { rotate: 10, scale: 0.2, offset: 6, skew: 3 },
+    overrides: { 0: { r: 15, s: 1.5, dx: 8, dy: -4, k: 2 } },
+  };
+  const title = (): PathShape => ({
+    id: "t",
+    kind: "path",
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    subpaths: [linePath({ x: 0, y: 0 }, { x: 10, y: 10 })],
+    text: meta,
+  });
+
+  it("recognises a uniform scale, and only a uniform scale", () => {
+    expect(uniformScale([2, 0, 0, 2, 5, 9])).toBe(2);
+    expect(uniformScale([2, 0, 0, 3, 0, 0])).toBeNull();
+    // A flip mirrors the outlines, and no text size expresses a mirror.
+    expect(uniformScale([-2, 0, 0, -2, 0, 0])).toBeNull();
+    expect(uniformScale([2, 0.5, 0, 2, 0, 0])).toBeNull();
+    // A drag composed from a frame arrives a few ULPs off exactly uniform.
+    expect(uniformScale([2, 0, 0, 2 + 1e-12, 0, 0])).toBeCloseTo(2, 10);
+  });
+
+  it("keeps the text through a uniform scale, with the lengths scaled", () => {
+    const out = resizeNode(title(), [2, 0, 0, 2, 0, 0]) as PathShape;
+    expect(out.text).toBeDefined();
+    expect(out.text!.size).toBe(200);
+    expect(out.text!.letterSpacing).toBe(8);
+    // px: the baseline jitter and the hand-set nudges scale with the title.
+    expect(out.text!.amounts.offset).toBe(12);
+    expect(out.text!.overrides[0].dx).toBe(16);
+    expect(out.text!.overrides[0].dy).toBe(-8);
+    // Ratios and degrees do not: scaling these would rotate and skew the characters.
+    expect(out.text!.amounts.rotate).toBe(10);
+    expect(out.text!.amounts.scale).toBe(0.2);
+    expect(out.text!.amounts.skew).toBe(3);
+    expect(out.text!.overrides[0].r).toBe(15);
+    expect(out.text!.overrides[0].s).toBe(1.5);
+    expect(out.text!.overrides[0].k).toBe(2);
+    // lineHeight is already a multiple of the size.
+    expect(out.text!.lineHeight).toBe(1.2);
+    // The outlines are baked as before.
+    expect(out.subpaths[0].nodes.map((n) => n.p.x)).toEqual([0, 20]);
+  });
+
+  it("drops the text on a stretch or a flip", () => {
+    expect((resizeNode(title(), [2, 0, 0, 3, 0, 0]) as PathShape).text).toBeUndefined();
+    expect((resizeNode(title(), [-2, 0, 0, -2, 0, 0]) as PathShape).text).toBeUndefined();
+  });
+
+  it("reports a dropped title, and only a dropped one", () => {
+    const doc = createDoc(100, 100);
+    const withTitle: Doc = {
+      ...doc,
+      layers: [{ ...doc.layers[0], children: [title()] }],
+    };
+    const stretched = resizeNodes(withTitle, ["t"], [2, 0, 0, 3, 0, 0]);
+    const scaled = resizeNodes(withTitle, ["t"], [2, 0, 0, 2, 0, 0]);
+    expect(droppedTitle(withTitle, stretched, ["t"])).toBe(true);
+    expect(droppedTitle(withTitle, scaled, ["t"])).toBe(false);
+    // An ordinary path has nothing to lose.
+    const plain: Doc = {
+      ...doc,
+      layers: [{ ...doc.layers[0], children: [{ ...title(), text: undefined }] }],
+    };
+    expect(droppedTitle(plain, resizeNodes(plain, ["t"], [2, 0, 0, 3, 0, 0]), ["t"])).toBe(false);
   });
 });

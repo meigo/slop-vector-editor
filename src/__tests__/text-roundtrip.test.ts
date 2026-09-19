@@ -96,13 +96,27 @@ describe("a title round-trips as a path", () => {
     expect(retyped.text).toBeUndefined();
   });
 
-  it("stops being a title when a resize is baked into it", () => {
+  it("survives a uniform resize with its outlines and its size in step", () => {
     // Found in review: resize spread `...s`, keeping `text` while scaling the outlines, so the
-    // next keystroke re-outlined at the old size and the resize vanished.
+    // next keystroke re-outlined at the OLD size and the resize vanished. M10e §7 keeps the title
+    // through a uniform scale by scaling the metadata too — so the guard is no longer "text is
+    // dropped" but "the outlines and the size agree", which is what the bug actually broke.
     const d = docWith(title());
     const id = d.layers[0].children[0].id;
+    const before = (d.layers[0].children[0] as PathShape).text!.size;
     const resized = resizeNodes(d, [id], [2, 0, 0, 2, 0, 0]);
     const p = resized.layers[0].children[0] as PathShape;
+    expect(p.subpaths[0].nodes[1].p.x).toBe(100);
+    expect(p.text).toBeDefined();
+    expect(p.text!.size).toBe(before * 2);
+  });
+
+  it("stops being a title when a NON-uniform resize is baked into it", () => {
+    // A stretch cannot be expressed as a text size, so the title becomes an ordinary path rather
+    // than one that would snap back to its old proportions on the next keystroke.
+    const d = docWith(title());
+    const id = d.layers[0].children[0].id;
+    const p = resizeNodes(d, [id], [2, 0, 0, 3, 0, 0]).layers[0].children[0] as PathShape;
     expect(p.text).toBeUndefined();
     expect(p.subpaths[0].nodes[1].p.x).toBe(100);
   });

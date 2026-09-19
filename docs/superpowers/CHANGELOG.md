@@ -1412,3 +1412,30 @@ the available desktop height. Measured before: 1058px of content for a selected 
   row does in CSS. A whitespace-only title falls back to "Title"; an explicit name still wins.
 - Browser-verified (desktop Chrome, :5190): a placed title's row reads "Title", and retyping it to
   "Hello World" renamed the row live. 620 tests in 49 files (2 new).
+
+## 2026-09-20 — A title survives a uniform resize, and warns when it cannot
+
+- Resizing a title used to always bake it into an ordinary path, losing editability. It now keeps
+  its text through a **uniform** scale: `scaleTextMeta` scales `size`, `letterSpacing`,
+  `amounts.offset` and each override's `dx`/`dy`, and nothing else — `lineHeight` is already a
+  multiple of the size, and the rotate/scale/skew amounts are degrees and ratios, so scaling them
+  would rotate and skew the characters as the title was resized.
+- Why it works: glyph outlines scale linearly with size, so outlines scaled by `k` are exactly the
+  outlines the font gives at `size * k`. The baked subpaths and the metadata therefore stay in
+  agreement, and the next keystroke re-derives the same shape rather than snapping back — which is
+  the M10a review failure that made resize drop `text` in the first place.
+- A **non-uniform** resize still bakes and drops the text, and now says so. A flip counts as
+  non-uniform here: it mirrors the outlines, and re-outlining at `|k|` comes back un-mirrored.
+- **The warning matters more than expected.** `dragHandle` constrains proportions only while Shift
+  is held, so a plain corner drag is non-uniform and costs the title its text; W and H in the
+  geometry fields always do. This corrects a claim made while designing the change — that free
+  corner drags are uniform — which was wrong, and had put the wrong advice in the notice text.
+- `droppedTitle` compares the documents before and after rather than re-deriving the uniform test
+  from the matrix: a second copy of that rule can drift from `bakeShape`, and this is quiet data
+  loss where a drift would go unnoticed. The select tool warns once per drag, on pointer-up.
+- The existing test asserting "a resize always drops the text" used a uniform scale, so it was
+  rewritten to guard the same regression under the new rule — the outlines and the size agree —
+  plus a new test for the non-uniform case.
+- Browser-verified (desktop Chrome, :5189): a plain corner drag dropped the text and raised the
+  notice; the same drag with the dock's Shift latch on kept the title and took `size` 96 → 240.35;
+  re-typing afterwards **stayed at 240.35** instead of snapping back to 96. 625 tests in 49 files.

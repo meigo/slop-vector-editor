@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/boolean.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 620 tests in 49 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 625 tests in 49 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -536,6 +536,24 @@ every user-visible change.
     `rowLabel` also feeds tooltips, `aria-label`s and the node tool's refusal notice, none of which
     truncate the way the row does in CSS, and a title can be a paragraph. A whitespace-only title
     falls back to "Title". An explicit `name` still wins, as for every other kind.
+
+44. **A title survives a UNIFORM resize and only a uniform one** (`resize.ts`, M10e §7). Glyph
+    outlines scale linearly with size, so outlines scaled by `k` are exactly what the font gives at
+    `size * k` — which is what lets the baked subpaths and the metadata stay in agreement, so the
+    next keystroke re-derives the same shape instead of snapping back. `scaleTextMeta` scales only
+    the **lengths**: `size`, `letterSpacing`, `amounts.offset` and each override's `dx`/`dy`.
+    `lineHeight` is already a multiple of the size, and `rotate`/`scale`/`skew` (with `r`/`s`/`k`)
+    are degrees and ratios — scaling those would rotate and skew the characters as the title is
+    resized. A **flip** is not uniform for this purpose: it mirrors the outlines, and re-outlining
+    at `|k|` comes back un-mirrored.
+    - **The non-uniform case is the common one, not the exotic one.** `dragHandle` constrains the
+      proportions only while **Shift** is held, so a plain corner drag stretches and costs the
+      title its text; W and H in the geometry fields are non-uniform by construction and always do.
+      Both warn — `droppedTitle` is the shared predicate, and it compares the documents **before
+      and after** rather than re-deriving the rule from the matrix, because a second copy of "is
+      this uniform, in the node's own space, through its parent" is one that can drift from
+      `bakeShape`, and this is quiet data loss where a drift would go unnoticed.
+    - The select tool warns **once per drag**, on pointer-up, not per pointermove.
 
 ## Current state
 

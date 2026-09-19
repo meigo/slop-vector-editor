@@ -8,8 +8,15 @@ import {
   type Mat,
 } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import { withBakedSubpaths, type Doc, type Node, type PolygonShape, type Shape } from "./document";
-import { mapNodes } from "./tree";
+import {
+  scaleTextMeta,
+  withBakedSubpaths,
+  type Doc,
+  type Node,
+  type PolygonShape,
+  type Shape,
+} from "./document";
+import { findNode, mapNodes } from "./tree";
 
 /** Spec (M2a) §1: move/rotate touch the matrix; resize is baked into geometry so stroke widths
  *  and corner radii never scale. `L` is the resize expressed in the shape's own space. */
@@ -52,11 +59,51 @@ function bakeShape(s: Shape, L: Mat): Shape {
       }
       return out;
     }
-    case "path":
-      // A baked resize cannot be expressed as a text size (it may be non-uniform), so the title
-      // becomes an ordinary path rather than one that would snap back on the next keystroke.
-      return withBakedSubpaths(s, transformSubpaths(s.subpaths, L));
+    case "path": {
+      const subpaths = transformSubpaths(s.subpaths, L);
+      // A title survives a UNIFORM resize, because that is expressible as a text size and the
+      // metadata can be kept in step with the baked outlines (spec M10e §7). Anything else — a
+      // stretch, a flip — cannot be, so the title becomes an ordinary path rather than one that
+      // would snap back to its old shape on the next keystroke.
+      const k = s.text ? uniformScale(L) : null;
+      return k === null || !s.text
+        ? withBakedSubpaths(s, subpaths)
+        : { ...s, subpaths, text: scaleTextMeta(s.text, k) };
+    }
   }
+}
+
+/** Floating-point slack for the uniform test. The resize matrix is composed from a frame and a
+ *  pointer position, so an intended square drag arrives a few ULPs off being exactly uniform. */
+const UNIFORM_EPS = 1e-9;
+
+/** `k` if `L` is a uniform scale (with any translation), else null.
+ *
+ *  A rotation or shear (`b`/`c`) is not an axis-aligned resize, and a **flip** — a negative
+ *  factor — mirrors the outlines, which no text size can express: re-outlining at `|k|` would come
+ *  back un-mirrored. Both fall through to the bake. */
+export function uniformScale(L: Mat): number | null {
+  const [a, b, c, d] = L;
+  if (Math.abs(b) > UNIFORM_EPS || Math.abs(c) > UNIFORM_EPS) return null;
+  if (a <= 0 || d <= 0) return null;
+  if (Math.abs(a - d) > UNIFORM_EPS * Math.max(1, Math.abs(a))) return null;
+  return a;
+}
+
+/** Whether a resize turned a title into an ordinary path — the one thing about a resize the user
+ *  cannot see happening, so it is worth a notice.
+ *
+ *  Deliberately compares the two documents rather than re-deriving the rule from the matrix: a
+ *  second copy of "is this uniform, in the node's own space, through its parent" is a copy that
+ *  can drift from `bakeShape`, and this is the kind of quiet data loss where a drift would not be
+ *  noticed. `ids` keeps the walk to what was resized. */
+export function droppedTitle(before: Doc, after: Doc, ids: readonly string[]): boolean {
+  return ids.some((id) => {
+    const b = findNode(before, id)?.node;
+    if (!b || b.kind !== "path" || !b.text) return false;
+    const a = findNode(after, id)?.node;
+    return !!a && a.kind === "path" && !a.text;
+  });
 }
 
 /** Resize `node` by `A`, given in the node's parent space. */

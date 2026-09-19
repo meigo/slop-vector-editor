@@ -85,6 +85,7 @@ import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
 import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
 import { canRedo, canUndo } from "./history";
+import { droppedTitle } from "../doc/resize";
 import { applyGeometryField, type GeometryField } from "./properties";
 import {
   beginGesture,
@@ -504,7 +505,15 @@ export function setSelectionStyle(patch: Partial<Style>): void {
 
 export function applyGeometry(field: GeometryField, value: number): void {
   cancelActiveGesture();
-  commitDoc(applyGeometryField(app.doc, app.selection, field, value));
+  const before = app.doc;
+  const next = applyGeometryField(before, app.selection, field, value);
+  commitDoc(next);
+  // W and H change one axis, so they are non-uniform by construction and always cost a title its
+  // text (spec M10e §7). Worth saying out loud here more than anywhere: unlike a corner drag,
+  // there is no proportional way to do this from the geometry fields.
+  if (droppedTitle(before, next, app.selection)) {
+    notify("info", "Resizing one axis made the text no longer editable — undo to keep it.");
+  }
 }
 
 /** One operation at a time. Every operation is async, even with paper already loaded, so two quick

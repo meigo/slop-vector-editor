@@ -92,6 +92,34 @@ export function withBakedSubpaths(p: PathShape, subpaths: Subpath[]): PathShape 
   delete next.text;
   return next;
 }
+
+/** A **uniform** scale IS expressible as a text size, so a title survives one (spec M10e §7).
+ *  Glyph outlines scale linearly with size, so outlines scaled by `k` are exactly the outlines
+ *  the font would give at `size * k` — which is what lets the baked subpaths and the metadata
+ *  stay in agreement, so the next keystroke re-derives the same shape instead of snapping back.
+ *
+ *  Only the lengths scale. `size` and `letterSpacing` are px; `amounts.offset` is a px baseline
+ *  shift and each override's `dx`/`dy` are px. `lineHeight` is already a MULTIPLE of the size, and
+ *  `rotate`, `scale` and `skew` — with the matching `r`, `s`, `k` overrides — are degrees and
+ *  ratios. Scaling those would rotate and skew the characters as the title is resized. */
+export function scaleTextMeta(m: TextMeta, k: number): TextMeta {
+  return {
+    ...m,
+    size: m.size * k,
+    letterSpacing: m.letterSpacing * k,
+    amounts: { ...m.amounts, offset: m.amounts.offset * k },
+    overrides: Object.fromEntries(
+      Object.entries(m.overrides).map(([i, o]) => [
+        i,
+        {
+          ...o,
+          ...(o.dx === undefined ? {} : { dx: o.dx * k }),
+          ...(o.dy === undefined ? {} : { dy: o.dy * k }),
+        },
+      ]),
+    ),
+  };
+}
 export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
 export type Group = NodeFlags & {
