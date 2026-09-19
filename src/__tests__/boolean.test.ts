@@ -23,7 +23,34 @@ const circle: Subpath = {
   ],
 };
 
+/** Signed area: its sign is the subpath's winding. */
+const area = (sp: Subpath) => {
+  let a = 0;
+  for (let i = 0; i < sp.nodes.length; i++) {
+    const p = sp.nodes[i].p;
+    const q = sp.nodes[(i + 1) % sp.nodes.length].p;
+    a += p.x * q.y - q.x * p.y;
+  }
+  return a / 2;
+};
+
 describe("booleanOf", () => {
+  /** Must stay the first test in this file: it is about the very first load, and every other test
+   *  has already done it. The loader caches the promise, not the module — a value cached after the
+   *  await let three overlapping first calls all fall through the guard and each run `setup()`,
+   *  leaving two spare projects behind for the life of the page. */
+  it("sets paper up once when the first calls overlap", async () => {
+    const pair = [[rect(0, 0, 10, 10)], [rect(5, 5, 10, 10)]];
+    await Promise.all([
+      booleanOf(pair, "unite"),
+      booleanOf(pair, "unite"),
+      booleanOf(pair, "unite"),
+    ]);
+    const mod = await import("paper/dist/paper-core");
+    const paper = (mod as unknown as { default?: typeof mod }).default ?? mod;
+    expect(paper.projects).toHaveLength(1);
+  });
+
   it("round-trips a shape through paper unchanged", async () => {
     const out = await booleanOf([[circle], [rect(500, 500, 10, 10)]], "unite");
     const back = out.find((sp) => sp.nodes.some((n) => Math.abs(n.p.x - 20) < 1e-9));
@@ -49,21 +76,29 @@ describe("booleanOf", () => {
   it("gives a hole opposite winding, which is what nonzero fill needs", async () => {
     const out = await booleanOf([[rect(0, 0, 100, 100)], [rect(40, 40, 20, 20)]], "subtract");
     expect(out).toHaveLength(2);
-    const area = (sp: Subpath) => {
-      let a = 0;
-      for (let i = 0; i < sp.nodes.length; i++) {
-        const p = sp.nodes[i].p;
-        const q = sp.nodes[(i + 1) % sp.nodes.length].p;
-        a += p.x * q.y - q.x * p.y;
-      }
-      return a / 2;
-    };
     expect(Math.sign(area(out[0]))).toBe(-Math.sign(area(out[1])));
   });
 
-  /** White-box, on purpose: the leak it guards is invisible from our own types. Every path handed
-   *  to paper is added to paper's project, so without clearing it the project grows by three items
-   *  per operation and keeps every intermediate path for the life of the page. */
+  /** The other half of the round trip: a multi-subpath operand has to go in as a `CompoundPath`
+   *  (spec M7 §9). Uniting a holed rectangle with a rectangle far away leaves all three subpaths
+   *  untouched, so the hole must still be there — and still wound the other way — afterwards. */
+  it("takes a multi-subpath operand in as a compound path and gets one back", async () => {
+    const holed = await booleanOf([[rect(0, 0, 100, 100)], [rect(40, 40, 20, 20)]], "subtract");
+    expect(holed).toHaveLength(2);
+    const out = await booleanOf([holed, [rect(500, 500, 10, 10)]], "unite");
+    expect(out).toHaveLength(3);
+    // The outer 100×100, the 20×20 hole and the 10×10 square standing on its own.
+    const total = out.reduce((sum, sp) => sum + Math.abs(area(sp)), 0);
+    expect(total).toBeCloseTo(100 * 100 + 20 * 20 + 10 * 10, 6);
+    const big = out.filter((sp) => sp.nodes.every((n) => n.p.x < 200));
+    expect(big).toHaveLength(2);
+    expect(Math.sign(area(big[0]))).toBe(-Math.sign(area(big[1])));
+  });
+
+  /** White-box, on purpose: the leak it guards is invisible from our own types. Paper adds every
+   *  item it is given, and every item it produces, to its own project unless it is told not to, and
+   *  the project lives as long as the page — so a missing `insert: false` anywhere in the
+   *  conversion would show up here as a project that is no longer empty after six operations. */
   it("leaves nothing behind in paper's project", async () => {
     await booleanOf([[rect(0, 0, 10, 10)], [rect(5, 5, 10, 10)]], "unite");
     const mod = await import("paper/dist/paper-core");

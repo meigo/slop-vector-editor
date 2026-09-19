@@ -34,22 +34,34 @@ export const BOOL_REASON = {
   open: "an open path can't take part",
 } as const;
 
-/** Two handles that mirror each other about the point are a symmetric node; the importer uses the
- *  same tolerance. */
+/** Two handles that mirror each other about the point are a symmetric node. This is not the
+ *  importer's rule: `inferNodeTypes` never emits `symmetric` and tests collinearity at 1e-3, while
+ *  this tests the mirror at 1e-6. */
 const MIRROR = 1e-6;
 
 /** Paper is ~72 KB gzipped — as much as the rest of the app — and boolean operations are rare, so
  *  it is fetched on first use rather than at load (spec M7 §2). Nothing else imports it, and the
- *  refusal rules the menus need are pure, so no menu ever waits on this. */
-let paper: Paper | null = null;
-async function load(): Promise<Paper> {
-  if (paper) return paper;
-  const mod = await import("paper/dist/paper-core");
-  const p = (mod as unknown as { default?: Paper }).default ?? (mod as unknown as Paper);
-  // No canvas and no DOM: paper only ever does geometry here.
-  p.setup(new p.Size(1, 1));
-  paper = p;
-  return p;
+ *  refusal rules the menus need are pure, so no menu ever waits on this.
+ *
+ *  The *promise* is cached, not the module: a value cached after the await would let two
+ *  overlapping first calls both fall through the guard and each run `setup()`, leaving a spare
+ *  project behind for the life of the page. A rejection clears the cache again, so a failed
+ *  download (the realistic case — a dropped connection, or a tab whose build's chunk a deploy has
+ *  replaced) leaves the next attempt free to re-fetch instead of being dead for that tab. */
+let loading: Promise<Paper> | null = null;
+function load(): Promise<Paper> {
+  loading ??= import("paper/dist/paper-core")
+    .then((mod) => {
+      const p = (mod as unknown as { default?: Paper }).default ?? (mod as unknown as Paper);
+      // No canvas and no DOM: paper only ever does geometry here.
+      p.setup(new p.Size(1, 1));
+      return p;
+    })
+    .catch((e: unknown) => {
+      loading = null;
+      throw e;
+    });
+  return loading;
 }
 
 /** Our handles are absolute in the shape's own space; paper's are relative to the segment point. */

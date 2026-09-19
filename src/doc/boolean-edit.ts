@@ -38,7 +38,9 @@ const mapSubpath = (sp: Subpath, m: import("../geom/mat").Mat): Subpath => ({
 /** The one place that decides whether an operation can run, so the menus and the edit itself can
  *  never disagree about it (spec M7 §7). */
 export function booleanRefusal(doc: Doc, ids: readonly string[]): BoolRefusal | null {
-  const found = ids.flatMap((id) => findNode(doc, id) ?? []);
+  // The same id twice must not read as two shapes: it would pass this test and then, in
+  // `booleanShapes`, make one node both the frontmost input and one of the inputs to delete.
+  const found = [...new Set(ids)].flatMap((id) => findNode(doc, id) ?? []);
   if (found.length < 2) return "few";
   if (found.some((f) => f.node.kind === "group")) return "group";
   const open = found.some(
@@ -53,9 +55,10 @@ export async function booleanShapes(
   ids: readonly string[],
   op: BoolOp,
 ): Promise<BoolOutcome> {
-  const why = booleanRefusal(doc, ids);
+  const unique = [...new Set(ids)];
+  const why = booleanRefusal(doc, unique);
   if (why) return { kind: "refused", why };
-  const found = ids.flatMap((id) => findNode(doc, id) ?? []);
+  const found = unique.flatMap((id) => findNode(doc, id) ?? []);
 
   const shapes = found.map((f) => ({
     found: f,
@@ -63,7 +66,10 @@ export async function booleanShapes(
     key: order(f.layerIndex, f.path),
   }));
 
-  // Front to back by paint order, so the operands go into paper in the order the user sees.
+  // Only the two extremes of the paint order are picked out: the frontmost gives the result its id,
+  // place and name, and Subtract has to hand the backmost to paper first, because every later
+  // operand is removed from the first. The operands otherwise stay in selection order — the other
+  // three operations are commutative, and subtracting several shapes is order-independent too.
   const back = shapes.reduce((a, b) => (after(a.key, b.key) ? b : a));
   const front = shapes.reduce((a, b) => (after(a.key, b.key) ? a : b));
   const ordered = op === "subtract" ? [back, ...shapes.filter((s) => s !== back)] : shapes;
@@ -90,6 +96,10 @@ export async function booleanShapes(
     style: styleFrom.path.style,
     subpaths: result.map((sp) => mapSubpath(sp, toParent)),
   };
+  // The result takes the frontmost input's place, so it keeps that shape's name too — a renamed
+  // layer row must not fall back to "Path". The key is omitted rather than set to undefined, as
+  // `toPath` does, so an unnamed shape stays unnamed in the file.
+  if (front.path.name !== undefined) shape.name = front.path.name;
   const replaced = mapNodes(doc, [front.path.id], () => shape as Node);
   const others = shapes.filter((s) => s !== front).map((s) => s.path.id);
   return { kind: "ok", doc: deleteNodes(replaced, others), id: shape.id };

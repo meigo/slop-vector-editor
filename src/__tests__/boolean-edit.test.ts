@@ -33,7 +33,7 @@ describe("booleanShapes", () => {
   it("replaces the inputs with one path in the frontmost's place", async () => {
     const d = doc([
       rect("a", 0, 0, 60, 60, paint("#111111")),
-      rect("b", 40, 40, 60, 60, paint("#222222")),
+      { ...rect("b", 40, 40, 60, 60, paint("#222222")), name: "Logo" },
     ]);
     const out = await booleanShapes(d, ["a", "b"], "unite");
     expect(out.kind).toBe("ok");
@@ -41,9 +41,18 @@ describe("booleanShapes", () => {
     const kids = out.doc.layers[0].children;
     expect(kids).toHaveLength(1);
     expect(kids[0].kind).toBe("path");
-    // The frontmost input keeps its id and place, and its style wins.
+    // The frontmost input keeps its id, place, name and style.
     expect(kids[0].id).toBe("b");
+    expect(kids[0].name).toBe("Logo");
     expect(kids[0].kind === "path" && kids[0].style.fill?.color).toBe("#222222");
+  });
+
+  it("leaves an unnamed result unnamed rather than writing an empty name", async () => {
+    const d = doc([rect("a", 0, 0, 60, 60), rect("b", 40, 40, 60, 60)]);
+    const out = await booleanShapes(d, ["a", "b"], "unite");
+    expect(out.kind).toBe("ok");
+    if (out.kind !== "ok") return;
+    expect("name" in out.doc.layers[0].children[0]).toBe(false);
   });
 
   it("subtracts the front from the back and keeps the back's style", async () => {
@@ -76,9 +85,12 @@ describe("booleanShapes", () => {
     expect(Math.max(...xs)).toBeCloseTo(60, 6);
   });
 
-  it("refuses fewer than two, a group, and an open path", async () => {
+  it("refuses fewer than two, the same shape twice, a group, and an open path", async () => {
     const d = doc([rect("a", 0, 0, 10, 10)]);
     expect(await booleanShapes(d, ["a"], "unite")).toEqual({ kind: "refused", why: "few" });
+    // One shape named twice is still one shape: without the de-duplication it would pass this
+    // test, be written and then deleted as one of the "other" inputs, and report success.
+    expect(await booleanShapes(d, ["a", "a"], "unite")).toEqual({ kind: "refused", why: "few" });
     const g = doc([
       rect("a", 0, 0, 10, 10),
       {
