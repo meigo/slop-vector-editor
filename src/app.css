@@ -95,15 +95,17 @@ body {
      from slop-video-compositor's Inspector, where the same raggedness was solved this way.
      `minmax(0, 1fr)` on the field column is what lets a field shrink instead of overflowing onto
      its neighbour. Anything that is not a labelled row — a heading, a divider, a paint row — is a
-     full-width child (`.field-full`). */
+     full-width child (`.field-full`). A unit (`%`, `°`) sits INSIDE its field, not in a third
+     column: a column ends every numeric row short of the panel's right edge while a full-width
+     control runs to it, and the two right edges read as a step. */
   .field-grid {
-    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2;
+    @apply grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2;
   }
   .field-row {
     @apply contents;
   }
   .field-full {
-    @apply col-span-3;
+    @apply col-span-2;
   }
   /* A section heading is also the rule above it: the divider has to span all three columns, and
      wrapping the section in a `<div>` to carry the border would start a second grid whose label
@@ -113,7 +115,7 @@ body {
      Inspector uses for the same job, and the one part of this panel's height that is not the
      deliberate 32px touch-control size (invariant 23). */
   .field-divider {
-    @apply col-span-3 border-t border-line pt-2;
+    @apply col-span-2 border-t border-line pt-2;
   }
 
   .field {

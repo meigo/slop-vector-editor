@@ -137,7 +137,6 @@
             <option value="round">round</option>
             <option value="square">square</option>
           </select>
-          <span></span>
         </label>
         <label class="field-row">
           <span class="text-muted">Join</span>
@@ -151,7 +150,6 @@
             <option value="round">round</option>
             <option value="bevel">bevel</option>
           </select>
-          <span></span>
         </label>
         <NumberField
           label="Opacity"

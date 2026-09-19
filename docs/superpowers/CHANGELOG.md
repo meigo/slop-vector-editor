@@ -1348,3 +1348,16 @@ the available desktop height. Measured before: 1058px of content for a selected 
 - 618 tests in 49 files (11 new, for `panel-layout.ts`). Gates: 0 errors, 0 warnings, lint clean.
 - **Still owed: the whole iPad pass**, and it matters more than usual here — `any-pointer: coarse`
   deciding the control size, and the grip's `touch-none` drag, are both untested on a real device.
+
+## 2026-09-20 — Units move inside the fields
+
+- The panel grid is two columns (`label | field`), not three. A unit (`%`, `°`, `×`) is now
+  absolutely positioned inside its own field, `pointer-events-none` so a click on it still lands in
+  the input, with `pr-6` on the input keeping the digits clear.
+- Why: the unit column ended every numeric row short of the panel's right edge while a full-width
+  control — a button, a select, the align row — ran all the way to it. The two right edges read as
+  a step (user report, 2026-09-20). One right edge now, for fields and buttons alike.
+- The two empty `<span></span>` cells the Cap and Join selects carried to hold the unit column open
+  are gone with it.
+- Browser-verified (desktop Chrome, :5193): every labelled field and every full-width control in
+  the panel shares right edge 1716.
