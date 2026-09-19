@@ -11,8 +11,10 @@ entries supersede earlier ones — mark superseded entries).
 ## Commands
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
-- `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 481 tests in 35 files. Only pure logic is unit-tested.
+- `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
+  build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
+  69 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
+- `npm test` — Vitest, node env, no DOM — 495 tests in 37 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -32,14 +34,16 @@ every user-visible change.
   current-layer helpers), `path-edit.ts` (pure node edits: move, handles, insert, delete, retype,
   close, `appendNode`, `reverseSubpath`), `resize.ts` (bakes a resize into shape geometry; see
   gotcha below), `select-match.ts` (pure reach and matching for the selection commands: `allIds`,
-  `invertIds`, `sameIds`).
+  `invertIds`, `sameIds`), `boolean-edit.ts` (`booleanShapes`, `booleanRefusal` — unite/subtract/
+  intersect/exclude on the current selection, in document space).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
   `bounds.ts` (node/selection bounds through the matrix), `hit.ts` (hit-testing and marquee
   select; caches flattened outlines keyed per subpath array and scale bucket), `snap.ts` (snap
   targets from the artboard and object bounds, plus path node points via `collectTargets`'s
-  `nodes` option, `snapValue`/`snapBox`/`snapPoint`).
+  `nodes` option, `snapValue`/`snapBox`/`snapPoint`), `boolean.ts` (`booleanOf` — the only module
+  that imports paper, loaded on first use; converts subpaths to and from Paper's path model).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
   `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
@@ -259,17 +263,31 @@ every user-visible change.
     a row at any depth while `enteredGroupId` points at that row's parent, so the selection can
     legitimately hold ids `selectableIds` would not offer. Without keeping them, a Select Same that
     matched nothing would silently clear the whole selection.
+37. **Paper is loaded on first use, and only `src/geom/boolean.ts` may import it** (spec M7 §2).
+    The specifier is `paper/dist/paper-core`, with **no file extension** — that is the exact name
+    the package's own type declarations use, and the extension-ful path resolves to no types — and
+    it must never be the package's default entry (`paper`), which is the full PaperScript build and
+    expects a DOM. `booleanOf` maps every operand into **document space** through its shape's world
+    matrix before handing it to Paper, and maps the result back into the **frontmost input's parent
+    space**, which is where the combined shape is stored (an identity transform, as the pen commits
+    a new path). An operation that leaves no area — `booleanOf` returning `[]` — must leave the
+    document at the same reference rather than write a path the importer would drop; `booleanRefusal`
+    (`src/doc/boolean-edit.ts`) is the one predicate both the menus and `booleanShapes` read, so they
+    can't disagree about what's allowed.
 
 ## Current state
 
-Milestone 6 (selection conveniences) — see CHANGELOG. Next is milestone 7: boolean operations
-(merge, subtract, intersect, exclude), already decided to use Paper.js as a geometry-only helper.
+Milestone 7 (boolean operations) — see CHANGELOG. What comes next is unplanned: the post-v1 list
+(project design §10) still holds text, gradients, a freehand tool, PNG export, grid and smart
+guides, multiple artboards, masks, align and distribute, a light theme and image paste. The
+accessibility group and the performance group (both parked below) remain the two obvious
+milestones.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
-polish + deploy) and M6 (selection conveniences) are complete — see CHANGELOG. M7 is boolean
-operations, with Paper.js as a geometry-only helper already decided.
+polish + deploy), M6 (selection conveniences) and M7 (boolean operations) are complete — see
+CHANGELOG.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
