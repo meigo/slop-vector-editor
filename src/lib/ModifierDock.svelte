@@ -1,9 +1,26 @@
 <script lang="ts">
+  import { ChevronLeft, ChevronRight } from "@lucide/svelte";
   import { dockDown, dockUp, type DockPress } from "../input/dock";
-  import { app, setDock, toggleSnap, type DockState } from "../state/appState.svelte";
+  import { app, setDock, setPrefs, toggleSnap, type DockState } from "../state/appState.svelte";
 
   const KEYS: readonly (keyof DockState)[] = ["shift", "alt"];
   const LABELS: Record<keyof DockState, string> = { shift: "Shift", alt: "Alt" };
+  /** Shift and Alt stand in for keys a desktop user simply presses, so they start hidden. `null`
+   *  means nobody has decided yet: the first finger or Pencil on the canvas opens them once, and
+   *  records that, so it never fights a choice the user has made (spec: the dock is collapsible). */
+  const expanded = $derived(app.prefs.dockExpanded === true);
+
+  $effect(() => {
+    const direct = app.lastPointerType === "touch" || app.lastPointerType === "pen";
+    if (direct && app.prefs.dockExpanded === null) {
+      setPrefs({ ...app.prefs, dockExpanded: true });
+    }
+  });
+
+  function toggleExpanded() {
+    setPrefs({ ...app.prefs, dockExpanded: !expanded });
+  }
+
   /** In-progress presses; not rendered, so not reactive. */
   const presses: Partial<Record<keyof DockState, DockPress>> = {};
 
@@ -45,21 +62,34 @@
   >
     Snap
   </button>
-  {#each KEYS as key (key)}
-    <button
-      class={[
-        "h-10 w-14 rounded border border-line text-xs select-none",
-        app.dock[key] !== "off" && "ui-on",
-      ]}
-      style="touch-action: none"
-      aria-pressed={app.dock[key] !== "off"}
-      title="Hold, or tap to lock, {LABELS[key]}"
-      onpointerdown={(e) => down(key, e)}
-      onpointerup={() => up(key)}
-      onpointercancel={() => up(key)}
-      onlostpointercapture={() => up(key)}
-    >
-      {LABELS[key]}
-    </button>
-  {/each}
+  {#if expanded}
+    {#each KEYS as key (key)}
+      <button
+        class={[
+          "h-10 w-14 rounded border border-line text-xs select-none",
+          app.dock[key] !== "off" && "ui-on",
+        ]}
+        style="touch-action: none"
+        aria-pressed={app.dock[key] !== "off"}
+        title="Hold, or tap to lock, {LABELS[key]}"
+        onpointerdown={(e) => down(key, e)}
+        onpointerup={() => up(key)}
+        onpointercancel={() => up(key)}
+        onlostpointercapture={() => up(key)}
+      >
+        {LABELS[key]}
+      </button>
+    {/each}
+  {/if}
+  <button
+    class="flex h-10 w-6 items-center justify-center rounded text-muted hover:bg-raised"
+    style="touch-action: none"
+    aria-expanded={expanded}
+    title={expanded ? "Hide the Shift and Alt keys" : "Show the Shift and Alt keys"}
+    aria-label={expanded ? "Hide the Shift and Alt keys" : "Show the Shift and Alt keys"}
+    onclick={toggleExpanded}
+    onpointerdown={(e) => e.preventDefault()}
+  >
+    {#if expanded}<ChevronRight size={16} />{:else}<ChevronLeft size={16} />{/if}
+  </button>
 </div>

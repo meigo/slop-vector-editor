@@ -64,7 +64,8 @@ every user-visible change.
   planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
-  (localStorage defaults for new shapes: style + polygon prefs + snap), `tab-presence.ts`
+  (localStorage: style + polygon defaults for new shapes, snap, the dock's expanded state),
+  `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
@@ -184,6 +185,12 @@ every user-visible change.
       14px, set on `body`. No sibling slop app sets a root size.
     - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
       with slop-animator, because it suits touch.
+    - **`prefs.dockExpanded` is `boolean | null`, and `null` means undecided, not collapsed.** The
+      modifier dock hides its Shift and Alt latches until someone decides otherwise; Snap is always
+      shown, because it is a setting and this is the only place its state appears. While the pref is
+      `null` the first `touch` or `pen` pointer expands the dock once and writes `true`. A boolean is
+      a decision — by the chevron or by that first touch — and nothing overrides it, so an explicit
+      collapse survives every later touch. Keep the three states distinct in `sanitizePrefs`.
 24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
     status bar shows the nearest `title`; on touch and pen, which have no hover, it shows the
     title of whatever was just pressed (`onpointerdown`, `hintFrom` in `lib/hover-hint.ts`) — the

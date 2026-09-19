@@ -32,12 +32,21 @@ describe("preferences", () => {
     },
     polygon: { sides: 7, star: true, innerRatio: 0.3 },
     snap: false,
+    dockExpanded: true,
   };
 
   it("falls back to defaults for missing or malformed input", () => {
     expect(sanitizePrefs(undefined)).toEqual(DEFAULT_PREFS);
     expect(sanitizePrefs("nope")).toEqual(DEFAULT_PREFS);
     expect(sanitizePrefs(custom)).toEqual(custom);
+  });
+
+  it("keeps the dock's undecided state distinct from a decision", () => {
+    // null means nobody has chosen, so the first touch may still expand it; false is a decision.
+    expect(sanitizePrefs({}).dockExpanded).toBeNull();
+    expect(sanitizePrefs({ dockExpanded: "yes" }).dockExpanded).toBeNull();
+    expect(sanitizePrefs({ dockExpanded: false }).dockExpanded).toBe(false);
+    expect(sanitizePrefs({ dockExpanded: true }).dockExpanded).toBe(true);
   });
 
   it("validates field by field", () => {

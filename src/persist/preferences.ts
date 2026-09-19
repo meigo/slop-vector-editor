@@ -7,13 +7,22 @@ import {
 } from "../doc/document";
 
 export type PolygonPrefs = { sides: number; star: boolean; innerRatio: number };
-export type Prefs = { style: Style; polygon: PolygonPrefs; snap: boolean };
+export type Prefs = {
+  style: Style;
+  polygon: PolygonPrefs;
+  snap: boolean;
+  /** The modifier dock's Shift and Alt latches. `null` means nobody has decided yet, so the dock
+   *  may expand itself the first time a finger or a Pencil is used; once it is true or false, that
+   *  was a decision — by the user or by that first touch — and nothing overrides it again. */
+  dockExpanded: boolean | null;
+};
 export type PrefStorage = Pick<Storage, "getItem" | "setItem">;
 
 export const DEFAULT_PREFS: Prefs = {
   style: DEFAULT_STYLE,
   polygon: { sides: 5, star: false, innerRatio: 0.5 },
   snap: true,
+  dockExpanded: null,
 };
 
 const KEY = "slop-vector-editor:prefs";
@@ -55,6 +64,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
       innerRatio: num(p.innerRatio, 0.1, 0.95, d.polygon.innerRatio),
     },
     snap: typeof r.snap === "boolean" ? r.snap : d.snap,
+    dockExpanded: typeof r.dockExpanded === "boolean" ? r.dockExpanded : d.dockExpanded,
   };
 }
 

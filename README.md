@@ -28,7 +28,8 @@ Early development. What works today:
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
-- An on-screen Shift/Alt/Snap pad for touch.
+- An on-screen Shift/Alt/Snap pad for touch. Snap is always there; the Shift and Alt latches fold
+  away behind a chevron, and open themselves the first time you use a finger or a Pencil.
 - An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover
   and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
   — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties

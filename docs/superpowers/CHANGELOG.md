@@ -810,3 +810,25 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
 - The wider labels cost the bar ~15px, so the menu triggers' gutters also tighten below 900px
   (`px-1`, `px-2` above). Measured requirement at narrow widths: 714px, leaving 54px for the file
   name at 768px and 30px at 744px.
+
+## 2026-09-19 — The modifier dock collapses
+
+- The on-canvas dock's **Shift and Alt latches** now hide behind a chevron. They exist for a device
+  with no keyboard; on a desktop they are dead weight over the artwork. **Snap stays visible at every
+  width** — it is a real setting, not a key substitute, and the dock is the only place its state
+  shows, so hiding it would hide the setting.
+- The state is a preference, `Prefs.dockExpanded`, and it is **`boolean | null`**. `null` is not a
+  third mode: it means nobody has decided yet. While it is `null` the dock renders collapsed, and the
+  first `touch` or `pen` pointer the app sees expands it once and writes `true` — a finger or a
+  Pencil is the evidence that the latches are wanted. Once the value is a boolean it was a decision,
+  by the user's chevron or by that first touch, and nothing overrides it again: an explicit collapse
+  survives every later touch. `sanitizePrefs` keeps the three states distinct, so a stored `false`
+  does not degrade into "ask again".
+- Browser-verified (port 5198): default collapsed (`Snap`, `Show the Shift and Alt keys`, 94px wide);
+  the chevron expands to 214px and stores `true`; collapsing stores `false`; a touch after an
+  explicit collapse does **not** re-expand; from undecided, a mouse press changes nothing and stores
+  nothing, while the first touch expands and stores `true`. Notices still clear the dock by 10px in
+  both states. No console errors.
+- Owed: the auto-expand has only been driven by synthetic pointer events here. A real first touch on
+  a device is part of the iPad pass owed since M5 — and the M5 lesson applies, that a synthetic
+  event can pass a check for the wrong reason.
