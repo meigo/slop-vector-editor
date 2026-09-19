@@ -1290,3 +1290,13 @@ be the wrong words for the final behaviour, so they are not used.
   field in the panel reports the same left (1572) and right (1695) edge across all sections, and the
   panel does not scroll horizontally. Still owed: the iPad pass.
 - Invariant 23 extended with the rule. Gates: 0 errors, 0 warnings; 607 tests in 48 files; lint clean.
+
+## 2026-09-20 — The colour swatch is square
+
+- `PaintField`'s colour input is `size-8 shrink-0` (32×32), not `h-8 w-10`. A flex item shrinks
+  below its declared width, so in the 240px sidebar the paint row squeezed the swatch to a ~17px
+  sliver while its height stayed at 32 — a tall rectangle where a square was intended (user
+  screenshot, 2026-09-20). 32px is the app's bar-control size.
+- Invariant 40's "`NumberField` never goes in a fixed-width cell / use `flex flex-wrap`" note is
+  marked superseded by invariant 23's panel grid: `minmax(0, 1fr)` solves the overflow it described.
+- Browser-verified (desktop Chrome, :5195): both swatches measure 32×32.

@@ -424,12 +424,11 @@ every user-visible change.
       collapsed Properties panel would have silently stopped character picking working. The Overlay
       draws the highlight from that state directly, never through the single `app.overlay` slot
       that the marquee, the snap guides and the pen draft already share.
-    - **`NumberField` never goes in a fixed-width cell.** Its root is `shrink-0 whitespace-nowrap`
-      and it contains a label, a `w-16` input and a suffix, so it needs 108-133px; in a
-      `grid-cols-2` cell of the 240px sidebar (104px) every field overflowed onto its neighbour and
-      painted over that label. Lay these out with `flex flex-wrap items-center gap-2`, as the
-      Size/Spacing row and the Geometry section already do, so each keeps its natural width and
-      wraps when it must.
+    - **`NumberField` never goes in a fixed-width cell.** It is a label, an input and a suffix that
+      together need 108-133px; in a `grid-cols-2` cell of the 240px sidebar (104px) every field
+      overflowed onto its neighbour and painted over that label. Superseded 2026-09-20 by the panel
+      grid in invariant 23: the field column is `minmax(0, 1fr)`, so a field shrinks instead of
+      overflowing, and the `flex flex-wrap` rows this note once prescribed are gone.
     - **`data-sv-text-opts` is 8 **or** 9 fields.** M10d appended `lineHeight`; `parseTextOpts`
       accepts either and defaults the missing one to 1.2, because demanding nine would have turned
       every title saved before it into a plain path with its text lost. Any future field must be

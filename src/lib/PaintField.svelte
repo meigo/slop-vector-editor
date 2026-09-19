@@ -65,9 +65,12 @@
   </div>
   {#if paint}
     <div class="flex items-center gap-2">
+      <!-- `size-8 shrink-0`: a swatch is a square 32px control, like every other bar control. It
+           was `h-8 w-10`, but a flex item shrinks below its width, and in the 240px sidebar the
+           row squeezed it to a tall ~17px sliver while the height stayed put. -->
       <input
         type="color"
-        class="h-8 w-10 cursor-pointer rounded border border-line bg-raised"
+        class="size-8 shrink-0 cursor-pointer rounded border border-line bg-raised"
         value={paint.color}
         aria-label="{label} colour"
         oninput={(e) => {
