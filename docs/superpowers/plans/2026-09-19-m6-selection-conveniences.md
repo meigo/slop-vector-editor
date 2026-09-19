@@ -21,7 +21,7 @@
 - **Reach is `selectableIds(doc, enteredGroupId)`** — never a hand-rolled layer walk.
 - **Paints compare exactly**, `null` matches only `null`. No tolerance.
 - **Several seeds mean union**, and the seeds always match themselves.
-- **UI:** theme tokens only; one class expression per element; a disabled command is shown with a reason, never hidden (CLAUDE.md invariant 24); every `title` reads as an action and is also the status-bar hint.
+- **UI:** theme tokens only; one class expression per element; every `title` reads as an action and is also the status-bar hint. **An unavailable command is disabled with a reason in the Select menu** (CLAUDE.md invariant 24 — the top bar must not move) **and hidden in the context menu** (its existing pattern; a menu under the pointer has no layout to keep still).
 - **Existing tests keep their expected values** unless a step says otherwise.
 - **Commit trailer**, exactly: `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`. One commit per task.
 - **Git:** branch `m6-selection` off `main` (the controller creates it).
