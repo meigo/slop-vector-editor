@@ -261,6 +261,16 @@ every user-visible change.
       the floor and the real clamp runs on mount and on every window resize. One pref write per
       drag, on release. The grip is a real `<button>`, so Tab reaches it and Arrow/Shift-Arrow step
       it by 8/24px — the only keyboard route to a width.
+    - **The panel pairs rows two-up once it is 320px wide** (M10e §4), through a **container
+      query** on the Properties `<section>`, never a media query: the sidebar is dragged to any
+      width independently of the window, so the viewport cannot answer the question. Note the
+      container measures the section's content box, so the _sidebar_ pref must read 321 — the
+      column's 1px left border is outside it. Auto-placement does the pairing: a `.field-row`
+      contributes exactly **two** grid items and everything else spans the full width, so after any
+      full-width row the next pair starts in column 1 again. **That parity is load-bearing** — a
+      row contributing an odd number of items would slide every following label a column away from
+      the field it names. This is why the empty `<span></span>` cells the Cap and Join selects once
+      carried had to go when the unit column did.
     - **The properties panel is ONE grid, `label | field | unit`** (`.field-grid` in `app.css`,
       borrowed from slop-video-compositor's Inspector). Every labelled row is a `.field-row`, which
       is `display: contents`, so its three cells join that one grid and every input in the panel

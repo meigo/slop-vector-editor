@@ -73,7 +73,11 @@
     $props();
 </script>
 
-<section class="flex min-h-0 flex-col" style:flex aria-label="Properties">
+<!-- `@container`: the field grid pairs rows two-up once THIS panel is wide enough (see
+     `.field-grid`). The trigger has to be the sidebar's own width, not the viewport's — the sidebar
+     is dragged to any width independently of the window — which is exactly what a container query
+     does and a media query cannot. -->
+<section class="@container flex min-h-0 flex-col" style:flex aria-label="Properties">
   <PanelHeader
     title="Properties"
     open={expanded}

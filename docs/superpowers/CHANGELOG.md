@@ -1361,3 +1361,20 @@ the available desktop height. Measured before: 1058px of content for a selected 
   are gone with it.
 - Browser-verified (desktop Chrome, :5193): every labelled field and every full-width control in
   the panel shares right edge 1716.
+
+## 2026-09-20 — Two fields per line on a wide panel
+
+- The field grid becomes four columns — `label | field | label | field` — once the Properties
+  panel is 320px or wider, through a **container query**, not a media query: the sidebar is now
+  dragged to any width independently of the window, so only the panel's own width can answer.
+  (The container measures the section's content box, so the `sidebarPx` pref must read 321: the
+  column's 1px left border sits outside it.)
+- No new markup. Grid auto-placement does the pairing, because a `.field-row` contributes exactly
+  two items and everything else spans the full width — so parity is preserved and every label
+  stays beside its own field. That invariant is now written down; it is what the removal of the
+  selects' empty unit cells quietly depended on.
+- Threshold measured, not guessed: at 320 each field gets ~88-95px, and a six-digit coordinate plus
+  its inset unit needs ~82px at this type size. Verified at 321px with a rectangle selected —
+  four columns, every label/field pair sharing a row, **no input clipped**, panel content 512 →
+  414px. The default 240px sidebar is unaffected.
+- First asked for at 400px, lowered to 320 on the user's request to switch at a narrower width.

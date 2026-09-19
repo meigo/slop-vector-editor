@@ -118,6 +118,27 @@ body {
     @apply col-span-2 border-t border-line pt-2;
   }
 
+  /* Two rows per line once the panel is 320px or wider (spec M10e §4) — a sidebar of 321px, since
+     the column's 1px left border is outside the container. 320 is measured, not guessed: it leaves
+     each field ~88px, and a six-digit coordinate plus its inset unit needs ~82px at this type
+     size. The default 240px stays one row per line, so nothing changes for anyone who never drags
+     the grip.
+
+     Auto-placement does the pairing for free: a `.field-row` contributes exactly two grid items
+     and everything else spans the full width, so after any full-width row the next pair always
+     starts in column 1. That parity is what keeps a label and its own field together — break it
+     by adding a row that contributes an odd number of items and labels will drift a column away
+     from the fields they name. */
+  @container (min-width: 320px) {
+    .field-grid {
+      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+    .field-full,
+    .field-divider {
+      grid-column: span 4 / span 4;
+    }
+  }
+
   .field {
     @apply rounded border border-line bg-raised px-2 text-xs text-text select-text;
     height: var(--ctl-h);
