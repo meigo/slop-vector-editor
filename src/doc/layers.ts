@@ -218,6 +218,21 @@ export function renameNode(doc: Doc, id: string, name: string): Doc {
   });
 }
 
+/** The longest title text a row shows before it is cut. `rowLabel` feeds tooltips, `aria-label`s
+ *  and the node tool's refusal notice as well as the row itself — the row truncates in CSS, but
+ *  those do not, and a title can be a paragraph. */
+const LABEL_MAX = 24;
+
+/** A title's own text is its label, the way every other editor does it (spec M10e §6). One line
+ *  only, whitespace collapsed: a multi-line title would otherwise put a newline through a row, a
+ *  tooltip and an aria-label. A title that is nothing but whitespace still needs a name, and
+ *  "Title" is better there than a row that looks empty. */
+function titleLabel(text: string): string {
+  const line = text.split("\n", 1)[0].replace(/\s+/g, " ").trim();
+  if (line === "") return "Title";
+  return [...line].length > LABEL_MAX ? `${[...line].slice(0, LABEL_MAX).join("")}…` : line;
+}
+
 export function rowLabel(node: Node): string {
   if (node.name) return node.name;
   switch (node.kind) {
@@ -228,7 +243,7 @@ export function rowLabel(node: Node): string {
     case "polygon":
       return node.star ? "Star" : "Polygon";
     case "path":
-      return "Path";
+      return node.text ? titleLabel(node.text.text) : "Path";
     case "group":
       return "Group";
   }

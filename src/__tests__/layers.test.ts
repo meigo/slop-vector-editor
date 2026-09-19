@@ -184,6 +184,41 @@ describe("moving and naming objects", () => {
     expect(rowLabel({ ...poly, star: false })).toBe("Polygon");
     expect(rowLabel({ ...poly, star: true })).toBe("Star");
     expect(rowLabel({ ...base, kind: "path", subpaths: [] })).toBe("Path");
+  });
+
+  it("labels a title by its own text, not 'Path'", () => {
+    const base = { id: "x", transform: IDENTITY, style: DEFAULT_STYLE };
+    const meta = {
+      text: "Hello",
+      font: "anton",
+      size: 96,
+      letterSpacing: 0,
+      lineHeight: 1.2,
+      align: "left" as const,
+      seed: 1,
+      amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
+      overrides: {},
+    };
+    const title = (text: string) =>
+      rowLabel({ ...base, kind: "path", subpaths: [], text: { ...meta, text } });
+
+    expect(title("Hello")).toBe("Hello");
+    // One line only, whitespace collapsed: a newline would run through the row, the tooltip and
+    // the aria-label alike.
+    expect(title("Two\nLines")).toBe("Two");
+    expect(title("  spaced   out  ")).toBe("spaced out");
+    // A title that is only whitespace still needs a name.
+    expect(title("   ")).toBe("Title");
+    // Long text is cut, because `rowLabel` also feeds tooltips and notices, which do not truncate.
+    expect(title("A".repeat(40))).toBe(`${"A".repeat(24)}…`);
+    expect(title("A".repeat(24))).toBe("A".repeat(24));
+    // An explicit name still wins over the text.
+    expect(rowLabel({ ...base, name: "Logo", kind: "path", subpaths: [], text: meta })).toBe(
+      "Logo",
+    );
+  });
+
+  it("labels a group", () => {
     expect(
       rowLabel({ kind: "group", id: "g", transform: IDENTITY, opacity: 1, children: [] }),
     ).toBe("Group");
