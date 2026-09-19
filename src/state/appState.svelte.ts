@@ -437,7 +437,10 @@ export async function booleanSelection(op: BoolOp): Promise<void> {
       // sign — and the loader cached nothing, so trying again re-fetches (spec M7 §7).
       notify(
         "error",
-        `${BOOL_LABEL[op]} — the operation could not run. Check your connection and try again.`,
+        // Reload, not "try again": a module fetch that failed is recorded in the browser's module
+        // map, so every later import of the same chunk fails without asking the network again.
+        // Clearing our own cache is necessary but cannot undo that.
+        `${BOOL_LABEL[op]} — the operation could not load. Check your connection, then reload the page.`,
       );
       return;
     }

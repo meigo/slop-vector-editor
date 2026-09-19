@@ -48,7 +48,7 @@ describe("booleanSelection when paper cannot be loaded", () => {
     // sign of would then leave four buttons that look enabled and do nothing.
     expect(app.notices[0].kind).toBe("error");
     expect(app.notices[0].text).toBe(
-      "Unite — the operation could not run. Check your connection and try again.",
+      "Unite — the operation could not load. Check your connection, then reload the page.",
     );
   });
 

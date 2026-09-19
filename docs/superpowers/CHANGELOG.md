@@ -734,11 +734,13 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
     a dropped connection, or a tab from before a deploy asking for its own build's chunk, which the
     Worker no longer serves. `booleanSelection` now catches, leaves the document alone and raises an
     **error** notice (an info would fade): `"Unite — the operation could not run. Check your
-    connection and try again."`
+    connection, then reload the page."` — a reload, because the browser records a failed module fetch
+    and replays it for every later import of the same chunk, so "try again" would not work
   - **The loader is await-safe and retryable.** It caches the promise, not the module — the old
     guard ran before the await, so three overlapping first calls each ran `setup()` and left two
     spare projects behind — and clears it on rejection, so the retry the notice asks for really
-    re-fetches instead of replaying the failure for the life of the tab.
+    does not itself replay the failure — though the browser's own module map still does, which is
+    why the notice asks for a reload.
   - **Two quick clicks** used to make the second report `"the document changed while it loaded"`
     about the first one's commit. One operation runs at a time; a second is ignored.
   - **Clicking another shape during the wait** no longer has its selection stolen: the operation

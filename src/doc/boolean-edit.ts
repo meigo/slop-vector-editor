@@ -96,10 +96,11 @@ export async function booleanShapes(
     style: styleFrom.path.style,
     subpaths: result.map((sp) => mapSubpath(sp, toParent)),
   };
-  // The result takes the frontmost input's place, so it keeps that shape's name too — a renamed
-  // layer row must not fall back to "Path". The key is omitted rather than set to undefined, as
-  // `toPath` does, so an unnamed shape stays unnamed in the file.
-  if (front.path.name !== undefined) shape.name = front.path.name;
+  // The name follows the style, not the place: it is a label on the shape whose area survived, and
+  // for Subtract that is the backmost one. Naming the result after the knife would leave the user's
+  // "Logo" gone and "Knife" in its place. Written only when there is one, as `toPath` does, so an
+  // unnamed shape stays unnamed in the file.
+  if (styleFrom.path.name !== undefined) shape.name = styleFrom.path.name;
   const replaced = mapNodes(doc, [front.path.id], () => shape as Node);
   const others = shapes.filter((s) => s !== front).map((s) => s.path.id);
   return { kind: "ok", doc: deleteNodes(replaced, others), id: shape.id };

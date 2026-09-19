@@ -167,8 +167,12 @@ same way, with the document untouched. Its notice is an **error**, not an info: 
 six seconds, and this is a failure with no other visible sign, so it would leave four buttons that
 look enabled and do nothing. The wording says what to do:
 `Unite — the operation could not run. Check your connection and try again.` The loader caches its
-promise and clears it on rejection, so trying again really does re-fetch rather than replay the
-failure for the life of the tab.
+promise and clears it on rejection, so nothing of ours replays the failure. That is necessary but
+not sufficient: the browser records a failed module fetch in its module map, and every later import
+of the same specifier fails against that record without asking the network again. The notice
+therefore tells the user to **reload**, which is the only thing that reliably works, rather than to
+try again. Only one operation runs at a time; a second command pressed while one is in flight is
+dropped silently.
 
 ## 8. Undo and the document
 

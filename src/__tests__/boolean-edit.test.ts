@@ -69,6 +69,18 @@ describe("booleanShapes", () => {
     expect(p.kind === "path" && p.style.fill?.color).toBe("#aaaaaa");
   });
 
+  it("names the result after the shape whose area survived", async () => {
+    const back = { ...rect("back", 0, 0, 100, 100, paint("#aaaaaa")), name: "Logo" };
+    const front = { ...rect("front", 40, 40, 20, 20, paint("#bbbbbb")), name: "Knife" };
+    const out = await booleanShapes(doc([back, front]), ["back", "front"], "subtract");
+    expect(out.kind).toBe("ok");
+    if (out.kind !== "ok") return;
+    // The front shape is the knife: it is gone, and so is its name.
+    expect(out.doc.layers[0].children[0].name).toBe("Logo");
+    const united = await booleanShapes(doc([back, front]), ["back", "front"], "unite");
+    expect(united.kind === "ok" && united.doc.layers[0].children[0].name).toBe("Knife");
+  });
+
   it("works in document space when the inputs carry transforms", async () => {
     // Identical rects, one placed by its own transform: they must overlap after mapping.
     const d = doc([
