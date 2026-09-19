@@ -265,9 +265,11 @@ every user-visible change.
       borrowed from slop-video-compositor's Inspector). Every labelled row is a `.field-row`, which
       is `display: contents`, so its three cells join that one grid and every input in the panel
       shares one left and right edge — across the Text, Stroke, Shape, Node and Geometry sections
-      alike. A row with no label or no suffix still renders its empty `<span>`s, or the columns
-      shift. Anything that is not a labelled row — a heading, a paint row, the align buttons, the
-      textarea — is `.field-full` (`col-span-3`). **A section must not be its own `.field-grid`:** a
+      alike. **A unit (`%`, `°`, `×`) goes INSIDE its field**, absolutely positioned and
+      `pointer-events-none`, not in a third column: a unit column ends every numeric row short of
+      the panel's right edge while a full-width control runs all the way to it, and the two right
+      edges read as a step. Anything that is not a labelled row — a heading, a paint row, the align buttons, the
+      textarea — is `.field-full` (`col-span-2`). **A section must not be its own `.field-grid`:** a
       nested grid sizes its label column independently, which is the raggedness this replaced. A
       section is a `<div class="contents">` whose heading carries the divider (`.field-divider`,
       `col-span-3` + `border-t`). `minmax(0, 1fr)` on the field column is what lets a field shrink
