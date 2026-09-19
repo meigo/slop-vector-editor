@@ -13,8 +13,8 @@ entries supersede earlier ones — mark superseded entries).
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
   build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
-  69 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
-- `npm test` — Vitest, node env, no DOM — 495 tests in 37 files. Only pure logic is unit-tested.
+  71.8 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
+- `npm test` — Vitest, node env, no DOM — 503 tests in 39 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -189,8 +189,13 @@ every user-visible change.
     activate it, so the reason is exactly what a touch press reveals). They never use `disabled`
     and are never hidden: a disabled button shows no tooltip, and a hidden one moves the bar. The
     top bar must never scroll or wrap, because that would clip the File menu. Only the file name
-    shrinks. The file name's `title` (full name when truncated) is the one non-action title and
-    also shows in the status bar.
+    shrinks. **Width-dependent hiding is the one exception** (added M7): a control may be absent
+    below a breakpoint when the same command stays reachable at every width through a menu — the
+    four boolean icons appear at 900px and up, and the Path menu carries them at every width. The
+    bar is then stable at any given width, which is what the rule protects. Hiding a control
+    because of _state_ — a selection, a mode, a document — is still forbidden. The file name's
+    `title` (full name when truncated) is the one non-action title and also shows in the status
+    bar.
 25. **New objects go into the current layer** (`app.currentLayerId`, spec M3a). It is store state
     (not saved or undoable), re-resolved in `setSession`, set from the last selected object in
     `setSelection`, and reset by `replaceDocument`. Tools read it through
@@ -273,7 +278,12 @@ every user-visible change.
     a new path). An operation that leaves no area — `booleanOf` returning `[]` — must leave the
     document at the same reference rather than write a path the importer would drop; `booleanRefusal`
     (`src/doc/boolean-edit.ts`) is the one predicate both the menus and `booleanShapes` read, so they
-    can't disagree about what's allowed.
+    can't disagree about what's allowed (it de-duplicates the ids: one shape named twice is one
+    shape, and combining it with itself would delete it). **The load can fail** — it is a network
+    fetch — so the loader caches the _promise_ and clears it on rejection, and `booleanSelection`
+    catches, leaves the document alone and raises an **error** notice telling the user to try
+    again. Because the action is async even when paper is cached, it also refuses to run twice at
+    once, and hands the result the selection only if the user hasn't moved it meanwhile.
 
 ## Current state
 

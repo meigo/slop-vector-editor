@@ -697,13 +697,16 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   pen uses when it commits a new path.
 - The geometry runs through Paper.js (`paper/dist/paper-core`, core only, no PaperScript), isolated
   behind `src/geom/boolean.ts` — nothing else imports it. The conversion between our path model and
-  Paper's is lossless both ways, including node types (no handles is a corner, mirrored handles are
-  symmetric, anything else smooth) and multi-subpath compound paths. Paper runs headless
+  Paper's round-trips the **geometry** exactly, both ways, including multi-subpath compound paths.
+  Node **types** are not carried across — Paper has no equivalent and is never told — but re-derived
+  from the handles that come back (no handles is a corner, mirrored handles are symmetric, anything
+  else smooth), so a corner node carrying two handles that don't mirror comes back as smooth. That
+  is close to but not the same as the importer's rule, which never says symmetric. Paper runs headless
   (`paper.setup(new paper.Size(1, 1))`), so the conversion and the four operations are unit-tested
   in the ordinary Vitest/Node environment, the same as any other pure module. It is loaded on first
   use, not at startup: bundled at load time it would double the initial download for a feature most
   sessions never touch, so `booleanOf` does a dynamic `import()` and Vite emits it as its own chunk.
-  Measured: the app's own chunk went from 69.18 to 71.82 KB gzipped; paper's own chunk is 72.39 KB,
+  Measured: the app's own chunk went from 69.18 to 71.95 KB gzipped; paper's own chunk is 72.39 KB,
   fetched the first time someone runs an operation. The refusal rules the menus read stay pure and
   synchronous, so no menu ever waits on that download — only the operation itself, and the store
   action, are async.
@@ -724,7 +727,35 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   overwritten with a document that never saw it; `booleanSelection` now captures the document
   beforehand and refuses to commit if it moved, with its own notice (e.g. `"Unite — the document
   changed while it loaded; try again."`).
-- Plan: `docs/superpowers/plans/2026-09-19-m7-boolean-operations.md`. 495 tests in 37 files.
+- Seven more the whole-branch review found, all in the same area — the operation is async and it
+  fetches from the network, and neither was fully paid for:
+  - **A failed load was swallowed.** Nothing caught it: no notice, no status-bar text, four buttons
+    that looked enabled and did nothing. The realistic cause is not Paper throwing but the fetch —
+    a dropped connection, or a tab from before a deploy asking for its own build's chunk, which the
+    Worker no longer serves. `booleanSelection` now catches, leaves the document alone and raises an
+    **error** notice (an info would fade): `"Unite — the operation could not run. Check your
+    connection and try again."`
+  - **The loader is await-safe and retryable.** It caches the promise, not the module — the old
+    guard ran before the await, so three overlapping first calls each ran `setup()` and left two
+    spare projects behind — and clears it on rejection, so the retry the notice asks for really
+    re-fetches instead of replaying the failure for the life of the tab.
+  - **Two quick clicks** used to make the second report `"the document changed while it loaded"`
+    about the first one's commit. One operation runs at a time; a second is ignored.
+  - **Clicking another shape during the wait** no longer has its selection stolen: the operation
+    still commits (it was asked for), but the result takes the selection only if the selection
+    hasn't moved.
+  - **One id twice** (`["a", "a"]`) passed the "fewer than two" test, wrote the result to that node
+    and then deleted it as one of the other inputs — an empty layer reported as success. Both
+    `booleanRefusal` and `booleanShapes` de-duplicate now. Not reachable through the UI, where every
+    writer of the selection goes through `pruneSelection`.
+  - **A renamed shape kept its name.** The result is the frontmost input in place, so it carries
+    that shape's `name` across; a "Logo" rect united with something read as "Path" before, in the
+    panel and in the saved file.
+  - A comment in `boolean-edit.ts` claimed the operands were sorted front to back. They aren't —
+    only the two extremes are picked out, and the array stays in selection order.
+- Plan: `docs/superpowers/plans/2026-09-19-m7-boolean-operations.md`. 503 tests in 39 files,
+  including spec §7's failure path (the import forced to reject: document unchanged, one error
+  notice), the two async-guard cases, and a multi-subpath operand going in as a `CompoundPath`.
 - Browser-verified (controller, desktop Chrome, port 5198): paper absent from the resource list
   until the first operation and present immediately after; Subtract giving a two-subpath result in
   the back shape's colour that renders as a genuine hole; undo restoring both inputs as their
@@ -732,7 +763,9 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   dropped; a rect and an ellipse united without converting either first, curves intact; the refusal
   and empty-result notices verbatim; the context menu's boolean section in place and vanishing when
   a group is selected. No console errors.
-- Owed: the icons' 900px breakpoint was checked through the compiled CSS and the wrapper's classes,
+- Owed: the seven review fixes above are covered by unit tests only — none of them was re-checked in
+  the browser, and the failed-load one cannot be without taking the network down. The icons' 900px
+  breakpoint was checked through the compiled CSS and the wrapper's classes,
   not by resizing — the window would not resize this session. The iPad pass owed since M5 now also
   covers the Path menu and the icons' absence below 900px. Performance is unmeasured: Paper's
   boolean code is the heaviest geometry in the app, and a path with thousands of nodes has not been

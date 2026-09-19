@@ -11,7 +11,7 @@ In:
 
 - **Unite, Subtract, Intersect and Exclude** on the selected shapes (§4);
 - **Paper.js as a geometry-only helper**, isolated behind one module (§2);
-- lossless conversion between our path model and Paper's, both ways (§3);
+- conversion between our path model and Paper's, both ways, exact in geometry (§3);
 - shapes that are not paths converted first, exactly as the existing Convert to path does (§5);
 - a **Path menu** and, where the bar has room, **four icons** (§6);
 - the refusals and the empty-result case, with reasons (§7).
@@ -40,7 +40,8 @@ Verified in a spike before this spec was written:
   every user on every visit, for a feature most sessions never touch. So it is **loaded on first
   use**: `booleanOf` does `await import("paper/dist/paper-core")`, Vite emits it as its own chunk,
   and the initial bundle grows only by the boolean code itself — measured at **69.2 → 71.4 KB
-  gzipped**, with paper's 72.4 KB fetched the first time someone runs an operation.
+  gzipped** in the spike, and **71.9 KB** with the whole milestone and its fixes in, with paper's
+  72.4 KB fetched the first time someone runs an operation.
   The refusal rules the menus need (§7) are pure and touch none of this, so no menu ever waits on a
   download to decide whether a command applies.
   The consequence is that `booleanOf`, `booleanShapes` and the store action are **async**. That is
@@ -69,10 +70,14 @@ converted to Paper and back is identical to the original, point for point.
   `paper.CompoundPath`.
 - **Paper → ours:** `in = point + handleIn`, `out = point + handleOut`, and a zero handle becomes
   `null`. A `CompoundPath` result becomes several subpaths; a `Path` result becomes one.
-- **Node types.** Paper has no equivalent of our `corner`/`smooth`/`symmetric`, so the type is
-  derived from the handles that come back: no handles at all is a `corner`; two handles that mirror
-  each other about the point (within 1e-6) is `symmetric`; anything else is `smooth`. This matches
-  what the importer does for a path it reads from a file.
+- **Node types.** Paper has no equivalent of our `corner`/`smooth`/`symmetric`, and is never told
+  the type, so it is **re-derived** from the handles that come back: no handles at all is a
+  `corner`; two handles that mirror each other about the point (within 1e-6) is `symmetric`;
+  anything else is `smooth`. The geometry round-trips exactly (above), but the type need not: a
+  `corner` node carrying two handles that do not mirror — Alt-dragging a handle makes one — comes
+  back as `smooth`. This is close to, but not the same as, what the importer does for a path it
+  reads from a file: `inferNodeTypes` never emits `symmetric`, needs both handles before it will
+  say `smooth`, and tests collinearity at 1e-3 where this tests the mirror at 1e-6.
 - **Rounding.** The result is stored as Paper produced it. The writer's existing 6-decimal rounding
   is the only place coordinates are rounded, so a boolean result round-trips through a save and
   reload like any other path.
@@ -154,8 +159,16 @@ In the Path menu and on the icons, a command that cannot run is **disabled with 
 **An operation that leaves nothing** — intersecting two shapes that do not overlap, or subtracting a
 shape that covers everything — must not create an empty path: the importer drops a path with no
 subpaths, so writing one would produce a file that does not round-trip (the M2 constraint). The
-document is left unchanged and a notice says so: `Intersect left nothing.` The same applies if Paper
-throws: the operation is abandoned, the document is untouched, and the notice names the failure.
+document is left unchanged and a notice says so: `Intersect left nothing.`
+
+**An operation that cannot run at all** — Paper throwing, or, far more likely, its download failing
+on a dropped connection or a stale tab asking for a chunk a deploy has replaced — is abandoned the
+same way, with the document untouched. Its notice is an **error**, not an info: an info fades after
+six seconds, and this is a failure with no other visible sign, so it would leave four buttons that
+look enabled and do nothing. The wording says what to do:
+`Unite — the operation could not run. Check your connection and try again.` The loader caches its
+promise and clears it on rejection, so trying again really does re-fetch rather than replay the
+failure for the life of the tab.
 
 ## 8. Undo and the document
 
