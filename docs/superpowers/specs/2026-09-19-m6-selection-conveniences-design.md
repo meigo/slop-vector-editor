@@ -100,13 +100,19 @@ File  Select ▾
 ```
 
 **The context menu** gets the same seven entries, in a section of its own: Select All and Invert
-always, the four Same commands only when the selection makes them available (§6). This is the iPad
-route, where there is no right-click and no top-bar menu is open during a long-press.
+always, the four Same commands only when the selection makes them available. This is the iPad route,
+where there is no right-click and no top-bar menu is open during a long-press.
+
+The two menus differ deliberately on what an unavailable command looks like. The Select menu
+**disables** it with a reason, like the top bar (§6). The context menu **hides** it, which is that
+menu's existing pattern for Ungroup, Convert and Flatten: invariant 24 keeps disabled entries in the
+top bar so the bar does not move, and a menu that appears under the pointer and vanishes again has
+no layout to keep still.
 
 ## 6. When a command does not apply
 
-Per CLAUDE.md invariant 24, a command that does not apply is shown disabled with a reason, never
-hidden — a moving menu is worse than a greyed line:
+In the **Select menu**, per CLAUDE.md invariant 24, a command that does not apply is shown disabled
+with a reason, never hidden. (In the context menu it is hidden instead — see §5.) The reasons:
 
 - nothing selected → the four Same commands read `Same Fill Colour — nothing selected`;
 - only groups selected → `Same Fill Colour — a group has no fill`, and likewise for stroke and
