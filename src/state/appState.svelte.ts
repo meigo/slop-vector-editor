@@ -54,12 +54,15 @@ import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
+import type { CharOverride } from "../text/attrs";
+import { applyMat, invert as invertMat, multiply as multiplyMat } from "../geom/mat";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
 import { newSeed } from "../text/random";
 import {
   loadFont,
+  charQuads,
   outlineText,
   FontUnavailableError,
   noGlyphsFor,
@@ -143,6 +146,12 @@ class AppState {
    *  (spec M8 §5). Not saved and not undoable: a decision made with nothing selected does not
    *  survive selecting something. */
   propsOverride = $state<boolean | null>(null);
+  /** The character of the selected title being tweaked (spec M10 §6), and the quads a click is
+   *  tested against. Store state like `nodeSel`: not saved, not undoable, cleared with the
+   *  selection. The quads are cached because computing them needs the font, which is an async
+   *  lazy-chunk load, and a tool's `down` is synchronous. */
+  charSel = $state<number | null>(null);
+  charQuads = $state.raw<Vec[][]>([]);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -199,6 +208,11 @@ function discardToolDraft(): void {
  *  select the result on the next statement: seen per assignment, that is a flip to empty and back,
  *  which would throw away a collapse the user had just asked for. */
 let pendingWasEmpty: boolean | null = null;
+
+/** A character selection belongs to one title; any change of selection ends it. */
+function clearCharSel(): void {
+  if (app.charSel !== null) app.charSel = null;
+}
 
 function syncPropsOverride(wasEmpty: boolean): void {
   if (pendingWasEmpty !== null) return;
@@ -357,7 +371,9 @@ export function askConfirm(text: string, confirmLabel: string): Promise<boolean>
 
 export function setSelection(ids: readonly string[]): void {
   const wasEmpty = app.selection.length === 0;
+  const before = app.selection;
   app.selection = pruneSelection(app.doc, ids);
+  if (app.selection !== before) clearCharSel();
   syncPropsOverride(wasEmpty);
   // The layer of the last selected object becomes current (spec M3a §2).
   const last = app.selection[app.selection.length - 1];
@@ -800,6 +816,12 @@ export function closeTargetSubpath(sub: number): void {
 /** Escape: leave the group one level at a time, and only then clear the selection. */
 export function clearOrLeaveGroup(): void {
   cancelActiveGesture();
+  // Spec M10 §6: a character is the innermost thing selected, so Escape lets it go first
+  // (the same walk invariant 31 describes for node selection).
+  if (app.charSel !== null) {
+    app.charSel = null;
+    return;
+  }
   if (app.toolId === "node" && app.nodeSel.length > 0) {
     app.nodeSel = [];
     return;
@@ -1046,3 +1068,94 @@ export async function addFontFile(file: File): Promise<void> {
     notify("error", e instanceof Error ? e.message : "That font couldn't be read.");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Per-character tweaking (spec M10 §6).
+// ---------------------------------------------------------------------------
+
+export function setCharSel(i: number | null): void {
+  app.charSel = i;
+}
+
+/** Picks the character under a document point. Synchronous on purpose: the quads are kept up to
+ *  date as the selection changes, because loading the font is async and a tool's `down` is not. */
+export function pickCharacter(at: Vec): void {
+  const t = selectedTitle();
+  const quads = app.charQuads;
+  if (!t || quads.length === 0) return;
+  const found = findNode(app.doc, t.id);
+  if (!found) return;
+  const world = multiplyMat(found.parent, t.transform);
+  const inv = invertMat(world);
+  if (!inv) return; // a singular matrix has no inside (invariant 26)
+  const p = applyMat(inv, at);
+  // Last match wins: later characters are drawn on top, so that is what the eye picked.
+  for (let i = quads.length - 1; i >= 0; i--) {
+    if (pointInQuad(p, quads[i])) {
+      app.charSel = i;
+      return;
+    }
+  }
+  app.charSel = null;
+}
+
+function pointInQuad(p: Vec, q: readonly Vec[]): boolean {
+  let inside = false;
+  for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
+    const a = q[i];
+    const b = q[j];
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Writes one character's override. Goes through `reshapeTitle`, so it inherits its guards. */
+export function setCharOverride(patch: CharOverride): Promise<void> {
+  const t = selectedTitle();
+  const i = app.charSel;
+  if (!t?.text || i === null) return Promise.resolve();
+  const overrides = { ...t.text.overrides, [i]: { ...t.text.overrides[i], ...patch } };
+  return setTitleOpts({ overrides });
+}
+
+export function clearCharOverride(): Promise<void> {
+  const t = selectedTitle();
+  const i = app.charSel;
+  if (!t?.text || i === null || t.text.overrides[i] === undefined) return Promise.resolve();
+  const overrides = { ...t.text.overrides };
+  delete overrides[i];
+  return setTitleOpts({ overrides });
+}
+
+/** A canvas drag of the selected character, in the title's own space. */
+export function nudgeCharacter(dx: number, dy: number): Promise<void> {
+  const t = selectedTitle();
+  const i = app.charSel;
+  if (!t?.text || i === null) return Promise.resolve();
+  const cur = t.text.overrides[i] ?? {};
+  return setCharOverride({ dx: (cur.dx ?? 0) + dx, dy: (cur.dy ?? 0) + dy });
+}
+
+/** The quads follow the selected title. This lives in the store, not in `TextPanel`, because M8 put
+ *  that panel behind `{#if expanded}` — with Properties collapsed, character picking would have
+ *  silently stopped working. */
+$effect.root(() => {
+  $effect(() => {
+    const t = selectedTitle();
+    if (!t?.text) {
+      if (app.charQuads.length > 0) app.charQuads = [];
+      return;
+    }
+    const id = t.id;
+    const meta = t.text;
+    void loadFont(meta.font)
+      .then((f) => {
+        if (selectedTitle()?.id === id) app.charQuads = charQuads(f, meta);
+      })
+      .catch(() => {
+        app.charQuads = [];
+      });
+  });
+});

@@ -12,6 +12,10 @@ import { NO_MODS, type Mods, type ToolId } from "../tools/types";
 export type FakeState = {
   /** Where the Text tool asked for a title (spec M10 §6). */
   titlesPlaced: Vec[];
+  charsPicked: Vec[];
+  charNudges: Vec[];
+  fakeTitleId: string | null;
+  fakeCharSel: number | null;
   session: Session;
   selection: readonly string[];
   currentLayerId: string;
@@ -31,6 +35,10 @@ export function fakeContext(
 ): { ctx: ToolContext; state: FakeState } {
   const state: FakeState = {
     titlesPlaced: [],
+    charsPicked: [],
+    charNudges: [],
+    fakeTitleId: null,
+    fakeCharSel: null,
     session: newSession(doc, true),
     selection: [],
     currentLayerId: resolveLayerId(doc, null),
@@ -80,6 +88,14 @@ export function fakeContext(
     placeTitle: (at) => {
       state.titlesPlaced.push(at);
     },
+    pickCharacter: (at) => {
+      state.charsPicked.push(at);
+    },
+    nudgeCharacter: (dx, dy) => {
+      state.charNudges.push({ x: dx, y: dy });
+    },
+    titleId: () => state.fakeTitleId,
+    charSel: () => state.fakeCharSel,
     notify: (_kind, text) => {
       state.notices.push(text);
     },

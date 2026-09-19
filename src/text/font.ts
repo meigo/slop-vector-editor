@@ -2,7 +2,8 @@
  *  stays a lazy chunk — 67.7 KB gzipped, measured in the M10 spike, against 0.14 KB added to the
  *  app's own chunk. Everything outside this file sees plain `Subpath[]`. */
 import type { Subpath, TextMeta } from "../doc/document";
-import { multiply, rotate, scale, skewX, translate, type Mat } from "../geom/mat";
+import { applyMat, multiply, rotate, scale, skewX, translate, type Mat } from "../geom/mat";
+import type { Vec } from "../geom/vec";
 import { transformSubpaths } from "../geom/shapes";
 import { parsePathData } from "../svg/pathdata";
 import { BUNDLED } from "./fonts";
@@ -174,9 +175,10 @@ export function noGlyphsFor(f: LoadedFont, text: string): boolean {
 /** string + font + options → outlines, in the title's own space with the baseline at y = 0.
  *  M10a applies no per-character transform; `seed`, `amounts` and `overrides` ride along unused
  *  and M10b adds that step here. */
-export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
+/** The shared layout behind both `outlineText` and `charQuads`, so a character's outline and its
+ *  hit box can never disagree about where it is. */
+function runLayout(f: LoadedFont, m: TextMeta) {
   const chars = [...m.text];
-  if (chars.length === 0) return [];
   const font = f.font;
   const upm = font.unitsPerEm;
   const glyphs = font.stringToGlyphs(m.text);
@@ -185,23 +187,60 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
     i === 0 ? 0 : font.getKerningValue(glyphs[i - 1], g) / upm,
   );
   const { pen } = layoutRun(advances, kerns, m.size, m.letterSpacing, m.align);
+  return { chars, advances, pen, font, upm };
+}
+
+/** The transform a character ends up with: the roll, with any hand override on top. */
+function transformFor(m: TextMeta, i: number): CharTransform {
+  return withOverride(charTransform(m.seed, i, m.amounts), m.overrides[i]);
+}
+
+/** string + font + options → outlines, in the title's own space with the baseline at y = 0. */
+export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
+  const { chars, advances, pen, font } = runLayout(f, m);
+  if (chars.length === 0) return [];
   const out: Subpath[] = [];
   for (let i = 0; i < chars.length && i < pen.length; i++) {
     const d = font.getPath(chars[i], pen[i], 0, m.size).toPathData(3);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
-    const t = withOverride(charTransform(m.seed, i, m.amounts), m.overrides[i]);
+    const t = transformFor(m, i);
     if (isIdentityChar(t)) {
       out.push(...glyph);
       continue;
     }
-    // About the centre of the character's own advance box, on the baseline. Rotating about the
-    // origin would swing distant letters out of the line entirely (spec M10 §4).
-    const cx = pen[i] + (advances[i] * m.size) / 2;
-    out.push(...transformSubpaths(glyph, charMatrix(t, cx)));
+    out.push(...transformSubpaths(glyph, charMatrix(t, centreOf(pen[i], advances[i], m.size))));
   }
   return out;
 }
+
+/** Each character's advance box, jittered like its outline, in the title's own space — four
+ *  corners, clockwise from the top left. This is what a click is tested against (spec M10 §6). */
+export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
+  const { chars, advances, pen, font, upm } = runLayout(f, m);
+  const top = (-font.ascender / upm) * m.size;
+  const bottom = (-font.descender / upm) * m.size;
+  const out: Vec[][] = [];
+  for (let i = 0; i < chars.length && i < pen.length; i++) {
+    const x0 = pen[i];
+    const x1 = pen[i] + advances[i] * m.size;
+    const corners: Vec[] = [
+      { x: x0, y: top },
+      { x: x1, y: top },
+      { x: x1, y: bottom },
+      { x: x0, y: bottom },
+    ];
+    const t = transformFor(m, i);
+    const mat = isIdentityChar(t) ? null : charMatrix(t, centreOf(pen[i], advances[i], m.size));
+    out.push(mat ? corners.map((c) => applyMat(mat, c)) : corners);
+  }
+  return out;
+}
+
+/** The centre of a character's own advance box, on the baseline — the anchor every per-character
+ *  transform turns about (spec M10 §4). */
+const centreOf = (penX: number, advance: number, size: number): number =>
+  penX + (advance * size) / 2;
 
 const RAD = Math.PI / 180;
 

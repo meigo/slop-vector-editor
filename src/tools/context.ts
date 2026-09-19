@@ -4,6 +4,8 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  nudgeCharacter,
+  pickCharacter,
   placeTitle,
   registerToolDiscard,
   registerToolFinish,
@@ -11,6 +13,7 @@ import {
   setNodeSel,
   setNodeTarget,
   setOverlay,
+  selectedTitle,
   setSelection,
   setTool,
 } from "../state/appState.svelte";
@@ -37,6 +40,10 @@ export const storeContext: ToolContext = {
   prefs: () => app.prefs,
   snapEnabled: () => app.prefs.snap,
   placeTitle: (at) => void placeTitle(at),
+  pickCharacter,
+  nudgeCharacter: (dx, dy) => void nudgeCharacter(dx, dy),
+  titleId: () => selectedTitle()?.id ?? null,
+  charSel: () => app.charSel,
   notify,
   setOverlay,
 };
