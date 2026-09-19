@@ -42,6 +42,8 @@ Early development. What works today:
 - Pen: draw paths node by node (P) — click for corners, drag for curves, click the first node to
   close, or pick up an open path where you left it.
 - Installs to the Home Screen and runs standalone (web app manifest + icon).
+- Select All and Invert Selection; Select Same Fill Colour, Stroke Colour, Style or Kind, from the
+  current selection — in a Select menu in the top bar and in the right-click menu.
 
 ## Keyboard
 
@@ -59,6 +61,7 @@ Early development. What works today:
 | Duplicate                                       | ⌘D                                    |
 | Cut / Copy / Paste                              | ⌘X / ⌘C / ⌘V                          |
 | Snap on/off                                     | %                                     |
+| Select All / Invert Selection                   | ⌘A / ⇧⌘A                              |
 | Bring forward / Send backward                   | ⌘] / ⌘[                               |
 | Bring to front / Send to back                   | ⇧⌘] / ⇧⌘[                             |
 | Group / Ungroup                                 | ⌘G / ⇧⌘G                              |
@@ -78,7 +81,7 @@ artboards; masks/clipping; align & distribute; a light theme; system-clipboard i
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 459 unit tests
+npm test          # 480 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
