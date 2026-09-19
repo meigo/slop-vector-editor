@@ -16,7 +16,7 @@
 ## Global Constraints
 
 - **Checks:** `npm run build` ends with **0 errors, 0 warnings**; `npm run lint` silent; `npm test` passes; `npm run format:check` clean. Run `npx prettier --write` on touched files before committing.
-- **The build must emit two chunks** — the app's and paper's — and the app's own chunk must stay within a few KB of where it was (69.2 KB gzipped before this milestone). A single chunk means the dynamic import was defeated and the milestone's bundle promise is broken.
+- **The build must emit two chunks** — the app's and paper's — and the app's own chunk must stay within a few KB of where it was (69.2 KB gzipped before this milestone). A single chunk means the dynamic import was defeated and the milestone's bundle promise is broken. **This can only be checked once something actually calls the code**: until then Rollup drops the module and Paper with it, and the build honestly shows one chunk. The check belongs to Task 4, where the UI first calls `booleanSelection`; Tasks 1–3 will each show a single chunk and that is correct.
 - **Import `paper/dist/paper-core`, with no file extension.** The package declares that exact module name for its types; the extension-ful path has none, and the default entry (`paper`) is the full build, which needs a DOM.
 - **No module other than `src/geom/boolean.ts` may import Paper**, directly or indirectly by type.
 - **The document is immutable**; an operation that changes nothing returns the same reference. Every session change goes through `setSession`, selection through `setSelection`.
@@ -269,6 +269,10 @@ Three things in that file are load-bearing and were each arrived at by fixing a 
 - [ ] **Step 5: Verify**
 
 Run the Step 3 command, then `npm test`, `npm run build` (0 / 0), `npm run lint`, `npm run format:check`.
+
+Expect the build to emit **one** chunk at this point, unchanged in size. Nothing imports this module
+yet, so Rollup drops it and Paper with it; that is correct, not a failure of the dynamic import. The
+two-chunk check happens in Task 4, where the UI first calls it.
 
 - [ ] **Step 6: Commit**
 
@@ -670,8 +674,14 @@ row, sharing its `gap-1`, not in a nested box of their own.
 
 - [ ] **Step 2: Verify**
 
-`npm run build` (0 / 0), `npm run lint`, `npm run format:check`, `npm test` (unchanged). Then a
-dev-server compile check on port **5197**: start `npx vite --port 5197 --strictPort` yourself,
+`npm run build` (0 / 0), `npm run lint`, `npm run format:check`, `npm test` (unchanged).
+
+**This is the task where the bundle split becomes real**, because this is the first code that calls
+`booleanSelection`. `dist/assets/` must now hold **two** JavaScript chunks: the app's, still about
+71 KB gzipped, and paper's, about 72 KB. Record both. One chunk here means the dynamic import was
+defeated — check that nothing added a static `import ... from "paper..."` anywhere.
+
+Then a dev-server compile check on port **5197**: start `npx vite --port 5197 --strictPort` yourself,
 `curl` the transformed module URL for `src/lib/TopBar.svelte`, confirm 200 with no error payload,
 and stop the server you started. It needs the sandbox disabled. **Never use port 5173 or 5198**, and
 if a port is busy pick another — **never kill the process holding it**.
