@@ -33,7 +33,24 @@ describe("preferences", () => {
     polygon: { sides: 7, star: true, innerRatio: 0.3 },
     snap: false,
     dockExpanded: true,
+    splitRatio: 0.3,
+    layersOpen: false,
   };
+
+  it("keeps the sidebar split inside a usable range", () => {
+    expect(sanitizePrefs({}).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: 0.3 }).splitRatio).toBe(0.3);
+    expect(sanitizePrefs({ splitRatio: 0 }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: 1 }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: Number.NaN }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: "0.4" }).splitRatio).toBe(0.55);
+  });
+
+  it("keeps the Layers panel open unless it was closed", () => {
+    expect(sanitizePrefs({}).layersOpen).toBe(true);
+    expect(sanitizePrefs({ layersOpen: "no" }).layersOpen).toBe(true);
+    expect(sanitizePrefs({ layersOpen: false }).layersOpen).toBe(false);
+  });
 
   it("falls back to defaults for missing or malformed input", () => {
     expect(sanitizePrefs(undefined)).toEqual(DEFAULT_PREFS);

@@ -41,6 +41,7 @@ import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
+import { clearedOverride, propsOpen } from "../lib/split";
 import {
   loadPrefs,
   sanitizePrefs,
@@ -111,6 +112,10 @@ class AppState {
   contextMenu = $state.raw<ContextMenuState>(null);
   /** The properties drawer on narrow screens. */
   propertiesOpen = $state(false);
+  /** The Properties panel's collapse, when the user has overridden what the selection implies
+   *  (spec M8 §5). Not saved and not undoable: a decision made with nothing selected does not
+   *  survive selecting something. */
+  propsOverride = $state<boolean | null>(null);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -159,12 +164,21 @@ function discardToolDraft(): void {
   toolDiscard?.();
 }
 
+/** Keeps the Properties panel's override tied to the selection state it was made in (spec M8 §5).
+ *  Called from the two functions that assign `app.selection`, never from an effect. */
+function syncPropsOverride(wasEmpty: boolean): void {
+  const next = clearedOverride(app.propsOverride, wasEmpty, app.selection.length === 0);
+  if (next !== app.propsOverride) app.propsOverride = next;
+}
+
 /** Every session change goes through here, so the selection never names a node that is gone,
  *  hidden or locked. */
 function setSession(s: Session): void {
+  const wasEmpty = app.selection.length === 0;
   app.session = s;
   const pruned = pruneSelection(s.doc, app.selection);
   if (pruned !== app.selection) app.selection = pruned;
+  syncPropsOverride(wasEmpty);
   const current = resolveLayerId(s.doc, app.currentLayerId);
   if (current !== app.currentLayerId) app.currentLayerId = current;
   if (app.enteredGroupId !== null) {
@@ -301,7 +315,9 @@ export function askConfirm(text: string, confirmLabel: string): Promise<boolean>
 // ----- selection, tools, preferences -----
 
 export function setSelection(ids: readonly string[]): void {
+  const wasEmpty = app.selection.length === 0;
   app.selection = pruneSelection(app.doc, ids);
+  syncPropsOverride(wasEmpty);
   // The layer of the last selected object becomes current (spec M3a §2).
   const last = app.selection[app.selection.length - 1];
   const found = last === undefined ? null : findNode(app.doc, last);
@@ -343,6 +359,12 @@ export function setPrefs(p: Prefs): void {
   const clean = sanitizePrefs(p);
   app.prefs = clean;
   savePrefs(clean);
+}
+
+/** The Properties panel's header chevron (spec M8 §5). It records the opposite of what is showing,
+ *  and `setSelection`/`setSession` drop it again when the selection's emptiness flips. */
+export function togglePropsPanel(): void {
+  app.propsOverride = !propsOpen(app.propsOverride, app.selection.length > 0);
 }
 
 export function setPolygonPrefs(patch: Partial<PolygonPrefs>): void {

@@ -15,6 +15,10 @@ export type Prefs = {
    *  may expand itself the first time a finger or a Pencil is used; once it is true or false, that
    *  was a decision — by the user or by that first touch — and nothing overrides it again. */
   dockExpanded: boolean | null;
+  /** Properties' share of the sidebar's body; Layers gets the rest (spec M8 §4). */
+  splitRatio: number;
+  /** The Layers panel's collapse. Unlike Properties, nothing but the user opens or closes it. */
+  layersOpen: boolean;
 };
 export type PrefStorage = Pick<Storage, "getItem" | "setItem">;
 
@@ -23,6 +27,8 @@ export const DEFAULT_PREFS: Prefs = {
   polygon: { sides: 5, star: false, innerRatio: 0.5 },
   snap: true,
   dockExpanded: null,
+  splitRatio: 0.55,
+  layersOpen: true,
 };
 
 const KEY = "slop-vector-editor:prefs";
@@ -65,6 +71,8 @@ export function sanitizePrefs(raw: unknown): Prefs {
     },
     snap: typeof r.snap === "boolean" ? r.snap : d.snap,
     dockExpanded: typeof r.dockExpanded === "boolean" ? r.dockExpanded : d.dockExpanded,
+    splitRatio: num(r.splitRatio, 0.1, 0.9, d.splitRatio),
+    layersOpen: typeof r.layersOpen === "boolean" ? r.layersOpen : d.layersOpen,
   };
 }
 
