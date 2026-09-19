@@ -15,6 +15,20 @@
   const SELECTED_KNOB = "stroke: var(--color-accent); fill: var(--color-accent)";
 
   const view = $derived(app.view);
+
+  /** The character being tweaked (spec M10 §6). Derived from store state, exactly as the selection
+   *  frame is — deliberately NOT put in the single `app.overlay` slot, which the marquee, the snap
+   *  guides and the pen draft already share. */
+  const charOutline = $derived.by(() => {
+    if (app.toolId !== "text" || app.charSel === null) return null;
+    const quad = app.charQuads[app.charSel];
+    if (!quad) return null;
+    const id = app.selection[0];
+    const found = id === undefined ? null : findNode(app.doc, id);
+    if (!found) return null;
+    const world = multiply(found.parent, found.node.transform);
+    return quad.map((q) => docToScreen(view, applyMat(world, q)));
+  });
   const outlines = $derived(
     app.selection
       .map((id) => selectionFrame(app.doc, [id]))
@@ -195,5 +209,13 @@
       {@const sy = docToScreen(view, { x: 0, y }).y}
       <line x1="0" y1={sy} x2={app.viewportSize.w} y2={sy} style={GUIDE} stroke-width="1" />
     {/each}
+  {/if}
+
+  {#if charOutline}
+    <polygon
+      points={charOutline.map((p) => `${p.x},${p.y}`).join(" ")}
+      style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.18"
+      stroke-width="1.5"
+    />
   {/if}
 </g>

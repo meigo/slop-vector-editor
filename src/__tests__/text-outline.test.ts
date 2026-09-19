@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { IDENTITY } from "../geom/mat";
 import { nodeBounds } from "../geom/bounds";
 import { DEFAULT_STYLE, type PathShape, type TextMeta } from "../doc/document";
-import { outlineText, type LoadedFont } from "../text/font";
+import { charQuads, outlineText, type LoadedFont } from "../text/font";
 
 /** Read from disk, not through Vite's `?url`: the pipeline must be testable without a bundler. */
 let f: LoadedFont;
@@ -119,5 +119,54 @@ describe("outlineText", () => {
 
   it("returns nothing for an empty string", () => {
     expect(outlineText(f, meta(""))).toEqual([]);
+  });
+});
+
+describe("charQuads", () => {
+  it("gives one four-cornered quad per character", () => {
+    const q = charQuads(f, meta("SLOP"));
+    expect(q).toHaveLength(4);
+    for (const corners of q) expect(corners).toHaveLength(4);
+  });
+
+  it("orders them left to right without overlapping, when unjittered", () => {
+    const q = charQuads(f, meta("SLOP"));
+    for (let i = 1; i < q.length; i++) {
+      const prevRight = Math.max(...q[i - 1].map((p) => p.x));
+      const left = Math.min(...q[i].map((p) => p.x));
+      expect(left).toBeGreaterThanOrEqual(prevRight - 1e-6);
+    }
+  });
+
+  it("covers the baseline", () => {
+    // Glyph space here is y-down-positive with the baseline at 0, so ascenders are negative.
+    const [q] = charQuads(f, meta("S"));
+    expect(Math.min(...q.map((p) => p.y))).toBeLessThan(0);
+    expect(Math.max(...q.map((p) => p.y))).toBeGreaterThanOrEqual(0);
+  });
+
+  it("turns with the character", () => {
+    const [q] = charQuads(f, meta("S", { amounts: { ...ZERO, rotate: 40 }, seed: 3 }));
+    // The top edge is no longer horizontal once the glyph is rotated.
+    expect(Math.abs(q[0].y - q[1].y)).toBeGreaterThan(1);
+  });
+
+  it("moves only the character an override touches", () => {
+    const base = meta("SS");
+    const one = charQuads(f, base);
+    const two = charQuads(f, meta("SS", { overrides: { 0: { dx: 25 } } }));
+    expect(two[0]).not.toEqual(one[0]);
+    expect(two[1]).toEqual(one[1]);
+  });
+
+  it("agrees with the outlines about where a character is", () => {
+    // The quad and the glyph come from one layout; if they ever drift, picking a character would
+    // select a different one from the one under the pointer.
+    const m = meta("SLOP", { amounts: { ...ZERO, rotate: 20 }, seed: 9 });
+    const q = charQuads(f, m);
+    const box = boxOf("SLOP", { amounts: { ...ZERO, rotate: 20 }, seed: 9 });
+    const qx = q.flat().map((p) => p.x);
+    expect(Math.min(...qx)).toBeLessThanOrEqual(box.x + 1);
+    expect(Math.max(...qx)).toBeGreaterThanOrEqual(box.x + box.w - 1);
   });
 });

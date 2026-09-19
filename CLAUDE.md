@@ -403,6 +403,17 @@ every user-visible change.
     - The jitter is baked **about the centre of each character's own advance box, on the baseline**;
       about the origin, distant letters would swing out of the line. An identity transform is
       skipped rather than applied, so an unjittered title's outlines stay byte-identical.
+    - **`charSel` and `charQuads` are store state** — not saved, not undoable, cleared whenever the
+      selection changes, like `nodeSel` (invariant 31). Escape lets the character go **before** the
+      node selection or the object selection. The quads come from the same `runLayout` the outlines
+      do, so a character's hit box and its glyph can never drift apart; if they did, clicking a
+      letter would select a different one. They are cached by an `$effect.root` **in the store**,
+      not an effect in `TextPanel`, because M8 put that panel behind `{#if expanded}` and a
+      collapsed Properties panel would have silently stopped character picking working. The Overlay
+      draws the highlight from that state directly, never through the single `app.overlay` slot
+      that the marquee, the snap guides and the pen draft already share.
+    - **The panel shows ranges for the title and absolute values for a character.** `±12°` and
+      `−12°` are different quantities, so they never share a field.
     - **The seed is an id, not a length.** `parseTextOpts` measures sizes and amounts against
       `MAX_TEXT_NUM` but checks the seed as a 32-bit integer: measuring it as a coordinate rejected
       every seed above 1e9, and a re-rolled title then came back from a reload as an ordinary path

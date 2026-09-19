@@ -1143,3 +1143,38 @@ found it immediately.
   serializer rather than in the browser — the extension stopped delivering clicks and keystrokes to
   the page part-way through the pass, and I stopped rather than keep guessing coordinates.
   Per-character selection and hand-tweaking are **M10c**; `overrides` already round-trips.
+
+## 2026-09-19 — Milestone 10c: per-character tweaking
+
+- Click a character of a title with the Text tool and it is selected and highlighted; drag it to
+  move it; set its **rotation, scale, baseline and skew by hand**. Those values override the roll
+  **for that letter only** and survive a re-roll of the rest, which was the point of the layering
+  M10b built. Escape lets the character go before it clears anything else.
+- `charQuads` shares `runLayout` with `outlineText`, so a character's hit box and its glyph cannot
+  drift — if they did, clicking a letter would select a different one. There is a test asserting
+  they agree.
+- `charSel`/`charQuads` are store state like `nodeSel`: not saved, not undoable, cleared with the
+  selection. The Overlay draws the highlight from them directly rather than taking the single
+  `app.overlay` slot that the marquee, the guides and the pen already share.
+- The quads are cached by an **`$effect.root` in the store**, not by an effect in `TextPanel` — M8
+  put that panel behind `{#if expanded}`, so with Properties collapsed a panel-owned effect would
+  have silently stopped character picking working.
+- The panel shows **absolute values** for a character where the Randomise block shows **ranges**.
+  `±12°` and `−12°` are different quantities and never share a field.
+- **A note on how this was verified.** The Chrome extension stopped delivering pointer and keyboard
+  events to the page part-way through the pass — confirmed by a capture-phase `pointerdown`
+  listener recording nothing after a reported click, on two tabs. `javascript_tool` still worked,
+  so the parts that needed checking were checked directly, and they are the right parts: what was
+  unproven here was **reactivity, rendering and geometry**, not event delivery. Verified on port
+  5189: `$effect.root` really does run at module scope (5 quads cached for "Title"); `pickCharacter`
+  returns index 2 from that quad's centroid and clears on a miss; the highlight polygon renders and
+  follows the character; the panel reads "Character 3" with Reset and absolute fields; an override
+  of −35° survived both a title-wide amount change and a re-roll (screenshot: one letter steeply
+  turned among mildly jittered neighbours); `nudgeCharacter` accumulates into `dx`/`dy`; Reset
+  empties the override; Escape clears the character but keeps the title selected; and
+  `1:r=22,s=1.4,dy=-9` survived a full reload. No console errors.
+  **Not verified:** that a real pointer press on a glyph reaches the tool. That is the layer the
+  extension broke, and it is covered by five unit tests driving the real tool through a fake
+  context — click places a title, click inside an edited title picks a character, a drag nudges by
+  the document delta, and a sub-threshold wobble counts as a click.
+- 593 tests in 48 files. Build 0 errors / 0 warnings.

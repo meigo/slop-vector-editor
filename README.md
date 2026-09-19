@@ -43,7 +43,8 @@ Early development. What works today:
   panel.
 - **Artistic titles**: place a title with the Text tool (T) and type it in the properties panel —
   choose a font, size, letter-spacing and alignment, then **randomise the characters** — rotation,
-  scale, baseline and skew, each by its own amount, with a seed you can re-roll until you like it. The title is outlined to paths, so it looks the
+  scale, baseline and skew, each by its own amount, with a seed you can re-roll until you like it. Click a single character to tweak just that
+  one by hand, or drag it — your changes survive a re-roll of the rest. The title is outlined to paths, so it looks the
   same on every machine and can be combined, node-edited and recoloured like any other artwork,
   while staying re-typeable. Drop in your own `.ttf`, `.otf` or `.woff`.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
@@ -101,7 +102,7 @@ multiple artboards; masks/clipping; align & distribute; system-clipboard image p
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 582 unit tests
+npm test          # 593 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

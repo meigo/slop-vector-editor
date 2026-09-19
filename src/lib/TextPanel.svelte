@@ -3,17 +3,23 @@
   import {
     addFontFile,
     fontsChangedTick,
+    app,
+    clearCharOverride,
     rerollTitle,
+    setCharOverride,
     setTitleFont,
     setTitleOpts,
     setTitleText,
   } from "../state/appState.svelte";
   import { fontAvailable, fontChoices } from "../text/font";
+  import { charTransform, withOverride } from "../text/random";
   import NumberField from "./NumberField.svelte";
 
   /** Spec (M10) §6. Typing happens here rather than on the canvas so the iPad keyboard never
    *  covers the artwork, and so this reuses the panel machinery instead of inventing a caret. */
   let { title }: { title: PathShape } = $props();
+
+  type CharT = ReturnType<typeof charTransform>;
 
   const meta = $derived(title.text!);
   const ready = $derived(fontAvailable(meta.font));
@@ -44,6 +50,25 @@
 
   const setAmount = (k: (typeof AMOUNTS)[number]["key"], v: number) =>
     void setTitleOpts({ amounts: { ...meta.amounts, [k]: k === "scale" ? v / 100 : v } });
+
+  /** Spec M10 §6. The Randomise block's numbers are **ranges** (±12°); these are **the value**
+   *  (−12°) for one character. Same four properties, different quantities — so they never share a
+   *  field, and the labels say which is which. */
+  const charIndex = $derived(app.charSel);
+  const effective = $derived(
+    charIndex === null
+      ? null
+      : withOverride(charTransform(meta.seed, charIndex, meta.amounts), meta.overrides[charIndex]),
+  );
+  const CHAR_FIELDS = [
+    { key: "r", label: "Rotation", suffix: "°", of: (t: CharT) => t.rotate },
+    { key: "s", label: "Scale", suffix: "%", of: (t: CharT) => Math.round(t.scale * 100) },
+    { key: "dy", label: "Baseline", suffix: "px", of: (t: CharT) => t.dy },
+    { key: "k", label: "Skew", suffix: "°", of: (t: CharT) => t.skew },
+  ] as const;
+
+  const setChar = (k: (typeof CHAR_FIELDS)[number]["key"], v: number) =>
+    void setCharOverride({ [k]: k === "s" ? v / 100 : v });
 
   const ALIGNS = [
     { v: "left", label: "Align left" },
@@ -140,28 +165,55 @@
     {/each}
   </div>
 
-  <div class="mt-1 flex items-center justify-between">
-    <span class="section-title">Randomise</span>
-    <button
-      class="btn"
-      aria-disabled={!ready}
-      title={ready ? "Re-roll the randomiser" : missing}
-      onclick={() => ready && void rerollTitle()}
-    >
-      ↻ Seed {meta.seed}
-    </button>
-  </div>
+  {#if charIndex !== null && effective}
+    <div class="mt-1 flex items-center justify-between">
+      <span class="section-title">Character {charIndex + 1}</span>
+      <button
+        class="btn"
+        title="Clear this character's overrides and let the randomiser have it back"
+        onclick={() => void clearCharOverride()}
+      >
+        Reset
+      </button>
+    </div>
+    <p class="text-[11px] text-muted">
+      Exact values for this character. The rest of the title is untouched, and these survive a
+      re-roll.
+    </p>
+    <div class="grid grid-cols-2 gap-2">
+      {#each CHAR_FIELDS as c (c.key)}
+        <NumberField
+          label={c.label}
+          value={c.of(effective)}
+          suffix={c.suffix}
+          onchange={(v) => ready && setChar(c.key, v)}
+        />
+      {/each}
+    </div>
+  {:else}
+    <div class="mt-1 flex items-center justify-between">
+      <span class="section-title">Randomise</span>
+      <button
+        class="btn"
+        aria-disabled={!ready}
+        title={ready ? "Re-roll the randomiser" : missing}
+        onclick={() => ready && void rerollTitle()}
+      >
+        ↻ Seed {meta.seed}
+      </button>
+    </div>
 
-  <div class="grid grid-cols-2 gap-2">
-    {#each AMOUNTS as a (a.key)}
-      <NumberField
-        label={a.label}
-        value={amountValue(a.key)}
-        min={0}
-        max={a.max}
-        suffix={a.suffix}
-        onchange={(v) => ready && setAmount(a.key, v)}
-      />
-    {/each}
-  </div>
+    <div class="grid grid-cols-2 gap-2">
+      {#each AMOUNTS as a (a.key)}
+        <NumberField
+          label={a.label}
+          value={amountValue(a.key)}
+          min={0}
+          max={a.max}
+          suffix={a.suffix}
+          onchange={(v) => ready && setAmount(a.key, v)}
+        />
+      {/each}
+    </div>
+  {/if}
 </div>
