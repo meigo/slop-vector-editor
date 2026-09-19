@@ -31,7 +31,10 @@
     duplicateSelection,
     flattenSelection,
     groupSelection,
+    invertSelection,
     pasteFromClipboard,
+    selectAll,
+    selectSame,
     sendSelectionBackward,
     sendSelectionToBack,
     type DialogKind,
@@ -43,12 +46,16 @@
   import IconButton from "./IconButton.svelte";
 
   let menuOpen = $state(false);
+  let selectOpen = $state(false);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? "⌘" : "Ctrl+";
   const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
 
   const none = $derived(app.selection.length === 0);
   const actions = $derived(selectionActions(app.doc, app.selection));
+  const sameStyleReason = $derived(
+    app.selection.length === 0 ? "— nothing selected" : "— a group has no fill",
+  );
 
   function command(cmd: Command) {
     menuOpen = false;
@@ -58,6 +65,12 @@
   function dialog(kind: DialogKind) {
     menuOpen = false;
     app.dialog = kind;
+  }
+
+  /** Close the menu, then act — the same order the File menu uses. */
+  function runSelect(action: () => void) {
+    selectOpen = false;
+    action();
   }
 </script>
 
@@ -72,7 +85,10 @@
       ]}
       aria-haspopup="menu"
       aria-expanded={menuOpen}
-      onclick={() => (menuOpen = !menuOpen)}
+      onclick={() => {
+        selectOpen = false;
+        menuOpen = !menuOpen;
+      }}
     >
       File<span class="text-[10px] opacity-70">▾</span>
     </button>
@@ -100,6 +116,87 @@
         <div class="my-1 h-px bg-line"></div>
         <button class="menu-item" role="menuitem" onclick={() => dialog("settings")}>
           Document settings…
+        </button>
+      </div>
+    {/if}
+  </div>
+
+  <div class="relative shrink-0">
+    <button
+      class={[
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        selectOpen && "ui-on",
+      ]}
+      aria-haspopup="menu"
+      aria-expanded={selectOpen}
+      onclick={() => {
+        menuOpen = false;
+        selectOpen = !selectOpen;
+      }}
+    >
+      Select<span class="text-[10px] opacity-70">▾</span>
+    </button>
+    {#if selectOpen}
+      <button
+        class="fixed inset-0 z-40 cursor-default"
+        aria-label="Close menu"
+        tabindex="-1"
+        onclick={() => (selectOpen = false)}
+      ></button>
+      <div
+        class="absolute top-full left-0 z-50 mt-1 w-56 rounded border border-line bg-panel py-1 shadow-lg"
+        role="menu"
+      >
+        <button class="menu-item" role="menuitem" onclick={() => runSelect(selectAll)}>
+          Select All <span class="kbd">{mod}A</span>
+        </button>
+        <button class="menu-item" role="menuitem" onclick={() => runSelect(invertSelection)}>
+          Invert Selection <span class="kbd">{shiftMod}A</span>
+        </button>
+        <div class="my-1 h-px bg-line"></div>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canSelectSameStyle}
+          title={actions.canSelectSameStyle
+            ? "Select every shape with this fill"
+            : `Same Fill Colour ${sameStyleReason}`}
+          onclick={() => actions.canSelectSameStyle && runSelect(() => selectSame("fill"))}
+        >
+          Same Fill Colour
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canSelectSameStyle}
+          title={actions.canSelectSameStyle
+            ? "Select every shape with this stroke"
+            : `Same Stroke Colour ${sameStyleReason}`}
+          onclick={() => actions.canSelectSameStyle && runSelect(() => selectSame("stroke"))}
+        >
+          Same Stroke Colour
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canSelectSameStyle}
+          title={actions.canSelectSameStyle
+            ? "Select every shape with this style"
+            : `Same Style ${sameStyleReason}`}
+          onclick={() => actions.canSelectSameStyle && runSelect(() => selectSame("style"))}
+        >
+          Same Style
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canSelectSameKind}
+          title={actions.canSelectSameKind
+            ? "Select every shape of this kind"
+            : "Same Kind — nothing selected"}
+          onclick={() => actions.canSelectSameKind && runSelect(() => selectSame("kind"))}
+        >
+          Same Kind
         </button>
       </div>
     {/if}
