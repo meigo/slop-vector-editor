@@ -110,5 +110,10 @@ export async function booleanOf(
   const items = operands.map((o) => toPaperItem(P, o));
   let acc = items[0];
   for (const next of items.slice(1)) acc = acc[op](next);
-  return fromPaperItem(acc);
+  const out = fromPaperItem(acc);
+  // Every path built above was added to paper's project, and the result too. We have our own copy
+  // now, so drop them: without this the project grows by three items per operation and holds every
+  // intermediate path for the life of the page.
+  P.project.activeLayer.removeChildren();
+  return out;
 }

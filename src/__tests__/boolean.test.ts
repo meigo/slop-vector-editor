@@ -61,6 +61,19 @@ describe("booleanOf", () => {
     expect(Math.sign(area(out[0]))).toBe(-Math.sign(area(out[1])));
   });
 
+  /** White-box, on purpose: the leak it guards is invisible from our own types. Every path handed
+   *  to paper is added to paper's project, so without clearing it the project grows by three items
+   *  per operation and keeps every intermediate path for the life of the page. */
+  it("leaves nothing behind in paper's project", async () => {
+    await booleanOf([[rect(0, 0, 10, 10)], [rect(5, 5, 10, 10)]], "unite");
+    const mod = await import("paper/dist/paper-core");
+    const paper = (mod as unknown as { default?: typeof mod }).default ?? mod;
+    for (let i = 0; i < 5; i++) {
+      await booleanOf([[rect(0, 0, 10, 10)], [rect(5, 5, 10, 10)]], "unite");
+    }
+    expect(paper.project.activeLayer.children).toHaveLength(0);
+  });
+
   it("returns nothing when the result is empty", async () => {
     expect(await booleanOf([[rect(0, 0, 10, 10)], [rect(50, 50, 10, 10)]], "intersect")).toEqual(
       [],
