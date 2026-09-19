@@ -1225,3 +1225,19 @@ be the wrong words for the final behaviour, so they are not used.
 - Both blocks had it: the title's Randomise fields and M10c's per-character fields.
 - Verified in the browser: every field's `scrollWidth` now equals its rendered width, so nothing
   overflows, in both blocks. No console errors.
+
+## 2026-09-19 — The align buttons said the opposite of what they do
+
+- Reported as "they seem to have flipped sides". Measured: the behaviour is textbook-correct. With
+  the anchor at 0, `left` lays the run out at 1…197, `center` at −99…97 and `right` at −199…−4 —
+  the named edge is pinned to the anchor and the text grows away from it.
+- So pressing **right** moves the text **left**, which is correct and reads as inverted, because the
+  icons were arrows (`⇤ ⇔ ⇥`) and an arrow means "move this way". Swapped for Lucide's flush-line
+  `TextAlignStart/Center/End`, which every text tool uses and which say "this edge is flush".
+- The tooltips now say what the control does rather than naming it: "Left edge stays put as the
+  text changes", "Stays centred as the text changes", "Right edge stays put as the text changes".
+  The purpose is invisible until you edit a title — dragging is a one-off, but the next keystroke,
+  font change or size change re-derives the outlines from the anchor, and alignment is what decides
+  which edge holds still while that happens.
+- Verified in the browser: three distinct flush-line icons, the active one on, the titles correct.
+  No console errors.

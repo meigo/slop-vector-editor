@@ -418,6 +418,12 @@ every user-visible change.
       painted over that label. Lay these out with `flex flex-wrap items-center gap-2`, as the
       Size/Spacing row and the Geometry section already do, so each keeps its natural width and
       wraps when it must.
+    - **Alignment is not a position — it is which edge stays put when the title changes.** The
+      click point is the anchor and the outlines are re-derived from it, so left grows rightwards,
+      right grows leftwards and centre grows both ways. Its buttons use flush-line icons
+      (`TextAlignStart/Center/End`), never arrows: an arrow says "move this way", and pressing
+      "right" makes the text extend _leftwards_ from a pinned right edge, so arrows read as
+      inverted. The titles say what is pinned, not "Align left".
     - **The panel shows ranges for the title and absolute values for a character.** `±12°` and
       `−12°` are different quantities, so they never share a field.
     - **The seed is an id, not a length.** `parseTextOpts` measures sizes and amounts against

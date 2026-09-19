@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { TextAlignCenter, TextAlignEnd, TextAlignStart } from "@lucide/svelte";
   import type { PathShape } from "../doc/document";
   import {
     addFontFile,
@@ -70,10 +71,14 @@
   const setChar = (k: (typeof CHAR_FIELDS)[number]["key"], v: number) =>
     void setCharOverride({ [k]: k === "s" ? v / 100 : v });
 
+  /** Alignment is not a position — it decides which edge stays put when the title changes, because
+   *  re-typing re-derives the outlines from the anchor. Flush-line icons, not arrows: an arrow says
+   *  "move this way", and pressing "right" actually makes the text extend leftwards from a pinned
+   *  right edge, so the arrows read as inverted. */
   const ALIGNS = [
-    { v: "left", label: "Align left" },
-    { v: "center", label: "Align centre" },
-    { v: "right", label: "Align right" },
+    { v: "left", label: "Left edge stays put as the text changes", icon: TextAlignStart },
+    { v: "center", label: "Stays centred as the text changes", icon: TextAlignCenter },
+    { v: "right", label: "Right edge stays put as the text changes", icon: TextAlignEnd },
   ] as const;
 </script>
 
@@ -154,13 +159,13 @@
   <div class="flex items-center gap-1">
     {#each ALIGNS as a (a.v)}
       <button
-        class={["btn flex-1", meta.align === a.v && "ui-on"]}
+        class={["btn flex-1 justify-center", meta.align === a.v && "ui-on"]}
         aria-pressed={meta.align === a.v}
         aria-disabled={!ready}
         title={ready ? a.label : missing}
         onclick={() => ready && void setTitleOpts({ align: a.v })}
       >
-        {a.v === "left" ? "⇤" : a.v === "center" ? "⇔" : "⇥"}
+        <a.icon size={16} />
       </button>
     {/each}
   </div>
