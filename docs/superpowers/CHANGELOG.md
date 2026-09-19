@@ -1178,3 +1178,35 @@ found it immediately.
   context — click places a title, click inside an edited title picks a character, a drag nudges by
   the document delta, and a sub-threshold wobble counts as a click.
 - 593 tests in 48 files. Build 0 errors / 0 warnings.
+
+## 2026-09-19 — Dragging a character kept only a fraction of the motion
+
+Found by re-running the browser pass M10c had been merged without — the gap I had flagged as
+unverified. A real drag of a character moved it **7.5px when the pointer travelled ~37**. Three
+independent faults, each fixed and unit-tested:
+
+- **The offset was an increment.** Every `move` called `nudgeCharacter`, which re-outlines
+  asynchronously, and `reshapeTitle`'s re-entrancy guard returned early for any call arriving while
+  another was in flight — during a drag, most of them. Each dropped increment was lost for good.
+  It is now `setCharOffset`, which is **absolute**: the tool reads the character's offset once when
+  the drag begins and every call sends base + total travel, so a dropped call costs nothing.
+- **The guard discarded the newest intent.** Dropping is right for "don't run two outlines at
+  once" and wrong for "ignore what the user just asked for". `reshapeTitle` now **coalesces**: a
+  request arriving mid-run is merged into a queue and applied after, newest wins. The one-at-a-time
+  property the guard exists for is unchanged.
+- **Nothing applied the final position.** The character landed wherever the last `pointermove`
+  happened to be, and browsers coalesce moves — the last one can be well behind the release point.
+  `up` now sets the offset from the release point, so where you drop it is where it goes,
+  regardless of how the moves were delivered.
+
+**Verification status, stated precisely.** The bug was reproduced with a real drag and measured.
+The fixes are unit-tested — including one test asserting that a drag survives every intermediate
+call being dropped. The corrected drag fidelity could **not** be re-measured: the Chrome extension's
+drag synthesis became unreliable, and an instrumented run showed it delivering
+`pointerdown: 0, pointermove: 3, pointerup: 0` — moves with no press and no release, so no drag ever
+starts. Identical runs gave different results for that reason. I stopped rather than keep reading
+noise as signal. The three fixes are each independently justified and make the outcome depend only
+on the release point, which is robust to any pattern of move delivery; but "browser-verified" would
+be the wrong words for the final behaviour, so they are not used.
+
+594 tests in 48 files. Build 0 errors / 0 warnings.

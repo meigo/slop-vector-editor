@@ -16,6 +16,7 @@ export type FakeState = {
   charNudges: Vec[];
   fakeTitleId: string | null;
   fakeCharSel: number | null;
+  fakeCharOffset: { dx: number; dy: number };
   session: Session;
   selection: readonly string[];
   currentLayerId: string;
@@ -39,6 +40,7 @@ export function fakeContext(
     charNudges: [],
     fakeTitleId: null,
     fakeCharSel: null,
+    fakeCharOffset: { dx: 0, dy: 0 },
     session: newSession(doc, true),
     selection: [],
     currentLayerId: resolveLayerId(doc, null),
@@ -91,7 +93,8 @@ export function fakeContext(
     pickCharacter: (at) => {
       state.charsPicked.push(at);
     },
-    nudgeCharacter: (dx, dy) => {
+    charOffset: () => state.fakeCharOffset,
+    setCharOffset: (dx, dy) => {
       state.charNudges.push({ x: dx, y: dy });
     },
     titleId: () => state.fakeTitleId,

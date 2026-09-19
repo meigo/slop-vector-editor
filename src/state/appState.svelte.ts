@@ -983,8 +983,18 @@ export function selectedTitle(): PathShape | null {
   return n && n.kind === "path" && n.text ? n : null;
 }
 
+/** The newest request that arrived while one was already running. Dropping it outright was wrong:
+ *  every move of a character drag calls in here, and discarding all but the first left the letter
+ *  lagging well behind the pointer and stopping short of where it was released. Coalescing keeps
+ *  the "one outline at a time" property the guard exists for, while making the **last** intent the
+ *  one that lands. */
+let queuedPatch: Partial<TextMeta> | null = null;
+
 async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
-  if (titleRunning) return;
+  if (titleRunning) {
+    queuedPatch = { ...queuedPatch, ...patch };
+    return;
+  }
   cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
@@ -1044,8 +1054,19 @@ function sameMeta(a: TextMeta, b: TextMeta): boolean {
   );
 }
 
-export const setTitleText = (text: string): Promise<void> => reshapeTitle({ text });
-export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> => reshapeTitle(patch);
+/** Runs `reshapeTitle` and then whatever arrived while it was busy, newest wins. */
+async function reshapeTitleDraining(patch: Partial<TextMeta>): Promise<void> {
+  await reshapeTitle(patch);
+  while (queuedPatch !== null && !titleRunning) {
+    const next = queuedPatch;
+    queuedPatch = null;
+    await reshapeTitle(next);
+  }
+}
+
+export const setTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text });
+export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> =>
+  reshapeTitleDraining(patch);
 
 /** Spec M10 §4. Amounts of zero make this a visible no-op, which is correct and needs no special
  *  case: the seed changes, `sameMeta` lets it through, and the outlines come back identical. */
@@ -1055,7 +1076,7 @@ export function rerollTitle(): Promise<void> {
 
 export async function setTitleFont(id: string): Promise<void> {
   currentFontId = id;
-  if (selectedTitle()) await reshapeTitle({ font: id });
+  if (selectedTitle()) await reshapeTitleDraining({ font: id });
 }
 
 /** Registers a font file for the session and switches the selection to it. */
@@ -1129,13 +1150,21 @@ export function clearCharOverride(): Promise<void> {
   return setTitleOpts({ overrides });
 }
 
-/** A canvas drag of the selected character, in the title's own space. */
-export function nudgeCharacter(dx: number, dy: number): Promise<void> {
-  const t = selectedTitle();
-  const i = app.charSel;
-  if (!t?.text || i === null) return Promise.resolve();
-  const cur = t.text.overrides[i] ?? {};
-  return setCharOverride({ dx: (cur.dx ?? 0) + dx, dy: (cur.dy ?? 0) + dy });
+/** The selected character's current offset, so a drag can work from an absolute base. */
+export function charOffset(): { dx: number; dy: number } {
+  const o = selectedTitle()?.text?.overrides[app.charSel ?? -1];
+  return { dx: o?.dx ?? 0, dy: o?.dy ?? 0 };
+}
+
+/** Sets the selected character's offset **absolutely** (spec M10 §6).
+ *
+ *  Deliberately not an increment. Every call re-outlines, which is async, and `reshapeTitle`'s
+ *  re-entrancy guard drops a call that arrives while one is in flight — during a drag that is most
+ *  of them. An increment loses each dropped delta for good, so the character crawled along at a
+ *  fraction of the pointer's speed. An absolute value makes every call carry the whole drag, so a
+ *  dropped one costs nothing and the next one lands the character exactly where the pointer is. */
+export function setCharOffset(dx: number, dy: number): Promise<void> {
+  return setCharOverride({ dx, dy });
 }
 
 /** The quads follow the selected title. This lives in the store, not in `TextPanel`, because M8 put

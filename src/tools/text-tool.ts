@@ -1,4 +1,3 @@
-import type { Vec } from "../geom/vec";
 import { movedEnough, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
 /** The Text tool (spec M10 §6): a click places a title, and that is the whole gesture. Unlike the
@@ -8,7 +7,9 @@ export function createTextTool(): Tool {
   /** Set on pointer-down when the press was on the character already selected: the drag then moves
    *  that character instead of doing nothing. */
   let dragging = false;
-  let last: Vec | null = null;
+  /** The offset the character had when the drag began: every move sets base + total travel, so a
+   *  call dropped by the store's re-entrancy guard costs nothing. */
+  let base: { dx: number; dy: number } | null = null;
 
   return {
     id: "text",
@@ -17,27 +18,38 @@ export function createTextTool(): Tool {
 
     down(ctx: ToolContext, e: ToolEvent) {
       start = e;
-      last = e.doc;
       // A press inside a title that is already being edited begins a character drag; the pick
       // itself happens on up, so a click that turns into a drag still drags (invariant 32).
       dragging = ctx.titleId() !== null && ctx.charSel() !== null;
-      if (dragging) ctx.beginGesture();
+      if (dragging) {
+        base = ctx.charOffset();
+        ctx.beginGesture();
+      }
     },
 
     move(ctx: ToolContext, e: ToolEvent) {
-      if (!dragging || !start || !last) return;
+      if (!dragging || !start || !base) return;
       if (!movedEnough(start.screen, e.screen)) return;
-      ctx.nudgeCharacter(e.doc.x - last.x, e.doc.y - last.y);
-      last = e.doc;
+      ctx.setCharOffset(base.dx + (e.doc.x - start.doc.x), base.dy + (e.doc.y - start.doc.y));
     },
 
     up(ctx: ToolContext, e: ToolEvent) {
       const s = start;
+      const b = base;
       const wasDragging = dragging;
       start = null;
-      last = null;
+      base = null;
       dragging = false;
-      if (wasDragging) ctx.endGesture();
+      if (wasDragging) {
+        // Land the character exactly where the pointer was released. `move` is not guaranteed to
+        // fire at the final position — the browser coalesces moves, and the last one can be well
+        // behind the release point — so without this the letter stops short of where it was
+        // dropped, by however much the last move lagged.
+        if (s && b && movedEnough(s.screen, e.screen)) {
+          ctx.setCharOffset(b.dx + (e.doc.x - s.doc.x), b.dy + (e.doc.y - s.doc.y));
+        }
+        ctx.endGesture();
+      }
       if (!s) return;
       // A click, not a drag — the project's one threshold, shared with select and the shape tools.
       // An inlined 4px rule here disagreed with their 2px and made a 3px wobble mean two things.
@@ -51,7 +63,7 @@ export function createTextTool(): Tool {
     cancel(ctx: ToolContext) {
       if (dragging) ctx.endGesture();
       start = null;
-      last = null;
+      base = null;
       dragging = false;
     },
   };
