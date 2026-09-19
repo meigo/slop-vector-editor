@@ -180,7 +180,10 @@
       Exact values for this character. The rest of the title is untouched, and these survive a
       re-roll.
     </p>
-    <div class="grid grid-cols-2 gap-2">
+    <!-- `flex flex-wrap`, not a fixed grid: a NumberField is `shrink-0 whitespace-nowrap`, so in a
+         104px column its label and suffix overflowed onto the next field and painted over it
+         ("S°cale"). This is what the Size/Spacing row and the Geometry section already do. -->
+    <div class="flex flex-wrap items-center gap-2">
       {#each CHAR_FIELDS as c (c.key)}
         <NumberField
           label={c.label}
@@ -203,7 +206,10 @@
       </button>
     </div>
 
-    <div class="grid grid-cols-2 gap-2">
+    <!-- `flex flex-wrap`, not a fixed grid: a NumberField is `shrink-0 whitespace-nowrap`, so in a
+         104px column its label and suffix overflowed onto the next field and painted over it
+         ("S°cale"). This is what the Size/Spacing row and the Geometry section already do. -->
+    <div class="flex flex-wrap items-center gap-2">
       {#each AMOUNTS as a (a.key)}
         <NumberField
           label={a.label}
