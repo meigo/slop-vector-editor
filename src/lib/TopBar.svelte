@@ -2,8 +2,10 @@
   import {
     ArrowDown,
     ArrowUp,
+    Blend,
     BringToFront,
     ClipboardPaste,
+    Combine,
     Copy,
     CopyPlus,
     Group,
@@ -14,6 +16,8 @@
     SlidersHorizontal,
     Spline,
     Split,
+    SquareMinus,
+    SquareSlash,
     Stamp,
     Trash2,
     Undo2,
@@ -22,6 +26,7 @@
   } from "@lucide/svelte";
   import {
     app,
+    booleanSelection,
     bringSelectionForward,
     bringSelectionToFront,
     convertSelectionToPath,
@@ -43,11 +48,13 @@
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
+  import { BOOL_LABEL, BOOL_OPS, BOOL_REASON, BOOL_TITLE, type BoolOp } from "../geom/boolean";
   import { selectionActions } from "../state/properties";
   import IconButton from "./IconButton.svelte";
 
   let menuOpen = $state(false);
   let selectOpen = $state(false);
+  let pathOpen = $state(false);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? "⌘" : "Ctrl+";
   const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
@@ -60,6 +67,16 @@
   const sameStyleReason = $derived(
     app.selection.length === 0 ? "— nothing selected" : "— a group has no fill",
   );
+  const boolReason = $derived(
+    actions.booleanRefusal === null ? null : BOOL_REASON[actions.booleanRefusal],
+  );
+
+  const BOOL_ICON = {
+    unite: Combine,
+    subtract: SquareMinus,
+    intersect: Blend,
+    exclude: SquareSlash,
+  };
 
   function command(cmd: Command) {
     menuOpen = false;
@@ -76,6 +93,12 @@
     selectOpen = false;
     action();
   }
+
+  /** Close the menu, then act — the same order the File menu uses. */
+  function runPath(op: BoolOp) {
+    pathOpen = false;
+    void booleanSelection(op);
+  }
 </script>
 
 <!-- One bar, icons only (spec M2e §2). It never wraps or scrolls: a scrolling bar would clip the
@@ -91,6 +114,7 @@
       aria-expanded={menuOpen}
       onclick={() => {
         selectOpen = false;
+        pathOpen = false;
         menuOpen = !menuOpen;
       }}
     >
@@ -135,6 +159,7 @@
       aria-expanded={selectOpen}
       onclick={() => {
         menuOpen = false;
+        pathOpen = false;
         selectOpen = !selectOpen;
       }}
     >
@@ -213,6 +238,48 @@
         >
           Same Kind
         </button>
+      </div>
+    {/if}
+  </div>
+
+  <div class="relative shrink-0">
+    <button
+      class={[
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-2 text-xs whitespace-nowrap hover:bg-raised",
+        pathOpen && "ui-on",
+      ]}
+      aria-haspopup="menu"
+      aria-expanded={pathOpen}
+      onclick={() => {
+        menuOpen = false;
+        selectOpen = false;
+        pathOpen = !pathOpen;
+      }}
+    >
+      Path<span class="text-[10px] opacity-70">▾</span>
+    </button>
+    {#if pathOpen}
+      <button
+        class="fixed inset-0 z-40 cursor-default"
+        aria-label="Close menu"
+        tabindex="-1"
+        onclick={() => (pathOpen = false)}
+      ></button>
+      <div
+        class="absolute top-full left-0 z-50 mt-1 w-56 rounded border border-line bg-panel py-1 shadow-lg"
+        role="menu"
+      >
+        {#each BOOL_OPS as op (op)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={boolReason !== null}
+            title={boolReason === null ? BOOL_TITLE[op] : `${BOOL_LABEL[op]} — ${boolReason}`}
+            onclick={() => boolReason === null && runPath(op)}
+          >
+            {BOOL_LABEL[op]}
+          </button>
+        {/each}
       </div>
     {/if}
   </div>
@@ -297,6 +364,21 @@
     disabledTitle="Ungroup — select a group"
     onclick={ungroupSelection}
   />
+  <!-- The bar already carries 18 icons and three menus; four more do not fit at iPad-portrait
+       widths, and it must never wrap or scroll (M2e). They appear where there is room, and the
+       Path menu carries them at every width (spec M7 §6). -->
+  <span class="hidden min-[900px]:contents">
+    {#each BOOL_OPS as op (op)}
+      <IconButton
+        label={BOOL_LABEL[op]}
+        title={BOOL_TITLE[op]}
+        icon={BOOL_ICON[op]}
+        disabled={boolReason !== null}
+        disabledTitle="{BOOL_LABEL[op]} — {boolReason}"
+        onclick={() => void booleanSelection(op)}
+      />
+    {/each}
+  </span>
   <span class="bar-sep"></span>
   <IconButton
     label="Bring to front"

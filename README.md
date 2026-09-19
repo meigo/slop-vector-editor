@@ -44,6 +44,9 @@ Early development. What works today:
 - Installs to the Home Screen and runs standalone (web app manifest + icon).
 - Select All and Invert Selection; Select Same Fill Colour, Stroke Colour, Style or Kind, from the
   current selection — in a Select menu in the top bar and in the right-click menu.
+- Boolean operations: Unite, Subtract, Intersect and Exclude, on two or more selected shapes — in a
+  Path menu in the top bar (with icons on wider windows) and in the right-click menu. The result
+  replaces the shapes it was made from; undo brings them back.
 
 ## Keyboard
 
@@ -71,9 +74,9 @@ Early development. What works today:
 
 ## Roadmap
 
-Next: boolean operations — merge, subtract, intersect and exclude. After that, unplanned: text;
-gradients; a freehand pencil/brush tool; PNG export; grid and smart guides; multiple artboards;
-masks/clipping; align & distribute; a light theme; system-clipboard image paste.
+Unplanned: text; gradients; a freehand pencil/brush tool; PNG export; grid and smart guides;
+multiple artboards; masks/clipping; align & distribute; a light theme; system-clipboard image
+paste.
 
 ## Development
 
@@ -81,7 +84,7 @@ masks/clipping; align & distribute; a light theme; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 481 unit tests
+npm test          # 503 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

@@ -3,6 +3,7 @@
   import { findNode } from "../doc/tree";
   import {
     app,
+    booleanSelection,
     bringSelectionForward,
     bringSelectionToFront,
     closeTargetSubpath,
@@ -23,6 +24,7 @@
     setSelectedNodeType,
     ungroupSelection,
   } from "../state/appState.svelte";
+  import { BOOL_LABEL, BOOL_OPS } from "../geom/boolean";
   import { selectionActions } from "../state/properties";
 
   const MARGIN = 4;
@@ -173,6 +175,18 @@
       <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
         Delete <span class="kbd">⌫</span>
       </button>
+    {/if}
+    {#if actions.booleanRefusal === null}
+      <div class="my-1 h-px bg-line"></div>
+      {#each BOOL_OPS as op (op)}
+        <button
+          class="menu-item"
+          role="menuitem"
+          onclick={() => run(() => void booleanSelection(op))}
+        >
+          {BOOL_LABEL[op]}
+        </button>
+      {/each}
     {/if}
     <div class="my-1 h-px bg-line"></div>
     {#if allIds(app.doc, app.enteredGroupId).length > 0}
