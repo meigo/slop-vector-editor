@@ -14,7 +14,7 @@ entries supersede earlier ones — mark superseded entries).
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
   build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
   72 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
-- `npm test` — Vitest, node env, no DOM — 503 tests in 39 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 519 tests in 40 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -64,15 +64,17 @@ every user-visible change.
   planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
-  (localStorage: style + polygon defaults for new shapes, snap, the dock's expanded state),
+  (localStorage: style + polygon defaults for new shapes, snap, the dock's expanded state, the
+  sidebar's split ratio and the Layers panel's collapse),
   `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
-  (the Properties + Layers column), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
+  (the Properties + Layers column: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
+  helper), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
+  clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
   `Modal`, dialogs, `Notices`.
 
 ## Invariants and gotchas
@@ -176,7 +178,12 @@ every user-visible change.
     - Toggles are `ToggleButton`s (`aria-pressed`, with a `"mixed"` state), never checkboxes.
     - Fields are raised.
     - A state change must not move the layout. For example, unsaved changes recolour the file
-      name.
+      name. **The sidebar's Properties panel is the one exception** (spec M8 §5): it collapses when
+      nothing is selected and opens when something is. The rule exists so a passive state — a dirty
+      flag, a hover, a mode — does not shuffle controls under a finger; it is not meant to make a
+      panel whose entire content is the selection hold half a column while it has nothing to say.
+      Clicking its header overrides that, and the override is dropped wherever `app.selection` is
+      assigned, the moment the selection's emptiness flips — never from an effect.
     - **The root font-size stays at the browser's 16px.** Tailwind's whole scale is in `rem`, which
       resolves against `html`, so setting a root size silently rescales every size in the app:
       `font-size: 14px` on `html` made `text-xs` 10.5px, `h-8` controls 28px, the 240px sidebar
@@ -191,6 +198,12 @@ every user-visible change.
       `null` the first `touch` or `pen` pointer expands the dock once and writes `true`. A boolean is
       a decision — by the chevron or by that first touch — and nothing overrides it, so an explicit
       collapse survives every later touch. Keep the three states distinct in `sanitizePrefs`.
+    - **The sidebar's divider is 12px**, a deliberate deviation from the 32px bar-control rule: a
+      divider is approached by sliding onto it rather than by tapping it, and 12px is 1.5× the grip
+      slop-paint ships for the same job. It is rendered only when both panels are open — with one
+      collapsed there is nothing to distribute. **Its clamp counts whole panels, not bodies**
+      (`MIN_PANEL_PX`, header + body): flex distributes whole `<section>`s, so clamping the ratio
+      against the bodies alone silently left the losing panel 40px short of its minimum.
 24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
     status bar shows the nearest `title`; on touch and pen, which have no hover, it shows the
     title of whatever was just pressed (`onpointerdown`, `hintFrom` in `lib/hover-hint.ts`) — the
@@ -300,7 +313,7 @@ every user-visible change.
 
 ## Current state
 
-Milestone 7 (boolean operations) — see CHANGELOG. What comes next is unplanned: the post-v1 list
+Milestone 8 (the sidebar split) — see CHANGELOG. What comes next is unplanned: the post-v1 list
 (project design §10) still holds text, gradients, a freehand tool, PNG export, grid and smart
 guides, multiple artboards, masks, align and distribute, a light theme and image paste. The
 accessibility group and the performance group (both parked below) remain the two obvious
@@ -309,8 +322,8 @@ milestones.
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
-polish + deploy), M6 (selection conveniences) and M7 (boolean operations) are complete — see
-CHANGELOG.
+polish + deploy), M6 (selection conveniences), M7 (boolean operations) and M8 (the sidebar split)
+are complete — see CHANGELOG.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

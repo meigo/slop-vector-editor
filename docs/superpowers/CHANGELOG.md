@@ -832,3 +832,45 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
 - Owed: the auto-expand has only been driven by synthetic pointer events here. A real first touch on
   a device is part of the iPad pass owed since M5 — and the M5 lesson applies, that a synthetic
   event can pass a check for the wrong reason.
+
+## 2026-09-19 — Milestone 8: the sidebar split
+
+- The Properties and Layers panels each gained a **40px raised header bar** (`bg-raised` on
+  `bg-panel`) with a collapse chevron. The old boundary was `border-line` against `bg-panel` — one
+  step apart in the palette — and both sections used `.section-title`, so the column read as one
+  long scroll whose content was clipped mid-control with nothing to say it continued. A band of a
+  different colour is a boundary; content scrolling under a solid bar reads as continuing.
+- A **12px divider** between them drags the split, with the ratio persisted as `prefs.splitRatio`
+  (default 0.55 — what the old `h-[45%]` gave). It is rendered only while both panels are open, and
+  `pointercancel` keeps the position the drag reached, as a lift would.
+- **The clamp counts whole panels, not bodies.** Flex distributes whole `<section>`s, headers
+  included, so the first version — clamping the ratio against the column minus both headers — left
+  the losing panel a 95px body instead of 120. The share the ratio divides is the column minus the
+  strip, and the minimum is `MIN_PANEL_PX` (40 + 120). Measured after the fix: both clamps land on
+  a 120px body exactly.
+- **Properties collapses itself when nothing is selected**, a knowing exception to invariant 23: a
+  panel whose entire content is the selection should not hold half the column while it has nothing
+  to say. Clicking the header overrides it — that is how the new-shape defaults stay reachable —
+  and the override is dropped wherever `app.selection` is assigned, the moment the selection's
+  emptiness flips. It lives in the store, not the component, because `App.svelte` mounts the
+  sidebar twice (the narrow-width drawer and the inline column) and the two must agree.
+- The panels' prop is `expanded`, not `open`: `LayersPanel.svelte` already binds `open` per row for
+  its own chevrons, and a same-named prop would be shadowed inside every row block.
+- A collapsed panel's action buttons go with it — New layer on a folded-away list would add a layer
+  with nothing to show for it.
+- Two columns (layers left, properties right — the Figma/Sketch convention) were considered and
+  rejected: they cost ~480px of a 768px iPad portrait window, so both would become drawers anyway.
+- Spec: `docs/superpowers/specs/2026-09-19-m8-sidebar-split-design.md`.
+  Plan: `docs/superpowers/plans/2026-09-19-m8-sidebar-split.md`.
+- Browser-verified (port 5197, a document with eight shapes, a group and one layer): the raised
+  headers separating the panels; the divider dragging both ways and stopping with a 120px body at
+  each clamp; the ratio and the Layers collapse surviving a reload; both chevrons, including both
+  panels collapsed; Properties collapsed with nothing selected and open after a click on a shape;
+  the header opening the defaults with nothing selected and that choice surviving until a shape was
+  selected; a collapse surviving a change from one shape to another (no flip); a collapsed Layers
+  header carrying no action buttons; two sidebars mounted at once (drawer + column) agreeing. No
+  console errors.
+- Owed: the divider's feel under a finger and a Pencil — 12px is a judgement, not a measurement —
+  joins the iPad pass owed since M5, with the header bars' 40px targets. The narrow-width drawer
+  was exercised by mounting it, not by resizing the window, which this harness will not do.
+  Keyboard resize of the divider is parked with the accessibility group.
