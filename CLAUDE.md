@@ -14,7 +14,7 @@ entries supersede earlier ones — mark superseded entries).
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
   build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
   72 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
-- `npm test` — Vitest, node env, no DOM — 519 tests in 40 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 521 tests in 40 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -323,6 +323,17 @@ every user-visible change.
     catches, leaves the document alone and raises an **error** notice telling the user to try
     again. Because the action is async even when paper is cached, it also refuses to run twice at
     once, and hands the result the selection only if the user hasn't moved it meanwhile.
+
+38. **A latched Shift is not a held Shift.** `Mods` carries `shiftLatched` beside `shift`, and
+    `Canvas.svelte` sets it when the dock's latch is the only reason Shift is on. A held key means
+    the user is mid-gesture, so a click that hits nothing must **not** clear the selection — that is
+    the Illustrator/Figma convention, and a miss should not wipe their work. A latch is a mode set
+    earlier and left on, and on a device with no keyboard it cannot be released by letting go, so
+    the same click **must** clear: otherwise, with Shift latched, the selection can never be cleared
+    at all (Escape is a keyboard, and the dock exists for devices that have none). Only
+    `select.ts`'s clear-on-empty branch looks at `shiftLatched`; everything else reads `mods.shift`
+    and treats the two alike, including the additive marquee. `Select ▸ Deselect`, and the same
+    entry in the context menu, are the route that always works.
 
 ## Current state
 

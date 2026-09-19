@@ -329,7 +329,11 @@ export function createSelectTool(): Tool {
           ctx.setSelection(ctx.selection().filter((s) => s !== id));
         } else if (m.hitId && m.collapseOnUp) {
           ctx.setSelection([m.hitId]);
-        } else if (!m.hitId && !m.start.mods.shift) {
+          // Clicking nothing clears the selection — unless Shift is *held*, where the click is part
+          // of an add-to-selection gesture and a miss should not wipe the user's work. A latched
+          // Shift is not that: it is a mode left on, and on a keyboard-less device there is no way
+          // to let go, so it must not make deselecting impossible.
+        } else if (!m.hitId && (!m.start.mods.shift || m.start.mods.shiftLatched)) {
           ctx.setEnteredGroup(null);
           ctx.setSelection([]);
         }

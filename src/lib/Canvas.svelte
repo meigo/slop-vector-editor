@@ -91,7 +91,11 @@
       screen,
       pointerType: e.pointerType,
       time: e.timeStamp,
-      mods: { shift: e.shiftKey || dock.shift, alt: e.altKey || dock.alt },
+      mods: {
+        shift: e.shiftKey || dock.shift,
+        alt: e.altKey || dock.alt,
+        shiftLatched: !e.shiftKey && dock.shift,
+      },
     };
   }
 

@@ -63,7 +63,7 @@ Early development. What works today:
 | Select / Rect / Ellipse / Line / Polygon / Hand | V / R / E / L / Y / H                 |
 | Pan                                             | Space + drag                          |
 | Delete                                          | Delete / Backspace                    |
-| Cancel                                          | Esc                                   |
+| Cancel / Deselect                               | Esc                                   |
 | Nudge / nudge ×10                               | Arrows / Shift+Arrows                 |
 | Duplicate                                       | ⌘D                                    |
 | Cut / Copy / Paste                              | ⌘X / ⌘C / ⌘V                          |
@@ -88,7 +88,7 @@ paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 519 unit tests
+npm test          # 521 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
