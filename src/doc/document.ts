@@ -63,7 +63,21 @@ export type PolygonShape = ShapeBase & {
   /** MIN_INNER–MAX_INNER; kept while `star` is off. */
   innerRatio: number;
 };
-export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[] };
+/** A title's metadata (spec M10 §3). Present only on a path generated from text, and dropped by
+ *  any structural node edit — the geometry is hand-edited from then on and re-typing would destroy
+ *  it. Absent means an ordinary path, so the 23 places that test `kind === "path"` are unaffected. */
+export type TextMeta = {
+  text: string;
+  font: string;
+  size: number;
+  letterSpacing: number;
+  align: "left" | "center" | "right";
+  seed: number;
+  amounts: { rotate: number; scale: number; offset: number; skew: number };
+  overrides: Record<number, { r?: number; s?: number; dx?: number; dy?: number; k?: number }>;
+};
+
+export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[]; text?: TextMeta };
 export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
 export type Group = NodeFlags & {

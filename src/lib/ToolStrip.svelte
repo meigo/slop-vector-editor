@@ -8,6 +8,7 @@
     Slash,
     Spline,
     Square,
+    Type,
   } from "@lucide/svelte";
   import { app, setTool } from "../state/appState.svelte";
   import type { ToolId } from "../tools/types";
@@ -19,6 +20,7 @@
     { id: "line", label: "Line", key: "L", icon: Slash },
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
+    { id: "text", label: "Text", key: "T", icon: Type },
     { id: "node", label: "Edit nodes", key: "N", icon: Spline },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];

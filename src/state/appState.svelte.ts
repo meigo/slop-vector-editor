@@ -7,8 +7,10 @@ import {
   type NodeType,
   type PathShape,
   type Style,
+  type TextMeta,
 } from "../doc/document";
 import {
+  addShape,
   convertToPath,
   deleteNodes,
   duplicateNodes,
@@ -24,6 +26,7 @@ import {
 } from "../doc/edits";
 import {
   addLayer,
+  blockMessage,
   bringForward,
   bringToFront,
   deleteLayer,
@@ -50,8 +53,18 @@ import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match
 import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
+import type { Vec } from "../geom/vec";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
+import { BUNDLED } from "../text/fonts";
+import {
+  loadFont,
+  outlineText,
+  registerFontFile,
+  unshapedScript,
+  Woff2Error,
+  type LoadedFont,
+} from "../text/font";
 import {
   loadPrefs,
   sanitizePrefs,
@@ -828,4 +841,136 @@ export function setSelectionOpacity(value: number): void {
     return;
   }
   commitDoc(setNodeOpacity(app.doc, app.selection, value));
+}
+
+// ---------------------------------------------------------------------------
+// Titles (spec M10). Outlining needs the font, which is a lazy-chunk load, so every one of these
+// is async and follows M7's rule: capture the document before awaiting and refuse to commit if it
+// moved meanwhile, and raise an **error** notice when the load fails, because a failed chunk fetch
+// is cached by the browser's module map and only a reload clears it.
+// ---------------------------------------------------------------------------
+
+/** The font a new title gets, and what the picker last showed. Not saved, not undoable. */
+let currentFontId = BUNDLED[0].id;
+
+export function currentTitleFont(): string {
+  return currentFontId;
+}
+
+function defaultMeta(text: string): TextMeta {
+  return {
+    text,
+    font: currentFontId,
+    size: 96,
+    letterSpacing: 0,
+    align: "left",
+    seed: (Math.random() * 1e9) | 0,
+    amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
+    overrides: {},
+  };
+}
+
+/** True when the string needs shaping we cannot do (spec M10 §9) — refused, not drawn wrongly. */
+function refuseUnshaped(text: string): boolean {
+  if (!unshapedScript(text)) return false;
+  notify(
+    "error",
+    "That script needs letter shaping this editor can't do yet — the glyphs would come out detached.",
+  );
+  return true;
+}
+
+async function withFont<T>(id: string, run: (f: LoadedFont) => T): Promise<T | null> {
+  try {
+    return run(await loadFont(id));
+  } catch (e) {
+    const woff2 = e instanceof Woff2Error;
+    notify(
+      "error",
+      woff2
+        ? e.message
+        : "The font couldn't be loaded. Reload the page and try again — a failed download is cached until you do.",
+    );
+    return null;
+  }
+}
+
+export async function placeTitle(at: Vec): Promise<void> {
+  cancelActiveGesture();
+  const layerId = app.currentLayerId;
+  const b = layerBlock(app.doc, layerId);
+  if (b) {
+    notify("info", blockMessage(b, "draw"));
+    return;
+  }
+  const before = app.doc;
+  const meta = defaultMeta("Title");
+  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta));
+  if (!subpaths || subpaths.length === 0) return;
+  if (app.doc !== before) return; // the document moved while the chunk loaded
+  const shape: PathShape = {
+    kind: "path",
+    id: "",
+    transform: [1, 0, 0, 1, at.x, at.y],
+    style: { ...app.prefs.style },
+    subpaths,
+    text: meta,
+  };
+  const r = addShape(app.doc, layerId, shape);
+  commitDoc(r.doc);
+  setSelection([r.id]);
+}
+
+/** The single selected title, or null. */
+export function selectedTitle(): PathShape | null {
+  if (app.selection.length !== 1) return null;
+  const found = findNode(app.doc, app.selection[0]);
+  const n = found?.node;
+  return n && n.kind === "path" && n.text ? n : null;
+}
+
+async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
+  cancelActiveGesture();
+  const target = selectedTitle();
+  if (!target?.text) return;
+  const meta: TextMeta = { ...target.text, ...patch };
+  if (refuseUnshaped(meta.text)) return;
+  // Overrides never outlive the string they were made for (spec M10 §4).
+  const len = [...meta.text].length;
+  meta.overrides = Object.fromEntries(
+    Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
+  );
+  const before = app.doc;
+  const id = target.id;
+  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta));
+  if (!subpaths) return;
+  if (app.doc !== before) return;
+  if (subpaths.length === 0) {
+    // The importer drops a path with no subpaths (the M2 constraint), so an empty title may not
+    // be written. The old outlines stay until there is something to replace them with.
+    notify("info", "A title needs at least one character.");
+    return;
+  }
+  commitDoc(
+    mapNodes(app.doc, [id], (n) => (n.kind === "path" ? { ...n, subpaths, text: meta } : n)),
+  );
+}
+
+export const setTitleText = (text: string): Promise<void> => reshapeTitle({ text });
+export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> => reshapeTitle(patch);
+
+export async function setTitleFont(id: string): Promise<void> {
+  currentFontId = id;
+  if (selectedTitle()) await reshapeTitle({ font: id });
+}
+
+/** Registers a font file for the session and switches the selection to it. */
+export async function addFontFile(file: File): Promise<void> {
+  try {
+    const id = await registerFontFile(file);
+    await setTitleFont(id);
+    notify("info", `Added ${file.name}.`);
+  } catch (e) {
+    notify("error", e instanceof Error ? e.message : "That font couldn't be read.");
+  }
 }

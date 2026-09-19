@@ -46,6 +46,10 @@ export interface ToolContext {
   prefs(): Prefs;
   /** Whether moves, resizes and drawing should snap (the Snap toggle). */
   snapEnabled(): boolean;
+  /** Places a title at a document point (spec M10 §6). The store owns this because outlining
+   *  needs the font, which is an async lazy-chunk load — a tool's `up` is synchronous, and
+   *  invariant 12 keeps tools out of the store. */
+  placeTitle(at: Vec): void;
   notify(kind: "info" | "error", text: string): void;
   setOverlay(o: Overlay): void;
 }

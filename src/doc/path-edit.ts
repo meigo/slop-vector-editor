@@ -27,8 +27,14 @@ function bySubpath(refs: readonly NodeRef[]): Map<number, Set<number>> {
   return out;
 }
 
+/** The single funnel for every structural edit here. Spec M10 §3: reshaping a title's nodes
+ *  **drops its `text`** — the geometry is hand-edited from now on, and re-typing would silently
+ *  throw the reshaping away. Every edit in this file goes through here so none can forget. */
 function withSubpaths(path: PathShape, subpaths: Subpath[], changed: boolean): PathShape {
-  return changed ? { ...path, subpaths } : path;
+  if (!changed) return path;
+  const next = { ...path, subpaths };
+  delete next.text;
+  return next;
 }
 
 export function movePathNodes(
@@ -96,7 +102,7 @@ export function moveHandle(
   nodes[ref.i] = next;
   const subpaths = path.subpaths.slice();
   subpaths[ref.sub] = { ...sp, nodes };
-  return { ...path, subpaths };
+  return withSubpaths(path, subpaths, true);
 }
 
 /** Splits the segment that starts at node `seg` at `t`, leaving the outline where it was. */
@@ -150,7 +156,10 @@ export function insertNode(
   }
   const subpaths = path.subpaths.slice();
   subpaths[sub] = { ...sp, nodes };
-  return { path: { ...path, subpaths }, ref: { sub, i: wraps ? nodes.length - 1 : seg + 1 } };
+  return {
+    path: withSubpaths(path, subpaths, true),
+    ref: { sub, i: wraps ? nodes.length - 1 : seg + 1 },
+  };
 }
 
 /** Null when the path would be left with no subpaths — the caller then deletes it outright. */
@@ -174,7 +183,7 @@ export function deletePathNodes(path: PathShape, refs: readonly NodeRef[]): Path
     if (nodes.length >= 2) subpaths.push({ ...sp, nodes });
   });
   if (!changed) return path;
-  return subpaths.length === 0 ? null : { ...path, subpaths };
+  return subpaths.length === 0 ? null : withSubpaths(path, subpaths, true);
 }
 
 function retype(node: PathNode, type: NodeType): PathNode {
@@ -228,7 +237,7 @@ export function closeSubpath(path: PathShape, sub: number): PathShape {
   if (!sp || sp.closed || sp.nodes.length < 2) return path;
   const subpaths = path.subpaths.slice();
   subpaths[sub] = { ...sp, closed: true };
-  return { ...path, subpaths };
+  return withSubpaths(path, subpaths, true);
 }
 
 /** Spec (M4b) §6. Adds `node` to the end of an open subpath; a closed one is left alone. */
@@ -237,7 +246,7 @@ export function appendNode(path: PathShape, sub: number, node: PathNode): PathSh
   if (!sp || sp.closed) return path;
   const subpaths = path.subpaths.slice();
   subpaths[sub] = { ...sp, nodes: [...sp.nodes, node] };
-  return { ...path, subpaths };
+  return withSubpaths(path, subpaths, true);
 }
 
 /** Reverses a subpath's nodes and swaps each one's handles, so the drawn shape is unchanged.
@@ -248,5 +257,5 @@ export function reverseSubpath(path: PathShape, sub: number): PathShape {
   const nodes = sp.nodes.map((n) => ({ ...n, in: n.out, out: n.in })).reverse();
   const subpaths = path.subpaths.slice();
   subpaths[sub] = { ...sp, nodes };
-  return { ...path, subpaths };
+  return withSubpaths(path, subpaths, true);
 }

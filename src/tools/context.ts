@@ -4,6 +4,7 @@ import {
   commitDoc,
   endDocGesture,
   notify,
+  placeTitle,
   registerToolDiscard,
   registerToolFinish,
   setEnteredGroup,
@@ -35,6 +36,7 @@ export const storeContext: ToolContext = {
   endGesture: endDocGesture,
   prefs: () => app.prefs,
   snapEnabled: () => app.prefs.snap,
+  placeTitle: (at) => void placeTitle(at),
   notify,
   setOverlay,
 };
