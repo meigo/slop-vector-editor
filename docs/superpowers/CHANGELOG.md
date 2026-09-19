@@ -1402,3 +1402,13 @@ the available desktop height. Measured before: 1058px of content for a selected 
   one typed chunk — which then flows through the live handler as an ordinary edit. That is standard
   behaviour for a text field. It cost three misleading "one character back" readings during
   development before it was identified.
+
+## 2026-09-20 — Titles are named by their text in the Layers panel
+
+- `rowLabel` labels a title with its own text. A title is a path carrying metadata (invariant 40),
+  so it fell through to the path case and every title in the layers panel read "Path" (user report).
+- One line only, whitespace collapsed, cut at 24 characters with an ellipsis. `rowLabel` also feeds
+  tooltips, `aria-label`s and the node tool's refusal notice, and none of those truncate the way the
+  row does in CSS. A whitespace-only title falls back to "Title"; an explicit name still wins.
+- Browser-verified (desktop Chrome, :5190): a placed title's row reads "Title", and retyping it to
+  "Hello World" renamed the row live. 620 tests in 49 files (2 new).

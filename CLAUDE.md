@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/boolean.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 618 tests in 49 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 620 tests in 49 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -529,6 +529,13 @@ every user-visible change.
     owns the gesture and passes `onlivestart`/`onliveend`. `setSelectionStyle`'s
     `cancelActiveGesture()` is unrelated — it cancels a running _tool_ drag and never touches
     `session.gestureBase`.
+
+43. **A title's layer row is labelled by its own text** (`rowLabel`, M10e §6), not "Path". A title
+    is a path carrying metadata (invariant 40), so it fell through to the path case and every
+    title in the panel read "Path". One line only, whitespace collapsed, cut at 24 characters:
+    `rowLabel` also feeds tooltips, `aria-label`s and the node tool's refusal notice, none of which
+    truncate the way the row does in CSS, and a title can be a paragraph. A whitespace-only title
+    falls back to "Title". An explicit `name` still wins, as for every other kind.
 
 ## Current state
 
