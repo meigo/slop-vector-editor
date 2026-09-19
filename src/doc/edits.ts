@@ -5,6 +5,7 @@ import {
   MAX_SIDES,
   MIN_INNER,
   MIN_SIDES,
+  withBakedSubpaths,
   type Artboard,
   type Doc,
   type Node,
@@ -225,7 +226,9 @@ export function convertToPath(doc: Doc, ids: readonly string[]): Doc {
 export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
   return mapNodes(doc, ids, (n) =>
     n.kind === "path" && !isIdentity(n.transform)
-      ? { ...n, subpaths: transformSubpaths(n.subpaths, n.transform), transform: IDENTITY }
+      ? // Flatten moves the outlines and resets the matrix; a title re-typed afterwards would be
+        // re-outlined at the baseline origin and jump off the artboard, so it stops being a title.
+        { ...withBakedSubpaths(n, transformSubpaths(n.subpaths, n.transform)), transform: IDENTITY }
       : n,
   );
 }

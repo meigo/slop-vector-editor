@@ -19,7 +19,7 @@ import {
 import { isIdentity, multiply, translate, type Mat } from "../geom/mat";
 import { polygonSubpath, rectPath } from "../geom/shapes";
 import type { PolygonGeometry } from "../geom/shapes";
-import { parseOverrides, parseTextOpts } from "../text/attrs";
+import { MAX_TEXT_LENGTH, parseOverrides, parseTextOpts } from "../text/attrs";
 import { parseColor } from "./colors";
 import { fmt } from "./fmt";
 import { applyNodeTypes, parsePathData } from "./pathdata";
@@ -371,8 +371,10 @@ export function parseSvg(src: string): ParseResult {
         // A malformed attribute leaves an ordinary path; the artwork is never lost.
         if (node && a["data-sv-text"] !== undefined) {
           const opts = parseTextOpts(a["data-sv-text-opts"] ?? "");
-          if (opts) {
-            const text = a["data-sv-text"];
+          const text = a["data-sv-text"];
+          // Past the cap it stays ordinary artwork: nothing is lost, only re-typeability, and a
+          // 200 KB string would outline hundreds of thousands of glyphs on the next keystroke.
+          if (opts && [...text].length <= MAX_TEXT_LENGTH) {
             (node as PathShape).text = {
               ...opts,
               text,

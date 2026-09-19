@@ -8,7 +8,7 @@ import {
   type Mat,
 } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import type { Doc, Node, PolygonShape, Shape } from "./document";
+import { withBakedSubpaths, type Doc, type Node, type PolygonShape, type Shape } from "./document";
 import { mapNodes } from "./tree";
 
 /** Spec (M2a) §1: move/rotate touch the matrix; resize is baked into geometry so stroke widths
@@ -53,7 +53,9 @@ function bakeShape(s: Shape, L: Mat): Shape {
       return out;
     }
     case "path":
-      return { ...s, subpaths: transformSubpaths(s.subpaths, L) };
+      // A baked resize cannot be expressed as a text size (it may be non-uniform), so the title
+      // becomes an ordinary path rather than one that would snap back on the next keystroke.
+      return withBakedSubpaths(s, transformSubpaths(s.subpaths, L));
   }
 }
 

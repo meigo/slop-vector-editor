@@ -1,6 +1,12 @@
 <script lang="ts">
   import type { PathShape } from "../doc/document";
-  import { addFontFile, setTitleFont, setTitleOpts, setTitleText } from "../state/appState.svelte";
+  import {
+    addFontFile,
+    fontsChangedTick,
+    setTitleFont,
+    setTitleOpts,
+    setTitleText,
+  } from "../state/appState.svelte";
   import { fontAvailable, fontChoices } from "../text/font";
   import NumberField from "./NumberField.svelte";
 
@@ -10,10 +16,14 @@
 
   const meta = $derived(title.text!);
   const ready = $derived(fontAvailable(meta.font));
-  const missing = $derived(
-    `Change the text — the font "${meta.font}" isn't available. Add it with “Add a font…”.`,
-  );
-  const choices = $derived(fontChoices());
+  // `fontsChangedTick()` is the tracked dependency: `fontChoices()` reads plain Maps that
+  // Svelte cannot see, so without it a font you just added never reaches the list.
+  const choices = $derived((fontsChangedTick(), fontChoices()));
+  const label = $derived(choices.find((c) => c.id === meta.font)?.label ?? meta.font);
+  /** Every control here re-derives geometry, so all of them need the font (spec §5) — not just the
+   *  string field. The font picker is the exception: switching to a font you DO have is the way
+   *  out, so it stays live and says so. */
+  const missing = $derived(`Needs the font “${label}”, which isn't loaded — add it from a file`);
 
   let picker: HTMLInputElement | null = $state(null);
 
@@ -37,9 +47,11 @@
       if (!ready) return;
       const el = e.currentTarget;
       await setTitleText(el.value);
-      // A refusal — an unshaped script, or an empty string — leaves the title alone, so put the
-      // field back to what the title actually says rather than leaving the rejected text in it.
-      el.value = meta.text;
+      // A refusal — an unshaped script, a font with no such glyphs, an empty string — leaves the
+      // title alone, so put the field back rather than leaving the rejected text in it. The panel
+      // may have been destroyed while awaiting (deselecting blurs the field, which fires this),
+      // so `isConnected` is checked before touching it or reading `meta`.
+      if (el.isConnected) el.value = title.text?.text ?? el.value;
     }}
   />
 
@@ -47,10 +59,15 @@
     <select
       class="field min-w-0 flex-1"
       aria-label="Font"
-      aria-disabled={!ready}
-      title={ready ? "Change the font" : missing}
+      title="Change the font"
       value={meta.font}
-      onchange={(e) => void setTitleFont(e.currentTarget.value)}
+      onchange={async (e) => {
+        const el = e.currentTarget;
+        await setTitleFont(el.value);
+        // Uncontrolled, like the string field: a refused change leaves `meta.font` untouched, so
+        // Svelte re-applies nothing and the dropdown would keep showing a font the title isn't in.
+        if (el.isConnected) el.value = title.text?.font ?? el.value;
+      }}
     >
       {#each choices as c (c.id)}
         <option value={c.id}>{c.label}</option>
@@ -82,12 +99,12 @@
       label="Size"
       value={meta.size}
       min={1}
-      onchange={(v) => void setTitleOpts({ size: v })}
+      onchange={(v) => ready && void setTitleOpts({ size: v })}
     />
     <NumberField
       label="Spacing"
       value={meta.letterSpacing}
-      onchange={(v) => void setTitleOpts({ letterSpacing: v })}
+      onchange={(v) => ready && void setTitleOpts({ letterSpacing: v })}
     />
   </div>
 
@@ -96,8 +113,9 @@
       <button
         class={["btn flex-1", meta.align === a.v && "ui-on"]}
         aria-pressed={meta.align === a.v}
-        title={a.label}
-        onclick={() => void setTitleOpts({ align: a.v })}
+        aria-disabled={!ready}
+        title={ready ? a.label : missing}
+        onclick={() => ready && void setTitleOpts({ align: a.v })}
       >
         {a.v === "left" ? "⇤" : a.v === "center" ? "⇔" : "⇥"}
       </button>

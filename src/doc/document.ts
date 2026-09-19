@@ -78,6 +78,18 @@ export type TextMeta = {
 };
 
 export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[]; text?: TextMeta };
+
+/** Replaces a path's outlines and **drops its `text`** (spec M10 §3). Every place that bakes
+ *  geometry into a path must go through here: re-typing a title re-derives its outlines from the
+ *  font, so any baked-in reshaping, resize or flatten would be silently thrown away on the next
+ *  keystroke. `path-edit.ts` had this funnel from the start; `resize.ts` and `flattenTransform`
+ *  did not, and both lost the change on the next edit — a resize snapped back, and a flattened
+ *  title teleported to the origin. */
+export function withBakedSubpaths(p: PathShape, subpaths: Subpath[]): PathShape {
+  const next = { ...p, subpaths };
+  delete next.text;
+  return next;
+}
 export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
 export type Group = NodeFlags & {

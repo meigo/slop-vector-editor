@@ -35,11 +35,18 @@ async function ot(): Promise<OT> {
 const loaded = new Map<string, LoadedFont>();
 /** Fonts added this session. Not written into the document (spec M10 §5). */
 const added = new Map<string, { label: string; buf: ArrayBuffer }>();
+/** In-flight loads, so two callers for the same id share one fetch and one parse (invariant 37's
+ *  rule: cache the promise, clear it on rejection). */
+const loading = new Map<string, Promise<LoadedFont>>();
 
-/** Whether this font has already been fetched and parsed. Almost nothing should ask this — see
- *  `fontAvailable`, which is the question the UI actually has. */
-export function isFontLoaded(id: string): boolean {
-  return loaded.has(id);
+/** Notified whenever `added` changes. This module stays free of runes so it can be unit-tested in
+ *  node; the store owns the reactive counter. A plain `Map` is invisible to Svelte, so a `$derived`
+ *  over `fontChoices()` computed once and never saw a font the user had just added — the dropdown
+ *  showed a loaded font as "(not loaded)" until the panel happened to remount. */
+let onRegistryChange: (() => void) | null = null;
+
+export function setFontRegistryListener(fn: (() => void) | null): void {
+  onRegistryChange = fn;
 }
 
 /** Whether a title using this font can still be re-typed. A **bundled** font is always available
@@ -56,7 +63,9 @@ export function fontAvailable(id: string): boolean {
 export function fontChoices(): { id: string; label: string }[] {
   return [
     ...BUNDLED.map((b) => ({ id: b.id, label: b.label })),
-    ...[...added].map(([id, v]) => ({ id, label: v.label })),
+    // Marked, because a font you added often has the same family name as a bundled one and two
+    // identical entries in the list tell you nothing about which is which.
+    ...[...added].map(([id, v]) => ({ id, label: `${v.label} (added)` })),
   ];
 }
 
@@ -74,6 +83,21 @@ function familyOf(font: ParsedFont, fallback: string): string {
 export async function loadFont(id: string): Promise<LoadedFont> {
   const already = loaded.get(id);
   if (already) return already;
+  const inFlight = loading.get(id);
+  if (inFlight) return inFlight;
+  const p = loadFontOnce(id).catch((e: unknown) => {
+    loading.delete(id); // a failure must stay retryable
+    throw e;
+  });
+  loading.set(id, p);
+  try {
+    return await p;
+  } finally {
+    loading.delete(id);
+  }
+}
+
+async function loadFontOnce(id: string): Promise<LoadedFont> {
   const o = await ot();
   const mine = added.get(id);
   let buf: ArrayBuffer;
@@ -83,7 +107,7 @@ export async function loadFont(id: string): Promise<LoadedFont> {
     label = mine.label;
   } else {
     const b = BUNDLED.find((f) => f.id === id);
-    if (!b) throw new Error(`Unknown font "${id}"`);
+    if (!b) throw new FontUnavailableError(`The font "${id}" isn't loaded in this session.`);
     const res = await fetch(b.url);
     if (!res.ok) throw new Error(`Could not load the font "${b.label}"`);
     buf = await res.arrayBuffer();
@@ -96,6 +120,10 @@ export async function loadFont(id: string): Promise<LoadedFont> {
 }
 
 export class Woff2Error extends Error {}
+
+/** The font was never registered in this session — a session font from a previous one. Nothing was
+ *  downloaded, so telling the user to reload would be false. */
+export class FontUnavailableError extends Error {}
 
 /** Registers a font file for this session and returns its id. */
 export async function registerFontFile(file: File): Promise<string> {
@@ -111,6 +139,7 @@ export async function registerFontFile(file: File): Promise<string> {
   const id = `file:${label}`;
   added.set(id, { label, buf });
   loaded.set(id, { id, label, font });
+  onRegistryChange?.();
   return id;
 }
 
@@ -130,6 +159,13 @@ const UNSHAPED =
 
 export function unshapedScript(text: string): boolean {
   return UNSHAPED.test(text);
+}
+
+/** True when the font has no glyph for any character — every index is `.notdef`. Drawing that gives
+ *  a row of boxes or nothing at all, which spec §9's principle says to refuse rather than draw. */
+export function noGlyphsFor(f: LoadedFont, text: string): boolean {
+  if (text.length === 0) return false;
+  return f.font.stringToGlyphs(text).every((g: Glyph) => g.index === 0);
 }
 
 /** string + font + options → outlines, in the title's own space with the baseline at y = 0.

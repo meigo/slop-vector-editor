@@ -1011,3 +1011,68 @@ browser pass could not:
   is dated and this changelog's convention is that later entries supersede earlier ones rather than
   the past being rewritten.
 - The palette stays dark-only, as `app.css` already states.
+
+## 2026-09-19 — Milestone 10a: titles
+
+- A **Text tool** (T) places a title; you type it in the Properties panel, which now shows the Text
+  section **first** — it was last, and in the browser it sat below the fold at exactly the moment
+  you want to type. Font, size, letter-spacing and alignment; the string field takes focus when a
+  title is placed, which on iPad is the difference between the keyboard appearing and hunting for
+  a field.
+- **A title is a path that remembers it was text** — `PathShape.text`, optional metadata, not a new
+  node kind. The reason is measurable: 23 places in `src/` test `kind === "path"`, and all of them
+  work on a title unchanged, as M11's warp will.
+- **Four SIL OFL faces** ship (Anton, Bebas Neue, Archivo Black, Righteous), imported through Vite
+  so they are content-hashed into `dist/assets/` and inherit the immutable caching rather than
+  tripping invariant 35. Their `OFL.txt` files ship beside them and they are credited in the
+  README, which the licence requires. `.ttf`, `.otf` and `.woff` can be added from a file.
+- **A spike came first**, as M7's did, and three of its findings changed the design: opentype.js
+  parses in Node (so the glyph pipeline is unit-testable at all); its outlines are **quadratic** and
+  `parsePathData` already converts them exactly, so the pipeline needed **no new geometry code**;
+  and it **refuses WOFF2**, which is the format people most often have, so that needed a real
+  refusal rather than a stack trace. Measured: opentype is its own **67.69 KB gzipped** chunk.
+- Refused rather than drawn wrongly: scripts needing shaping or RTL (Arabic, Hebrew, Devanagari,
+  Thai…), and strings the chosen font has no glyphs for.
+
+### What the dry run found, before any review
+
+`opentype.js` ships **no types** and `@types/opentype.js` is for 1.x, describing an API the spike had
+already disproved — so the types are hand-written for just what we call. `node:fs` needed
+`@types/node`. `path-edit.ts` had **seven** return sites, not the one funnel the plan assumed. ESLint
+caught a genuinely misleading character class in the script-detection regex. And the plan's
+chunk-size bar was unmeasurable where it was written, because nothing imported the module yet.
+
+Two real bugs it caught in the browser: a **bundled font isn't "loaded" until fetched**, so after a
+reload every title came back read-only claiming a font that ships with the app "isn't loaded";
+and a refused string stayed in the field while the canvas showed the real title.
+
+### What the review found, and it was load-bearing
+
+- **must-fix: `resize.ts` and `flattenTransform` kept `text`.** Both bake geometry into a path, and
+  both spread `...s` straight past the metadata. Resize a title then type one character and it
+  snapped back to its old size; flatten it then type and it **jumped to the artboard origin**. I had
+  built a funnel in `path-edit.ts` for exactly this hazard and then missed the other two bake sites.
+  Both now go through `withBakedSubpaths` in `document.ts`, and each has a regression test.
+- **must-fix: the font list was not reactive.** `fontChoices()` reads plain `Map`s, so a `$derived`
+  over it computed once — a font you had just added showed as "(not loaded)" until the panel
+  happened to remount. `font.ts` stays rune-free (it is unit-tested in node); the store owns the
+  counter and notifies it.
+- **should-fix, all taken:** M7's four async rules were missing (re-entrancy guard, a second
+  `cancelActiveGesture` after the await, re-checking the layer block, and notifying rather than
+  failing silently) — the correct implementation was 400 lines up in the same file; the font
+  `<select>` desynced on a refused change the way the string field already handled; a no-op edit
+  (re-picking the current font, tapping the alignment already on) re-outlined and pushed an undo
+  step; Size/Spacing/Align were live with a missing font and produced a notice telling the user to
+  reload when nothing had been downloaded; `loadFont` did not share in-flight promises;
+  `parseTextOpts` bounded nothing, so `size: 1e300` validated and would overflow the writer; and the
+  panel read `meta` after an await that could destroy it.
+- Also fixed: the text tool's inlined 4px drag threshold disagreed with the project's own
+  `movedEnough` (2px) while claiming to be it; `parseOverrides` accepted `":r=5"` as index 0 because
+  `Number("")` is 0; two dead exports went, which invariant 37 records as a real cost here.
+- Browser-verified after the fixes (port 5193): placing focuses the field; adding a font from a
+  `File` now appears in the list immediately and is selected. The resize-then-type sequence is
+  covered by a direct unit test against `resizeNodes` — my browser attempt kept missing the handle,
+  and the test exercises the same function the gizmo calls.
+- **566 tests in 46 files.** Build 0 errors / 0 warnings, three chunks.
+- Owed: the iPad pass now also covers the Text panel and the font picker. Per-character selection
+  and the randomiser are **M10b**. Performance on a long string at a large size is unmeasured.

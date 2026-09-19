@@ -1,4 +1,4 @@
-import type { Tool, ToolContext, ToolEvent } from "./tool";
+import { movedEnough, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
 /** The Text tool (spec M10 §6): a click places a title, and that is the whole gesture. Unlike the
  *  pen it holds no draft — a title is created in one step — so invariant 33 does not apply. */
@@ -20,10 +20,9 @@ export function createTextTool(): Tool {
       const s = start;
       start = null;
       if (!s) return;
-      // A click, not a drag: the same movedEnough rule the select tool uses, in screen pixels.
-      const dx = e.screen.x - s.screen.x;
-      const dy = e.screen.y - s.screen.y;
-      if (dx * dx + dy * dy > 16) return;
+      // A click, not a drag — the project's one threshold, shared with select and the shape tools.
+      // An inlined 4px rule here disagreed with their 2px and made a 3px wobble mean two things.
+      if (movedEnough(s.screen, e.screen)) return;
       ctx.placeTitle(e.doc);
     },
 

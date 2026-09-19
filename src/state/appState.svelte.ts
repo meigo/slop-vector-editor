@@ -60,7 +60,10 @@ import { BUNDLED } from "../text/fonts";
 import {
   loadFont,
   outlineText,
+  FontUnavailableError,
+  noGlyphsFor,
   registerFontFile,
+  setFontRegistryListener,
   unshapedScript,
   Woff2Error,
   type LoadedFont,
@@ -853,8 +856,12 @@ export function setSelectionOpacity(value: number): void {
 /** The font a new title gets, and what the picker last showed. Not saved, not undoable. */
 let currentFontId = BUNDLED[0].id;
 
-export function currentTitleFont(): string {
-  return currentFontId;
+/** Bumped when a font is added, so the picker's `$derived` list actually recomputes. */
+let fontsVersion = $state(0);
+setFontRegistryListener(() => fontsVersion++);
+
+export function fontsChangedTick(): number {
+  return fontsVersion;
 }
 
 function defaultMeta(text: string): TextMeta {
@@ -884,18 +891,23 @@ async function withFont<T>(id: string, run: (f: LoadedFont) => T): Promise<T | n
   try {
     return run(await loadFont(id));
   } catch (e) {
-    const woff2 = e instanceof Woff2Error;
-    notify(
-      "error",
-      woff2
+    // Three different causes, three different truths. Telling someone to reload when nothing was
+    // ever downloaded — a session font from a previous session — is simply false.
+    const text =
+      e instanceof Woff2Error || e instanceof FontUnavailableError
         ? e.message
-        : "The font couldn't be loaded. Reload the page and try again — a failed download is cached until you do.",
-    );
+        : "The font couldn't be loaded. Reload the page and try again — a failed download is cached until you do.";
+    notify("error", text);
     return null;
   }
 }
 
+/** Only one outline job at a time (invariant 37): these all await a lazy-chunk fetch, and two in
+ *  flight would race to commit from the same base document. */
+let titleRunning = false;
+
 export async function placeTitle(at: Vec): Promise<void> {
+  if (titleRunning) return;
   cancelActiveGesture();
   const layerId = app.currentLayerId;
   const b = layerBlock(app.doc, layerId);
@@ -905,9 +917,23 @@ export async function placeTitle(at: Vec): Promise<void> {
   }
   const before = app.doc;
   const meta = defaultMeta("Title");
-  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta));
+  titleRunning = true;
+  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta)).finally(() => {
+    titleRunning = false;
+  });
   if (!subpaths || subpaths.length === 0) return;
-  if (app.doc !== before) return; // the document moved while the chunk loaded
+  if (app.doc !== before) {
+    notify("info", "The document changed while the font loaded — try placing the title again.");
+    return;
+  }
+  // Re-checked after the await: the layer may have been locked, and a canvas drag may have begun
+  // (invariant 15 — the first `cancelActiveGesture` was before the fetch, which is too early).
+  const again = layerBlock(app.doc, layerId);
+  if (again) {
+    notify("info", blockMessage(again, "draw"));
+    return;
+  }
+  cancelActiveGesture();
   const shape: PathShape = {
     kind: "path",
     id: "",
@@ -919,6 +945,11 @@ export async function placeTitle(at: Vec): Promise<void> {
   const r = addShape(app.doc, layerId, shape);
   commitDoc(r.doc);
   setSelection([r.id]);
+  // Spec §6: placing a title is immediately followed by typing it. On iPad this is the difference
+  // between the keyboard appearing and hunting for the field in a panel that just re-laid out.
+  queueMicrotask(() =>
+    (document.querySelector('input[aria-label="Title text"]') as HTMLInputElement | null)?.focus(),
+  );
 }
 
 /** The single selected title, or null. */
@@ -930,10 +961,14 @@ export function selectedTitle(): PathShape | null {
 }
 
 async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
+  if (titleRunning) return;
   cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
   const meta: TextMeta = { ...target.text, ...patch };
+  // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
+  // Re-picking the current font, or tapping the alignment button already on, reached here.
+  if (sameMeta(meta, target.text)) return;
   if (refuseUnshaped(meta.text)) return;
   // Overrides never outlive the string they were made for (spec M10 §4).
   const len = [...meta.text].length;
@@ -941,18 +976,48 @@ async function reshapeTitle(patch: Partial<TextMeta>): Promise<void> {
     Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
   );
   const before = app.doc;
+  const beforeSel = app.selection;
   const id = target.id;
-  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta));
+  titleRunning = true;
+  let noGlyphs = false;
+  const subpaths = await withFont(meta.font, (f) => {
+    noGlyphs = noGlyphsFor(f, meta.text);
+    return noGlyphs ? [] : outlineText(f, meta);
+  }).finally(() => {
+    titleRunning = false;
+  });
   if (!subpaths) return;
-  if (app.doc !== before) return;
+  if (noGlyphs) {
+    notify("error", "This font has no letters for that text.");
+    return;
+  }
+  if (app.doc !== before || app.selection !== beforeSel) {
+    notify("info", "The selection changed while the font loaded — try that again.");
+    return;
+  }
   if (subpaths.length === 0) {
     // The importer drops a path with no subpaths (the M2 constraint), so an empty title may not
     // be written. The old outlines stay until there is something to replace them with.
     notify("info", "A title needs at least one character.");
     return;
   }
+  cancelActiveGesture();
   commitDoc(
     mapNodes(app.doc, [id], (n) => (n.kind === "path" ? { ...n, subpaths, text: meta } : n)),
+  );
+}
+
+/** Field by field, because `amounts` and `overrides` are nested objects. */
+function sameMeta(a: TextMeta, b: TextMeta): boolean {
+  return (
+    a.text === b.text &&
+    a.font === b.font &&
+    a.size === b.size &&
+    a.letterSpacing === b.letterSpacing &&
+    a.align === b.align &&
+    a.seed === b.seed &&
+    JSON.stringify(a.amounts) === JSON.stringify(b.amounts) &&
+    JSON.stringify(a.overrides) === JSON.stringify(b.overrides)
   );
 }
 

@@ -15,6 +15,12 @@ export type TextOpts = {
 };
 
 const ALIGNS: readonly string[] = ["left", "center", "right"];
+/** The same ceiling `parse.ts` puts on every coordinate and length (invariant 8): `fmt`'s
+ *  6-decimal rounding overflows to Infinity well before this, and a title is re-outlined at its
+ *  size, so an unbounded size would produce a file that cannot be written back. */
+const MAX_TEXT_NUM = 1e9;
+/** A title is a title. Past this the next keystroke would outline tens of thousands of glyphs. */
+export const MAX_TEXT_LENGTH = 2000;
 const KEYS: readonly (keyof CharOverride)[] = ["r", "s", "dx", "dy", "k"];
 const num = (v: string): number | null => {
   const n = Number(v);
@@ -37,6 +43,7 @@ export function parseTextOpts(s: string): TextOpts | null {
   if (n.some((v) => v === null)) return null;
   const [size, letterSpacing, seed, rotate, scale, offset, skew] = n as number[];
   if (size <= 0) return null;
+  if (n.some((v) => Math.abs(v as number) > MAX_TEXT_NUM)) return null;
   return {
     size,
     letterSpacing,
@@ -67,7 +74,10 @@ export function parseOverrides(s: string, length: number): Record<number, CharOv
   for (const part of s.split(";")) {
     const colon = part.indexOf(":");
     if (colon < 0) continue;
-    const i = Number(part.slice(0, colon));
+    const raw = part.slice(0, colon).trim();
+    // `Number("")` is 0 and would land an override on the first character; require real digits.
+    if (!/^\d+$/.test(raw)) continue;
+    const i = Number(raw);
     if (!Number.isInteger(i) || i < 0 || i >= length) continue;
     const ov: CharOverride = {};
     for (const pair of part.slice(colon + 1).split(",")) {

@@ -55,6 +55,13 @@ describe("the text-opts attribute", () => {
     expect(parseTextOpts(formatTextOpts(opts))).toEqual(opts);
   });
 
+  it("refuses numbers big enough to overflow the writer (invariant 8's ceiling)", () => {
+    expect(parseTextOpts("1e300 0 left 1 0 0 0 0")).toBeNull();
+    expect(parseTextOpts("96 -1e200 left 1 0 0 0 0")).toBeNull();
+    expect(parseTextOpts("96 0 left 1e300 0 0 0 0")).toBeNull();
+    expect(parseTextOpts("96 0 left 1 0 0 0 0")).not.toBeNull();
+  });
+
   it("refuses anything malformed rather than guessing", () => {
     expect(parseTextOpts("")).toBeNull();
     expect(parseTextOpts("96 2.5 center 418 12 0.08 4")).toBeNull(); // 7 fields
@@ -82,6 +89,8 @@ describe("the overrides attribute", () => {
     expect(parseOverrides("2:zz=5", 10)).toEqual({}); // unknown key
     expect(parseOverrides("2:r=nope", 10)).toEqual({});
     expect(parseOverrides("garbage", 10)).toEqual({});
+    expect(parseOverrides(":r=5", 10)).toEqual({}); // Number("") is 0 — must not land on char 0
+    expect(parseOverrides("1.5:r=5", 10)).toEqual({});
     expect(parseOverrides("2:r=5;garbage;3:dy=1", 10)).toEqual({ 2: { r: 5 }, 3: { dy: 1 } });
   });
 });

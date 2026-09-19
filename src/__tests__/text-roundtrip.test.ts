@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_STYLE, type Doc, type PathShape, type TextMeta } from "../doc/document";
 import { createDoc } from "../doc/document";
+import { flattenTransform } from "../doc/edits";
 import { movePathNodes, setNodeType } from "../doc/path-edit";
+import { resizeNodes } from "../doc/resize";
 import { IDENTITY } from "../geom/mat";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
@@ -83,6 +85,26 @@ describe("a title round-trips as a path", () => {
 
     const retyped = setNodeType(p, [{ sub: 0, i: 0 }], "smooth");
     expect(retyped.text).toBeUndefined();
+  });
+
+  it("stops being a title when a resize is baked into it", () => {
+    // Found in review: resize spread `...s`, keeping `text` while scaling the outlines, so the
+    // next keystroke re-outlined at the old size and the resize vanished.
+    const d = docWith(title());
+    const id = d.layers[0].children[0].id;
+    const resized = resizeNodes(d, [id], [2, 0, 0, 2, 0, 0]);
+    const p = resized.layers[0].children[0] as PathShape;
+    expect(p.text).toBeUndefined();
+    expect(p.subpaths[0].nodes[1].p.x).toBe(100);
+  });
+
+  it("stops being a title when its transform is flattened", () => {
+    // Found in review: flatten baked the matrix and reset it, so a re-typed title was re-outlined
+    // at the baseline origin and jumped off the artboard.
+    const moved = title({ transform: [1, 0, 0, 1, 200, 300] });
+    const flat = flattenTransform(docWith(moved), [moved.id]).layers[0].children[0] as PathShape;
+    expect(flat.text).toBeUndefined();
+    expect(flat.subpaths[0].nodes[0].p).toEqual({ x: 200, y: 300 });
   });
 
   it("stays a title when an edit changes nothing", () => {
