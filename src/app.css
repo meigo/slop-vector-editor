@@ -65,7 +65,7 @@ body {
     @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text;
   }
   .menu-item {
-    @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised;
+    @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-raised aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;
   }
   .kbd {
     @apply text-muted;

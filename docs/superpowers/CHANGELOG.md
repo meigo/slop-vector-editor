@@ -615,3 +615,59 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   handles moving outside a too-small object).
 - 460 tests in 34 files. No device verification: nothing here has been on an iPad, and the two new
   owed items are recorded on the milestone entry's `Owed:` line above.
+
+## 2026-09-19 — Milestone 6: selection conveniences
+
+- Select All (⌘A) and Invert Selection (⇧⌘A). ⌘A was unclaimed before this milestone, so it fell
+  through to the browser and selected the app's own interface text; text fields keep the browser's
+  native ⌘A through `App.svelte`'s existing editable-target guard.
+- Select Same Fill Colour, Same Stroke Colour, Same Style and Same Kind, each reading the current
+  selection and extending it: Fill and Stroke compare `style.fill`/`style.stroke`, Style compares
+  every field of `Style` (both paints, `strokeWidth`, `cap`, `join`, `opacity`), Kind compares
+  `node.kind`. Paints compare exactly — `{ color, opacity }` field for field, no tolerance — and
+  `null` (no paint) matches only `null`. Several selected shapes union rather than intersect: an
+  orange shape and a blue shape selected together find every orange *and* every blue shape, not
+  their overlap. A seed always matches itself, so a Select Same command never shrinks the
+  selection. A group has no `Style`, so it is skipped by the three paint-based commands as both
+  seed and candidate, and a selection of only groups disables them; Same Kind still matches groups.
+- All six commands share one reach: `selectableIds(doc, enteredGroupId)` (`src/doc/tree.ts`) —
+  visible, unlocked top-level layers, or an entered group's children. That function was already
+  specified and tested but had no production caller; `hitTest` and `marqueeSelect` re-implement
+  its rule inline instead, which is how the two could drift apart. This milestone's pure matching
+  (`src/doc/select-match.ts`: `allIds`, `invertIds`, `sameIds`) calls it directly, so a hidden or
+  locked layer is never selected into, a shape inside a group is never matched from outside it, and
+  Select All inside a group selects that group's children, matching what entering a group already
+  implies elsewhere.
+- A **Select** menu in the top bar, beside File: Select All, Invert Selection, then the four Same
+  commands. A command that does not apply is shown disabled with a reason (`"Same Fill Colour —
+  nothing selected"`, `"— a group has no fill"`), never hidden, per invariant 24 — a hidden entry
+  would move the bar. `.menu-item` in `src/app.css` gained `aria-disabled` styling, which it had
+  none of before, so a disabled entry now actually looks disabled.
+- The same section in the context menu — the **mouse** route, not the iPad one: `Canvas.svelte`
+  opens that menu only when `app.lastPointerType === "mouse"` and nothing handles a long-press, so
+  on a device the Select menu is the only way to these commands. Select All and Invert Selection
+  always (Select All only while something is in reach), the four Same commands only when they apply
+  — the
+  context menu hides an inapplicable entry instead of disabling it, matching its existing pattern
+  for Ungroup, Convert and Flatten.
+- A tripwire test (`src/__tests__/select-match.test.ts`) asserts `Style`'s key set directly,
+  because `sameStyle` enumerates its fields by hand and TypeScript has no way to flag it falling
+  behind a new field.
+- Plan: `docs/superpowers/plans/2026-09-19-m6-selection-conveniences.md`. 481 tests in 35 files.
+- Browser-verified (controller, desktop Chrome, port 5198): Select All returning top-level ids only
+  with a group counted once and a hidden layer excluded; Invert Selection; Same Fill finding an
+  orange rect and an orange ellipse across kinds while skipping both the grouped orange rect and
+  the hidden layer's shape; Same Kind skipping the grouped rect; every command staying inside an
+  entered group; ⌘A and ⇧⌘A with the browser's own select-all suppressed; ⌘A inside a number field
+  still selecting that field's text; the Select menu's disabled reasons in both states, a disabled
+  entry doing nothing while the menu stays open, and an enabled one running and closing it; the
+  context menu's section and Same Fill from it. No console errors.
+- A group contributes no matches to the three paint commands and is never returned as one, but a
+  selected group is kept — as is any seed out of reach, since the layers panel can select a row at
+  any depth while `enteredGroupId` points elsewhere. Without that, a Select Same matching nothing
+  cleared the whole selection with no message. Select All is disabled with "— nothing to select"
+  when every layer is hidden or locked.
+- Owed: the iPad pass owed since M5 now also covers the Select menu's hit targets at portrait
+  widths. Not the context menu: it is mouse-only, so there is nothing to check there on a device. Also unchanged
+  from before: neither top-bar menu closes on Escape, which belongs with the parked accessibility
+  milestone that already owes menu keyboard navigation.

@@ -233,6 +233,14 @@ describe("editActionForKey", () => {
     expect(k("Enter")).toEqual({ kind: "commit" });
     expect(k("Enter", { metaKey: true })).toBeNull();
   });
+
+  it("maps the selection shortcuts", () => {
+    expect(k("a", { metaKey: true })).toEqual({ kind: "selectAll" });
+    expect(k("a", { metaKey: true, shiftKey: true })).toEqual({ kind: "invertSelection" });
+    expect(k("a", { ctrlKey: true })).toEqual({ kind: "selectAll" });
+    // A bare "a" is not a tool key and must stay unhandled.
+    expect(k("a")).toBeNull();
+  });
 });
 
 describe("watchOtherTabs", () => {

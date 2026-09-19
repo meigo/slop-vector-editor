@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 459 tests in 34 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 481 tests in 35 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -31,7 +31,8 @@ every user-visible change.
   `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
   current-layer helpers), `path-edit.ts` (pure node edits: move, handles, insert, delete, retype,
   close, `appendNode`, `reverseSubpath`), `resize.ts` (bakes a resize into shape geometry; see
-  gotcha below).
+  gotcha below), `select-match.ts` (pure reach and matching for the selection commands: `allIds`,
+  `invertIds`, `sameIds`).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
@@ -246,20 +247,29 @@ every user-visible change.
     needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such
     exception.
+36. **The selection commands' reach is `selectableIds(doc, enteredGroupId)`** (`src/doc/tree.ts`,
+    spec M6 §4), reused as-is from `src/doc/select-match.ts`. That function had no production
+    caller before this milestone — `hitTest` and `marqueeSelect` re-implement its rule inline —
+    and this milestone exists in part to give it callers again, so the three must not drift back
+    apart. Paints (`{ color, opacity }`) compare exactly, with no tolerance; `null` matches only
+    `null`. Several selected shapes union rather than intersect, and a seed always matches itself,
+    so Select Same never shrinks the selection. A group has no `Style`, so it contributes no
+    matches to the three paint-based commands and is never returned as one, and still matches on
+    kind. But a selected group is **kept**, as is any seed out of reach — the layers panel selects
+    a row at any depth while `enteredGroupId` points at that row's parent, so the selection can
+    legitimately hold ids `selectableIds` would not offer. Without keeping them, a Select Same that
+    matched nothing would silently clear the whole selection.
 
 ## Current state
 
-Milestone 5 (iPad polish and deploy) — see CHANGELOG. This closes the milestone list. What
-follows is the post-v1 list (project design §10): text; gradients; boolean operations (possibly
-Paper.js as a geometry-only helper); a freehand pencil/brush tool simplified to bezier with
-pressure; PNG export; grid and smart guides; multiple artboards; masks/clipping; an align &
-distribute panel; a light theme; system-clipboard image paste.
+Milestone 6 (selection conveniences) — see CHANGELOG. Next is milestone 7: boolean operations
+(merge, subtract, intersect, exclude), already decided to use Paper.js as a geometry-only helper.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
-polish + deploy) is complete and was the last milestone on the roadmap — see CHANGELOG. What
-follows is the post-v1 list above (project design §10).
+polish + deploy) and M6 (selection conveniences) are complete — see CHANGELOG. M7 is boolean
+operations, with Paper.js as a geometry-only helper already decided.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

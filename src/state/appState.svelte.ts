@@ -35,6 +35,7 @@ import {
   setNodeType,
   type NodeRef,
 } from "../doc/path-edit";
+import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
@@ -403,6 +404,23 @@ export function setSelectionStyle(patch: Partial<Style>): void {
 export function applyGeometry(field: GeometryField, value: number): void {
   cancelActiveGesture();
   commitDoc(applyGeometryField(app.doc, app.selection, field, value));
+}
+
+/** Spec (M6) §2–§4. These change no document, but a selection that moves under a running drag is
+ *  the hazard invariant 15 exists for, so the gesture is cancelled first. */
+export function selectAll(): void {
+  cancelActiveGesture();
+  setSelection(allIds(app.doc, app.enteredGroupId));
+}
+
+export function invertSelection(): void {
+  cancelActiveGesture();
+  setSelection(invertIds(app.doc, app.selection, app.enteredGroupId));
+}
+
+export function selectSame(field: MatchField): void {
+  cancelActiveGesture();
+  setSelection(sameIds(app.doc, app.selection, app.enteredGroupId, field));
 }
 
 // ----- clipboard (spec M2b §2) -----
