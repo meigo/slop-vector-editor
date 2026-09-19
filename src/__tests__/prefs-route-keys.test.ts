@@ -33,7 +33,28 @@ describe("preferences", () => {
     polygon: { sides: 7, star: true, innerRatio: 0.3 },
     snap: false,
     dockExpanded: true,
+    splitRatio: 0.3,
+    layersOpen: false,
   };
+
+  it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {
+    expect(sanitizePrefs({}).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: 0.3 }).splitRatio).toBe(0.3);
+    // A tall column legitimately clamps below 0.1 — 160px of 2078px is 0.077 — so a range hard
+    // coded here would throw away the value the divider just produced and snap back to 0.55.
+    expect(sanitizePrefs({ splitRatio: 0.077 }).splitRatio).toBe(0.077);
+    expect(sanitizePrefs({ splitRatio: 0.95 }).splitRatio).toBe(0.95);
+    expect(sanitizePrefs({ splitRatio: 0 }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: 1 }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: Number.NaN }).splitRatio).toBe(0.55);
+    expect(sanitizePrefs({ splitRatio: "0.4" }).splitRatio).toBe(0.55);
+  });
+
+  it("keeps the Layers panel open unless it was closed", () => {
+    expect(sanitizePrefs({}).layersOpen).toBe(true);
+    expect(sanitizePrefs({ layersOpen: "no" }).layersOpen).toBe(true);
+    expect(sanitizePrefs({ layersOpen: false }).layersOpen).toBe(false);
+  });
 
   it("falls back to defaults for missing or malformed input", () => {
     expect(sanitizePrefs(undefined)).toEqual(DEFAULT_PREFS);
