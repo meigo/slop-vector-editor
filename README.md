@@ -6,6 +6,10 @@ Apple Pencil. Nothing is uploaded anywhere.
 
 Your document is a plain `.svg` file: open it in any browser or design tool.
 
+**[Try it → slop-vector-editor.meigo.workers.dev](https://slop-vector-editor.meigo.workers.dev)**
+
+![The editor with a vectorised drawing open: tool strip, canvas, properties and layers panels, and the on-screen modifier pad](docs/screenshot.png)
+
 ## Status
 
 Early development. What works today:
@@ -102,4 +106,8 @@ Svelte 5, TypeScript, Vite, Tailwind CSS 4, Vitest.
 ## Deploy
 
 `npm run deploy` builds and publishes to Cloudflare (assets-only Worker); it needs `wrangler`
-auth.
+auth. The live demo above is that deploy.
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
