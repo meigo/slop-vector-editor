@@ -7,11 +7,11 @@ import type {
   Shape,
   Subpath,
 } from "../doc/document";
-import { findNode } from "../doc/tree";
+import { enteredReach, reachableNodes, topLevelReach, type Reachable } from "../doc/tree";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
-import { applyMat, IDENTITY, invert, multiply } from "./mat";
+import { applyMat, IDENTITY, invert } from "./mat";
 import { polygonSubpath } from "./shapes";
 import type { Vec } from "./vec";
 
@@ -150,59 +150,43 @@ function nodeHit(n: Node, p: Vec, tol: number, scale = 1): boolean {
   return shapeHit(n, lp, lt, scale * s);
 }
 
+function hitIn(reach: readonly Reachable[], p: Vec, tol: number): Hit | null {
+  for (let i = reach.length - 1; i >= 0; i--) {
+    const { node, layer, parent } = reach[i];
+    if (parent === IDENTITY) {
+      if (nodeHit(node, p, tol)) return { layerId: layer.id, nodeId: node.id };
+      continue;
+    }
+    const inv = invert(parent);
+    if (!inv) continue;
+    const scale = Math.sqrt(Math.abs(parent[0] * parent[3] - parent[1] * parent[2]));
+    if (nodeHit(node, applyMat(inv, p), tol / scale, scale)) {
+      return { layerId: layer.id, nodeId: node.id };
+    }
+  }
+  return null;
+}
+
+/** Hit-testing searches in **two tiers** when the user is inside a group: the group's children
+ *  first, then the top level. That second tier is not an oversight — it is what lets a click on a
+ *  sibling outside the group select it, and a click on empty canvas leave the group (invariant 28).
+ *  `selectableIds` and `marqueeSelect` stop at the first tier, which is why all three share
+ *  `enteredReach`/`topLevelReach` rather than a single verdict. */
 export function hitTest(
   doc: Doc,
   p: Vec,
   tol: number,
   enteredGroupId: string | null = null,
 ): Hit | null {
-  if (enteredGroupId !== null) {
-    const found = findNode(doc, enteredGroupId);
-    if (found && found.node.kind === "group" && found.layer.visible && !found.layer.locked) {
-      const m = multiply(found.parent, found.node.transform);
-      const inv = invert(m);
-      if (inv) {
-        const scale = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
-        const lp = applyMat(inv, p);
-        const children = found.node.children;
-        for (let i = children.length - 1; i >= 0; i--) {
-          if (nodeHit(children[i], lp, tol / scale, scale)) {
-            return { layerId: found.layer.id, nodeId: children[i].id };
-          }
-        }
-      }
-    }
-  }
-  for (let li = doc.layers.length - 1; li >= 0; li--) {
-    const layer = doc.layers[li];
-    if (!layer.visible || layer.locked) continue;
-    for (let i = layer.children.length - 1; i >= 0; i--) {
-      const n = layer.children[i];
-      if (nodeHit(n, p, tol)) return { layerId: layer.id, nodeId: n.id };
-    }
-  }
-  return null;
+  const inner = enteredReach(doc, enteredGroupId);
+  return (inner && hitIn(inner, p, tol)) ?? hitIn(topLevelReach(doc), p, tol);
 }
 
 export function marqueeSelect(doc: Doc, box: Box, enteredGroupId: string | null = null): string[] {
   const out: string[] = [];
-  if (enteredGroupId !== null) {
-    const found = findNode(doc, enteredGroupId);
-    if (found && found.node.kind === "group" && found.layer.visible && !found.layer.locked) {
-      const m = multiply(found.parent, found.node.transform);
-      for (const c of found.node.children) {
-        const b = nodeBounds(c, m);
-        if (b && boxContains(box, b)) out.push(c.id);
-      }
-      return out;
-    }
-  }
-  for (const layer of doc.layers) {
-    if (!layer.visible || layer.locked) continue;
-    for (const n of layer.children) {
-      const b = nodeBounds(n, IDENTITY);
-      if (b && boxContains(box, b)) out.push(n.id);
-    }
+  for (const { node, parent } of reachableNodes(doc, enteredGroupId)) {
+    const b = nodeBounds(node, parent);
+    if (b && boxContains(box, b)) out.push(node.id);
   }
   return out;
 }

@@ -209,13 +209,16 @@ describe("parseSvg — foreign files", () => {
     expect(rect.style.fill!.opacity).toBeCloseTo(0.25, 2);
   });
 
-  it("skips hidden, empty and zero-size content, keeps groups with opacity", () => {
+  it("skips empty and zero-size content, but KEEPS hidden content (spec M9 §1)", () => {
     const { doc } = parseSvg(
       `<svg width="10" height="10"><rect width="0" height="5"/><g/><path d=""/>` +
         `<circle r="1" style="display:none"/><g opacity="0.5"><circle r="2"/></g></svg>`,
     );
-    expect(doc.layers[0].children).toHaveLength(1);
-    expect(doc.layers[0].children[0]).toMatchObject({ kind: "group", opacity: 0.5 });
+    // The zero-size rect, the empty group and the node-less path cannot be represented and go.
+    // The hidden circle can be, and used to be deleted silently — that was data loss.
+    expect(doc.layers[0].children).toHaveLength(2);
+    expect(doc.layers[0].children[0]).toMatchObject({ kind: "ellipse", hidden: true });
+    expect(doc.layers[0].children[1]).toMatchObject({ kind: "group", opacity: 0.5 });
   });
 
   it("defaults the artboard to 300 × 150 and always has a layer", () => {

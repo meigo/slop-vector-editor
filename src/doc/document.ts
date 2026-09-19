@@ -30,7 +30,11 @@ export type NodeType = "corner" | "smooth" | "symmetric";
 export type PathNode = { p: Vec; in: Vec | null; out: Vec | null; type: NodeType };
 export type Subpath = { nodes: PathNode[]; closed: boolean };
 
-type ShapeBase = { id: string; name?: string; transform: Mat; style: Style };
+/** Absent means normal — a node carries a flag only in its `true` state, so "not hidden" has
+ *  exactly one representation and a no-op edit can return the same reference (spec M9 §3). */
+type NodeFlags = { hidden?: true; locked?: true };
+
+type ShapeBase = { id: string; name?: string; transform: Mat; style: Style } & NodeFlags;
 export type RectShape = ShapeBase & {
   kind: "rect";
   x: number;
@@ -62,7 +66,7 @@ export type PolygonShape = ShapeBase & {
 export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[] };
 export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
-export type Group = {
+export type Group = NodeFlags & {
   kind: "group";
   id: string;
   name?: string;
@@ -71,6 +75,10 @@ export type Group = {
   children: Node[];
 };
 export type Node = Group | Shape;
+
+/** Nothing reads `hidden`/`locked` directly (spec M9 §3). */
+export const isHidden = (n: Node): boolean => n.hidden === true;
+export const isLocked = (n: Node): boolean => n.locked === true;
 
 export type Layer = {
   id: string;

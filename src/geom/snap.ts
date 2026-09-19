@@ -1,4 +1,4 @@
-import type { Doc } from "../doc/document";
+import { isHidden, type Doc } from "../doc/document";
 import { nodeBounds } from "./bounds";
 import type { Box } from "./box";
 import { applyMat, IDENTITY } from "./mat";
@@ -32,7 +32,7 @@ export function collectTargets(
   for (const layer of doc.layers) {
     if (!layer.visible) continue;
     for (const n of layer.children) {
-      if (skip.has(n.id)) continue;
+      if (skip.has(n.id) || isHidden(n)) continue;
       const b = nodeBounds(n, IDENTITY);
       if (!b) continue;
       xs.push(b.x, b.x + b.w / 2, b.x + b.w);

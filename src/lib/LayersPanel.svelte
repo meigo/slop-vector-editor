@@ -10,7 +10,7 @@
     Plus,
     Trash2,
   } from "@lucide/svelte";
-  import type { Layer, Node } from "../doc/document";
+  import { isHidden, isLocked, type Layer, type Node } from "../doc/document";
   import { rowLabel } from "../doc/layers";
   import {
     addLayerAboveCurrent,
@@ -24,6 +24,8 @@
     setCurrentLayer,
     toggleLayerLocked,
     toggleLayerVisible,
+    toggleNodeLocked,
+    toggleNodeVisible,
   } from "../state/appState.svelte";
   import { isDoubleTap, type Tap } from "../input/double-tap";
   import IconButton from "./IconButton.svelte";
@@ -43,6 +45,16 @@
   const layers = $derived([...app.doc.layers].reverse());
   const current = $derived(app.doc.layers.find((l) => l.id === app.currentLayerId) ?? null);
   const selected = $derived(new Set(app.selection));
+
+  /** Says which thing is responsible, so a greyed row explains itself (invariant 24). */
+  const nodeBlockedTitle = (n: Node, l: Layer, inherited: boolean): string | undefined =>
+    isHidden(n)
+      ? `“${rowLabel(n)}” is hidden`
+      : isLocked(n)
+        ? `“${rowLabel(n)}” is locked`
+        : inherited
+          ? blockedTitle(l)
+          : undefined;
 
   const blockedTitle = (l: Layer): string | undefined =>
     !l.visible
@@ -149,10 +161,13 @@
   }}
 />
 
-{#snippet nodeRow(node: Node, layer: Layer, depth: number, blocked: boolean)}
+{#snippet nodeRow(node: Node, layer: Layer, depth: number, inherited: boolean)}
   {@const isSelected = selected.has(node.id)}
   {@const isGroup = node.kind === "group"}
   {@const open = !collapsed[node.id]}
+  <!-- `inherited` is the layer's or an ancestor's block; this row adds its own, and passes the
+       result down, so a hidden group greys everything inside it. -->
+  {@const blocked = inherited || isHidden(node) || isLocked(node)}
   <li>
     <div
       data-row-id={node.id}
@@ -163,7 +178,7 @@
         blocked && "text-muted",
       ]}
       style="padding-left: {depth * 20}px"
-      title={blockedTitle(layer)}
+      title={nodeBlockedTitle(node, layer, inherited)}
     >
       <button
         type="button"
@@ -223,6 +238,26 @@
           {rowLabel(node)}
         </button>
       {/if}
+      <!-- Spec M9 §6: these two stay live while the row is blocked — a hidden or locked node
+           cannot be selected, so its own row is the only way back. -->
+      <button
+        type="button"
+        class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+        aria-label={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
+        title={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
+        onclick={() => toggleNodeVisible(node.id)}
+      >
+        {#if isHidden(node)}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+      </button>
+      <button
+        type="button"
+        class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+        aria-label={isLocked(node) ? `Unlock “${rowLabel(node)}”` : `Lock “${rowLabel(node)}”`}
+        title={isLocked(node) ? `Unlock “${rowLabel(node)}”` : `Lock “${rowLabel(node)}”`}
+        onclick={() => toggleNodeLocked(node.id)}
+      >
+        {#if isLocked(node)}<Lock size={14} />{:else}<LockOpen size={14} />{/if}
+      </button>
     </div>
     {#if isGroup && open}
       <ul>
