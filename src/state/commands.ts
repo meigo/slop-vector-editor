@@ -11,9 +11,11 @@ import {
   duplicateSelection,
   fitArtboard,
   groupSelection,
+  invertSelection,
   moveSelectedNodes,
   nudgeSelection,
   redo,
+  selectAll,
   sendSelectionBackward,
   sendSelectionToBack,
   setTool,
@@ -110,6 +112,12 @@ export function runEditAction(a: EditAction): boolean {
       return true;
     case "ungroup":
       ungroupSelection();
+      return true;
+    case "selectAll":
+      selectAll();
+      return true;
+    case "invertSelection":
+      invertSelection();
       return true;
   }
 }

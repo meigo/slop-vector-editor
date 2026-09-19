@@ -70,6 +70,9 @@ export type SelectionActions = {
   canFlatten: boolean;
   canGroup: boolean;
   canUngroup: boolean;
+  /** A group has no Style, so the paint commands need at least one non-group (spec M6 §6). */
+  canSelectSameStyle: boolean;
+  canSelectSameKind: boolean;
 };
 
 /** Which shape actions apply to the selection (shared by the top bar and the context menu). */
@@ -82,6 +85,8 @@ export function selectionActions(doc: Doc, ids: readonly string[]): SelectionAct
     canFlatten: nodes.some((n) => n.kind === "path" && !isIdentity(n.transform)),
     canGroup: nodes.length > 0,
     canUngroup: nodes.some((n) => n.kind === "group"),
+    canSelectSameStyle: nodes.some((n) => n.kind !== "group"),
+    canSelectSameKind: nodes.length > 0,
   };
 }
 

@@ -14,9 +14,12 @@ import {
   clearOrLeaveGroup,
   commitDoc,
   deleteSelectedNodes,
+  invertSelection,
   nudgeSelection,
   redo,
   replaceDocument,
+  selectAll,
+  selectSame,
   setEnteredGroup,
   setNodeSel,
   setNodeTarget,
@@ -376,5 +379,43 @@ describe("deleteSelectedNodes", () => {
     expect(pathNodeCount()).toBe(2);
     expect(app.nodeTarget).toBe("p");
     expect(app.nodeSel).toEqual([]);
+  });
+});
+
+describe("selection commands", () => {
+  it("selects everything, then inverts it", () => {
+    selectAll();
+    expect(app.selection).toEqual(["p", "r"]);
+    invertSelection();
+    expect(app.selection).toEqual([]);
+    invertSelection();
+    expect(app.selection).toEqual(["p", "r"]);
+  });
+
+  it("selects the same kind", () => {
+    setSelection(["r"]);
+    selectSame("kind");
+    expect(app.selection).toEqual(["r"]);
+    setSelection(["p"]);
+    selectSame("kind");
+    expect(app.selection).toEqual(["p"]);
+  });
+
+  it("selects the same fill, and stays out of a hidden layer", () => {
+    setSelection(["p"]);
+    selectSame("fill");
+    // p and r share DEFAULT_STYLE, so both match.
+    expect(app.selection).toEqual(["p", "r"]);
+    toggleLayerVisible("L0");
+    selectAll();
+    expect(app.selection).toEqual([]);
+  });
+
+  it("routes the two shortcuts through runEditAction", () => {
+    setSelection([]);
+    runEditAction({ kind: "selectAll" });
+    expect(app.selection).toEqual(["p", "r"]);
+    runEditAction({ kind: "invertSelection" });
+    expect(app.selection).toEqual([]);
   });
 });
