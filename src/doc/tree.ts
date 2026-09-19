@@ -1,5 +1,13 @@
 import { IDENTITY, multiply, type Mat } from "../geom/mat";
-import type { Doc, Group, Layer, Node, Shape } from "./document";
+import {
+  isHidden,
+  isLocked,
+  type Doc,
+  type Group,
+  type Layer,
+  type Node,
+  type Shape,
+} from "./document";
 
 export type Found = {
   layer: Layer;
@@ -67,20 +75,60 @@ export function ancestorIds(doc: Doc, id: string): string[] {
 
 /** Ids a canvas gesture may select: inside a group, its direct children; otherwise the top-level
  *  nodes of visible, unlocked layers. */
-export function selectableIds(doc: Doc, enteredGroupId: string | null = null): Set<string> {
-  const out = new Set<string>();
-  if (enteredGroupId !== null) {
-    const found = findNode(doc, enteredGroupId);
-    if (found && found.node.kind === "group" && found.layer.visible && !found.layer.locked) {
-      for (const c of found.node.children) out.add(c.id);
-      return out;
-    }
-  }
+/** One node the user may reach right now, with the matrix its geometry sits in. */
+export type Reachable = { node: Node; layer: Layer; parent: Mat };
+
+/** True when this node, or anything containing it, is hidden or locked — its layer included. */
+export function blocked(doc: Doc, id: string): boolean {
+  const found = findNode(doc, id);
+  if (!found) return true;
+  if (!found.layer.visible || found.layer.locked) return true;
+  if (isHidden(found.node) || isLocked(found.node)) return true;
+  return ancestorIds(doc, id).some((a) => {
+    const f = findNode(doc, a);
+    return !f || isHidden(f.node) || isLocked(f.node);
+  });
+}
+
+/** The entered group's children, or **null** when that group cannot be entered right now — it is
+ *  gone, is not a group, or it (or something above it) is hidden or locked. Null is not the same as
+ *  an empty list: callers fall back to the top level on null, which is what stops the canvas going
+ *  dead the moment a group the user is inside gets hidden. */
+export function enteredReach(doc: Doc, enteredGroupId: string | null): Reachable[] | null {
+  if (enteredGroupId === null) return null;
+  const found = findNode(doc, enteredGroupId);
+  if (!found || found.node.kind !== "group" || blocked(doc, enteredGroupId)) return null;
+  const parent = multiply(found.parent, found.node.transform);
+  return found.node.children
+    .filter((n) => !isHidden(n) && !isLocked(n))
+    .map((node) => ({ node, layer: found.layer, parent }));
+}
+
+/** Every top-level node on a visible, unlocked layer that is not itself hidden or locked. */
+export function topLevelReach(doc: Doc): Reachable[] {
+  const out: Reachable[] = [];
   for (const layer of doc.layers) {
     if (!layer.visible || layer.locked) continue;
-    for (const n of layer.children) out.add(n.id);
+    for (const node of layer.children) {
+      if (isHidden(node) || isLocked(node)) continue;
+      out.push({ node, layer, parent: IDENTITY });
+    }
   }
   return out;
+}
+
+/** What a *selection* command may reach: inside a valid entered group, that group's children alone;
+ *  otherwise the top level. Document order; callers wanting z-order walk it backwards.
+ *
+ *  `hitTest` deliberately does NOT use this — see its own comment. The three rules share their
+ *  ingredients (`enteredReach`, `topLevelReach`) rather than one verdict, so the hidden/locked
+ *  clause is still written once (invariant 37, spec M9 §5). */
+export function reachableNodes(doc: Doc, enteredGroupId: string | null = null): Reachable[] {
+  return enteredReach(doc, enteredGroupId) ?? topLevelReach(doc);
+}
+
+export function selectableIds(doc: Doc, enteredGroupId: string | null = null): Set<string> {
+  return new Set(reachableNodes(doc, enteredGroupId).map((r) => r.node.id));
 }
 
 /** Every id on a visible, unlocked layer, at any depth. Pruning must not depend on where the user
@@ -88,6 +136,9 @@ export function selectableIds(doc: Doc, enteredGroupId: string | null = null): S
 function existingIds(doc: Doc): Set<string> {
   const out = new Set<string>();
   const add = (n: Node) => {
+    // A hidden or locked node, and everything inside it, is out of reach — so hiding or locking a
+    // selected node deselects it through the ordinary prune rather than a special case (M9 §5).
+    if (isHidden(n) || isLocked(n)) return;
     out.add(n.id);
     if (n.kind === "group") for (const c of n.children) add(c);
   };

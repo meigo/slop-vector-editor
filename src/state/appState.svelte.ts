@@ -1,10 +1,20 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
-import { createDoc, type Doc, type NodeType, type PathShape, type Style } from "../doc/document";
+import {
+  createDoc,
+  isHidden,
+  isLocked,
+  type Doc,
+  type NodeType,
+  type PathShape,
+  type Style,
+} from "../doc/document";
 import {
   convertToPath,
   deleteNodes,
   duplicateNodes,
   flattenTransform,
+  setNodeHidden,
+  setNodeLocked,
   setNodeOpacity,
   setPolygon,
   setRectRadius,
@@ -628,6 +638,20 @@ export async function deleteCurrentLayer(): Promise<void> {
 export function renameLayerById(id: string, name: string): void {
   cancelActiveGesture();
   commitDoc(renameLayer(app.doc, id, name));
+}
+
+/** Spec M9 §6. A hidden or locked node cannot be selected, so these two are reached from its row
+ *  in the Layers panel — which is why that row's own buttons stay live while the row is blocked. */
+export function toggleNodeVisible(id: string): void {
+  cancelActiveGesture();
+  const found = findNode(app.doc, id);
+  if (found) commitDoc(setNodeHidden(app.doc, [id], !isHidden(found.node)));
+}
+
+export function toggleNodeLocked(id: string): void {
+  cancelActiveGesture();
+  const found = findNode(app.doc, id);
+  if (found) commitDoc(setNodeLocked(app.doc, [id], !isLocked(found.node)));
 }
 
 export function toggleLayerVisible(id: string): void {

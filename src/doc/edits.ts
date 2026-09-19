@@ -261,3 +261,20 @@ export function insertNodes(
   layers[li] = { ...layers[li], children: [...layers[li].children, ...added] };
   return { doc: { ...doc, layers, nextId }, ids: added.map((n) => n.id) };
 }
+
+/** Spec M9 §3. Turning a flag off deletes the key, so a node hidden and shown again is structurally
+ *  identical to one that never was, and still saves byte-identically. */
+function setFlag(doc: Doc, ids: readonly string[], key: "hidden" | "locked", on: boolean): Doc {
+  return mapNodes(doc, ids, (n) => {
+    if (on) return n[key] === true ? n : { ...n, [key]: true };
+    if (n[key] === undefined) return n;
+    const next = { ...n };
+    delete next[key];
+    return next;
+  });
+}
+
+export const setNodeHidden = (doc: Doc, ids: readonly string[], hidden: boolean): Doc =>
+  setFlag(doc, ids, "hidden", hidden);
+export const setNodeLocked = (doc: Doc, ids: readonly string[], locked: boolean): Doc =>
+  setFlag(doc, ids, "locked", locked);

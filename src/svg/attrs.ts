@@ -1,4 +1,12 @@
-import type { Group, Layer, Shape, Style } from "../doc/document";
+import {
+  isHidden,
+  isLocked,
+  type Group,
+  type Layer,
+  type Node,
+  type Shape,
+  type Style,
+} from "../doc/document";
 import { isIdentity, type Mat } from "../geom/mat";
 import { polygonSubpath, type PolygonGeometry } from "../geom/shapes";
 import { fmt } from "./fmt";
@@ -54,8 +62,22 @@ export function polygonAttr(p: PolygonGeometry): string {
   return [p.sides, p.star ? 1 : 0, p.innerRatio, p.cx, p.cy, p.rx, p.ry].map(fmt).join(" ");
 }
 
+/** Spec M9 §4: the same pair `layerAttrs` writes, so a hidden or locked node is expressed the way
+ *  this app already expresses a hidden or locked layer and any reader understands it. */
+function flagAttrs(n: Node): Attrs {
+  return {
+    ...(isLocked(n) ? { "data-sv-locked": "" } : {}),
+    ...(isHidden(n) ? { display: "none" } : {}),
+  };
+}
+
 export function shapeAttrs(s: Shape): { tag: "rect" | "ellipse" | "path"; attrs: Attrs } {
-  const common = { ...transformAttr(s.transform), ...nameAttr(s.name), ...styleAttrs(s.style) };
+  const common = {
+    ...transformAttr(s.transform),
+    ...nameAttr(s.name),
+    ...flagAttrs(s),
+    ...styleAttrs(s.style),
+  };
   switch (s.kind) {
     case "rect":
       return {
@@ -103,6 +125,7 @@ export function groupAttrs(g: Group): Attrs {
     ...transformAttr(g.transform),
     ...(g.opacity !== 1 ? { opacity: fmt(g.opacity) } : {}),
     ...nameAttr(g.name),
+    ...flagAttrs(g),
   };
 }
 

@@ -38,7 +38,11 @@ Early development. What works today:
   — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties
   panel.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
-  new shapes; z-order (bring forward/backward, to front/back).
+  new shapes; z-order (bring forward/backward, to front/back). **Every shape and group has its own
+  eye and lock too** — a hidden or locked object can't be clicked, dragged or marquee-selected, and
+  its row in the panel is how you get it back.
+- Hidden content in other tools' files is kept, not thrown away: `display:none` and
+  `visibility:hidden` come in as hidden objects you can switch back on.
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the
   layers panel.
 - Node editing: double-click a path with the Select tool, or press N, to edit its nodes — move
@@ -88,7 +92,7 @@ paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 521 unit tests
+npm test          # 539 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

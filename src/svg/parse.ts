@@ -62,6 +62,7 @@ const PROPS = [
   "stroke-linejoin",
   "opacity",
   "display",
+  "visibility",
   "clip-path",
   "mask",
   "filter",
@@ -231,7 +232,37 @@ export function parseSvg(src: string): ParseResult {
     return { kind: "path", id, name, transform, style: st, subpaths: nonEmpty };
   }
 
+  /** Spec M9 §4: a node's own `display`/`visibility`, and the two spellings of locked. `props`
+   *  reads the element's own attributes and its `style` attribute, never the inherited value, so a
+   *  hidden group marks itself and its children stay ordinary — which is what makes the group
+   *  round-trip as one `display="none"` rather than one per descendant. */
+  function flagsOf(el: XmlElement, p: ReturnType<typeof props>) {
+    const hidden = p.display === "none" || p.visibility === "hidden";
+    const locked =
+      el.attrs["data-sv-locked"] !== undefined || el.attrs["sodipodi:insensitive"] === "true";
+    return { hidden, locked };
+  }
+
+  /** SVG lets a descendant override an inherited `visibility`; our one flag per node cannot say
+   *  that, so we report it rather than change the picture silently. */
+  function hasVisibleDescendant(el: XmlElement): boolean {
+    return el.children.some((c) => c.attrs.visibility === "visible" || hasVisibleDescendant(c));
+  }
+
   function convert(el: XmlElement, inh: Inherited): Node | null {
+    const node = convertNode(el, inh);
+    if (!node) return null;
+    const { hidden, locked } = flagsOf(el, props(el));
+    if (hidden && hasVisibleDescendant(el)) drop("nested visibility override");
+    if (!hidden && !locked) return node;
+    return {
+      ...node,
+      ...(hidden ? { hidden: true as const } : {}),
+      ...(locked ? { locked: true as const } : {}),
+    };
+  }
+
+  function convertNode(el: XmlElement, inh: Inherited): Node | null {
     const name = el.name.startsWith("svg:") ? el.name.slice(4) : el.name;
     if (name.includes(":") || SILENT.has(name)) return null;
     if (name === "style") {
@@ -239,7 +270,6 @@ export function parseSvg(src: string): ParseResult {
       return null;
     }
     const p = props(el);
-    if (p.display === "none") return null;
     const i2 = inherit(inh, p);
     const opacity = opacityValue(p.opacity, 1);
     let transform = parseTransform(el.attrs.transform ?? "");
