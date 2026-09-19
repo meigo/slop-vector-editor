@@ -105,7 +105,9 @@ describe("invertIds", () => {
 /** A tripwire, not a behaviour test: `sameStyle` in select-match.ts enumerates Style's fields by
  *  hand, and TypeScript cannot tell it has fallen behind — a field added to Style would simply go
  *  uncompared, and "Same Style" would call two different styles identical. If this fails, add the
- *  new field to `sameStyle` before updating the list here. */
+ *  new field to `sameStyle` before updating the list here. Its limit: it reads DEFAULT_STYLE's
+ *  runtime keys, so it catches a required field (which DEFAULT_STYLE must then set) but not an
+ *  optional one. */
 describe("Style's shape", () => {
   it("has exactly the fields Same Style compares", () => {
     expect(Object.keys(DEFAULT_STYLE).sort()).toEqual([

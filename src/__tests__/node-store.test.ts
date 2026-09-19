@@ -401,7 +401,9 @@ describe("selection commands", () => {
     expect(app.selection).toEqual(["p"]);
   });
 
-  it("selects the same fill, and stays out of a hidden layer", () => {
+  // The reach rule itself is covered in select-match.test.ts, whose fixture has hidden and locked
+  // layers; this fixture has one layer, so hiding it only proves the selection clears.
+  it("selects the same fill, and clears when its layer is hidden", () => {
     setSelection(["p"]);
     selectSame("fill");
     // p and r share DEFAULT_STYLE, so both match.

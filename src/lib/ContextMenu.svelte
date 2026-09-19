@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { allIds } from "../doc/select-match";
   import { findNode } from "../doc/tree";
   import {
     app,
@@ -174,9 +175,11 @@
       </button>
     {/if}
     <div class="my-1 h-px bg-line"></div>
-    <button class="menu-item" role="menuitem" onclick={() => run(selectAll)}>
-      Select All <span class="kbd">⌘A</span>
-    </button>
+    {#if allIds(app.doc, app.enteredGroupId).length > 0}
+      <button class="menu-item" role="menuitem" onclick={() => run(selectAll)}>
+        Select All <span class="kbd">⌘A</span>
+      </button>
+    {/if}
     <button class="menu-item" role="menuitem" onclick={() => run(invertSelection)}>
       Invert Selection <span class="kbd">⇧⌘A</span>
     </button>

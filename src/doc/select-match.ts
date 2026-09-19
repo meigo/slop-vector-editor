@@ -57,13 +57,13 @@ export function sameIds(
 ): string[] {
   const seeds = ids.flatMap((id) => findNode(doc, id)?.node ?? []);
   if (seeds.length === 0) return [];
-  const kept = new Set(seeds.map((n) => n.id));
   const found = allIds(doc, entered).filter((id) => {
     const node = findNode(doc, id)?.node;
     return node !== undefined && seeds.some((seed) => matches(field, node, seed));
   });
-  for (const id of found) kept.add(id);
-  // Document order for the ids in reach, with any out-of-reach seed kept ahead of them.
-  const inReach = new Set(found);
-  return [...seeds.map((n) => n.id).filter((id) => !inReach.has(id)), ...found];
+  // The matches in document order, with any seed that produced none kept ahead of them — a seed out
+  // of reach, and a group under a paint field. Keeping them last would make `setSelection` point
+  // the current layer at something the user cannot click.
+  const matched = new Set(found);
+  return [...seeds.map((n) => n.id).filter((id) => !matched.has(id)), ...found];
 }

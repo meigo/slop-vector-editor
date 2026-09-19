@@ -160,7 +160,12 @@
         >
           Select All <span class="kbd">{mod}A</span>
         </button>
-        <button class="menu-item" role="menuitem" onclick={() => runSelect(invertSelection)}>
+        <button
+          class="menu-item"
+          role="menuitem"
+          title="Select what is not selected now ({shiftMod}A)"
+          onclick={() => runSelect(invertSelection)}
+        >
           Invert Selection <span class="kbd">{shiftMod}A</span>
         </button>
         <div class="my-1 h-px bg-line"></div>
