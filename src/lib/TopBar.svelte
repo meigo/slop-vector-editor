@@ -103,7 +103,13 @@
 
 <!-- One bar, icons only (spec M2e §2). It never wraps or scrolls: a scrolling bar would clip the
      File menu (M2d §5), so only the file name shrinks. -->
-<header class="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-panel px-2 text-xs">
+<!-- Tighter gutters and gaps below 900px, where the bar has 25 gaps and no room to spare: at a
+     correct 16px root it needs 776px of fixed width, and an iPad portrait window is 768. This buys
+     back ~58px without hiding a control, which matters because the context menu — the only other
+     route to most of these — is mouse-only. -->
+<header
+  class="flex h-11 shrink-0 items-center gap-0.5 border-b border-line bg-panel px-1 text-xs min-[900px]:gap-1 min-[900px]:px-2"
+>
   <div class="relative shrink-0">
     <button
       class={[

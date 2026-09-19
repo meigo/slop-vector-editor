@@ -35,10 +35,19 @@ body {
   background: var(--color-ground);
   color: var(--color-text);
   font-family: var(--font-sans);
-  font-size: 14px;
   line-height: 1.4;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Body text is 14px (UI guide §3) — but ONLY on the body. Setting it on `html` shrinks every
+   Tailwind size with it, because the whole scale is in `rem` and `rem` resolves against the root:
+   `text-xs` became 10.5px, `h-8` controls 28px, the 240px sidebar 210px, and the top bar 38.5px.
+   The class names then lie, and this app rendered 12.5% smaller than its siblings, none of which
+   set a root font-size. Leave the root at the browser's 16px so the numbers in the code are the
+   numbers on screen. */
+body {
+  font-size: 14px;
 }
 
 /* Fixed like slop-animator: iOS must not scroll or rubber-band the app shell. */

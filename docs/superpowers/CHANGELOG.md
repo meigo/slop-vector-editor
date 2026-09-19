@@ -772,3 +772,31 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   covers the Path menu and the icons' absence below 900px. Performance is unmeasured: Paper's
   boolean code is the heaviest geometry in the app, and a path with thousands of nodes has not been
   tried. Nothing here can be device-verified.
+
+## 2026-09-19 — The root font-size, and the sizes that depended on it
+
+- `src/app.css` set `font-size: 14px` on `html, body`. Tailwind's scale is in `rem` and `rem`
+  resolves against the root, so **every rem-based size in the app rendered at 87.5%**: `text-xs`
+  came out at 10.5px rather than 12, `h-8` controls at 28px rather than 32, the `h-11` top bar at
+  38.5px, and the `w-60` sidebar at 210px rather than 240. Values written in absolute units —
+  `text-[11px]` section headings, 1px borders and separators — were untouched, so the interface was
+  not uniformly smaller; it was smaller only in its rem parts, which is why it read as an undersized
+  font next to chrome that had not moved.
+- The root now stays at the browser's 16px and body text is 14px, set on `body` alone. Every size
+  returns to the number its class names always claimed. This also makes two existing documents true
+  again: CLAUDE.md's "bar controls are 32px high" (they were 28) and the M5 spec's reasoning about a
+  240px drawer (it was 210).
+- No sibling slop app sets a root font-size: slop-animator, slop-audio-editor and
+  slop-video-compositor leave it alone, slop-paint's 12px is on one input and slop-vectorizer's is
+  on `body`, which does not affect `rem`. This app was the only one of the family rendering small.
+- The top bar's fixed width grew with everything else — from about 680px to 776px below 900px,
+  against a 768px iPad-portrait window. Its gaps and gutters tighten below that breakpoint
+  (`gap-0.5`, `px-1`), which buys back ~58px and brings the requirement to 726px: 42px of room for
+  the file name at 768px, 18px at 744px. Nothing is hidden to achieve it — the context menu, the
+  only other route to most of these controls, is mouse-only.
+- Browser-verified: root 16px and body 14px; `text-xs` 12px, `h-8` 32px, the bar 44px and the
+  sidebar 240px; the bar does not overflow; notices still clear the modifier dock by 10px, so the
+  M5 tuning survives and its comment's arithmetic is now accurate. No console errors.
+- Owed: the 744px and 768px widths were computed from measured element widths, not seen — the
+  window would not resize this session. The iPad pass owed since M5 now also covers the tightened
+  bar at portrait widths.

@@ -176,6 +176,12 @@ every user-visible change.
     - Fields are raised.
     - A state change must not move the layout. For example, unsaved changes recolour the file
       name.
+    - **The root font-size stays at the browser's 16px.** Tailwind's whole scale is in `rem`, which
+      resolves against `html`, so setting a root size silently rescales every size in the app:
+      `font-size: 14px` on `html` made `text-xs` 10.5px, `h-8` controls 28px, the 240px sidebar
+      210px and this bar 38.5px, while absolute values like `text-[11px]` and 1px borders stayed
+      put — so the UI was smaller than its own class names in the rem parts only. Body text is
+      14px, set on `body`. No sibling slop app sets a root size.
     - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
       with slop-animator, because it suits touch.
 24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
