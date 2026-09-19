@@ -41,6 +41,10 @@ Early development. What works today:
   and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
   — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties
   panel.
+- **Artistic titles**: place a title with the Text tool (T) and type it in the properties panel —
+  choose a font, size, letter-spacing and alignment. The title is outlined to paths, so it looks the
+  same on every machine and can be combined, node-edited and recoloured like any other artwork,
+  while staying re-typeable. Drop in your own `.ttf`, `.otf` or `.woff`.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back). **Every shape and group has its own
   eye and lock too** — a hidden or locked object can't be clicked, dragged or marquee-selected, and
@@ -82,6 +86,7 @@ Early development. What works today:
 | Group / Ungroup                                 | ⌘G / ⇧⌘G                              |
 | Edit nodes                                      | N                                     |
 | Pen                                             | P                                     |
+| Text                                            | T                                     |
 | Finish a path                                   | Enter                                 |
 
 ## Roadmap
@@ -95,7 +100,7 @@ multiple artboards; masks/clipping; align & distribute; system-clipboard image p
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 539 unit tests
+npm test          # 566 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
@@ -110,3 +115,17 @@ auth. The live demo above is that deploy.
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
+
+### Bundled fonts
+
+Four typefaces ship with the editor, each under the [SIL Open Font License 1.1](https://openfontlicense.org),
+with its licence text beside it in `src/text/fonts/`:
+
+| Font                                                             | Copyright                      |
+| ---------------------------------------------------------------- | ------------------------------ |
+| [Anton](https://fonts.google.com/specimen/Anton)                 | The Anton Project Authors      |
+| [Bebas Neue](https://fonts.google.com/specimen/Bebas+Neue)       | The Bebas Neue Project Authors |
+| [Archivo Black](https://fonts.google.com/specimen/Archivo+Black) | The Archivo Project Authors    |
+| [Righteous](https://fonts.google.com/specimen/Righteous)         | The Righteous Project Authors  |
+
+The OFL is separate from this project's MIT licence and continues to govern the fonts themselves.

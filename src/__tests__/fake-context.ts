@@ -6,9 +6,12 @@ import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
 import { beginGesture, commit, endGesture, newSession, type Session } from "../state/session";
 import type { View } from "../state/viewport";
 import type { Overlay, ToolContext, ToolEvent } from "../tools/tool";
+import type { Vec } from "../geom/vec";
 import { NO_MODS, type Mods, type ToolId } from "../tools/types";
 
 export type FakeState = {
+  /** Where the Text tool asked for a title (spec M10 §6). */
+  titlesPlaced: Vec[];
   session: Session;
   selection: readonly string[];
   currentLayerId: string;
@@ -27,6 +30,7 @@ export function fakeContext(
   prefs: Prefs = DEFAULT_PREFS,
 ): { ctx: ToolContext; state: FakeState } {
   const state: FakeState = {
+    titlesPlaced: [],
     session: newSession(doc, true),
     selection: [],
     currentLayerId: resolveLayerId(doc, null),
@@ -73,6 +77,9 @@ export function fakeContext(
     },
     prefs: () => prefs,
     snapEnabled: () => prefs.snap,
+    placeTitle: (at) => {
+      state.titlesPlaced.push(at);
+    },
     notify: (_kind, text) => {
       state.notices.push(text);
     },

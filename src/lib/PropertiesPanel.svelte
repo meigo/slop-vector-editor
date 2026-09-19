@@ -24,6 +24,8 @@
   } from "../state/properties";
   import NumberField from "./NumberField.svelte";
   import PanelHeader from "./PanelHeader.svelte";
+  import TextPanel from "./TextPanel.svelte";
+  import { selectedTitle } from "../state/appState.svelte";
   import PaintField from "./PaintField.svelte";
   import ToggleButton from "./ToggleButton.svelte";
 
@@ -60,6 +62,8 @@
   const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
   const polygons = $derived(hasSelection ? summarizePolygons(app.doc, app.selection) : null);
   const poly = $derived(app.prefs.polygon);
+  /** Spec M10 §6: the Text section appears for a single selected title. */
+  const title = $derived(selectedTitle());
   const value = <T,>(f: Field<T>): T | null => (f.mixed ? null : f.value);
 
   let { expanded, ontoggle, flex }: { expanded: boolean; ontoggle: () => void; flex: string } =
@@ -79,6 +83,12 @@
       <h2 class="section-title">
         {hasSelection ? "Selection" : "Defaults for new shapes"}
       </h2>
+
+      <!-- Spec M10 §6: first, not last. Placing a title is immediately followed by typing it, and
+           this panel scrolls — below the paint and geometry sections it sat under the fold. -->
+      {#if title}
+        <TextPanel {title} />
+      {/if}
 
       {#if summary}
         <PaintField

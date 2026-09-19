@@ -12,9 +12,13 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
-  build now emits two chunks — the app's own and `paper-core`'s — and the app's own must stay near
-  72 KB gzipped; a rise means something outside `src/geom/boolean.ts` pulled paper in at load time.
-- `npm test` — Vitest, node env, no DOM — 539 tests in 43 files. Only pure logic is unit-tested.
+  build emits **three** chunks — the app's own, `paper-core`'s and `opentype`'s. The check is not a
+  size bar on the app chunk (it grows with every feature) but that the two libraries stay in chunks
+  of their own: paper in `dist/assets/paper-core-*.js` (~72 KB gzipped) and opentype in
+  `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
+  outside `src/geom/boolean.ts` or `src/text/font.ts` imported it statically. The four bundled
+  fonts are content-hashed `.ttf` assets beside them.
+- `npm test` — Vitest, node env, no DOM — 566 tests in 46 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -63,6 +67,11 @@ every user-visible change.
   `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
   planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
+- `src/text/` — `font.ts` (the **only** importer of `opentype.js`, and only dynamically: font
+  registry, `loadFont`, `registerFontFile`, `outlineText`, the unshaped-script and no-glyph
+  guards), `layout.ts` (pure: pen positions, kerning, letter-spacing, alignment), `attrs.ts` (pure:
+  the `data-sv-text-*` format), `opentype.d.ts` (hand-written types — see the invariant),
+  `fonts/` (four SIL OFL faces + their `OFL.txt`, imported through Vite `?url`).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
   (localStorage: style + polygon defaults for new shapes, snap, the dock's expanded state, the
@@ -356,10 +365,39 @@ every user-visible change.
     locked layer already does here), which is why its row's own eye and lock stay live while the
     row is blocked: that row is the only way back.
 
+40. **A title is a path that remembers it was text** (spec M10 §3). `PathShape.text` is optional
+    metadata; absent means an ordinary path, which is why the 23 places that test `kind === "path"`
+    needed no changes and M11's warp will need none either. It is **not** a new node kind, and it is
+    not like a polygon: a polygon regenerates its `d` from seven numbers and validates on import by
+    regenerating, while a title **stores its outlines** and the file's `d` is authoritative, because
+    regenerating needs a font that may be missing.
+    - **Any bake of geometry into a path drops `text`.** Re-typing re-derives the outlines from the
+      font, so a reshape, resize or flatten left in place would be silently thrown away on the next
+      keystroke. `path-edit.ts` funnels every structural edit through `withSubpaths`; `resize.ts`
+      and `flattenTransform` go through `withBakedSubpaths` in `document.ts`. Both of the latter
+      were missed first time round: a resize snapped back and a flattened title jumped to the
+      origin. A new bake site must use one of those two funnels.
+    - **Only `src/text/font.ts` may import `opentype.js`, and only through `await import(...)`**, so
+      the parser stays a ~68 KB gzipped lazy chunk. Its ESM export is a **default object**:
+      `(await import("opentype.js")).default`, then `.parse(buf)` — `import * as ot` has no `parse`.
+      The package ships **no types**, and `@types/opentype.js` is for 1.x and describes a different
+      API (it declares `names.fontFamily`, which is `undefined` in 2.0 — the name lives under a
+      platform, `names.windows.fontFamily.en`), so `src/text/opentype.d.ts` declares by hand only
+      what we call.
+    - **Outlines are quadratic**; `svg/pathdata.ts`'s `parsePathData` already converts them to our
+      cubics exactly, so the glyph pipeline needs no geometry code of its own.
+    - **WOFF2 cannot be read** — the parser throws, needing a brotli decompressor — so `.woff2` is
+      refused by name before parsing. It is the format people most often have.
+    - **Available ≠ fetched.** A bundled font is always available even before its first fetch; only
+      a font added from a file, in a later session, is unavailable. Asking "is it loaded" made every
+      title in a reopened file read-only.
+    - Scripts needing shaping or RTL (`unshapedScript`) and strings the font has no glyphs for
+      (`noGlyphsFor`) are **refused with a notice**, never drawn wrongly.
+
 ## Current state
 
-Milestone 9 (per-object visibility and lock) — see CHANGELOG. What comes next is unplanned: the
-post-v1 list (project design §10) still holds text, gradients, a freehand tool, PNG export, grid
+Milestone 10a (titles) — see CHANGELOG. What comes next is unplanned: the
+post-v1 list (project design §10) still holds gradients, a freehand tool, PNG export, grid
 and smart guides, multiple artboards, masks, align and distribute, and image paste. **A light
 theme is no longer planned** (2026-09-19) — the design doc still lists it, as a dated document
 that later decisions supersede rather than rewrite. The accessibility group and the performance
@@ -369,7 +407,10 @@ group (both parked below) remain the two obvious milestones.
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split) and
-M9 (per-object visibility and lock) are complete — see CHANGELOG.
+M9 (per-object visibility and lock) and M10a (titles) are complete — see CHANGELOG.
+**M10b — the randomiser** (seed, per-property amounts, re-roll, per-character overrides) is specced
+in the M10 design §10 and is the next step; the model and the file format already carry its fields
+at identity values, so it needs no format change.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

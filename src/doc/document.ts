@@ -63,7 +63,33 @@ export type PolygonShape = ShapeBase & {
   /** MIN_INNER–MAX_INNER; kept while `star` is off. */
   innerRatio: number;
 };
-export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[] };
+/** A title's metadata (spec M10 §3). Present only on a path generated from text, and dropped by
+ *  any structural node edit — the geometry is hand-edited from then on and re-typing would destroy
+ *  it. Absent means an ordinary path, so the 23 places that test `kind === "path"` are unaffected. */
+export type TextMeta = {
+  text: string;
+  font: string;
+  size: number;
+  letterSpacing: number;
+  align: "left" | "center" | "right";
+  seed: number;
+  amounts: { rotate: number; scale: number; offset: number; skew: number };
+  overrides: Record<number, { r?: number; s?: number; dx?: number; dy?: number; k?: number }>;
+};
+
+export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[]; text?: TextMeta };
+
+/** Replaces a path's outlines and **drops its `text`** (spec M10 §3). Every place that bakes
+ *  geometry into a path must go through here: re-typing a title re-derives its outlines from the
+ *  font, so any baked-in reshaping, resize or flatten would be silently thrown away on the next
+ *  keystroke. `path-edit.ts` had this funnel from the start; `resize.ts` and `flattenTransform`
+ *  did not, and both lost the change on the next edit — a resize snapped back, and a flattened
+ *  title teleported to the origin. */
+export function withBakedSubpaths(p: PathShape, subpaths: Subpath[]): PathShape {
+  const next = { ...p, subpaths };
+  delete next.text;
+  return next;
+}
 export type Shape = RectShape | EllipseShape | PolygonShape | PathShape;
 
 export type Group = NodeFlags & {

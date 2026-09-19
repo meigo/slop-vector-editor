@@ -1,3 +1,4 @@
+import { formatOverrides, formatTextOpts } from "../text/attrs";
 import {
   isHidden,
   isLocked,
@@ -6,6 +7,7 @@ import {
   type Node,
   type Shape,
   type Style,
+  type TextMeta,
 } from "../doc/document";
 import { isIdentity, type Mat } from "../geom/mat";
 import { polygonSubpath, type PolygonGeometry } from "../geom/shapes";
@@ -62,6 +64,19 @@ export function polygonAttr(p: PolygonGeometry): string {
   return [p.sides, p.star ? 1 : 0, p.innerRatio, p.cx, p.cy, p.rx, p.ry].map(fmt).join(" ");
 }
 
+/** Spec M10 §7: a title is an ordinary `<path>` that carries what it needs to be re-typed. Every
+ *  other reader draws the `d` and ignores these. */
+function textAttrs(t: TextMeta | undefined): Attrs {
+  if (!t) return {};
+  const chars = formatOverrides(t.overrides);
+  return {
+    "data-sv-text": t.text,
+    "data-sv-font": t.font,
+    "data-sv-text-opts": formatTextOpts(t),
+    ...(chars === "" ? {} : { "data-sv-text-chars": chars }),
+  };
+}
+
 /** Spec M9 §4: the same pair `layerAttrs` writes, so a hidden or locked node is expressed the way
  *  this app already expresses a hidden or locked layer and any reader understands it. */
 function flagAttrs(n: Node): Attrs {
@@ -114,6 +129,7 @@ export function shapeAttrs(s: Shape): { tag: "rect" | "ellipse" | "path"; attrs:
         attrs: {
           d: subpathsToD(s.subpaths),
           "data-sv-nodes": nodeTypesAttr(s.subpaths),
+          ...textAttrs(s.text),
           ...common,
         },
       };

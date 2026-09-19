@@ -8,6 +8,7 @@ import {
   createPolygonTool,
   createRectTool,
 } from "./shape-tools";
+import { createTextTool } from "./text-tool";
 import type { Tool } from "./tool";
 import type { ToolId } from "./types";
 
@@ -19,6 +20,7 @@ export const TOOLS: Readonly<Record<ToolId, Tool>> = {
   line: createLineTool(),
   polygon: createPolygonTool(),
   pen: createPenTool(),
+  text: createTextTool(),
   node: createNodeTool(),
   hand: createHandTool(),
 };
