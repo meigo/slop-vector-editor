@@ -8,7 +8,7 @@ Your document is a plain `.svg` file: open it in any browser or design tool.
 
 **[Try it → slop-vector-editor.meigo.workers.dev](https://slop-vector-editor.meigo.workers.dev)**
 
-![The editor with a vectorised drawing open: tool strip, canvas, properties and layers panels, and the on-screen modifier pad](docs/screenshot.png)
+![The editor with a vectorised drawing open: tool strip, canvas with a selected ellipse, the properties and layers panels, and the on-screen modifier pad](docs/screenshot.png)
 
 ## Status
 
@@ -87,8 +87,7 @@ Early development. What works today:
 ## Roadmap
 
 Unplanned: text; gradients; a freehand pencil/brush tool; PNG export; grid and smart guides;
-multiple artboards; masks/clipping; align & distribute; a light theme; system-clipboard image
-paste.
+multiple artboards; masks/clipping; align & distribute; system-clipboard image paste.
 
 ## Development
 
