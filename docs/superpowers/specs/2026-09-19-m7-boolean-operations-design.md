@@ -35,14 +35,27 @@ Verified in a spike before this spec was written:
   boolean code is unit-testable in the project's Node/Vitest environment like any other pure module.
 - **Boolean results keep curves as curves.** A circle minus a square comes back with its Bézier
   handles intact, not flattened.
-- **Cost:** 204 KB minified, **70.6 KB gzipped**. The app's current bundle is about 67 KB gzipped,
-  so this roughly doubles it. That is the price of the feature and it is paid on first load.
+- **Cost, and how it is paid.** Paper is 204 KB minified, **72.4 KB gzipped** — as much again as the
+  whole app, which is 69.2 KB gzipped today. Bundling it normally would double the download for
+  every user on every visit, for a feature most sessions never touch. So it is **loaded on first
+  use**: `booleanOf` does `await import("paper/dist/paper-core")`, Vite emits it as its own chunk,
+  and the initial bundle grows only by the boolean code itself — measured at **69.2 → 71.4 KB
+  gzipped**, with paper's 72.4 KB fetched the first time someone runs an operation.
+  The refusal rules the menus need (§7) are pure and touch none of this, so no menu ever waits on a
+  download to decide whether a command applies.
+  The consequence is that `booleanOf`, `booleanShapes` and the store action are **async**. That is
+  the whole cost of the split.
 
 Everything Paper touches lives in **`src/geom/boolean.ts`**. No other module imports `paper`; the
 rest of the app sees plain `Subpath[]` in and out. If Paper is ever replaced — by a polygon clipper,
 or by our own geometry — that is one file.
 
-`paper.setup` is called once, lazily, on the first operation.
+`paper.setup(new paper.Size(1, 1))` is called once, when the module first loads.
+
+The import specifier is **`paper/dist/paper-core`, with no file extension** — the package's own type
+declarations declare that exact module name, and the extension-ful path resolves to no types. The
+package's default entry (`paper`) is the *full* build, which carries PaperScript and expects a DOM;
+it must not be used.
 
 ## 3. Conversion
 
@@ -167,8 +180,9 @@ throughout; the inputs are removed and the result inserted in a single new docum
   - transforms: two shapes with different matrices combine in document space and the result carries
     an identity transform.
   - the result's style and z-position, including Subtract taking the backmost shape's style.
-- **Build:** 0 errors, 0 warnings; lint and format clean. The bundle grows by about 70 KB gzipped;
-  record the before and after.
+- **Build:** 0 errors, 0 warnings; lint and format clean. Two chunks must come out of the build —
+  the app's own and paper's — and the app's own must stay within a few KB of where it was. Record
+  both, gzipped.
 - **Browser (controller, port 5198, screenshots):** each command from the Path menu and from the
   icons; the icons absent and the menu present at 768 px; the disabled reasons; the context menu's
   entries; a hole rendering as a hole rather than filling solid; a result editable with the Node
