@@ -81,8 +81,10 @@
     hideTitle="Hide the properties"
   />
   {#if expanded}
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-3 text-xs">
-      <h2 class="section-title">
+    <div
+      class="field-grid min-h-0 flex-1 content-start overflow-y-auto overscroll-contain p-3 text-xs"
+    >
+      <h2 class="section-title field-full">
         {hasSelection ? "Selection" : "Defaults for new shapes"}
       </h2>
 
@@ -93,59 +95,63 @@
       {/if}
 
       {#if summary}
-        <PaintField
-          label="Fill"
-          field={summary.fill}
-          present={summary.fillOn}
-          fallback={app.prefs.style.fill ?? FILL_FALLBACK}
-          onchange={(p) => setSelectionStyle({ fill: p })}
-          onlivestart={beginDocGesture}
-          onliveend={endDocGesture}
-        />
-        <PaintField
-          label="Stroke"
-          field={summary.stroke}
-          present={summary.strokeOn}
-          fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
-          onchange={(p) => setSelectionStyle({ stroke: p })}
-          onlivestart={beginDocGesture}
-          onliveend={endDocGesture}
-        />
-        <div class="flex flex-wrap items-center gap-2">
-          <NumberField
-            label="Width"
-            value={value(summary.strokeWidth)}
-            min={0}
-            max={1000}
-            onchange={(v) => setSelectionStyle({ strokeWidth: v })}
+        <div class="field-full">
+          <PaintField
+            label="Fill"
+            field={summary.fill}
+            present={summary.fillOn}
+            fallback={app.prefs.style.fill ?? FILL_FALLBACK}
+            onchange={(p) => setSelectionStyle({ fill: p })}
+            onlivestart={beginDocGesture}
+            onliveend={endDocGesture}
           />
-          <label class="flex items-center gap-1">
-            <span class="text-muted">Cap</span>
-            <select
-              class="field"
-              value={value(summary.cap) ?? ""}
-              onchange={(e) => setSelectionStyle({ cap: e.currentTarget.value as LineCap })}
-            >
-              <option value="" disabled>mixed</option>
-              <option value="butt">butt</option>
-              <option value="round">round</option>
-              <option value="square">square</option>
-            </select>
-          </label>
-          <label class="flex items-center gap-1">
-            <span class="text-muted">Join</span>
-            <select
-              class="field"
-              value={value(summary.join) ?? ""}
-              onchange={(e) => setSelectionStyle({ join: e.currentTarget.value as LineJoin })}
-            >
-              <option value="" disabled>mixed</option>
-              <option value="miter">miter</option>
-              <option value="round">round</option>
-              <option value="bevel">bevel</option>
-            </select>
-          </label>
         </div>
+        <div class="field-full">
+          <PaintField
+            label="Stroke"
+            field={summary.stroke}
+            present={summary.strokeOn}
+            fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
+            onchange={(p) => setSelectionStyle({ stroke: p })}
+            onlivestart={beginDocGesture}
+            onliveend={endDocGesture}
+          />
+        </div>
+        <NumberField
+          label="Width"
+          value={value(summary.strokeWidth)}
+          min={0}
+          max={1000}
+          onchange={(v) => setSelectionStyle({ strokeWidth: v })}
+        />
+        <label class="field-row">
+          <span class="text-muted">Cap</span>
+          <select
+            class="field w-full min-w-0"
+            value={value(summary.cap) ?? ""}
+            onchange={(e) => setSelectionStyle({ cap: e.currentTarget.value as LineCap })}
+          >
+            <option value="" disabled>mixed</option>
+            <option value="butt">butt</option>
+            <option value="round">round</option>
+            <option value="square">square</option>
+          </select>
+          <span></span>
+        </label>
+        <label class="field-row">
+          <span class="text-muted">Join</span>
+          <select
+            class="field w-full min-w-0"
+            value={value(summary.join) ?? ""}
+            onchange={(e) => setSelectionStyle({ join: e.currentTarget.value as LineJoin })}
+          >
+            <option value="" disabled>mixed</option>
+            <option value="miter">miter</option>
+            <option value="round">round</option>
+            <option value="bevel">bevel</option>
+          </select>
+          <span></span>
+        </label>
         <NumberField
           label="Opacity"
           value={opacityValue}
@@ -157,8 +163,8 @@
       {/if}
 
       {#if rects || polygons}
-        <div class="flex flex-col gap-2 border-t border-line pt-3">
-          <span class="section-title">Shape</span>
+        <div class="contents">
+          <span class="section-title field-divider">Shape</span>
           {#if rects}
             <NumberField
               label="Radius"
@@ -168,70 +174,68 @@
             />
           {/if}
           {#if polygons}
-            <div class="flex flex-wrap items-center gap-2">
-              <NumberField
-                label="Sides"
-                value={polygons.sides}
-                min={3}
-                max={32}
-                onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
-              />
+            <NumberField
+              label="Sides"
+              value={polygons.sides}
+              min={3}
+              max={32}
+              onchange={(v) => setSelectionPolygon({ sides: Math.round(v) })}
+            />
+            <div class="field-full">
               <ToggleButton
                 label="Star"
                 value={polygons.star}
                 onchange={(star) => setSelectionPolygon({ star })}
               />
-              {#if polygons.anyStar}
-                <NumberField
-                  label="Inner"
-                  value={polygons.innerRatio === null
-                    ? null
-                    : Math.round(polygons.innerRatio * 100)}
-                  min={10}
-                  max={95}
-                  suffix="%"
-                  onchange={(v) => setSelectionPolygon({ innerRatio: v / 100 })}
-                />
-              {/if}
             </div>
+            {#if polygons.anyStar}
+              <NumberField
+                label="Inner"
+                value={polygons.innerRatio === null ? null : Math.round(polygons.innerRatio * 100)}
+                min={10}
+                max={95}
+                suffix="%"
+                onchange={(v) => setSelectionPolygon({ innerRatio: v / 100 })}
+              />
+            {/if}
           {/if}
         </div>
       {/if}
 
       {#if !hasSelection || app.toolId === "polygon"}
-        <div class="flex flex-col gap-2 border-t border-line pt-3">
-          <span class="section-title">New polygons</span>
-          <div class="flex flex-wrap items-center gap-2">
-            <NumberField
-              label="Sides"
-              value={poly.sides}
-              min={3}
-              max={32}
-              onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
-            />
+        <div class="contents">
+          <span class="section-title field-divider">New polygons</span>
+          <NumberField
+            label="Sides"
+            value={poly.sides}
+            min={3}
+            max={32}
+            onchange={(v) => setPolygonPrefs({ sides: Math.round(v) })}
+          />
+          <div class="field-full">
             <ToggleButton
               label="Star"
               value={poly.star}
               onchange={(star) => setPolygonPrefs({ star })}
             />
-            {#if poly.star}
-              <NumberField
-                label="Inner"
-                value={Math.round(poly.innerRatio * 100)}
-                min={10}
-                max={95}
-                suffix="%"
-                onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
-              />
-            {/if}
           </div>
+          {#if poly.star}
+            <NumberField
+              label="Inner"
+              value={Math.round(poly.innerRatio * 100)}
+              min={10}
+              max={95}
+              suffix="%"
+              onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
+            />
+          {/if}
         </div>
       {/if}
 
       {#if nodeSummary}
-        <div class="flex flex-col gap-2 border-t border-line pt-3">
-          <span class="section-title">Node</span>
-          <div class="flex gap-1">
+        <div class="contents">
+          <span class="section-title field-divider">Node</span>
+          <div class="field-full flex gap-1">
             {#each NODE_TYPES as t (t.type)}
               <ToggleButton
                 value={nodeSummary.type === "mixed" ? "mixed" : nodeSummary.type === t.type}
@@ -242,36 +246,24 @@
           </div>
           {#if nodeSummary.point}
             {@const pt = nodeSummary.point}
-            <div class="flex gap-2">
-              <NumberField
-                label="X"
-                value={pt.x}
-                onchange={(v) => moveSelectedNodes(v - pt.x, 0)}
-              />
-              <NumberField
-                label="Y"
-                value={pt.y}
-                onchange={(v) => moveSelectedNodes(0, v - pt.y)}
-              />
-            </div>
+            <NumberField label="X" value={pt.x} onchange={(v) => moveSelectedNodes(v - pt.x, 0)} />
+            <NumberField label="Y" value={pt.y} onchange={(v) => moveSelectedNodes(0, v - pt.y)} />
           {/if}
         </div>
       {/if}
 
       {#if geometry}
-        <div class="flex flex-col gap-2 border-t border-line pt-3">
-          <span class="section-title">Geometry</span>
-          <div class="grid grid-cols-2 gap-2">
-            {#each GEOMETRY as g (g.field)}
-              <NumberField
-                label={g.label}
-                value={geometry[g.field]}
-                min={g.min}
-                suffix={g.suffix}
-                onchange={(v) => applyGeometry(g.field, v)}
-              />
-            {/each}
-          </div>
+        <div class="contents">
+          <span class="section-title field-divider">Geometry</span>
+          {#each GEOMETRY as g (g.field)}
+            <NumberField
+              label={g.label}
+              value={geometry[g.field]}
+              min={g.min}
+              suffix={g.suffix}
+              onchange={(v) => applyGeometry(g.field, v)}
+            />
+          {/each}
         </div>
       {/if}
     </div>

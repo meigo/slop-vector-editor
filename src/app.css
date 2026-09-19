@@ -70,6 +70,29 @@ body {
     @apply border-accent bg-accent text-accent-text hover:bg-accent-hover;
   }
   /* Fields are raised: an input must not be the colour of the surface it sits on (guide §3). */
+  /* label | field | unit. Every labelled row in the properties panel is a `.field-row` inside ONE
+     `.field-grid`, so the three columns line up across every row — including rows contributed by a
+     child component, which renders `display: contents` so its rows join the same grid. Borrowed
+     from slop-video-compositor's Inspector, where the same raggedness was solved this way.
+     `minmax(0, 1fr)` on the field column is what lets a field shrink instead of overflowing onto
+     its neighbour. Anything that is not a labelled row — a heading, a divider, a paint row — is a
+     full-width child (`.field-full`). */
+  .field-grid {
+    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2;
+  }
+  .field-row {
+    @apply contents;
+  }
+  .field-full {
+    @apply col-span-3;
+  }
+  /* A section heading is also the rule above it: the divider has to span all three columns, and
+     wrapping the section in a `<div>` to carry the border would start a second grid whose label
+     column sizes itself independently — exactly the raggedness this grid exists to remove. */
+  .field-divider {
+    @apply col-span-3 mt-1 border-t border-line pt-3;
+  }
+
   .field {
     @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text;
   }

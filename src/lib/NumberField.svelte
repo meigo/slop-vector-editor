@@ -31,10 +31,13 @@
   }
 </script>
 
-<label class="flex shrink-0 items-center gap-1 text-xs whitespace-nowrap">
-  {#if label}<span class="text-muted">{label}</span>{/if}
+<!-- Three grid cells, not a flex box: the label, the field and the unit each belong to a column
+     shared with every other row in the panel (see `.field-grid`). The empty spans matter — a row
+     with no label or no unit still needs its cells, or the columns shift. -->
+<label class="field-row text-xs whitespace-nowrap">
+  <span class="text-muted">{label}</span>
   <input
-    class="field w-16 tabular-nums"
+    class="field w-full min-w-0 tabular-nums"
     type="text"
     inputmode="decimal"
     value={shown}
@@ -56,5 +59,5 @@
       if (editing) commit();
     }}
   />
-  {#if suffix}<span class="text-muted">{suffix}</span>{/if}
+  <span class="text-muted">{suffix}</span>
 </label>

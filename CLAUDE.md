@@ -229,6 +229,18 @@ every user-visible change.
     - **The Layers header keeps its New layer and Delete layer buttons while collapsed**, because
       they are the only route to those commands — no menu, no shortcut. Both open the panel as a
       side effect, so the result is visible.
+    - **The properties panel is ONE grid, `label | field | unit`** (`.field-grid` in `app.css`,
+      borrowed from slop-video-compositor's Inspector). Every labelled row is a `.field-row`, which
+      is `display: contents`, so its three cells join that one grid and every input in the panel
+      shares one left and right edge — across the Text, Stroke, Shape, Node and Geometry sections
+      alike. A row with no label or no suffix still renders its empty `<span>`s, or the columns
+      shift. Anything that is not a labelled row — a heading, a paint row, the align buttons, the
+      textarea — is `.field-full` (`col-span-3`). **A section must not be its own `.field-grid`:** a
+      nested grid sizes its label column independently, which is the raggedness this replaced. A
+      section is a `<div class="contents">` whose heading carries the divider (`.field-divider`,
+      `col-span-3` + `border-t`). `minmax(0, 1fr)` on the field column is what lets a field shrink
+      instead of overflowing onto its neighbour — the earlier `grid-cols-2` gave 104px cells to
+      fields needing 125px and painted "Scale" over a "°".
 24. **Every `title` is also a status-bar hint** (spec M2e, amended M5 §5). On mouse hover, the
     status bar shows the nearest `title`; on touch and pen, which have no hover, it shows the
     title of whatever was just pressed (`onpointerdown`, `hintFrom` in `lib/hover-hint.ts`) — the

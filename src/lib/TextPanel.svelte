@@ -82,13 +82,13 @@
   ] as const;
 </script>
 
-<div class="flex flex-col gap-2 border-t border-line pt-3">
-  <span class="section-title">Text</span>
+<div class="contents">
+  <span class="section-title field-divider">Text</span>
 
   <!-- A textarea, not an input: Return must insert a line break, so it is deliberately NOT
        intercepted. The commit still happens on change/blur, exactly as the input did. -->
   <textarea
-    class="field resize-y py-1 leading-snug"
+    class="field field-full resize-y py-1 leading-snug"
     rows="2"
     aria-label="Title text"
     value={meta.text}
@@ -104,7 +104,7 @@
       if (el.isConnected) el.value = title.text?.text ?? el.value;
     }}></textarea>
 
-  <div class="flex items-center gap-2">
+  <div class="field-full flex items-center gap-2">
     <select
       class="field min-w-0 flex-1"
       aria-label="Font"
@@ -143,29 +143,27 @@
     />
   </div>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <NumberField
-      label="Size"
-      value={meta.size}
-      min={1}
-      onchange={(v) => ready && void setTitleOpts({ size: v })}
-    />
-    <NumberField
-      label="Spacing"
-      value={meta.letterSpacing}
-      onchange={(v) => ready && void setTitleOpts({ letterSpacing: v })}
-    />
-    <NumberField
-      label="Line height"
-      value={meta.lineHeight}
-      min={0.5}
-      max={4}
-      suffix="×"
-      onchange={(v) => ready && void setTitleOpts({ lineHeight: v })}
-    />
-  </div>
+  <NumberField
+    label="Size"
+    value={meta.size}
+    min={1}
+    onchange={(v) => ready && void setTitleOpts({ size: v })}
+  />
+  <NumberField
+    label="Spacing"
+    value={meta.letterSpacing}
+    onchange={(v) => ready && void setTitleOpts({ letterSpacing: v })}
+  />
+  <NumberField
+    label="Line height"
+    value={meta.lineHeight}
+    min={0.5}
+    max={4}
+    suffix="×"
+    onchange={(v) => ready && void setTitleOpts({ lineHeight: v })}
+  />
 
-  <div class="flex items-center gap-1">
+  <div class="field-full flex items-center gap-1">
     {#each ALIGNS as a (a.v)}
       <button
         class={["btn flex-1 justify-center", meta.align === a.v && "ui-on"]}
@@ -180,7 +178,7 @@
   </div>
 
   {#if charIndex !== null && effective}
-    <div class="mt-1 flex items-center justify-between">
+    <div class="field-full mt-1 flex items-center justify-between">
       <span class="section-title">Character {charIndex + 1}</span>
       <button
         class="btn"
@@ -190,25 +188,20 @@
         Reset
       </button>
     </div>
-    <p class="text-[11px] text-muted">
+    <p class="field-full text-[11px] text-muted">
       Exact values for this character. The rest of the title is untouched, and these survive a
       re-roll.
     </p>
-    <!-- `flex flex-wrap`, not a fixed grid: a NumberField is `shrink-0 whitespace-nowrap`, so in a
-         104px column its label and suffix overflowed onto the next field and painted over it
-         ("S°cale"). This is what the Size/Spacing row and the Geometry section already do. -->
-    <div class="flex flex-wrap items-center gap-2">
-      {#each CHAR_FIELDS as c (c.key)}
-        <NumberField
-          label={c.label}
-          value={c.of(effective)}
-          suffix={c.suffix}
-          onchange={(v) => ready && setChar(c.key, v)}
-        />
-      {/each}
-    </div>
+    {#each CHAR_FIELDS as c (c.key)}
+      <NumberField
+        label={c.label}
+        value={c.of(effective)}
+        suffix={c.suffix}
+        onchange={(v) => ready && setChar(c.key, v)}
+      />
+    {/each}
   {:else}
-    <div class="mt-1 flex items-center justify-between">
+    <div class="field-full mt-1 flex items-center justify-between">
       <span class="section-title">Randomise</span>
       <button
         class="btn"
@@ -220,20 +213,15 @@
       </button>
     </div>
 
-    <!-- `flex flex-wrap`, not a fixed grid: a NumberField is `shrink-0 whitespace-nowrap`, so in a
-         104px column its label and suffix overflowed onto the next field and painted over it
-         ("S°cale"). This is what the Size/Spacing row and the Geometry section already do. -->
-    <div class="flex flex-wrap items-center gap-2">
-      {#each AMOUNTS as a (a.key)}
-        <NumberField
-          label={a.label}
-          value={amountValue(a.key)}
-          min={0}
-          max={a.max}
-          suffix={a.suffix}
-          onchange={(v) => ready && setAmount(a.key, v)}
-        />
-      {/each}
-    </div>
+    {#each AMOUNTS as a (a.key)}
+      <NumberField
+        label={a.label}
+        value={amountValue(a.key)}
+        min={0}
+        max={a.max}
+        suffix={a.suffix}
+        onchange={(v) => ready && setAmount(a.key, v)}
+      />
+    {/each}
   {/if}
 </div>

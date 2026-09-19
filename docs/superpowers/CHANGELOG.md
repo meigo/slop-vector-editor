@@ -1271,3 +1271,22 @@ be the wrong words for the final behaviour, so they are not used.
   hand-written **8-field** file from before this change still opens as a title with its line height
   defaulted and nothing reported dropped. No console errors.
 - 607 tests in 48 files. Build 0 errors / 0 warnings.
+
+## 2026-09-20 — The properties panel is one grid
+
+- Every labelled row in the properties panel — Text, Randomise/Character, Stroke, Shape, New
+  polygons, Node, Geometry — now sits in a single `label | field | unit` grid (`.field-grid`,
+  `.field-row`, `.field-full`, `.field-divider` in `app.css`), so all the inputs share one left and
+  right edge. Previously each section laid itself out with `flex` or its own `grid`, and the fields
+  came out ragged from section to section (user screenshot, 2026-09-20).
+- `NumberField` is now three grid cells rather than a flex box, and always renders its label and
+  suffix spans — an absent one still needs its cell. `TextPanel` renders `display: contents`, so its
+  rows join the properties panel's grid rather than forming a second one.
+- Sections are `contents` wrappers, not nested grids: a nested grid sizes its own label column and
+  reintroduces exactly the raggedness this removes. The section heading carries the divider.
+- Supersedes the M10c note that the randomiser fields must live in a `flex flex-wrap` row: that was
+  a workaround for fixed `grid-cols-2` cells, and `minmax(0, 1fr)` solves it properly.
+- Browser-verified (desktop Chrome, :5196): with a title and a rectangle selected, every labelled
+  field in the panel reports the same left (1572) and right (1695) edge across all sections, and the
+  panel does not scroll horizontally. Still owed: the iPad pass.
+- Invariant 23 extended with the rule. Gates: 0 errors, 0 warnings; 607 tests in 48 files; lint clean.
