@@ -412,7 +412,17 @@ export function applyGeometry(field: GeometryField, value: number): void {
  *  so and leaves the document alone. */
 export async function booleanSelection(op: BoolOp): Promise<void> {
   cancelActiveGesture();
-  const out = await booleanShapes(app.doc, app.selection, op);
+  // The first operation of a session waits for paper to download, and nothing blocks the rest of
+  // the UI meanwhile. The result is computed from the document as it was before that wait, so
+  // committing it blindly would overwrite anything the user did during it — an undo, a delete, a
+  // finished drag — with a document that never saw it (invariant 15's hazard, across an await).
+  const before = app.doc;
+  const out = await booleanShapes(before, app.selection, op);
+  cancelActiveGesture();
+  if (app.doc !== before) {
+    notify("info", `${BOOL_LABEL[op]} — the document changed while it loaded; try again.`);
+    return;
+  }
   if (out.kind === "refused") {
     notify("info", `${BOOL_LABEL[op]} — ${BOOL_REASON[out.why]}`);
     return;
