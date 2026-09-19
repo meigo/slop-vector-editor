@@ -132,7 +132,9 @@ The places that must agree:
 - `hitTest` and `marqueeSelect` (`src/geom/hit.ts`);
 - `pruneSelection`, so hiding or locking a selected node deselects it as a matter of course rather
   than as a special case;
-- `collectTargets` (`src/geom/snap.ts`) — you should not snap to something you cannot see;
+- `collectTargets` (`src/geom/snap.ts`) — **hidden only**. Snapping already includes locked layers
+  on purpose ("you can align to what you can't edit", `snap.ts`), so a locked node stays a target
+  and only a hidden one stops being one;
 - `selectFromPanel`, via the panel's existing `blocked` flag (§6).
 
 **Invariant 37 is the hazard here.** It records that `hitTest` and `marqueeSelect` re-implement
@@ -140,6 +142,11 @@ The places that must agree:
 that rule in three places at once, so the reach test must be extracted into **one exported
 predicate** — `reachable(doc, id, enteredGroupId)` or an equivalent the three share — rather than
 copied a third time. If the milestone does nothing else structural, it should do this.
+
+An **invalid entered group must keep falling through** to the top-level rule, which is what all
+three functions do today — `selectableIds` returns early only when the group is valid. A group that
+has just been hidden or locked is exactly that case, so the fall-through is what stops the canvas
+going dead when it happens.
 
 **A locked node cannot be selected at all**, which is Illustrator's behaviour and the behaviour a
 locked *layer* already has here. That deliberately avoids a worse design: a node that can be
