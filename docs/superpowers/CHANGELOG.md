@@ -1003,3 +1003,11 @@ browser pass could not:
   group both come back with their flags. 539 tests in 43 files. No console errors.
 - Owed: two more 20px targets on every layer row, which is the part most likely to be wrong on a
   device — it joins the iPad pass owed since M5.
+
+## 2026-09-19 — A light theme is no longer planned
+
+- Dropped from the README's roadmap and from CLAUDE.md's "what comes next", at the user's request.
+  The original design doc (`2026-09-16-slop-vector-editor-design.md` §10) still lists it: that file
+  is dated and this changelog's convention is that later entries supersede earlier ones rather than
+  the past being rewritten.
+- The palette stays dark-only, as `app.css` already states.

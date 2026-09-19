@@ -358,11 +358,12 @@ every user-visible change.
 
 ## Current state
 
-Milestone 9 (per-object visibility and lock) — see CHANGELOG. What comes next is unplanned: the post-v1 list
-(project design §10) still holds text, gradients, a freehand tool, PNG export, grid and smart
-guides, multiple artboards, masks, align and distribute, a light theme and image paste. The
-accessibility group and the performance group (both parked below) remain the two obvious
-milestones.
+Milestone 9 (per-object visibility and lock) — see CHANGELOG. What comes next is unplanned: the
+post-v1 list (project design §10) still holds text, gradients, a freehand tool, PNG export, grid
+and smart guides, multiple artboards, masks, align and distribute, and image paste. **A light
+theme is no longer planned** (2026-09-19) — the design doc still lists it, as a dated document
+that later decisions supersede rather than rewrite. The accessibility group and the performance
+group (both parked below) remain the two obvious milestones.
 
 ## Roadmap
 
