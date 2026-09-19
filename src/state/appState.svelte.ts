@@ -1,3 +1,4 @@
+import { booleanShapes } from "../doc/boolean-edit";
 import { createDoc, type Doc, type NodeType, type PathShape, type Style } from "../doc/document";
 import {
   convertToPath,
@@ -37,6 +38,7 @@ import {
 } from "../doc/path-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
+import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import { latchOn, type Latch } from "../input/dock";
 import {
@@ -404,6 +406,23 @@ export function setSelectionStyle(patch: Partial<Style>): void {
 export function applyGeometry(field: GeometryField, value: number): void {
   cancelActiveGesture();
   commitDoc(applyGeometryField(app.doc, app.selection, field, value));
+}
+
+/** Spec (M7) §4. One operation is one commit and one undo step; a refusal or an empty result says
+ *  so and leaves the document alone. */
+export async function booleanSelection(op: BoolOp): Promise<void> {
+  cancelActiveGesture();
+  const out = await booleanShapes(app.doc, app.selection, op);
+  if (out.kind === "refused") {
+    notify("info", `${BOOL_LABEL[op]} — ${BOOL_REASON[out.why]}`);
+    return;
+  }
+  if (out.kind === "empty") {
+    notify("info", `${BOOL_LABEL[op]} left nothing.`);
+    return;
+  }
+  commitDoc(out.doc);
+  setSelection([out.id]);
 }
 
 /** Spec (M6) §2–§4. These change no document, but a selection that moves under a running drag is
