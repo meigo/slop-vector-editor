@@ -28,6 +28,7 @@
   import PanelHeader from "./PanelHeader.svelte";
   import TextPanel from "./TextPanel.svelte";
   import { selectedTitle } from "../state/appState.svelte";
+  import FieldSection from "./FieldSection.svelte";
   import PaintField from "./PaintField.svelte";
   import ToggleButton from "./ToggleButton.svelte";
 
@@ -163,8 +164,7 @@
       {/if}
 
       {#if rects || polygons}
-        <div class="contents">
-          <span class="section-title field-divider">Shape</span>
+        <FieldSection id="shape" title="Shape">
           {#if rects}
             <NumberField
               label="Radius"
@@ -199,12 +199,11 @@
               />
             {/if}
           {/if}
-        </div>
+        </FieldSection>
       {/if}
 
       {#if !hasSelection || app.toolId === "polygon"}
-        <div class="contents">
-          <span class="section-title field-divider">New polygons</span>
+        <FieldSection id="newPolygons" title="New polygons">
           <NumberField
             label="Sides"
             value={poly.sides}
@@ -229,12 +228,11 @@
               onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
             />
           {/if}
-        </div>
+        </FieldSection>
       {/if}
 
       {#if nodeSummary}
-        <div class="contents">
-          <span class="section-title field-divider">Node</span>
+        <FieldSection id="node" title="Node">
           <div class="field-full flex gap-1">
             {#each NODE_TYPES as t (t.type)}
               <ToggleButton
@@ -249,12 +247,11 @@
             <NumberField label="X" value={pt.x} onchange={(v) => moveSelectedNodes(v - pt.x, 0)} />
             <NumberField label="Y" value={pt.y} onchange={(v) => moveSelectedNodes(0, v - pt.y)} />
           {/if}
-        </div>
+        </FieldSection>
       {/if}
 
       {#if geometry}
-        <div class="contents">
-          <span class="section-title field-divider">Geometry</span>
+        <FieldSection id="geometry" title="Geometry">
           {#each GEOMETRY as g (g.field)}
             <NumberField
               label={g.label}
@@ -264,7 +261,7 @@
               onchange={(v) => applyGeometry(g.field, v)}
             />
           {/each}
-        </div>
+        </FieldSection>
       {/if}
     </div>
   {/if}

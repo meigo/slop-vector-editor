@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/boolean.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 566 tests in 46 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 618 tests in 49 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -205,8 +205,18 @@ every user-visible change.
       210px and this bar 38.5px, while absolute values like `text-[11px]` and 1px borders stayed
       put — so the UI was smaller than its own class names in the rem parts only. Body text is
       14px, set on `body`. No sibling slop app sets a root size.
-    - Bar controls are 32px high. This is a deliberate difference from the guide's 24px, shared
-      with slop-animator, because it suits touch.
+    - **Bar controls are `--ctl-h` high: 32px for touch, 24px on a mouse-only machine** (M10e §2).
+      32px is the deliberate difference from the guide's 24px, shared with slop-animator, and it is
+      right wherever a finger can reach the screen; on a machine with no touch input it is only
+      wasted room, and the properties panel stacks ~21 controls. The media query is
+      **`any-pointer: coarse`, never `pointer: coarse`**: an iPad with a Magic Keyboard reports the
+      trackpad as the _primary_ pointer while the screen is still right there, so keying off the
+      primary pointer would shrink the targets on the one device the 32px rule exists for.
+      `.field` and `.btn` follow it; `.icon-btn` deliberately does not — it is the top bar's square
+      icon target, where the density buys nothing. A new control uses `var(--ctl-h)`, never `h-8`.
+    - **A `<textarea>` needs a definite height in a grid.** With `height: auto` it contributes a
+      ~10px row while rendering 43px, so it overlaps its neighbours on both sides. `textarea.field`
+      states `height` and `min-height` in `--ctl-h` units instead.
     - **`prefs.dockExpanded` is `boolean | null`, and `null` means undecided, not collapsed.** The
       modifier dock hides its Shift and Alt latches until someone decides otherwise; Snap is always
       shown, because it is a setting and this is the only place its state appears. While the pref is
@@ -229,6 +239,28 @@ every user-visible change.
     - **The Layers header keeps its New layer and Delete layer buttons while collapsed**, because
       they are the only route to those commands — no menu, no shortcut. Both open the panel as a
       side effect, so the result is visible.
+    - **The properties panel's sections collapse** (`FieldSection`, M10e §1), and which ones are
+      closed is `prefs.closedSections` — the **closed** ids, so a section added later appears open
+      with no migration and the common case is an empty array. `SECTION_IDS` is the whole
+      vocabulary and `sanitizePrefs` drops anything else, so a renamed section cannot leave a
+      permanently closed ghost. `randomise` is the one closed by default. `FieldSection` renders
+      **no wrapper element** — the heading is the grid's divider row and the rows are the caller's,
+      both landing directly in the one `.field-grid`. The Character block is deliberately not
+      collapsible: it exists only while a character is picked. A section heading is a `<button>`,
+      so nothing that was inside it may be a button too — the randomiser's seed moved out of the
+      heading row for that reason.
+    - **The sidebar's width is `prefs.sidebarPx`, dragged from a grip on its left border**
+      (`lib/panel-layout.ts`, M10e §3), deliberately the same shape every sibling slop app ships:
+      a pure `clampSidebarWidth` of `[MIN, half the viewport]` where the **minimum wins** over the
+      ceiling, and a `resizedSidebarWidth` that recomputes from the pointer-down snapshot rather
+      than accumulating deltas, so a dropped move cannot make the width drift. The grip is an 8px
+      absolutely-positioned strip over the border, costing the panel no content width, with
+      `touch-none` — without it iPadOS reads the drag as a scroll and cancels the pointer stream.
+      Travel **left** widens, because the panel is docked right. An out-of-range stored width is
+      **clamped, never rejected**; the ceiling needs a viewport, so `sanitizePrefs` enforces only
+      the floor and the real clamp runs on mount and on every window resize. One pref write per
+      drag, on release. The grip is a real `<button>`, so Tab reaches it and Arrow/Shift-Arrow step
+      it by 8/24px — the only keyboard route to a width.
     - **The properties panel is ONE grid, `label | field | unit`** (`.field-grid` in `app.css`,
       borrowed from slop-video-compositor's Inspector). Every labelled row is a `.field-row`, which
       is `display: contents`, so its three cells join that one grid and every input in the panel

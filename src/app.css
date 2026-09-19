@@ -56,15 +56,34 @@ body {
   inset: 0;
 }
 
+/* Control height (spec M2d §5, amended M10e §2). 32px is the touch size this app chose over the
+   guide's 24px, and it is right wherever a finger can reach the screen. On a machine that has no
+   touch input at all it is only wasted room — the properties panel stacks 21 of these, and 8px
+   each is ~170px of scroll. The test is `any-pointer: coarse`, NOT `pointer: coarse`: an iPad
+   with a Magic Keyboard reports the trackpad as the *primary* fine pointer while the screen is
+   still right there, so keying off the primary pointer would shrink the targets on the one device
+   the 32px rule exists for. `any-pointer` asks "is ANY pointer here coarse", which an iPad answers
+   yes to with or without a trackpad, and a desktop answers no to. */
+:root {
+  --ctl-h: 1.5rem;
+}
+@media (any-pointer: coarse) {
+  :root {
+    --ctl-h: 2rem;
+  }
+}
+
 @layer components {
-  /* Every control in a bar is 32px high (spec M2d §5; the guide says 24px, slop-animator and
-     touch use 32px). The top bar never scrolls or wraps (that would clip the File menu); only
-     the file name shrinks. */
+  /* Every control in a bar is `--ctl-h` high: 32px for touch, 24px on a mouse-only machine. The
+     top bar never scrolls or wraps (that would clip the File menu); only the file name shrinks.
+     `.icon-btn` is deliberately NOT included — it is the top bar's square icon target, where the
+     density costs nothing and a hybrid device gains nothing by shrinking it. */
   .icon-btn {
     @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text hover:bg-raised disabled:text-disabled disabled:hover:bg-transparent aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;
   }
   .btn {
-    @apply inline-flex h-8 shrink-0 items-center rounded border border-line bg-raised px-3 text-xs whitespace-nowrap text-text hover:border-muted disabled:text-disabled;
+    @apply inline-flex shrink-0 items-center rounded border border-line bg-raised px-3 text-xs whitespace-nowrap text-text hover:border-muted disabled:text-disabled;
+    height: var(--ctl-h);
   }
   .btn-primary {
     @apply border-accent bg-accent text-accent-text hover:bg-accent-hover;
@@ -98,7 +117,17 @@ body {
   }
 
   .field {
-    @apply h-8 rounded border border-line bg-raised px-2 text-xs text-text select-text;
+    @apply rounded border border-line bg-raised px-2 text-xs text-text select-text;
+    height: var(--ctl-h);
+  }
+  /* A title field is two lines, because multi-line titles are the whole point of M10d — the shared
+     one-line control height would show one. The height is stated in `--ctl-h` units rather than
+     left to `rows` and `height: auto`: as a grid item a textarea whose height is `auto` contributes
+     a ~10px row while rendering 43px, so it overlapped the heading above and the font row below.
+     `min-height` is what holds the row open once the user drags the resize corner. */
+  textarea.field {
+    height: calc(var(--ctl-h) * 2);
+    min-height: calc(var(--ctl-h) * 2);
   }
   .menu-item {
     @apply flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-raised aria-disabled:cursor-default aria-disabled:text-disabled aria-disabled:hover:bg-transparent;

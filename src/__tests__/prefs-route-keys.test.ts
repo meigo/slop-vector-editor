@@ -35,6 +35,8 @@ describe("preferences", () => {
     dockExpanded: true,
     splitRatio: 0.3,
     layersOpen: false,
+    closedSections: ["geometry"],
+    sidebarPx: 300,
   };
 
   it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {

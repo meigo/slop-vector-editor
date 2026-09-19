@@ -78,6 +78,7 @@ import {
   savePrefs,
   type PolygonPrefs,
   type Prefs,
+  type SectionId,
 } from "../persist/preferences";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import type { Overlay } from "../tools/tool";
@@ -416,6 +417,16 @@ export function dockMods(): Mods {
     alt: latchOn(app.dock.alt),
     shiftLatched: latchOn(app.dock.shift),
   };
+}
+
+/** A properties-panel section's collapse (spec M10e §1). Prefs, not session state: it is a view
+ *  preference, not document data, so it is neither saved in the file nor undoable. */
+export function toggleSection(id: SectionId): void {
+  const closed = app.prefs.closedSections;
+  setPrefs({
+    ...app.prefs,
+    closedSections: closed.includes(id) ? closed.filter((s) => s !== id) : [...closed, id],
+  });
 }
 
 export function setPrefs(p: Prefs): void {

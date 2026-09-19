@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { clampSidebarWidth, resizedSidebarWidth } from "./panel-layout";
   import { clampRatio, MIN_PANEL_PX, propsOpen, ratioFromDrag, STRIP_PX } from "./split";
   import { app, setPrefs, togglePropsPanel } from "../state/appState.svelte";
   import LayersPanel from "./LayersPanel.svelte";
@@ -53,6 +54,74 @@
     if (!split) endDrag();
   });
 
+  /** The sidebar's own width (spec M10e §3). The drag mechanics are the vertical divider's, one
+   *  axis over: a pointer-down snapshot, a recompute per move (never an accumulation), capture so
+   *  the pointer can leave the 8px strip, and `pointercancel` treated exactly like an up
+   *  (invariant 6). One pref write per drag, on release, not per move. */
+  let gripping = $state(false);
+  let gripId: number | null = null;
+  let gripStartX = 0;
+  let gripStartPx = 0;
+  /** The width being dragged right now; null when no drag is running and the pref rules. */
+  let liveWidth = $state<number | null>(null);
+  const widthPx = $derived(liveWidth ?? app.prefs.sidebarPx);
+
+  /** A width stored on a wider screen, or left over from before the window shrank, would otherwise
+   *  leave no canvas at all. The ceiling is half the viewport, and it can only be applied where the
+   *  viewport is known — here, not in `sanitizePrefs`. */
+  $effect(() => {
+    const onResize = () => {
+      const next = clampSidebarWidth(app.prefs.sidebarPx, window.innerWidth);
+      if (next !== app.prefs.sidebarPx) setPrefs({ ...app.prefs, sidebarPx: next });
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  });
+
+  function commitWidth(next: number | null) {
+    gripping = false;
+    gripId = null;
+    liveWidth = null;
+    if (next !== null && next !== app.prefs.sidebarPx) setPrefs({ ...app.prefs, sidebarPx: next });
+  }
+
+  function gripDown(e: PointerEvent) {
+    if (e.button !== 0 || gripId !== null) return;
+    gripId = e.pointerId;
+    gripping = true;
+    gripStartX = e.clientX;
+    gripStartPx = widthPx;
+    liveWidth = widthPx;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is a convenience; moves still arrive while the pointer stays on the strip.
+    }
+    e.preventDefault();
+  }
+
+  function gripMove(e: PointerEvent) {
+    if (gripId === null || e.pointerId !== gripId) return;
+    liveWidth = resizedSidebarWidth(gripStartPx, gripStartX, e.clientX, window.innerWidth);
+  }
+
+  function gripUp(e: PointerEvent) {
+    if (gripId === null || e.pointerId !== gripId) return;
+    commitWidth(liveWidth);
+  }
+
+  /** The grip is a real button, so it is reachable by Tab — the one keyboard route to a width on a
+   *  machine with no mouse. Left widens, because left is where the panel's edge goes. */
+  function gripKey(e: KeyboardEvent) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const step = e.shiftKey ? 24 : 8;
+    commitWidth(
+      clampSidebarWidth(widthPx + (e.key === "ArrowLeft" ? step : -step), window.innerWidth),
+    );
+  }
+
   function toggleLayers() {
     setPrefs({ ...app.prefs, layersOpen: !showLayers });
   }
@@ -94,7 +163,35 @@
   }
 </script>
 
-<div bind:this={column} class="flex h-full w-60 shrink-0 flex-col border-l border-line bg-panel">
+<div
+  bind:this={column}
+  class="relative flex h-full shrink-0 flex-col border-l border-line bg-panel"
+  style="width: {widthPx}px"
+>
+  <!-- The grip sits ON the left border, absolutely positioned, so it costs the panel no content
+       width (spec M10e §3, matching every sibling slop app). 8px to hit, a 2px tint to see.
+       `touch-none` is load-bearing: without it iPadOS reads the drag as a scroll and cancels the
+       pointer stream mid-gesture. -->
+  <button
+    type="button"
+    class="group absolute inset-y-0 -left-1 z-20 w-2 cursor-ew-resize touch-none"
+    aria-label="Resize the sidebar ({widthPx} pixels wide)"
+    title="Drag to resize the sidebar"
+    onpointerdown={gripDown}
+    onpointermove={gripMove}
+    onpointerup={gripUp}
+    onpointercancel={gripUp}
+    onlostpointercapture={gripUp}
+    onkeydown={gripKey}
+  >
+    <span
+      class={[
+        "mx-auto block h-9 w-0.5 rounded-full group-hover:bg-muted group-focus-visible:bg-muted",
+        gripping ? "bg-muted" : "bg-transparent",
+      ]}
+      aria-hidden="true"
+    ></span>
+  </button>
   <PropertiesPanel
     expanded={showProps}
     ontoggle={togglePropsPanel}

@@ -14,6 +14,7 @@
   } from "../state/appState.svelte";
   import { fontAvailable, fontChoices } from "../text/font";
   import { charTransform, withOverride } from "../text/random";
+  import FieldSection from "./FieldSection.svelte";
   import NumberField from "./NumberField.svelte";
 
   /** Spec (M10) §6. Typing happens here rather than on the canvas so the iPad keyboard never
@@ -82,9 +83,7 @@
   ] as const;
 </script>
 
-<div class="contents">
-  <span class="section-title field-divider">Text</span>
-
+<FieldSection id="text" title="Text">
   <!-- A textarea, not an input: Return must insert a line break, so it is deliberately NOT
        intercepted. The commit still happens on change/blur, exactly as the input did. -->
   <textarea
@@ -176,35 +175,42 @@
       </button>
     {/each}
   </div>
+</FieldSection>
 
-  {#if charIndex !== null && effective}
-    <div class="field-full mt-1 flex items-center justify-between">
-      <span class="section-title">Character {charIndex + 1}</span>
+<!-- Character and Randomise are alternatives, and neither belongs inside the Text section: picking
+     a character replaces the whole-title controls with that character's own. Character is
+     deliberately NOT collapsible — it appears only while a character is picked, and a chevron that
+     hid the thing the click just selected would be absurd. -->
+{#if charIndex !== null && effective}
+  <div class="field-full mt-1 flex items-center justify-between">
+    <span class="section-title">Character {charIndex + 1}</span>
+    <button
+      class="btn"
+      title="Clear this character's overrides and let the randomiser have it back"
+      onclick={() => void clearCharOverride()}
+    >
+      Reset
+    </button>
+  </div>
+  <p class="field-full text-[11px] text-muted">
+    Exact values for this character. The rest of the title is untouched, and these survive a
+    re-roll.
+  </p>
+  {#each CHAR_FIELDS as c (c.key)}
+    <NumberField
+      label={c.label}
+      value={c.of(effective)}
+      suffix={c.suffix}
+      onchange={(v) => ready && setChar(c.key, v)}
+    />
+  {/each}
+{:else}
+  <FieldSection id="randomise" title="Randomise">
+    <!-- The seed moved out of the heading row: a section heading is now a button, and a button
+         inside a button is invalid HTML. -->
+    <div class="field-full">
       <button
-        class="btn"
-        title="Clear this character's overrides and let the randomiser have it back"
-        onclick={() => void clearCharOverride()}
-      >
-        Reset
-      </button>
-    </div>
-    <p class="field-full text-[11px] text-muted">
-      Exact values for this character. The rest of the title is untouched, and these survive a
-      re-roll.
-    </p>
-    {#each CHAR_FIELDS as c (c.key)}
-      <NumberField
-        label={c.label}
-        value={c.of(effective)}
-        suffix={c.suffix}
-        onchange={(v) => ready && setChar(c.key, v)}
-      />
-    {/each}
-  {:else}
-    <div class="field-full mt-1 flex items-center justify-between">
-      <span class="section-title">Randomise</span>
-      <button
-        class="btn"
+        class="btn w-full justify-center"
         aria-disabled={!ready}
         title={ready ? "Re-roll the randomiser" : missing}
         onclick={() => ready && void rerollTitle()}
@@ -212,7 +218,6 @@
         ↻ Seed {meta.seed}
       </button>
     </div>
-
     {#each AMOUNTS as a (a.key)}
       <NumberField
         label={a.label}
@@ -223,5 +228,5 @@
         onchange={(v) => ready && setAmount(a.key, v)}
       />
     {/each}
-  {/if}
-</div>
+  </FieldSection>
+{/if}

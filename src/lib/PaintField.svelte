@@ -65,12 +65,14 @@
   </div>
   {#if paint}
     <div class="flex items-center gap-2">
-      <!-- `size-8 shrink-0`: a swatch is a square 32px control, like every other bar control. It
-           was `h-8 w-10`, but a flex item shrinks below its width, and in the 240px sidebar the
-           row squeezed it to a tall ~17px sliver while the height stayed put. -->
+      <!-- A square control of the shared height (`--ctl-h`), not a fixed `size-8`: it has to track
+           the 32/24px control size like every other control. `aspect-square` plus `shrink-0` is
+           what keeps it square — it was `h-8 w-10`, and a flex item shrinks below its width, so in
+           the 240px sidebar the row squeezed it to a tall ~17px sliver at full height. -->
       <input
         type="color"
-        class="size-8 shrink-0 cursor-pointer rounded border border-line bg-raised"
+        class="aspect-square shrink-0 cursor-pointer rounded border border-line bg-raised"
+        style="height: var(--ctl-h)"
         value={paint.color}
         aria-label="{label} colour"
         oninput={(e) => {

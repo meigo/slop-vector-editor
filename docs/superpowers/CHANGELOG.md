@@ -1312,3 +1312,39 @@ be the wrong words for the final behaviour, so they are not used.
   That 32px is invariant 23's deliberate touch size and was left alone. The divider was the only
   part not justified by it, and tightening it saves 8px per section — 16px on a selected title,
   32px on a rectangle, against ~1060px of content. The perceived difference is the 32px controls.
+
+## 2026-09-20 — M10e: panel density and a resizable sidebar
+
+The user's report: the properties panel, and the text properties especially, take about 150% of
+the available desktop height. Measured before: 1058px of content for a selected title.
+
+- **Collapsible sections** (`lib/FieldSection.svelte`). Text, Randomise, Shape, New polygons, Node
+  and Geometry each collapse; `randomise` is closed by default, since a title's text and size are
+  why the panel is open and the four jitter amounts are ~160px of a set-once control. State is
+  `prefs.closedSections` — the *closed* ids, so a section added later needs no migration.
+  `FieldSection` renders no wrapper element, so its heading and rows stay in the panel's one grid.
+  The randomiser's seed button moved out of the heading row: a heading is now a button, and a
+  button inside a button is invalid HTML.
+- **`--ctl-h`: 32px for touch, 24px for a mouse.** The media query is `any-pointer: coarse`, not
+  `pointer: coarse`, so an iPad with a trackpad attached keeps the 32px targets that invariant 23
+  exists to protect. `.field` and `.btn` follow it; `.icon-btn` deliberately does not.
+- **A resizable sidebar** (`lib/panel-layout.ts`, `prefs.sidebarPx`), following the convention the
+  five sibling slop apps already share — an 8px grip absolutely positioned over the panel's left
+  border, `setPointerCapture`, `pointercancel` treated as `pointerup`, a pure clamp of
+  `[200, half the viewport]` with the minimum winning, and one pref write per drag on release.
+  Borrowed from slop-video-compositor alone: the grip is a real `<button>`, so Tab reaches it and
+  Arrow/Shift-Arrow step it 8/24px. Default 240px, so nothing moves for anyone who never drags it.
+- **Fixed while doing it:** the title `<textarea>` rendered one line, not two. `.field`'s fixed
+  height applied to it, and the obvious `height: auto` was worse — as a grid item it then
+  contributed a ~10px row while rendering 43px, overlapping the heading above and the font row
+  below. It now states `height`/`min-height` in `--ctl-h` units.
+- **Measured after** (desktop Chrome, :5193, same title): **720px**, down from 1058 — a 32% cut,
+  and it now fits the window. Opening Randomise adds 160px. The `closedSections` pref round-trips
+  (opening writes `[]`, closing writes `["randomise"]`). The grip drags 240 → 409px and persists.
+- **Not done, and why:** pairing short fields two-per-row (Size+Spacing, X+Y, W+H, as Figma does)
+  was the other ~200px. At 240px each half-row gets ~104px — the exact width that produced the
+  "S°cale" overlap in M10c. It is safe only above ~340px, which the resizable sidebar now makes
+  reachable, so it is a candidate for later, gated on width.
+- 618 tests in 49 files (11 new, for `panel-layout.ts`). Gates: 0 errors, 0 warnings, lint clean.
+- **Still owed: the whole iPad pass**, and it matters more than usual here — `any-pointer: coarse`
+  deciding the control size, and the grip's `touch-none` drag, are both untested on a real device.
