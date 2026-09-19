@@ -13,6 +13,7 @@ const meta: TextMeta = {
   font: "anton",
   size: 96,
   letterSpacing: 2.5,
+  lineHeight: 1.2,
   align: "center",
   seed: 418,
   amounts: { rotate: 12, scale: 0.08, offset: 4, skew: 0 },

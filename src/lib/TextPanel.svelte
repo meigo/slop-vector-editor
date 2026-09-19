@@ -85,8 +85,11 @@
 <div class="flex flex-col gap-2 border-t border-line pt-3">
   <span class="section-title">Text</span>
 
-  <input
-    class="field"
+  <!-- A textarea, not an input: Return must insert a line break, so it is deliberately NOT
+       intercepted. The commit still happens on change/blur, exactly as the input did. -->
+  <textarea
+    class="field resize-y py-1 leading-snug"
+    rows="2"
     aria-label="Title text"
     value={meta.text}
     aria-disabled={!ready}
@@ -97,11 +100,9 @@
       await setTitleText(el.value);
       // A refusal — an unshaped script, a font with no such glyphs, an empty string — leaves the
       // title alone, so put the field back rather than leaving the rejected text in it. The panel
-      // may have been destroyed while awaiting (deselecting blurs the field, which fires this),
-      // so `isConnected` is checked before touching it or reading `meta`.
+      // may have been destroyed while awaiting, so `isConnected` is checked first.
       if (el.isConnected) el.value = title.text?.text ?? el.value;
-    }}
-  />
+    }}></textarea>
 
   <div class="flex items-center gap-2">
     <select
@@ -153,6 +154,14 @@
       label="Spacing"
       value={meta.letterSpacing}
       onchange={(v) => ready && void setTitleOpts({ letterSpacing: v })}
+    />
+    <NumberField
+      label="Line height"
+      value={meta.lineHeight}
+      min={0.5}
+      max={4}
+      suffix="×"
+      onchange={(v) => ready && void setTitleOpts({ lineHeight: v })}
     />
   </div>
 

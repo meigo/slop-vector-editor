@@ -418,6 +418,17 @@ every user-visible change.
       painted over that label. Lay these out with `flex flex-wrap items-center gap-2`, as the
       Size/Spacing row and the Geometry section already do, so each keeps its natural width and
       wraps when it must.
+    - **`data-sv-text-opts` is 8 **or** 9 fields.** M10d appended `lineHeight`; `parseTextOpts`
+      accepts either and defaults the missing one to 1.2, because demanding nine would have turned
+      every title saved before it into a plain path with its text lost. Any future field must be
+      appended and optional for the same reason.
+    - **Block alignment falls out of the per-line rule** and needs no arithmetic of its own: with
+      `left` every line starts at 0, with `center` every line is centred on 0, with `right` every
+      line ends at 0 — so the block is aligned because each line is. `layoutRun` is unchanged from
+      the single-line days.
+    - **Character indices are indices into the raw string, newlines included.** `runLayout` skips
+      the newlines (they have no glyph) but never renumbers what follows, which is what keeps
+      M10c's per-character overrides pointing at the characters they were made for.
     - **Alignment is not a position — it is which edge stays put when the title changes.** The
       click point is the anchor and the outlines are re-derived from it, so left grows rightwards,
       right grows leftwards and centre grows both ways. Its buttons use flush-line icons

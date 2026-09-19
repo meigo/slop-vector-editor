@@ -893,6 +893,7 @@ function defaultMeta(text: string): TextMeta {
     font: currentFontId,
     size: 96,
     letterSpacing: 0,
+    lineHeight: 1.2,
     align: "left",
     seed: newSeed(),
     amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
@@ -1047,6 +1048,7 @@ function sameMeta(a: TextMeta, b: TextMeta): boolean {
     a.font === b.font &&
     a.size === b.size &&
     a.letterSpacing === b.letterSpacing &&
+    a.lineHeight === b.lineHeight &&
     a.align === b.align &&
     a.seed === b.seed &&
     JSON.stringify(a.amounts) === JSON.stringify(b.amounts) &&

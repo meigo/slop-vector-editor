@@ -22,6 +22,7 @@ const meta = (text: string, over: Partial<TextMeta> = {}): TextMeta => ({
   font: "anton",
   size: 100,
   letterSpacing: 0,
+  lineHeight: 1.2,
   align: "left",
   seed: 1,
   amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
@@ -168,5 +169,43 @@ describe("charQuads", () => {
     const qx = q.flat().map((p) => p.x);
     expect(Math.min(...qx)).toBeLessThanOrEqual(box.x + 1);
     expect(Math.max(...qx)).toBeGreaterThanOrEqual(box.x + box.w - 1);
+  });
+});
+
+describe("multi-line titles", () => {
+  it("puts the second line below the first, by the line height", () => {
+    const one = boxOf("A");
+    const two = boxOf("A\nA", { lineHeight: 1.5 });
+    expect(two.h).toBeGreaterThan(one.h);
+    // Two baselines 1.5 * 100 apart, so the block is that much taller than one line.
+    expect(two.h - one.h).toBeCloseTo(150, 0);
+  });
+
+  it("is narrower than the same characters on one line", () => {
+    expect(boxOf("AB").w).toBeGreaterThan(boxOf("A\nB").w);
+  });
+
+  it("centres each line about x = 0 when centred", () => {
+    const b = boxOf("A\nMMMM", { align: "center" });
+    expect(Math.abs(b.x + b.w / 2)).toBeLessThan(1.5);
+  });
+
+  it("flushes every line to the anchor when right-aligned", () => {
+    const b = boxOf("A\nMMMM", { align: "right" });
+    // The widest line ends at 0, so nothing reaches past it.
+    expect(b.x + b.w).toBeLessThanOrEqual(1);
+  });
+
+  it("gives one quad per glyph — a newline has none", () => {
+    expect(charQuads(f, meta("A\nB"))).toHaveLength(2);
+    expect(charQuads(f, meta("AB"))).toHaveLength(2);
+  });
+
+  it("keeps an override pointing at the character it was made for, across a newline", () => {
+    // "A\nB": A is 0, the newline is 1, B is 2. An override on 2 must move B, not A.
+    const plain = charQuads(f, meta("A\nB"));
+    const moved = charQuads(f, meta("A\nB", { overrides: { 2: { dx: 40 } } }));
+    expect(moved[0]).toEqual(plain[0]);
+    expect(moved[1]).not.toEqual(plain[1]);
   });
 });
