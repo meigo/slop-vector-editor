@@ -52,8 +52,10 @@ export interface ToolContext {
   placeTitle(at: Vec): void;
   /** Selects the character of the selected title under a document point (spec M10 §6). */
   pickCharacter(at: Vec): void;
-  /** Moves the selected character by a document-space delta. */
-  nudgeCharacter(dx: number, dy: number): void;
+  /** The selected character's current offset, read once when a drag begins. */
+  charOffset(): { dx: number; dy: number };
+  /** Sets that offset absolutely — see the note on `setCharOffset` in the store. */
+  setCharOffset(dx: number, dy: number): void;
   /** The selected title's id, or null — the tool needs it to tell "click inside a title I am
    *  already editing" from "click on empty canvas, place a new one". */
   titleId(): string | null;
