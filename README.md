@@ -71,9 +71,9 @@ Early development. What works today:
 
 ## Roadmap
 
-iPad polish and deploy was the last planned milestone. Next up, unplanned: text; gradients;
-boolean operations; a freehand pencil/brush tool; PNG export; grid and smart guides; multiple
-artboards; masks/clipping; align & distribute; a light theme; system-clipboard image paste.
+Next: boolean operations — merge, subtract, intersect and exclude. After that, unplanned: text;
+gradients; a freehand pencil/brush tool; PNG export; grid and smart guides; multiple artboards;
+masks/clipping; align & distribute; a light theme; system-clipboard image paste.
 
 ## Development
 
@@ -81,7 +81,7 @@ artboards; masks/clipping; align & distribute; a light theme; system-clipboard i
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 480 unit tests
+npm test          # 481 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

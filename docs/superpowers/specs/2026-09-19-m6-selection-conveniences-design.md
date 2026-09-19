@@ -92,7 +92,7 @@ group's children", which is what entering a group implies.
 bar, and a menu called Edit would imply they had moved. The menu is a flat list — the top bar's File
 menu and the context menu are both flat lists of `menu-item` buttons today, and neither has submenu
 machinery. A nested `Select Same ▸` would mean inventing hover-to-open behaviour that also has to
-work by long-press on iPad, for four entries:
+work by long-press on iPad — which nothing supports today — for four entries:
 
 ```
 File  Select ▾
@@ -106,8 +106,15 @@ File  Select ▾
 ```
 
 **The context menu** gets the same seven entries, in a section of its own: Select All and Invert
-always, the four Same commands only when the selection makes them available. This is the iPad route,
-where there is no right-click and no top-bar menu is open during a long-press.
+always, the four Same commands only when the selection makes them available.
+
+**Correction, from the final review:** earlier drafts of this section called the context menu "the
+iPad route". It is not. `Canvas.svelte` opens it only when `app.lastPointerType === "mouse"`, and
+`routePointerDown` returns `"menu"` only for a right mouse button — CLAUDE.md invariant 16. There is
+no long-press handler anywhere. The context menu is the **mouse** route; on a touch device the Select
+menu in the top bar is the only way to these commands, and it works there. Nothing is lost, but the
+rationale was wrong and would have sent someone to "fix" the context menu in a way that breaks
+invariant 16.
 
 The two menus differ deliberately on what an unavailable command looks like. The Select menu
 **disables** it with a reason, like the top bar (§6). The context menu **hides** it, which is that
@@ -165,6 +172,7 @@ everything selected it clears.
 
 ## 9. Owed
 
-The iPad pass owed from M5 still stands and now covers these menus too: a long-press reaching the
-context menu's new section, and the Select menu's hit targets at portrait widths. Nothing in this
+The iPad pass owed from M5 still stands and now covers the Select menu's hit targets at portrait
+widths. It does **not** include the context menu: that menu is mouse-only (above), so on a device
+the Select menu is the only route and the only thing to check. Nothing in this
 milestone can be device-verified here.

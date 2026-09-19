@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.**
-- `npm test` — Vitest, node env, no DOM — 480 tests in 35 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 481 tests in 35 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -253,8 +253,12 @@ every user-visible change.
     and this milestone exists in part to give it callers again, so the three must not drift back
     apart. Paints (`{ color, opacity }`) compare exactly, with no tolerance; `null` matches only
     `null`. Several selected shapes union rather than intersect, and a seed always matches itself,
-    so Select Same never shrinks the selection. A group has no `Style`, so it is skipped by the
-    three paint-based commands as both seed and candidate, and still matches on kind.
+    so Select Same never shrinks the selection. A group has no `Style`, so it contributes no
+    matches to the three paint-based commands and is never returned as one, and still matches on
+    kind. But a selected group is **kept**, as is any seed out of reach — the layers panel selects
+    a row at any depth while `enteredGroupId` points at that row's parent, so the selection can
+    legitimately hold ids `selectableIds` would not offer. Without keeping them, a Select Same that
+    matched nothing would silently clear the whole selection.
 
 ## Current state
 

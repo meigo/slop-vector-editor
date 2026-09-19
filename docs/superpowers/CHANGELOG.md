@@ -643,14 +643,17 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   nothing selected"`, `"— a group has no fill"`), never hidden, per invariant 24 — a hidden entry
   would move the bar. `.menu-item` in `src/app.css` gained `aria-disabled` styling, which it had
   none of before, so a disabled entry now actually looks disabled.
-- The same section in the context menu, for the iPad long-press route where no top-bar menu is
-  open: Select All and Invert Selection always, the four Same commands only when they apply — the
+- The same section in the context menu — the **mouse** route, not the iPad one: `Canvas.svelte`
+  opens that menu only when `app.lastPointerType === "mouse"` and nothing handles a long-press, so
+  on a device the Select menu is the only way to these commands. Select All and Invert Selection
+  always (Select All only while something is in reach), the four Same commands only when they apply
+  — the
   context menu hides an inapplicable entry instead of disabling it, matching its existing pattern
   for Ungroup, Convert and Flatten.
 - A tripwire test (`src/__tests__/select-match.test.ts`) asserts `Style`'s key set directly,
   because `sameStyle` enumerates its fields by hand and TypeScript has no way to flag it falling
   behind a new field.
-- Plan: `docs/superpowers/plans/2026-09-19-m6-selection-conveniences.md`. 480 tests in 35 files.
+- Plan: `docs/superpowers/plans/2026-09-19-m6-selection-conveniences.md`. 481 tests in 35 files.
 - Browser-verified (controller, desktop Chrome, port 5198): Select All returning top-level ids only
   with a group counted once and a hidden layer excluded; Invert Selection; Same Fill finding an
   orange rect and an orange ellipse across kinds while skipping both the grouped orange rect and
@@ -659,7 +662,12 @@ Nine findings from the whole-branch review, each pinned by a test that fails wit
   still selecting that field's text; the Select menu's disabled reasons in both states, a disabled
   entry doing nothing while the menu stays open, and an enabled one running and closing it; the
   context menu's section and Same Fill from it. No console errors.
-- Owed: the iPad pass owed since M5 now also covers these two menus — a long-press reaching the
-  context menu's new section, and the Select menu's hit targets at portrait widths. Also unchanged
+- A group contributes no matches to the three paint commands and is never returned as one, but a
+  selected group is kept — as is any seed out of reach, since the layers panel can select a row at
+  any depth while `enteredGroupId` points elsewhere. Without that, a Select Same matching nothing
+  cleared the whole selection with no message. Select All is disabled with "— nothing to select"
+  when every layer is hidden or locked.
+- Owed: the iPad pass owed since M5 now also covers the Select menu's hit targets at portrait
+  widths. Not the context menu: it is mouse-only, so there is nothing to check there on a device. Also unchanged
   from before: neither top-bar menu closes on Escape, which belongs with the parked accessibility
   milestone that already owes menu keyboard navigation.
