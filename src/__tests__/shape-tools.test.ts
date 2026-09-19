@@ -56,13 +56,17 @@ describe("tool helpers", () => {
       w: 10,
       h: 20,
     });
-    expect(dragBox({ x: 10, y: 10 }, { x: 0, y: 30 }, { shift: true, alt: false })).toEqual({
+    expect(
+      dragBox({ x: 10, y: 10 }, { x: 0, y: 30 }, { shift: true, alt: false, shiftLatched: false }),
+    ).toEqual({
       x: -10,
       y: 10,
       w: 20,
       h: 20,
     });
-    expect(dragBox({ x: 10, y: 10 }, { x: 15, y: 12 }, { shift: false, alt: true })).toEqual({
+    expect(
+      dragBox({ x: 10, y: 10 }, { x: 15, y: 12 }, { shift: false, alt: true, shiftLatched: false }),
+    ).toEqual({
       x: 5,
       y: 8,
       w: 10,
@@ -98,7 +102,11 @@ describe("rect tool", () => {
 
   it("honours Shift and Alt", () => {
     const { ctx, state } = fakeContext(blank());
-    drag(createRectTool(), ctx, [10, 10], [40, 20], { shift: true, alt: true });
+    drag(createRectTool(), ctx, [10, 10], [40, 20], {
+      shift: true,
+      alt: true,
+      shiftLatched: false,
+    });
     expect(children(state.session.doc)[0]).toMatchObject({ x: -20, y: -20, w: 60, h: 60 });
   });
 

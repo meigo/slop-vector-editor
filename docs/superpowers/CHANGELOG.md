@@ -925,3 +925,30 @@ browser pass could not:
   press-and-hold primitive — the M5 lesson applies, so a real press-hold-Escape-release on a device
   is on the iPad list. R1's repro needs a column taller than ~1700px, which was reasoned about and
   unit-tested, not seen.
+
+## 2026-09-19 — A latched Shift no longer makes deselecting impossible
+
+- Reported from use: "when shift is selected, unselecting not working". Reproduced — with the dock's
+  Shift **latched**, a click on empty canvas did nothing, so the selection could not be cleared.
+- Root cause: `select.ts` cleared the selection on a click that hit nothing only when Shift was off,
+  and `Canvas.svelte` built `mods.shift` as `e.shiftKey || dock.shift`, so the tool could not tell a
+  **held key** from a **latched button**. The guard is right for the key — Illustrator and Figma
+  also keep the selection on a shift-click into empty space, because the user is mid-gesture and a
+  miss should not wipe their work — and wrong for a latch, which stays on until tapped again.
+  Escape still cleared, but Escape is a keyboard and the dock exists for devices without one: on an
+  iPad with Shift latched there was **no way at all** to clear the selection.
+- `Mods` now carries `shiftLatched`, set when the latch is the only reason Shift is on, and only
+  the clear-on-empty branch reads it. Everything else, including the additive marquee, still reads
+  `mods.shift` and treats the two alike. Shift-clicking a selected shape to remove it was never
+  broken and is unchanged.
+- **`Select ▸ Deselect`** (and the same entry in the context menu) fills the other half of the gap:
+  the menu had Select All and Invert Selection but no Deselect, so there was no menu route to an
+  empty selection on any device. It is disabled with "Deselect — nothing selected" when there is
+  nothing to clear, and carries Esc as its shortcut hint.
+- Browser-verified (port 5196): with Shift latched, two shapes added by tapping and then a tap on
+  empty canvas clears the selection while the latch stays on; a **held** Shift on empty canvas still
+  keeps the selection; Select ▸ Deselect clears and shows its reason when disabled. 521 tests,
+  including a latched-Shift case in `select-tool.test.ts` covering add, toggle, marquee and clear.
+  No console errors.
+- Owed: verified with the extension's synthetic modifier on a mouse. A real Pencil or finger with
+  the latch on is part of the iPad pass owed since M5.

@@ -278,19 +278,25 @@ describe("dragHandle", () => {
   });
 
   it("resizes from the centre with Alt and keeps proportions with Shift", () => {
-    expect(dragHandle("se", start, { x: 150, y: 75 }, { shift: false, alt: true })).toEqual({
+    expect(
+      dragHandle("se", start, { x: 150, y: 75 }, { shift: false, alt: true, shiftLatched: false }),
+    ).toEqual({
       x: -50,
       y: -25,
       w: 200,
       h: 100,
     });
-    expect(dragHandle("se", start, { x: 200, y: 60 }, { shift: true, alt: false })).toEqual({
+    expect(
+      dragHandle("se", start, { x: 200, y: 60 }, { shift: true, alt: false, shiftLatched: false }),
+    ).toEqual({
       x: 0,
       y: 0,
       w: 200,
       h: 100,
     });
-    expect(dragHandle("e", start, { x: 200, y: 60 }, { shift: true, alt: false })).toEqual({
+    expect(
+      dragHandle("e", start, { x: 200, y: 60 }, { shift: true, alt: false, shiftLatched: false }),
+    ).toEqual({
       x: 0,
       y: 0,
       w: 200,

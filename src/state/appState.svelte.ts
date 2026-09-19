@@ -365,8 +365,14 @@ export function setDock(key: keyof DockState, latch: Latch): void {
   app.dock = { ...app.dock, [key]: latch };
 }
 
+/** The dock's own contribution. Everything it turns on is latched by definition — `Canvas.svelte`
+ *  combines this with the physical keys and decides `shiftLatched` from both. */
 export function dockMods(): Mods {
-  return { shift: latchOn(app.dock.shift), alt: latchOn(app.dock.alt) };
+  return {
+    shift: latchOn(app.dock.shift),
+    alt: latchOn(app.dock.alt),
+    shiftLatched: latchOn(app.dock.shift),
+  };
 }
 
 export function setPrefs(p: Prefs): void {
@@ -517,6 +523,14 @@ export function selectAll(): void {
 export function invertSelection(): void {
   cancelActiveGesture();
   setSelection(invertIds(app.doc, app.selection, app.enteredGroupId));
+}
+
+/** Escape does this too, but Escape is a keyboard: the modifier dock exists for devices that have
+ *  none, and with Shift latched a tap on empty canvas is the only other route. This is the one that
+ *  always works. */
+export function deselectAll(): void {
+  cancelActiveGesture();
+  setSelection([]);
 }
 
 export function selectSame(field: MatchField): void {

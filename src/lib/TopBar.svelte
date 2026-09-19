@@ -36,6 +36,7 @@
     duplicateSelection,
     flattenSelection,
     groupSelection,
+    deselectAll,
     invertSelection,
     pasteFromClipboard,
     selectAll,
@@ -61,6 +62,8 @@
 
   const none = $derived(app.selection.length === 0);
   const actions = $derived(selectionActions(app.doc, app.selection));
+  const anySelected = $derived(app.selection.length > 0);
+
   /** Spec (M6) §6: with every layer hidden or locked there is nothing to select, and Select All
    *  says so rather than doing nothing silently. */
   const anyInReach = $derived(allIds(app.doc, app.enteredGroupId).length > 0);
@@ -198,6 +201,15 @@
           onclick={() => runSelect(invertSelection)}
         >
           Invert Selection <span class="kbd">{shiftMod}A</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!anySelected}
+          title={anySelected ? "Clear the selection (Esc)" : "Deselect — nothing selected"}
+          onclick={() => anySelected && runSelect(deselectAll)}
+        >
+          Deselect <span class="kbd">Esc</span>
         </button>
         <div class="my-1 h-px bg-line"></div>
         <button

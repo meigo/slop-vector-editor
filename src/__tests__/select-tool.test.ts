@@ -63,6 +63,34 @@ describe("select tool: selection", () => {
     expect(state.session.history.past).toHaveLength(0);
   });
 
+  it("a latched Shift adds like the key but never blocks deselecting", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    const latched = { shift: true, shiftLatched: true };
+    tap(t, ctx, 20, 20, latched);
+    tap(t, ctx, 80, 20, latched);
+    expect(state.selection).toEqual(["a", "b"]);
+    tap(t, ctx, 20, 20, latched);
+    expect(state.selection).toEqual(["b"]);
+    tap(t, ctx, 20, 20, latched);
+    expect(state.selection).toEqual(["b", "a"]);
+    // A *held* key means the user is mid-gesture, so a miss must not wipe their work.
+    tap(t, ctx, 150, 150, { shift: true });
+    expect(state.selection).toEqual(["b", "a"]);
+    // A latch is a mode left on — and with no keyboard there is no letting go, so a tap on empty
+    // canvas has to clear, or the selection could never be cleared at all.
+    tap(t, ctx, 150, 150, latched);
+    expect(state.selection).toEqual([]);
+  });
+
+  it("a latched Shift still adds a marquee to the selection", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    drag(t, ctx, [60, -10], [120, 50], { shift: true, shiftLatched: true });
+    expect(state.selection).toEqual(["a", "b"]);
+  });
+
   it("a plain tap on a member narrows a multi-selection to it", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();

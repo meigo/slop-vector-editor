@@ -15,6 +15,7 @@
     duplicateSelection,
     flattenSelection,
     groupSelection,
+    deselectAll,
     invertSelection,
     pasteFromClipboard,
     selectAll,
@@ -197,6 +198,11 @@
     <button class="menu-item" role="menuitem" onclick={() => run(invertSelection)}>
       Invert Selection <span class="kbd">⇧⌘A</span>
     </button>
+    {#if app.selection.length > 0}
+      <button class="menu-item" role="menuitem" onclick={() => run(deselectAll)}>
+        Deselect <span class="kbd">Esc</span>
+      </button>
+    {/if}
     {#if actions.canSelectSameStyle}
       <button class="menu-item" role="menuitem" onclick={() => run(() => selectSame("fill"))}>
         Same Fill Colour
