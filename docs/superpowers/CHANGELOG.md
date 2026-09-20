@@ -1506,3 +1506,27 @@ least (it is leftmost) and the zoom and Properties controls are lost instead.
 
 These two dividers add 26px to an existing 208px shortfall; they did not cause it. Fixing it is a
 design decision about which controls to drop and at which widths, so it is left for the user.
+
+## 2026-09-20 — An Object menu, so arrange can be hidden by width
+
+- **New Object menu** carrying the four arrange commands with their shortcuts. They had no menu:
+  outside the bar icons they existed only on ⌘]/⌘[ and in the right-click menu, and `route.ts:31`
+  opens that for `pointerType === "mouse"` only — so on a touch device the four icons were the one
+  route, and invariant 24 therefore forbade hiding them at any width. Now it doesn't.
+- The menu and the icons render from **one `ARRANGE` list**, so the two cannot drift apart.
+- **Breakpoints re-measured and corrected.** The menu costs ~71px, so the old numbers no longer fit:
+
+  | shown | bar needs | appears at |
+  |---|---|---|
+  | booleans + arrange | 1205px | **1220px** (arrange) |
+  | booleans only | 1048px | **1060px** (booleans) |
+  | neither | 891px | — |
+
+  The booleans' old 900px breakpoint was 148px below what the bar needed there, so they were shown
+  at widths where they overflowed — the exception was silently undoing itself. Verified at each
+  boundary (1220, 1219, 1060, 1059): the bar fits in every state.
+- **Still not fixed:** below 891px the bar overflows — 123px over at iPad portrait (768px). Closing
+  that needs menu homes for Cut/Copy/Paste, Duplicate/Delete and Convert/Flatten, which are all
+  bar-only on touch for exactly the same reason arrange was. That is the next step, not this one.
+- Browser-verified (desktop Chrome, :5183): the Object menu opens with all four commands, their
+  shortcuts, and disabled-with-reason titles when nothing is selected.
