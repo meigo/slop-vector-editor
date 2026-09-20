@@ -1439,3 +1439,14 @@ the available desktop height. Measured before: 1058px of content for a selected 
 - Browser-verified (desktop Chrome, :5189): a plain corner drag dropped the text and raised the
   notice; the same drag with the dock's Shift latch on kept the title and took `size` 96 → 240.35;
   re-typing afterwards **stayed at 240.35** instead of snapping back to 96. 625 tests in 49 files.
+
+## 2026-09-20 — Tool icons and strip order
+
+- The node tool uses `SplinePointer` and Convert to path uses `Waypoints`. They both used `Spline`,
+  so "edit the nodes of this path" and "turn this shape into a path" were the same picture (user
+  report). `Spline` is now unused and its import is gone.
+- **Edit nodes moves to second in the tool strip, straight after Select.** Both are selection
+  tools — one picks objects, the other picks the nodes inside one — and the shape and draw tools
+  below are a different job. It previously sat between Text and Hand, at the far end from Select.
+- Browser-verified (desktop Chrome, :5188): strip order is Select, Edit nodes, Rectangle, Ellipse,
+  Line, Polygon / star, Pen, Text, Hand; both icons render and are distinct.

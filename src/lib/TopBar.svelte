@@ -14,13 +14,13 @@
     Scissors,
     SendToBack,
     SlidersHorizontal,
-    Spline,
     Split,
     SquareMinus,
     SquareSlash,
     Stamp,
     Trash2,
     Undo2,
+    Waypoints,
     ZoomIn,
     ZoomOut,
   } from "@lucide/svelte";
@@ -435,7 +435,7 @@
   <IconButton
     label="Convert to path"
     title="Convert to path"
-    icon={Spline}
+    icon={Waypoints}
     disabled={!actions.canConvert}
     disabledTitle="Convert to path — select a rectangle, ellipse or polygon"
     onclick={convertSelectionToPath}

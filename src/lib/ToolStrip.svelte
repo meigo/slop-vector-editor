@@ -6,7 +6,7 @@
     Pentagon,
     PenTool,
     Slash,
-    Spline,
+    SplinePointer,
     Square,
     Type,
   } from "@lucide/svelte";
@@ -15,13 +15,13 @@
 
   const TOOL_BUTTONS: { id: ToolId; label: string; key: string; icon: typeof Square }[] = [
     { id: "select", label: "Select", key: "V", icon: MousePointer2 },
+    { id: "node", label: "Edit nodes", key: "N", icon: SplinePointer },
     { id: "rect", label: "Rectangle", key: "R", icon: Square },
     { id: "ellipse", label: "Ellipse", key: "E", icon: Circle },
     { id: "line", label: "Line", key: "L", icon: Slash },
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "text", label: "Text", key: "T", icon: Type },
-    { id: "node", label: "Edit nodes", key: "N", icon: Spline },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];
 </script>
