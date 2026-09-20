@@ -1461,3 +1461,13 @@ the available desktop height. Measured before: 1058px of content for a selected 
   gone with them.
 - Browser-verified (desktop Chrome, :5187): all four render side by side in the top bar and read as
   one family. (The group appears at 900px and up — invariant 24's one width-dependent exception.)
+
+## 2026-09-20 — Layer-aware icons for Bring forward and Send backward
+
+- `LayersArrowUp` and `LayersArrowDown` replace the bare `ArrowUp`/`ArrowDown`. Those two sat
+  between `BringToFront` and `SendToBack` as generic arrows that said "up" and "down" rather than
+  "up the stack" — the only thing in the group not about stacking.
+- The four now read as two pairs, which matches what they do: the outer two move all the way to
+  front or back, the inner two move one step. `ArrowUp`/`ArrowDown` are unused and their imports
+  are gone.
+- Browser-verified (desktop Chrome, :5186): all four render in order and are distinguishable.

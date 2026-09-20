@@ -1,12 +1,12 @@
 <script lang="ts">
   import {
-    ArrowDown,
-    ArrowUp,
     BringToFront,
     ClipboardPaste,
     Copy,
     CopyPlus,
     Group,
+    LayersArrowDown,
+    LayersArrowUp,
     Maximize,
     Redo2,
     Scissors,
@@ -413,7 +413,7 @@
   <IconButton
     label="Bring forward"
     title="Bring forward ({mod}])"
-    icon={ArrowUp}
+    icon={LayersArrowUp}
     disabled={none}
     disabledTitle="Bring forward — nothing selected"
     onclick={bringSelectionForward}
@@ -421,7 +421,7 @@
   <IconButton
     label="Send backward"
     title="Send backward ({mod}[)"
-    icon={ArrowDown}
+    icon={LayersArrowDown}
     disabled={none}
     disabledTitle="Send backward — nothing selected"
     onclick={sendSelectionBackward}
