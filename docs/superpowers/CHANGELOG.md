@@ -1556,3 +1556,16 @@ design decision about which controls to drop and at which widths, so it is left 
   (1220→1270, 1060→1110). A breakpoint is only correct relative to the bar's current content.
 - Browser-verified (desktop Chrome, :5182): both menus open with the right items, shortcuts and
   disabled-with-reason states.
+
+## 2026-09-20 — README: out of early development
+
+- Dropped the "Early development." line from Status. The app opens, edits and saves SVG, has
+  titles, booleans, layers and node editing — the label was undersold.
+- **Multiple artboards are no longer planned**, and **text has left the roadmap** because it is
+  built (M10a-M10d). CLAUDE.md's copy of the same list updated to match, with both decisions dated
+  beside the light-theme one.
+- Clarified the import note: unsupported content is *other tools'* `<text>` elements, not text in
+  general. Beside the Artistic titles bullet, the old wording read as if the Text tool were broken.
+  Those elements are genuinely still dropped (`parse.test.ts` asserts `["<text>"]`), so the caveat
+  stays — it just says what it means now.
+- Test count 607 → 625.

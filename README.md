@@ -12,11 +12,11 @@ Your document is a plain `.svg` file: open it in any browser or design tool.
 
 ## Status
 
-Early development. What works today:
+What works today:
 
 - Open and save SVG files (save in place on Chromium desktop browsers; download elsewhere).
-  Other tools' SVGs import best-effort — unsupported content (text, gradients, filters, CSS
-  classes…) is listed when you open the file, and such files always open as a copy (Save asks
+  Other tools' SVGs import best-effort — unsupported content (their `<text>` elements, gradients,
+  filters, CSS classes…) is listed when you open the file, and such files always open as a copy (Save asks
   where to write them) so the original is never overwritten with a lossy re-export.
 - New document with size presets; artboard size and background (or transparent).
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
@@ -93,8 +93,8 @@ Early development. What works today:
 
 ## Roadmap
 
-Unplanned: text; gradients; a freehand pencil/brush tool; PNG export; grid and smart guides;
-multiple artboards; masks/clipping; align & distribute; system-clipboard image paste.
+Unplanned: gradients; a freehand pencil/brush tool; PNG export; grid and smart guides;
+masks/clipping; align & distribute; system-clipboard image paste.
 
 ## Development
 
@@ -102,7 +102,7 @@ multiple artboards; masks/clipping; align & distribute; system-clipboard image p
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 607 unit tests
+npm test          # 625 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

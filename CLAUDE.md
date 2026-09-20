@@ -568,11 +568,12 @@ every user-visible change.
 
 ## Current state
 
-Milestone 10a (titles) — see CHANGELOG. What comes next is unplanned: the
-post-v1 list (project design §10) still holds gradients, a freehand tool, PNG export, grid
-and smart guides, multiple artboards, masks, align and distribute, and image paste. **A light
-theme is no longer planned** (2026-09-19) — the design doc still lists it, as a dated document
-that later decisions supersede rather than rewrite. The accessibility group and the performance
+Milestone 10e (panel density, a resizable sidebar, the bar's menu homes) — see CHANGELOG. What
+comes next is unplanned: the post-v1 list (project design §10) still holds gradients, a freehand
+tool, PNG export, grid and smart guides, masks, align and distribute, and image paste. **A light
+theme is no longer planned** (2026-09-19), and **multiple artboards are no longer planned**
+(2026-09-20) — the design doc still lists both, as a dated document that later decisions supersede
+rather than rewrite. **Text is done** (M10a-M10d), so it has left the list. The accessibility group and the performance
 group (both parked below) remain the two obvious milestones.
 
 ## Roadmap
