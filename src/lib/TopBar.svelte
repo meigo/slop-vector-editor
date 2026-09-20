@@ -370,6 +370,7 @@
     disabledTitle="Delete — nothing selected"
     onclick={deleteSelection}
   />
+  <span class="bar-sep"></span>
   <IconButton
     label="Group"
     title="Group ({mod}G)"
@@ -390,6 +391,7 @@
        widths, and it must never wrap or scroll (M2e). They appear where there is room, and the
        Path menu carries them at every width (spec M7 §6). -->
   <span class="hidden min-[900px]:contents">
+    <span class="bar-sep"></span>
     {#each BOOL_OPS as op (op)}
       <IconButton
         label={BOOL_LABEL[op]}

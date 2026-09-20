@@ -1479,3 +1479,30 @@ the available desktop height. Measured before: 1058px of content for a selected 
   same shapes bracketed, then released — so the two now read as one another's inverse.
 - `Split` is unused and its import is gone.
 - Browser-verified (desktop Chrome, :5185): Group and Ungroup render side by side as a pair.
+
+## 2026-09-20 — Dividers between the top bar's edit groups
+
+- Two `bar-sep`s added: **Delete | Group** and **Ungroup | Unite**. That run was eight icons with
+  no internal divider — twice the length of any other group in the bar — and mixed three jobs:
+  object lifecycle (Duplicate, Delete), grouping (Group, Ungroup) and boolean path operations.
+- The Ungroup | Unite separator lives **inside** the `min-[900px]:contents` span, with the
+  operations it introduces. Outside it, the bar would show two separators with nothing between them
+  at the widths where the booleans are hidden.
+
+### Found while measuring this: the top bar already overflows (NOT fixed)
+
+Invariant 24 says the bar must never scroll or wrap. It does, and has been doing so before this
+change. Measured in Chrome at :5184, with `--ctl-h` at its 24px desktop value:
+
+| state | width the bar needs |
+|---|---|
+| booleans shown (≥900px) | **1134px** (1108px before these two dividers) |
+| booleans hidden (<900px) | **977px** |
+
+So the bar is clipped on the right below ~977px, and the 900px breakpoint at which the boolean
+icons appear is ~234px too low — between 900 and 1134 they are shown but do not fit. At iPad
+portrait (768px) the bar overflows by 209px, which is where the File menu's protection matters
+least (it is leftmost) and the zoom and Properties controls are lost instead.
+
+These two dividers add 26px to an existing 208px shortfall; they did not cause it. Fixing it is a
+design decision about which controls to drop and at which widths, so it is left for the user.
