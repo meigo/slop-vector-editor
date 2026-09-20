@@ -56,6 +56,7 @@
   let menuOpen = $state(false);
   let selectOpen = $state(false);
   let pathOpen = $state(false);
+  let objectOpen = $state(false);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? "⌘" : "Ctrl+";
   const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
@@ -78,6 +79,19 @@
    *  squares with the result of each operation filled in. The set they replaced was assembled one
    *  by one from unrelated icons (`Combine`, `SquareMinus`, `Blend`, `SquareSlash`), so the four
    *  operations did not look like four variants of one thing. */
+  /** One list for the Object menu and the four bar icons, so the two can never drift apart. */
+  const ARRANGE = $derived([
+    {
+      label: "Bring to front",
+      keys: `${shiftMod}]`,
+      icon: BringToFront,
+      run: bringSelectionToFront,
+    },
+    { label: "Bring forward", keys: `${mod}]`, icon: LayersArrowUp, run: bringSelectionForward },
+    { label: "Send backward", keys: `${mod}[`, icon: LayersArrowDown, run: sendSelectionBackward },
+    { label: "Send to back", keys: `${shiftMod}[`, icon: SendToBack, run: sendSelectionToBack },
+  ]);
+
   const BOOL_ICON = {
     unite: SquaresUnite,
     subtract: SquaresSubtract,
@@ -102,6 +116,16 @@
   }
 
   /** Close the menu, then act — the same order the File menu uses. */
+  /** The Object menu is the arrange commands' home away from the bar (spec M10e §8). They had
+   *  none: outside the four icons they existed only in the right-click menu and on ⌘]/⌘[, and
+   *  `route.ts` opens the right-click menu for **mouse input only** — so on an iPad the icons were
+   *  the single route, which is exactly what invariant 24 requires before a control may be hidden
+   *  at a width. With this menu they may be. */
+  function runObject(fn: () => void) {
+    objectOpen = false;
+    fn();
+  }
+
   function runPath(op: BoolOp) {
     pathOpen = false;
     void booleanSelection(op);
@@ -128,6 +152,7 @@
       onclick={() => {
         selectOpen = false;
         pathOpen = false;
+        objectOpen = false;
         menuOpen = !menuOpen;
       }}
     >
@@ -173,6 +198,7 @@
       onclick={() => {
         menuOpen = false;
         pathOpen = false;
+        objectOpen = false;
         selectOpen = !selectOpen;
       }}
     >
@@ -275,6 +301,7 @@
       onclick={() => {
         menuOpen = false;
         selectOpen = false;
+        objectOpen = false;
         pathOpen = !pathOpen;
       }}
     >
@@ -300,6 +327,49 @@
             onclick={() => boolReason === null && runPath(op)}
           >
             {BOOL_LABEL[op]}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
+
+  <div class="relative">
+    <button
+      class={[
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
+        objectOpen && "ui-on",
+      ]}
+      aria-haspopup="menu"
+      aria-expanded={objectOpen}
+      onclick={() => {
+        menuOpen = false;
+        selectOpen = false;
+        pathOpen = false;
+        objectOpen = !objectOpen;
+      }}
+    >
+      Object<span class="text-[10px] opacity-70">▾</span>
+    </button>
+    {#if objectOpen}
+      <button
+        class="fixed inset-0 z-40 cursor-default"
+        aria-label="Close menu"
+        tabindex="-1"
+        onclick={() => (objectOpen = false)}
+      ></button>
+      <div
+        class="absolute top-full left-0 z-50 mt-1 w-56 rounded border border-line bg-panel py-1 shadow-lg"
+        role="menu"
+      >
+        {#each ARRANGE as a (a.label)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={!anySelected}
+            title={anySelected ? `${a.label} (${a.keys})` : `${a.label} — nothing selected`}
+            onclick={() => anySelected && runObject(a.run)}
+          >
+            {a.label} <span class="kbd">{a.keys}</span>
           </button>
         {/each}
       </div>
@@ -387,10 +457,10 @@
     disabledTitle="Ungroup — select a group"
     onclick={ungroupSelection}
   />
-  <!-- The bar already carries 18 icons and three menus; four more do not fit at iPad-portrait
-       widths, and it must never wrap or scroll (M2e). They appear where there is room, and the
-       Path menu carries them at every width (spec M7 §6). -->
-  <span class="hidden min-[900px]:contents">
+  <!-- Measured, not guessed (spec M10e §8): with the booleans shown and arrange hidden the bar
+       needs 1048px, so they appear at 1060. The bar must never wrap or scroll (M2e), and the Path
+       menu carries these commands at every width (spec M7 §6). -->
+  <span class="hidden min-[1060px]:contents">
     <span class="bar-sep"></span>
     {#each BOOL_OPS as op (op)}
       <IconButton
@@ -403,40 +473,24 @@
       />
     {/each}
   </span>
-  <span class="bar-sep"></span>
-  <IconButton
-    label="Bring to front"
-    title="Bring to front ({shiftMod}])"
-    icon={BringToFront}
-    disabled={none}
-    disabledTitle="Bring to front — nothing selected"
-    onclick={bringSelectionToFront}
-  />
-  <IconButton
-    label="Bring forward"
-    title="Bring forward ({mod}])"
-    icon={LayersArrowUp}
-    disabled={none}
-    disabledTitle="Bring forward — nothing selected"
-    onclick={bringSelectionForward}
-  />
-  <IconButton
-    label="Send backward"
-    title="Send backward ({mod}[)"
-    icon={LayersArrowDown}
-    disabled={none}
-    disabledTitle="Send backward — nothing selected"
-    onclick={sendSelectionBackward}
-  />
-  <IconButton
-    label="Send to back"
-    title="Send to back ({shiftMod}[)"
-    icon={SendToBack}
-    disabled={none}
-    disabledTitle="Send to back — nothing selected"
-    onclick={sendSelectionToBack}
-  />
-
+  <!-- Arrange, from the same list the Object menu renders. Hidden below the breakpoint like the
+       boolean operations, which is only legal because the Object menu now carries these commands
+       at every width (invariant 24) — before it existed, the right-click menu was mouse-only and
+       these icons were the one route on a touch device. With everything shown the bar needs
+       1205px, so arrange appears at 1220. -->
+  <span class="hidden min-[1220px]:contents">
+    <span class="bar-sep"></span>
+    {#each ARRANGE as a (a.label)}
+      <IconButton
+        label={a.label}
+        title="{a.label} ({a.keys})"
+        icon={a.icon}
+        disabled={none}
+        disabledTitle="{a.label} — nothing selected"
+        onclick={a.run}
+      />
+    {/each}
+  </span>
   <span class="bar-sep"></span>
   <IconButton
     label="Convert to path"
