@@ -1450,3 +1450,14 @@ the available desktop height. Measured before: 1058px of content for a selected 
   below are a different job. It previously sat between Text and Hand, at the far end from Select.
 - Browser-verified (desktop Chrome, :5188): strip order is Select, Edit nodes, Rectangle, Ellipse,
   Line, Polygon / star, Pen, Text, Hand; both icons render and are distinct.
+
+## 2026-09-20 — The boolean operations use Lucide's matched icon set
+
+- Unite, Subtract, Intersect and Exclude now use `SquaresUnite`, `SquaresSubtract`,
+  `SquaresIntersect` and `SquaresExclude` — a family Lucide draws to be read together, two
+  overlapping squares with each operation's result filled in.
+- They replaced `Combine`, `SquareMinus`, `Blend` and `SquareSlash`, assembled one at a time from
+  unrelated icons, so four variants of one idea did not look like a set. Those four imports are
+  gone with them.
+- Browser-verified (desktop Chrome, :5187): all four render side by side in the top bar and read as
+  one family. (The group appears at 900px and up — invariant 24's one width-dependent exception.)

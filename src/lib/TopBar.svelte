@@ -2,10 +2,8 @@
   import {
     ArrowDown,
     ArrowUp,
-    Blend,
     BringToFront,
     ClipboardPaste,
-    Combine,
     Copy,
     CopyPlus,
     Group,
@@ -15,8 +13,10 @@
     SendToBack,
     SlidersHorizontal,
     Split,
-    SquareMinus,
-    SquareSlash,
+    SquaresExclude,
+    SquaresIntersect,
+    SquaresSubtract,
+    SquaresUnite,
     Stamp,
     Trash2,
     Undo2,
@@ -74,11 +74,15 @@
     actions.booleanRefusal === null ? null : BOOL_REASON[actions.booleanRefusal],
   );
 
+  /** Lucide ships these four as a matched family, drawn to be read together — two overlapping
+   *  squares with the result of each operation filled in. The set they replaced was assembled one
+   *  by one from unrelated icons (`Combine`, `SquareMinus`, `Blend`, `SquareSlash`), so the four
+   *  operations did not look like four variants of one thing. */
   const BOOL_ICON = {
-    unite: Combine,
-    subtract: SquareMinus,
-    intersect: Blend,
-    exclude: SquareSlash,
+    unite: SquaresUnite,
+    subtract: SquaresSubtract,
+    intersect: SquaresIntersect,
+    exclude: SquaresExclude,
   };
 
   function command(cmd: Command) {
