@@ -12,7 +12,6 @@
     Scissors,
     SendToBack,
     SlidersHorizontal,
-    Split,
     SquaresExclude,
     SquaresIntersect,
     SquaresSubtract,
@@ -20,6 +19,7 @@
     Stamp,
     Trash2,
     Undo2,
+    Ungroup,
     Waypoints,
     ZoomIn,
     ZoomOut,
@@ -381,7 +381,7 @@
   <IconButton
     label="Ungroup"
     title="Ungroup ({shiftMod}G)"
-    icon={Split}
+    icon={Ungroup}
     disabled={!actions.canUngroup}
     disabledTitle="Ungroup — select a group"
     onclick={ungroupSelection}

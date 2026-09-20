@@ -1471,3 +1471,11 @@ the available desktop height. Measured before: 1058px of content for a selected 
   front or back, the inner two move one step. `ArrowUp`/`ArrowDown` are unused and their imports
   are gone.
 - Browser-verified (desktop Chrome, :5186): all four render in order and are distinguishable.
+
+## 2026-09-20 — Ungroup gets its own icon
+
+- `Ungroup` replaces `Split`, which read as "split a path" next to the Path menu's boolean
+  operations rather than "take this group apart". Lucide ships `group`/`ungroup` as a pair — the
+  same shapes bracketed, then released — so the two now read as one another's inverse.
+- `Split` is unused and its import is gone.
+- Browser-verified (desktop Chrome, :5185): Group and Ungroup render side by side as a pair.
