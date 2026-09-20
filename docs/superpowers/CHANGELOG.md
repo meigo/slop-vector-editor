@@ -1530,3 +1530,29 @@ design decision about which controls to drop and at which widths, so it is left 
   bar-only on touch for exactly the same reason arrange was. That is the next step, not this one.
 - Browser-verified (desktop Chrome, :5183): the Object menu opens with all four commands, their
   shortcuts, and disabled-with-reason titles when nothing is selected.
+
+## 2026-09-20 — The top bar finally fits, down to 739px
+
+- **New Edit menu** (Undo, Redo, Cut, Copy, Paste) and the **Object menu gains Convert to path and
+  Flatten transform**. Both groups were bar-only on touch, for the same reason arrange was: their
+  other routes are keyboard shortcuts and the right-click menu, which `route.ts:31` opens for mouse
+  input only. With menu homes they may legally be hidden at a width (invariant 24).
+- Undo and Redo are in the Edit menu for completeness — an Edit menu without them is a surprise —
+  but their icons never hide. They are the most-used controls in the bar.
+- **A measured cascade**, dropping the least-essential group first as the bar narrows:
+
+  | shown down to | group | bar needs |
+  |---|---|---|
+  | 1270px | arrange | 1259px |
+  | 1110px | booleans | 1102px |
+  | 950px | Convert / Flatten | 945px |
+  | 870px | Cut / Copy / Paste | 860px |
+  | — | (none of the four) | **739px** |
+
+- **739px is under iPad portrait's 768px, so the bar now fits there** — the overflow first measured
+  at 209px is gone. Verified at every boundary (1270/1269, 1110/1109, 950/949, 870/869, 768): the
+  bar fits in all nine states.
+- The Edit menu costs ~54px, which is why the arrange and boolean breakpoints moved up again
+  (1220→1270, 1060→1110). A breakpoint is only correct relative to the bar's current content.
+- Browser-verified (desktop Chrome, :5182): both menus open with the right items, shortcuts and
+  disabled-with-reason states.

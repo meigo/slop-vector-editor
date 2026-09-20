@@ -298,14 +298,18 @@ every user-visible change.
     top bar must never scroll or wrap, because that would clip the File menu. Only the file name
     shrinks. **Width-dependent hiding is the one exception** (added M7): a control may be absent
     below a breakpoint when the same command stays reachable at every width through a menu — the
-    booleans appear at 1060px and up with the Path menu carrying them, and arrange appears at
-    1220px and up with the **Object** menu carrying it (added M10e §8; before that menu existed,
+    four icon groups are hidden in a cascade, each carried by a menu at every width: clipboard
+    below 870px (**Edit** menu), Convert/Flatten below 950px (**Object**), the booleans below
+    1110px (**Path**), and arrange below 1270px (**Object**). They drop least-essential first as
+    the bar narrows, so Cut/Copy/Paste survive longest and Undo/Redo never hide at all. The
+    **Object** menu carries arrange (added M10e §8; before that menu existed,
     arrange's only other routes were ⌘]/⌘[ and the right-click menu, which `route.ts` opens for
     **mouse input only**, so on a touch device the icons were the single route and could not
     legally be hidden). **Those breakpoints are measured, not chosen**: the bar needs 1048px with
-    the booleans shown and 1205px with everything shown, and a breakpoint below what the bar needs
-    silently reintroduces the overflow the exception exists to prevent — the old 900px was 148px
-    short. Below 891px the bar still overflows; that is open. The
+    1259px with everything shown and 739px with all four groups hidden, and a breakpoint below what the bar
+    needs silently reintroduces the overflow the exception exists to prevent — an earlier 900px was
+    148px short of what it needed. **The bar now fits at every width down to 739px**, iPad portrait
+    (768px) included; verified at each boundary. The
     bar is then stable at any given width, which is what the rule protects. Hiding a control
     because of _state_ — a selection, a mode, a document — is still forbidden. The file name's
     `title` (full name when truncated) is the one non-action title and also shows in the status

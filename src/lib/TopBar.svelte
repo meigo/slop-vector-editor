@@ -57,6 +57,7 @@
   let selectOpen = $state(false);
   let pathOpen = $state(false);
   let objectOpen = $state(false);
+  let editOpen = $state(false);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const mod = isMac ? "⌘" : "Ctrl+";
   const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
@@ -126,6 +127,13 @@
     fn();
   }
 
+  /** Undo and Redo are here because an Edit menu without them is a surprise, not because their
+   *  icons are ever hidden — those two stay in the bar at every width. */
+  function runEdit(fn: () => void) {
+    editOpen = false;
+    fn();
+  }
+
   function runPath(op: BoolOp) {
     pathOpen = false;
     void booleanSelection(op);
@@ -153,6 +161,7 @@
         selectOpen = false;
         pathOpen = false;
         objectOpen = false;
+        editOpen = false;
         menuOpen = !menuOpen;
       }}
     >
@@ -191,6 +200,84 @@
     <button
       class={[
         "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
+        editOpen && "ui-on",
+      ]}
+      aria-haspopup="menu"
+      aria-expanded={editOpen}
+      onclick={() => {
+        menuOpen = false;
+        selectOpen = false;
+        pathOpen = false;
+        objectOpen = false;
+        editOpen = !editOpen;
+      }}
+    >
+      Edit<span class="text-[10px] opacity-70">▾</span>
+    </button>
+    {#if editOpen}
+      <button
+        class="fixed inset-0 z-40 cursor-default"
+        aria-label="Close menu"
+        tabindex="-1"
+        onclick={() => (editOpen = false)}
+      ></button>
+      <div
+        class="absolute top-full left-0 z-50 mt-1 w-56 rounded border border-line bg-panel py-1 shadow-lg"
+        role="menu"
+      >
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!app.canUndo}
+          title={app.canUndo ? `Undo (${mod}Z)` : "Undo — nothing to undo"}
+          onclick={() => app.canUndo && runEdit(() => command("undo"))}
+        >
+          Undo <span class="kbd">{mod}Z</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!app.canRedo}
+          title={app.canRedo ? `Redo (${shiftMod}Z)` : "Redo — nothing to redo"}
+          onclick={() => app.canRedo && runEdit(() => command("redo"))}
+        >
+          Redo <span class="kbd">{shiftMod}Z</span>
+        </button>
+        <div class="my-1 h-px bg-line"></div>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={none}
+          title={none ? "Cut — nothing selected" : `Cut (${mod}X)`}
+          onclick={() => !none && runEdit(cutToSystem)}
+        >
+          Cut <span class="kbd">{mod}X</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={none}
+          title={none ? "Copy — nothing selected" : `Copy (${mod}C)`}
+          onclick={() => !none && runEdit(copyToSystem)}
+        >
+          Copy <span class="kbd">{mod}C</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          title="Paste ({mod}V)"
+          onclick={() => runEdit(() => void pasteFromClipboard())}
+        >
+          Paste <span class="kbd">{mod}V</span>
+        </button>
+      </div>
+    {/if}
+  </div>
+
+  <div class="relative shrink-0">
+    <button
+      class={[
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded px-1 text-sm whitespace-nowrap hover:bg-raised min-[900px]:px-2",
         selectOpen && "ui-on",
       ]}
       aria-haspopup="menu"
@@ -199,6 +286,7 @@
         menuOpen = false;
         pathOpen = false;
         objectOpen = false;
+        editOpen = false;
         selectOpen = !selectOpen;
       }}
     >
@@ -302,6 +390,7 @@
         menuOpen = false;
         selectOpen = false;
         objectOpen = false;
+        editOpen = false;
         pathOpen = !pathOpen;
       }}
     >
@@ -345,6 +434,7 @@
         menuOpen = false;
         selectOpen = false;
         pathOpen = false;
+        editOpen = false;
         objectOpen = !objectOpen;
       }}
     >
@@ -372,6 +462,29 @@
             {a.label} <span class="kbd">{a.keys}</span>
           </button>
         {/each}
+        <div class="my-1 h-px bg-line"></div>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canConvert}
+          title={actions.canConvert
+            ? "Convert to path"
+            : "Convert to path — select a rectangle, ellipse or polygon"}
+          onclick={() => actions.canConvert && runObject(convertSelectionToPath)}
+        >
+          Convert to path
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={!actions.canFlatten}
+          title={actions.canFlatten
+            ? "Flatten transform"
+            : "Flatten transform — select a moved or rotated path"}
+          onclick={() => actions.canFlatten && runObject(flattenSelection)}
+        >
+          Flatten transform
+        </button>
       </div>
     {/if}
   </div>
@@ -399,30 +512,33 @@
     onclick={() => command("redo")}
   />
 
-  <span class="bar-sep"></span>
-  <IconButton
-    label="Cut"
-    title="Cut ({mod}X)"
-    icon={Scissors}
-    disabled={none}
-    disabledTitle="Cut — nothing selected"
-    onclick={cutToSystem}
-  />
-  <IconButton
-    label="Copy"
-    title="Copy ({mod}C)"
-    icon={Copy}
-    disabled={none}
-    disabledTitle="Copy — nothing selected"
-    onclick={copyToSystem}
-  />
-  <IconButton
-    label="Paste"
-    title="Paste ({mod}V)"
-    icon={ClipboardPaste}
-    onclick={() => void pasteFromClipboard()}
-  />
-
+  <!-- Hidden below the breakpoint; the Edit menu carries these at every width (invariant 24).
+       Undo and Redo deliberately stay: they are the most-used controls in the bar. -->
+  <span class="hidden min-[870px]:contents">
+    <span class="bar-sep"></span>
+    <IconButton
+      label="Cut"
+      title="Cut ({mod}X)"
+      icon={Scissors}
+      disabled={none}
+      disabledTitle="Cut — nothing selected"
+      onclick={cutToSystem}
+    />
+    <IconButton
+      label="Copy"
+      title="Copy ({mod}C)"
+      icon={Copy}
+      disabled={none}
+      disabledTitle="Copy — nothing selected"
+      onclick={copyToSystem}
+    />
+    <IconButton
+      label="Paste"
+      title="Paste ({mod}V)"
+      icon={ClipboardPaste}
+      onclick={() => void pasteFromClipboard()}
+    />
+  </span>
   <span class="bar-sep"></span>
   <IconButton
     label="Duplicate"
@@ -458,9 +574,9 @@
     onclick={ungroupSelection}
   />
   <!-- Measured, not guessed (spec M10e §8): with the booleans shown and arrange hidden the bar
-       needs 1048px, so they appear at 1060. The bar must never wrap or scroll (M2e), and the Path
+       needs 1102px, so they appear at 1110. The bar must never wrap or scroll (M2e), and the Path
        menu carries these commands at every width (spec M7 §6). -->
-  <span class="hidden min-[1060px]:contents">
+  <span class="hidden min-[1110px]:contents">
     <span class="bar-sep"></span>
     {#each BOOL_OPS as op (op)}
       <IconButton
@@ -477,8 +593,8 @@
        boolean operations, which is only legal because the Object menu now carries these commands
        at every width (invariant 24) — before it existed, the right-click menu was mouse-only and
        these icons were the one route on a touch device. With everything shown the bar needs
-       1205px, so arrange appears at 1220. -->
-  <span class="hidden min-[1220px]:contents">
+       1259px, so arrange appears at 1270. -->
+  <span class="hidden min-[1270px]:contents">
     <span class="bar-sep"></span>
     {#each ARRANGE as a (a.label)}
       <IconButton
@@ -491,23 +607,26 @@
       />
     {/each}
   </span>
-  <span class="bar-sep"></span>
-  <IconButton
-    label="Convert to path"
-    title="Convert to path"
-    icon={Waypoints}
-    disabled={!actions.canConvert}
-    disabledTitle="Convert to path — select a rectangle, ellipse or polygon"
-    onclick={convertSelectionToPath}
-  />
-  <IconButton
-    label="Flatten transform"
-    title="Flatten transform"
-    icon={Stamp}
-    disabled={!actions.canFlatten}
-    disabledTitle="Flatten transform — select a moved or rotated path"
-    onclick={flattenSelection}
-  />
+  <!-- Hidden below the breakpoint; the Object menu carries both at every width. -->
+  <span class="hidden min-[950px]:contents">
+    <span class="bar-sep"></span>
+    <IconButton
+      label="Convert to path"
+      title="Convert to path"
+      icon={Waypoints}
+      disabled={!actions.canConvert}
+      disabledTitle="Convert to path — select a rectangle, ellipse or polygon"
+      onclick={convertSelectionToPath}
+    />
+    <IconButton
+      label="Flatten transform"
+      title="Flatten transform"
+      icon={Stamp}
+      disabled={!actions.canFlatten}
+      disabledTitle="Flatten transform — select a moved or rotated path"
+      onclick={flattenSelection}
+    />
+  </span>
 
   <div class="ml-auto flex shrink-0 items-center gap-1">
     <IconButton
