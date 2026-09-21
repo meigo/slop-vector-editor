@@ -14,7 +14,8 @@
   import TopBar from "./lib/TopBar.svelte";
   import { hintFrom } from "./lib/hover-hint";
   import { flushAutosave, scheduleAutosave } from "./persist/autosave";
-  import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
+  import { errorMessage } from "./persist/errors";
+  import { autosaveRecord, restoreAutosave } from "./persist/project-io";
   import { watchOtherTabs } from "./persist/tab-presence";
   import { app, copySelection, cutSelection, notify, pasteText } from "./state/appState.svelte";
   import { runCommand, runEditAction } from "./state/commands";

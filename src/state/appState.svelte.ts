@@ -91,7 +91,7 @@ import {
   type Prefs,
   type SectionId,
 } from "../persist/preferences";
-import { errorMessage } from "../persist/project-io";
+import { errorMessage } from "../persist/errors";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import { rasterise, writeClipboardPng } from "../persist/png";
 import { writePngFile } from "../persist/file-io";

@@ -3,11 +3,8 @@ import { app, askConfirm, markDocSaved, notify, replaceDocument } from "../state
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 import { loadAutosave, type AutosaveRecord } from "./autosave";
+import { errorMessage } from "./errors";
 import { pickSvgFile, writeSvgFile } from "./file-io";
-
-export function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 export function createNewDocument(w: number, h: number): void {
   replaceDocument(createDoc(w, h), "Untitled.svg", null, true);
