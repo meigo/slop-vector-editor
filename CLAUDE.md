@@ -585,15 +585,20 @@ every user-visible change.
 ## Current state
 
 Milestone 12 (PNG export: File ▸ Export PNG… with a region, scale and transparency, and Edit ▸ Copy
-as PNG) — see CHANGELOG. **M13 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m13-envelope-warp-design.md`) is specced and is next, having
-been renumbered twice as smaller milestones were pulled ahead of it. Beyond that the post-v1 list
+as PNG) — see CHANGELOG. **M13 — Save to Files on iPad**
+(`docs/superpowers/specs/2026-09-21-m13-save-to-files-design.md`) is specced and is next: iPad
+Safari has no save picker, so every Save and Export lands in Downloads as a renumbered copy, and
+`navigator.share({ files })` is the only way a web page there can put a file where the user
+chooses. It jumped the queue on urgency rather than size — it fixes a save path that is actively
+broken on a first-class device. **M14 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and deferred behind
+it, having been renumbered three times. Beyond that the post-v1 list
 (project design §10) still holds gradients, a freehand tool, grid and smart guides, masks, align
 and distribute, and image paste. **A light theme is no longer planned** (2026-09-19), and
 **multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
 dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d),
 so it has left the list, and so has **PNG export** (M12). The accessibility group and the
-performance group (both parked below) remain the two obvious milestones after M13.
+performance group (both parked below) remain the two obvious milestones after M14.
 
 ## Roadmap
 
@@ -601,7 +606,8 @@ M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
 resizable sidebar), M11 (path operations) and M12 (PNG export) are complete — see CHANGELOG.
-**M13 — envelope warp** is specced and is the next step.
+**M13 — Save to Files on iPad** is specced and is the next step; **M14 — envelope warp** is
+specced and parked behind it.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
