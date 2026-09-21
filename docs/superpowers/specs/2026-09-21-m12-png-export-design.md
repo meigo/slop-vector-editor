@@ -110,6 +110,17 @@ works at all.
 The Selection entry is refused with a reason when nothing is selected, or when the selection's
 bounds are empty (invariant 24's disabled-with-a-reason rule) — never hidden.
 
+**A selection export clips strokes, and that is a stated limitation rather than an oversight**
+(added 2026-09-21, found by the whole-branch review). `selectionBounds` builds on `nodeBounds`,
+whose own contract is *"Geometric bounds (stroke excluded)"*, so the outer half of every edge
+stroke falls outside the `viewBox`: half a pixel per edge at the default `strokeWidth` of 1, but
+6px per edge on a 12px-stroked logo. It is accepted for this milestone on one honest ground — the
+PNG then matches **exactly** the selection frame the app already draws, which is built from the
+same bounds, so what you see selected is what you get. Illustrator uses visual bounds here and we
+should too; that is in §11, not here, because correct visual bounds need miter-join overshoot,
+which can extend far past half the stroke width and is not a number this codebase computes
+anywhere yet.
+
 ## 5. Size, scale and the cap
 
 **One control: a scale multiplier**, with a live readout of the pixels it produces. The artboard's
@@ -185,8 +196,15 @@ only the final step differs.
 
 Two things make this riskier than the file path, and both are handled rather than hoped about:
 
-- **Safari accepts only the promise form** of `ClipboardItem` and only under a user gesture. A menu
-  click is a gesture; the promise form is what gets written.
+- **Safari requires `clipboard.write` to be *called* inside the gesture**, not merely to be handed
+  a promise. *Corrected 2026-09-21, after the first implementation got this wrong.* The promise
+  form exists precisely so the call can happen before the blob is ready — wrapping an
+  already-resolved blob in `Promise.resolve` after an `await` satisfies the letter and defeats the
+  substance, because `img.decode()` is a real async boundary and the click's transient activation
+  is gone by then. So `writeClipboardPng` takes a **`Promise<Blob>`**, and `copyPng` does its
+  refusal check synchronously, starts the rasterisation **without awaiting it**, and hands the
+  pending promise straight through. Chrome is forgiving here and would never have surfaced it;
+  the iPad pass would have — against a comment claiming the problem was solved.
 - **It can reject for reasons we cannot see** — permissions, an unfocused document. It goes through
   the never-throwing wrapper pattern `src/persist/system-clipboard.ts` already uses, and a failure
   raises a notice telling the user to use `Export PNG…` instead, rather than failing silently.
@@ -247,6 +265,14 @@ tests cover our region, our filtering and our guards.
   early in the device pass, not last.**
 - **`MAX_SIDE` and `MAX_PIXELS` are chosen conservatively against an unmeasured iOS limit.** They
   may be tightened or loosened once the device pass produces a number.
-- **Copy as PNG may not survive contact with Safari** (§8).
+- **Copy as PNG may still not survive contact with Safari** (§8). The gesture-boundary bug is
+  fixed, but only Chrome has been exercised; Safari's activation rules are stricter than the spec
+  text and only a device will settle it.
+- **A selection export should use visual bounds, not geometric ones** (§4). The fix is to expand
+  the box by half the largest stroke width among the selected nodes, scaled through each node's
+  world matrix — and then to handle miter joins, which can overshoot half the stroke width by an
+  arbitrary amount at a sharp angle. Deferred rather than rushed at a merge gate, because an
+  approximate expansion that over- or under-shoots is harder to reason about than a documented
+  exact rule.
 - Large exports are synchronous: a 4096² PNG takes a moment and nothing reports progress. Acceptable
   at these sizes, and worth revisiting only if the cap ever rises.
