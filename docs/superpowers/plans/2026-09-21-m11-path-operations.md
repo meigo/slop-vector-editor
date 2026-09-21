@@ -904,6 +904,7 @@ describe("pathOpRefusal", () => {
       kind: "group",
       id: "g",
       transform: IDENT,
+      opacity: 1,
       children: [path("c1", [ring(0, 5)])],
     };
     const doc: Doc = {
