@@ -16,6 +16,24 @@ declare global {
 const TYPES: PickerType[] = [{ description: "SVG image", accept: { "image/svg+xml": [".svg"] } }];
 const PNG_TYPES: PickerType[] = [{ description: "PNG image", accept: { "image/png": [".png"] } }];
 
+/** How long the object URL outlives the click. Revoking it in the same tick is what MDN's example
+ *  does, but the browser only has to have **started** the fetch by then — and on iPad a short
+ *  revoke can kill a download it has only just begun. slop-animator found this with multi-hundred-
+ *  MB project zips; our files are smaller, but the reasoning holds and the cost is nil
+ *  (spec M13 §8). */
+const REVOKE_DELAY_MS = 60_000;
+
+/** Trigger a browser download of `blob` as `name`. The fallback for every browser without a save
+ *  picker — and on iPad, the thing Save to Files exists to replace. */
+export function downloadBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+}
+
 export type OpenedFile = { text: string; name: string; handle: FileSystemFileHandle | null };
 
 const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError";
@@ -68,12 +86,7 @@ export async function writeSvgFile(
       throw err;
     }
   }
-  const url = URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  downloadBlob(new Blob([text], { type: "image/svg+xml" }), name);
   return { name, handle: null };
 }
 
@@ -94,11 +107,6 @@ export async function writePngFile(blob: Blob, name: string): Promise<string | n
       throw err;
     }
   }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  downloadBlob(blob, name);
   return name;
 }
