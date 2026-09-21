@@ -29,7 +29,7 @@ export type SimplifyOutcome =
  *  0.97% of the diagonal). 5e-3 takes 81 → 56 nodes, at a measured maximum deviation of 0.49% of
  *  the diagonal — so the resulting bound on a path's actual worst-case drift is `diag × 5e-3`,
  *  i.e. 0.5% of its diagonal, even though that number is never passed to paper directly. */
-const TOL_FRACTION = 5e-3;
+export const TOL_FRACTION = 5e-3;
 
 const countNodes = (p: PathShape): number => p.subpaths.reduce((n, sp) => n + sp.nodes.length, 0);
 
@@ -48,7 +48,10 @@ export async function simplifyShapes(doc: Doc, ids: readonly string[]): Promise<
   let after = 0;
   const done = new Map<string, PathShape>();
   for (const p of targets) {
-    const box = nodeBounds(p, IDENTITY);
+    // Measured in the path's own space, not its parent's: `p.subpaths` below is untransformed,
+    // so the tolerance must be too, or a non-isometric transform (scale, rotation) makes the
+    // bound disagree with the geometry it is applied to (spec M11 §6, amended 2026-09-21).
+    const box = nodeBounds({ ...p, transform: IDENTITY }, IDENTITY);
     const diag = box ? Math.hypot(box.w, box.h) : 0;
     if (diag === 0) continue;
     const subpaths = await simplifyOf(p.subpaths, (diag * TOL_FRACTION) ** 2);

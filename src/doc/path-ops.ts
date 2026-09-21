@@ -48,28 +48,46 @@ const foundFor = (doc: Doc, ids: readonly string[]): Found[] =>
 const paths = (found: readonly Found[]): PathShape[] =>
   found.flatMap((f) => (f.node.kind === "path" ? [f.node] : []));
 
+/** The shared computation behind `pathOpRefusal`/`pathOpRefusals`: one `foundFor` walk feeds every
+ *  operation's reason, instead of each operation repeating it. */
+function refusalsFrom(found: readonly Found[]): Record<PathOp, string | null> {
+  const combine =
+    found.length < 2
+      ? REASON.few
+      : found.some((f) => f.node.kind === "group")
+        ? REASON.group
+        : null;
+  const ps = paths(found);
+  // A live shape (ellipse, rect, polygon) is refused on purpose (spec M11 §5) — converting it
+  // silently would destroy its liveness without being asked. But "select a path" reads as "you
+  // selected nothing" to someone who plainly has a shape selected, so tell them what to do
+  // instead (invariant 24). An empty or group-only selection keeps the plainer reason.
+  const base =
+    ps.length === 0
+      ? found.some((f) => f.node.kind !== "group")
+        ? REASON.shape
+        : REASON.noPath
+      : null;
+  const breakApart = base ?? (ps.some((p) => p.subpaths.length > 1) ? null : REASON.single);
+  return { subdivide: base, reverse: base, breakApart, combine, simplify: base };
+}
+
+/** Every operation's reason at once, from a single `foundFor` walk (spec M11 §7). Used by
+ *  `selectionActions`, which needs all five and previously recomputed the walk once per operation
+ *  on every document change. */
+export function pathOpRefusals(
+  doc: Doc,
+  ids: readonly string[],
+): Readonly<Record<PathOp, string | null>> {
+  return refusalsFrom(foundFor(doc, ids));
+}
+
 /** The one place that decides whether an operation can run, so the menus and the edits can never
  *  disagree about it (spec M11 §7; the shape is `booleanRefusal`'s). Returns the reason text
  *  itself rather than a code — there is one surface, and a second table to keep in step would be a
  *  second thing that can drift. */
 export function pathOpRefusal(doc: Doc, ids: readonly string[], op: PathOp): string | null {
-  const found = foundFor(doc, ids);
-  if (op === "combine") {
-    if (found.length < 2) return REASON.few;
-    if (found.some((f) => f.node.kind === "group")) return REASON.group;
-    return null;
-  }
-  const ps = paths(found);
-  if (ps.length === 0) {
-    // A live shape (ellipse, rect, polygon) is refused on purpose (spec M11 §5) — converting it
-    // silently would destroy its liveness without being asked. But "select a path" reads as "you
-    // selected nothing" to someone who plainly has a shape selected, so tell them what to do
-    // instead (invariant 24). An empty or group-only selection keeps the plainer reason.
-    if (found.some((f) => f.node.kind !== "group")) return REASON.shape;
-    return REASON.noPath;
-  }
-  if (op === "breakApart" && !ps.some((p) => p.subpaths.length > 1)) return REASON.single;
-  return null;
+  return refusalsFrom(foundFor(doc, ids))[op];
 }
 
 /** Spec (M11) §5. */

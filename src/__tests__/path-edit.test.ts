@@ -373,6 +373,25 @@ describe("subdividePath", () => {
     const titled: PathShape = { ...mk([curvedSub]), text: { seed: 1 } as never };
     expect(subdividePath(titled).text).toBeUndefined();
   });
+
+  it("never comes back with a handle equal to its own anchor, for a one-sided segment", () => {
+    // corner -> symmetric -> corner, exactly what the pen produces from a click followed by a
+    // click-drag: the two outer segments are one-sided (one endpoint has a handle, the other
+    // doesn't), which is what makes segmentCubic fill the missing handle with the anchor itself.
+    const sp: Subpath = {
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 30, y: 20 }, in: { x: 20, y: 0 }, out: { x: 40, y: 40 }, type: "symmetric" },
+        { p: { x: 60, y: 0 }, in: null, out: null, type: "corner" },
+      ],
+    };
+    const out = subdividePath(mk([sp])).subpaths[0].nodes;
+    for (const n of out) {
+      if (n.in) expect(n.in).not.toEqual(n.p);
+      if (n.out) expect(n.out).not.toEqual(n.p);
+    }
+  });
 });
 
 describe("reversePath", () => {

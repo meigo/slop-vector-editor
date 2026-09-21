@@ -277,11 +277,15 @@ function subdivideSubpath(sp: Subpath): Subpath {
     const c = segmentCubic(a, b);
     if (c) {
       const [L, R] = splitCubic(c, 0.5);
-      out.push({ ...a, in: s === 0 ? a.in : pendingIn, out: L[1] });
+      // A one-sided segment's missing handle was filled with the anchor itself (`segmentCubic`),
+      // so the split control point can come back equal to its own anchor — which this model
+      // reads as "no handle" (invariant: a control equal to its anchor means `null`), not as a
+      // zero-length handle. `insertNode`, above, guards its four control points the same way.
+      out.push({ ...a, in: s === 0 ? a.in : pendingIn, out: same(L[1], a.p) ? null : L[1] });
       // A midpoint split leaves the two halves' handles mirrored about the new point, which is
       // exactly what `symmetric` asserts — so it is a fact here, not a guess.
       out.push({ p: L[3], in: L[2], out: R[1], type: "symmetric" });
-      pendingIn = R[2];
+      pendingIn = same(R[2], b.p) ? null : R[2];
     } else {
       out.push({ ...a, in: s === 0 ? a.in : pendingIn, out: null });
       out.push({

@@ -1,5 +1,5 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
-import { PATH_OPS, pathOpRefusal, type PathOp } from "../doc/path-ops";
+import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import type {
   Doc,
   LineCap,
@@ -94,9 +94,7 @@ export function selectionActions(doc: Doc, ids: readonly string[]): SelectionAct
     canSelectSameStyle: nodes.some((n) => n.kind !== "group"),
     canSelectSameKind: nodes.length > 0,
     booleanRefusal: booleanRefusal(doc, ids),
-    pathReason: Object.fromEntries(
-      PATH_OPS.map((op) => [op, pathOpRefusal(doc, ids, op)]),
-    ) as Record<PathOp, string | null>,
+    pathReason: pathOpRefusals(doc, ids),
   };
 }
 

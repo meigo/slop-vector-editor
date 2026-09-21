@@ -7,7 +7,7 @@ import {
   type PathShape,
   type Subpath,
 } from "../doc/document";
-import { simplifyShapes } from "../doc/simplify-edit";
+import { simplifyShapes, TOL_FRACTION } from "../doc/simplify-edit";
 import { findNode } from "../doc/tree";
 import { nodeBounds } from "../geom/bounds";
 import { flattenSubpath } from "../geom/bezier";
@@ -16,13 +16,6 @@ import { IDENTITY } from "../geom/mat";
 import { dist, type Vec } from "../geom/vec";
 
 const IDENT: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
-
-/** Mirrors `simplifyShapes`' fraction (spec M11 §6, measured): the real per-point deviation bound
- *  is the path's own bounding-box diagonal times this fraction. The value actually fed to paper is
- *  that bound *squared*, because paper's own `tolerance` bounds a squared distance internally —
- *  this constant is not exported from `simplify-edit.ts`, so it is repeated here rather than
- *  imported, and must be kept in step with it by hand. */
-const TOL_FRACTION = 5e-3;
 
 /** Shortest distance from `p` to the segment `a`–`b`. */
 function distToSegment(p: Vec, a: Vec, b: Vec): number {
@@ -145,7 +138,7 @@ describe("simplifyShapes", () => {
     expect(out.kind).toBe("refused");
   });
 
-  it("simplifies the same drawing the same way regardless of its size", async () => {
+  it("keeps the squared tolerance, so the fixture simplifies identically at ×1 and ×1000", async () => {
     // Spec (M11) §6, amended 2026-09-21: paper's own tolerance bounds a *squared* distance, so
     // passing `diag * TOL_FRACTION` directly (without squaring) makes deviation grow with `√diag`
     // instead of `diag` — not scale-invariant at all. This is the test that would have caught that:
@@ -159,7 +152,22 @@ describe("simplifyShapes", () => {
     expect(hugeOut.after).toBe(naturalOut.after);
   });
 
-  it("leaves the document at the same reference when it changes nothing", async () => {
+  it("measures its tolerance in the path's own space, not scaled by its transform", async () => {
+    // The geometry handed to paper (`p.subpaths`) is always in the path's own, untransformed
+    // space, so the tolerance must be measured there too. A path carrying a non-identity
+    // transform (here scale ×10) must simplify identically to the same subpath with an identity
+    // transform — this is the case `scaleSubpath` above cannot reach, since it bakes the scale
+    // into the coordinates instead of leaving it in the transform.
+    const shape = noisy(30);
+    const identity = docWith([path("a", [shape])]);
+    const scaledTransform = docWith([path("a", [shape], { transform: [10, 0, 0, 10, 0, 0] })]);
+    const identityOut = await simplifyShapes(identity, ["a"]);
+    const scaledOut = await simplifyShapes(scaledTransform, ["a"]);
+    if (identityOut.kind !== "ok" || scaledOut.kind !== "ok") throw new Error("expected ok");
+    expect(scaledOut.after).toBe(identityOut.after);
+  });
+
+  it("reports nothing to simplify for a two-node straight segment", async () => {
     // A two-node straight segment has nothing to remove.
     const flat: Subpath = {
       closed: false,

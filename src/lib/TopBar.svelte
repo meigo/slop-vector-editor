@@ -437,7 +437,7 @@
             {BOOL_LABEL[op]}
           </button>
         {/each}
-        <div class="my-1 border-t border-line"></div>
+        <div class="my-1 h-px bg-line"></div>
         {#each PATH_OPS as op (op)}
           <button
             class="menu-item"

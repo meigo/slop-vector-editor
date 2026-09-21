@@ -591,6 +591,10 @@ export function subdivideSelectionNodes(): void {
   const why = pathOpRefusal(app.doc, app.selection, "subdivide");
   if (why) return notify("info", `${PATH_LABEL.subdivide} — ${why}`);
   commitDoc(subdivideSelection(app.doc, app.selection));
+  // Subdivide renumbers every subpath's nodes (i → 2i), so a stale node selection would land on
+  // different nodes rather than being dropped — setSession's pruning only checks the index is in
+  // range, not that it still names the same node.
+  setNodeSel([]);
 }
 
 /** Spec (M11) §4. */
@@ -599,6 +603,10 @@ export function reverseSelectionDirection(): void {
   const why = pathOpRefusal(app.doc, app.selection, "reverse");
   if (why) return notify("info", `${PATH_LABEL.reverse} — ${why}`);
   commitDoc(reverseSelection(app.doc, app.selection));
+  // Reverse inverts each subpath's node order, so a stale node selection would land on different
+  // nodes rather than being dropped — setSession's pruning only checks the index is in range, not
+  // that it still names the same node.
+  setNodeSel([]);
 }
 
 /** Spec (M11) §3. */
