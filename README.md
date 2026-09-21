@@ -14,10 +14,13 @@ Your document is a plain `.svg` file: open it in any browser or design tool.
 
 What works today:
 
-- Open and save SVG files (save in place on Chromium desktop browsers; download elsewhere).
-  Other tools' SVGs import best-effort — unsupported content (their `<text>` elements, gradients,
-  filters, CSS classes…) is listed when you open the file, and such files always open as a copy (Save asks
-  where to write them) so the original is never overwritten with a lossy re-export.
+- Open and save SVG files (save in place on Chromium desktop browsers; on iPad, Save, Save As
+  and Export PNG open the share sheet's **Save to Files** so you choose the destination — Save and
+  Save As are the same action there, and it's still a new file each time, not an overwrite; other
+  browsers download). Other tools' SVGs import best-effort — unsupported content (their `<text>`
+  elements, gradients, filters, CSS classes…) is listed when you open the file, and such files
+  always open as a copy (Save asks where to write them) so the original is never overwritten with
+  a lossy re-export.
 - New document with size presets; artboard size and background (or transparent).
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser.
@@ -113,7 +116,7 @@ align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 715 unit tests
+npm test          # 734 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

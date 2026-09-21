@@ -1781,3 +1781,66 @@ exactly what a per-task review has no way to look at.
 - Owed: `SCRIM_OPACITY` of 0.6 is one constant and one judgement — it has been looked at on a
   desktop display only, and an iPad's screen may want a different number.
 
+
+## 2026-09-21 — Milestone 13: Save to Files on iPad
+
+- **The defect this fixes.** iPad Safari has no save picker — `window.showSaveFilePicker` doesn't
+  exist there — so Save, Save As and Export PNG all fell through to `<a download>`. Every file
+  landed in Downloads, and the second save of the same document became `Logo (1).svg`, then
+  `Logo (2).svg`. There was no route back to a file saved ten minutes ago.
+- **What this does not do.** `navigator.share({ files })` and its **Save to Files** option are the
+  only way a web page on iPad can put a file where the user chooses — but each share is still a
+  *new* file. Whether Files offers to replace a same-named one is iPadOS's call, not this code's.
+  "You can overwrite on iPad now" is the summary everyone will reach for, and it is **not true**:
+  what this milestone fixes is that the user now picks the destination and gets the system's
+  Replace prompt, instead of an accumulating pile of numbered copies in Downloads.
+- **Detection** (`src/persist/share.ts`, `isAppleTouch(ua, platform, maxTouchPoints)`). The clause
+  everybody gets wrong is the second one: **iPadOS Safari reports a Mac user agent and
+  `MacIntel`**, so a UA test alone misses every modern iPad. A Mac platform *with* touch points is
+  an iPad, because no real Mac has a touch screen.
+- **Save and Save As are the same action on iPad.** With no File System Access handle there is no
+  "in place" to save to, so the distinction the two draw on desktop doesn't exist there — neither
+  is hidden or disabled, since a command's availability must not move by platform (invariant 24).
+- **The gesture rule, hit for the second time.** Safari opens the share sheet only during a recent
+  tap; an `await` before the call consumes the activation and `navigator.share` rejects with
+  `NotAllowedError`. Save rides the original tap — `serializeDoc` is synchronous — so it tries the
+  sheet directly (`tryDirect: true`). Export PNG does not even try: rasterising awaits
+  `img.decode()`, so a render always outlasts the tap, and going for it first would only buy a
+  guaranteed rejection before falling back anyway. **This project has now hit this exact rule
+  twice** — here and in M12's `Copy as PNG` — and the spec itself says a third occurrence should
+  earn a shared helper rather than a third careful hand-written ordering.
+- **The dirty-marker decision, and its honest wording.** A completed share clears the dirty marker
+  (`markDocSaved` runs), but the notice reads **"Sent Logo.svg to the share sheet"**, never
+  "Saved": the sheet completing doesn't prove the file reached Files — AirDrop, Messages and Copy
+  complete it too, and iPadOS reports nothing about which. The accepted cost: a user who AirDrops
+  the file and then closes the tab gets no unsaved-changes warning.
+- **`ShareReadyDialog`** offers a fresh tap when the direct attempt can't run or was dismissed:
+  Save to Files…, Download instead (today's behaviour, one tap away) and Cancel. It stays open on
+  anything but success, so a dismissed sheet can be retried without rebuilding the file, and it
+  disables its own buttons while a share is in flight — a second concurrent `navigator.share`
+  throws `InvalidStateError`.
+- One adjacent fix: the downloaded file's object URL now revokes after **60 s**, not 10 — ported
+  from slop-animator, which found a short revoke can kill an iPad download that the browser has
+  only just *started*, not finished.
+- Ported from slop-animator's `src/export/share.ts`, `download.ts`, `deliver-file.ts` and
+  `ShareReadyDialog.svelte`, which solved the same problem there first.
+- Plan/spec: `docs/superpowers/specs/2026-09-21-m13-save-to-files-design.md`.
+- **Desktop-verified — and this is a negative check only** (desktop Chrome, :5198). From the
+  corrected browser pass (the first pass had inferred rather than observed the outcome; the
+  correction re-ran it watching the store directly): `saveToFilesAvailable()` read `false`,
+  confirming the whole path stays inert off an Apple touch device. With the native picker forced
+  into its `<a download>` fallback (`window.showSaveFilePicker` deleted — the same fallback code
+  the app already has for browsers with no File System Access), clicking **File ▸ Save** showed no
+  share sheet and completed with `app.dirty` read `true` beforehand and `false` after; **File ▸
+  Export PNG…** showed no share sheet and raised its existing notice, `Exported Scrim check.png —
+  400 × 300.` Console stayed clean throughout both. This confirms `saveToFilesAvailable()` is
+  correctly `false` on desktop Chrome and that the pre-existing Save/Export paths still complete
+  through it undisturbed — it does not exercise `deliverFile`, `ShareReadyDialog`, or the native
+  File System Access picker itself, none of which this desktop pass could reach.
+- **Owed, most pressing first: every line of this needs an iPad, and none of it is verified here.**
+  Whether `canShareFile` accepts `image/svg+xml` on iPadOS is the biggest open question — if it
+  refuses, Save falls back to a download and the defect persists for SVGs even though PNG export
+  is fixed, and that is half a milestone we would not know about until a device says so. Also
+  unverified: the `needs-tap` retry path, `ShareReadyDialog`'s three buttons and their notices, and
+  the AirDrop-then-close unsaved-changes gap above.
+- 734 tests in 55 files.
