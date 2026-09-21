@@ -11,10 +11,25 @@ export type SimplifyOutcome =
   | { kind: "none" }
   | { kind: "refused"; why: string };
 
-/** Spec (M11) §6. Relative to the path's own bounding-box diagonal, never absolute: paper's
- *  default of 2.5 is meaningful only in its own example's coordinate space, and a 20-unit logo and
- *  an artboard-sized traced path cannot share a number. */
-const TOL_FRACTION = 2e-3;
+/** Spec (M11) §6, amended 2026-09-21. Relative to the path's own bounding-box diagonal, never
+ *  absolute: paper's default of 2.5 is meaningful only in its own example's coordinate space, and a
+ *  20-unit logo and an artboard-sized traced path cannot share a number.
+ *
+ *  **The value passed to paper is `(diag × TOL_FRACTION) ** 2`, and the square is load-bearing —
+ *  do not "simplify" it away.** Paper's own `tolerance` bounds a *squared* distance internally, so
+ *  passing `diag × k` directly yields a deviation proportional to `√diag`, not to `diag`, which is
+ *  not scale-invariant at all and defeats the entire reason this is relative to the diagonal.
+ *  Measured, on one shape scaled ×1 / ×10 / ×100: `diag × 2e-3` left 60 / 81 / 81 segments — the
+ *  same drawing simplified differently purely because it was bigger — while `(diag × 2e-3) ** 2`
+ *  left 81 / 81 / 81.
+ *
+ *  The fraction is 5e-3, also measured: squared, 2e-3 removes *nothing* from a realistically noisy
+ *  path (81 → 81 segments, 0% deviation), so Simplify would report "nothing to remove" and look
+ *  broken; 1e-2 is more aggressive than a destructive command should be by default (81 → 33 nodes,
+ *  0.97% of the diagonal). 5e-3 takes 81 → 56 nodes, at a measured maximum deviation of 0.49% of
+ *  the diagonal — so the resulting bound on a path's actual worst-case drift is `diag × 5e-3`,
+ *  i.e. 0.5% of its diagonal, even though that number is never passed to paper directly. */
+const TOL_FRACTION = 5e-3;
 
 const countNodes = (p: PathShape): number => p.subpaths.reduce((n, sp) => n + sp.nodes.length, 0);
 
@@ -36,7 +51,7 @@ export async function simplifyShapes(doc: Doc, ids: readonly string[]): Promise<
     const box = nodeBounds(p, IDENTITY);
     const diag = box ? Math.hypot(box.w, box.h) : 0;
     if (diag === 0) continue;
-    const subpaths = await simplifyOf(p.subpaths, diag * TOL_FRACTION);
+    const subpaths = await simplifyOf(p.subpaths, (diag * TOL_FRACTION) ** 2);
     // A subpath the fit left with fewer than two nodes is dropped, and a path left with none is
     // not written at all — the importer would drop it (invariant 30). `fromPaperItem` already
     // filters this; the check stays here too, since this is the document-layer boundary that

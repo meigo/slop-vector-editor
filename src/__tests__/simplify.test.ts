@@ -9,11 +9,20 @@ import {
 } from "../doc/document";
 import { simplifyShapes } from "../doc/simplify-edit";
 import { findNode } from "../doc/tree";
+import { nodeBounds } from "../geom/bounds";
 import { flattenSubpath } from "../geom/bezier";
 import { simplifyOf } from "../geom/simplify";
+import { IDENTITY } from "../geom/mat";
 import { dist, type Vec } from "../geom/vec";
 
 const IDENT: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
+
+/** Mirrors `simplifyShapes`' fraction (spec M11 §6, measured): the real per-point deviation bound
+ *  is the path's own bounding-box diagonal times this fraction. The value actually fed to paper is
+ *  that bound *squared*, because paper's own `tolerance` bounds a squared distance internally —
+ *  this constant is not exported from `simplify-edit.ts`, so it is repeated here rather than
+ *  imported, and must be kept in step with it by hand. */
+const TOL_FRACTION = 5e-3;
 
 /** Shortest distance from `p` to the segment `a`–`b`. */
 function distToSegment(p: Vec, a: Vec, b: Vec): number {
@@ -52,6 +61,21 @@ function noisy(n: number): Subpath {
   return { closed: false, nodes };
 }
 
+/** The same subpath, uniformly scaled about the origin — a plain drawing made bigger, with no
+ *  change of shape. */
+function scaleSubpath(sp: Subpath, k: number): Subpath {
+  const s = (v: { x: number; y: number }) => ({ x: v.x * k, y: v.y * k });
+  return {
+    closed: sp.closed,
+    nodes: sp.nodes.map((n) => ({
+      p: s(n.p),
+      in: n.in ? s(n.in) : null,
+      out: n.out ? s(n.out) : null,
+      type: n.type,
+    })),
+  };
+}
+
 const path = (id: string, subpaths: Subpath[], extra: Partial<PathShape> = {}): PathShape => ({
   kind: "path",
   id,
@@ -75,14 +99,20 @@ describe("simplifyOf", () => {
 
   it("keeps every sampled point within the tolerance of the original", async () => {
     const before = noisy(40);
-    const tolerance = 0.8;
-    const [after] = await simplifyOf([before], tolerance);
+    // The same diagonal-relative bound `simplifyShapes` uses (spec M11 §6): the real per-point
+    // bound is `diag * TOL_FRACTION`, and the value passed to paper is that bound *squared*, since
+    // paper's own tolerance is a squared distance. Calling `simplifyOf` this way — the same way
+    // `simplifyShapes` does — is what makes the assertion below a check of the real promise rather
+    // than of an arbitrary number.
+    const box = nodeBounds(path("t", [before]), IDENTITY)!;
+    const bound = Math.hypot(box.w, box.h) * TOL_FRACTION;
+    const [after] = await simplifyOf([before], bound ** 2);
     // `before`'s nodes are all plain corners with no handles, so flattening it costs nothing: the
     // polyline IS its own nodes. The fitted curve is sampled far more finely (scale 8) than the
     // default, so a bulge between its own nodes is not missed.
     const original = flattenSubpath(before);
     const fitted = flattenSubpath(after, 8);
-    expect(maxDeviation(fitted, original)).toBeLessThanOrEqual(tolerance);
+    expect(maxDeviation(fitted, original)).toBeLessThanOrEqual(bound);
   });
 
   it("keeps a closed subpath closed", async () => {
@@ -113,6 +143,20 @@ describe("simplifyShapes", () => {
     const doc = docWith([]);
     const out = await simplifyShapes(doc, []);
     expect(out.kind).toBe("refused");
+  });
+
+  it("simplifies the same drawing the same way regardless of its size", async () => {
+    // Spec (M11) §6, amended 2026-09-21: paper's own tolerance bounds a *squared* distance, so
+    // passing `diag * TOL_FRACTION` directly (without squaring) makes deviation grow with `√diag`
+    // instead of `diag` — not scale-invariant at all. This is the test that would have caught that:
+    // it fails if the `** 2` in `simplifyShapes` is removed (measured — see the fix report).
+    const shape = noisy(30);
+    const natural = docWith([path("a", [shape])]);
+    const huge = docWith([path("a", [scaleSubpath(shape, 1000)])]);
+    const naturalOut = await simplifyShapes(natural, ["a"]);
+    const hugeOut = await simplifyShapes(huge, ["a"]);
+    if (naturalOut.kind !== "ok" || hugeOut.kind !== "ok") throw new Error("expected ok");
+    expect(hugeOut.after).toBe(naturalOut.after);
   });
 
   it("leaves the document at the same reference when it changes nothing", async () => {
