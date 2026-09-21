@@ -15,9 +15,11 @@ Your document is a plain `.svg` file: open it in any browser or design tool.
 What works today:
 
 - Open and save SVG files (save in place on Chromium desktop browsers; on iPad, Save, Save As
-  and Export PNG open the share sheet's **Save to Files** so you choose the destination — Save and
-  Save As are the same action there, and it's still a new file each time, not an overwrite; other
-  browsers download). Other tools' SVGs import best-effort — unsupported content (their `<text>`
+  and Export PNG offer the share sheet's **Save to Files** so you choose the destination — Save
+  and Save As open it directly, Export via a confirmation dialog since rasterising takes a moment
+  and the original tap has expired by then; Save and Save As are the same action there, and it's
+  still a new file each time, not an overwrite; other browsers download). Other tools' SVGs
+  import best-effort — unsupported content (their `<text>`
   elements, gradients, filters, CSS classes…) is listed when you open the file, and such files
   always open as a copy (Save asks where to write them) so the original is never overwritten with
   a lossy re-export.

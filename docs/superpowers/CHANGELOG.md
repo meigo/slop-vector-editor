@@ -1781,7 +1781,6 @@ exactly what a per-task review has no way to look at.
 - Owed: `SCRIM_OPACITY` of 0.6 is one constant and one judgement — it has been looked at on a
   desktop display only, and an iPad's screen may want a different number.
 
-
 ## 2026-09-21 — Milestone 13: Save to Files on iPad
 
 - **The defect this fixes.** iPad Safari has no save picker — `window.showSaveFilePicker` doesn't

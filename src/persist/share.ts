@@ -37,7 +37,12 @@ export function classifyShareError(e: unknown): ShareFailure {
  *  to Files**, which is why the feature is limited to Apple touch devices — offering it on a
  *  browser that has a real save picker would be a downgrade (spec M13 §3). */
 export function saveToFilesAvailable(): boolean {
-  if (typeof navigator === "undefined" || typeof navigator.canShare !== "function") return false;
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.canShare !== "function" ||
+    typeof navigator.share !== "function"
+  )
+    return false;
   return isAppleTouch(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
 }
 

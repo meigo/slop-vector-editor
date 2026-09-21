@@ -103,7 +103,7 @@ every user-visible change.
   helper), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
   `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a fresh tap at Save to Files when
-  `deliverFile` can't go direct or the sheet was dismissed), `Notices`.
+  `deliverFile` didn't attempt a direct share, or the attempt needs a fresh tap), `Notices`.
 
 ## Invariants and gotchas
 

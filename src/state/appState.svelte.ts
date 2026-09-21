@@ -371,11 +371,11 @@ export function reportDelivery(
   switch (result.kind) {
     case "shared":
       if (isDoc && doc) markDocSaved(doc, file.name, null);
-      notify("info", `Sent ${file.name} to the share sheet${tail}`);
+      notify("info", `Sent ${file.name} to the share sheet${tail}.`);
       return;
     case "downloaded":
       if (isDoc && doc) markDocSaved(doc, file.name, null);
-      notify("info", `Downloaded ${file.name}${tail}`);
+      notify("info", `Downloaded ${file.name}${tail}.`);
       return;
     case "dismissed":
       // Closing the sheet is a choice, not a failure, and nothing was saved.
@@ -398,6 +398,8 @@ export async function shareReadyRetry(): Promise<void> {
     reportDelivery({ kind: "shared" }, r);
     return;
   }
+  // Something cleared the dialog while the sheet was up — do not resurrect it.
+  if (app.shareReady !== r) return;
   app.shareReady = {
     ...r,
     error:
