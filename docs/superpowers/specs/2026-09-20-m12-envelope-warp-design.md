@@ -1,7 +1,10 @@
-# slop-vector-editor — milestone 11 design: envelope warp
+# slop-vector-editor — milestone 12 design: envelope warp
 
-Date: 2026-09-20. Status: approved in brainstorming. Follows M10e (the panel density work, recorded
-in `CHANGELOG.md` rather than a spec of its own). Implements a post-v1 item the project design's
+Date: 2026-09-20. Status: approved in brainstorming, then **deferred** on 2026-09-21 and renumbered
+from M11 to M12. Path operations (`2026-09-21-m11-path-operations-design.md`) were pulled ahead of
+it: five small operations against one large one, and two of them — Subdivide and Simplify — are
+this milestone's near neighbours. Nothing below is withdrawn; it is next after M11.
+Follows M10e (the panel density work, recorded in `CHANGELOG.md` rather than a spec of its own). Implements a post-v1 item the project design's
 §10 list does not name but which the M10 documents have assumed five times over — every one of them
 an argument for keeping a title an ordinary path so that "M11's warp" would need no special case.
 This is that warp.
@@ -277,7 +280,10 @@ nodes and Simplify sheds them. It is not in this milestone (§10).
 - **Simplify and the freehand pencil.** Both need the same curve fitter — the project design's §10
   specs freehand as "simplified bezier with pressure" — so they form **M12** behind a shared
   `geom/fit.ts`, into which `cubicThrough4` moves when it gains a second caller. It stays in
-  `warp.ts` for now; one caller does not justify a module.
+  `warp.ts` for now; one caller does not justify a module. **Amended 2026-09-21:** M11 establishes
+  that Paper already ships `simplify(tolerance)` — Schneider's algorithm — so Simplify needs no
+  fitter of ours and is delivered there instead. Freehand still wants one, but it is now the only
+  caller in prospect.
 - **A node-selection-aware Subdivide**, splitting only segments between selected nodes.
 
 ## 11. Owed
