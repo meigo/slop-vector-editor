@@ -362,4 +362,34 @@ describe("pathOpRefusal", () => {
     expect(pathOpRefusal(doc, ["a", "b"], "combine")).toBeNull();
     expect(pathOpRefusal(doc, ["a"], "simplify")).toBeNull();
   });
+
+  it("tells someone with a live shape selected to convert it, not that they selected nothing", () => {
+    // Refusing an ellipse/rect/polygon for subdivide/reverse/breakApart/simplify is correct (spec
+    // M11 §5) — converting it silently would destroy its liveness without being asked. But
+    // "select a path" reads as "you selected nothing" when a shape plainly IS selected, so the
+    // shape case gets its own reason (invariant 24).
+    const base = createDoc(200, 200);
+    const ellipse = {
+      kind: "ellipse" as const,
+      id: "e",
+      transform: IDENT,
+      style: DEFAULT_STYLE,
+      cx: 50,
+      cy: 50,
+      rx: 20,
+      ry: 20,
+    };
+    const doc: Doc = { ...base, layers: [{ ...base.layers[0], children: [ellipse] }] };
+    const convert = "convert the shape to a path first (Object ▸ Convert to path)";
+    for (const op of ["subdivide", "reverse", "breakApart", "simplify"] as const) {
+      expect(pathOpRefusal(doc, ["e"], op)).toBe(convert);
+    }
+  });
+
+  it("keeps the plainer reason for a selection with nothing usable in it", () => {
+    const doc = docWith([]);
+    for (const op of ["subdivide", "reverse", "breakApart", "simplify"] as const) {
+      expect(pathOpRefusal(doc, [], op)).toBe("select a path");
+    }
+  });
 });

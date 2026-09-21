@@ -39,6 +39,7 @@ const REASON = {
   few: "select two or more shapes",
   group: "a group can't take part",
   single: "select a path with more than one subpath",
+  shape: "convert the shape to a path first (Object ▸ Convert to path)",
 } as const;
 
 const foundFor = (doc: Doc, ids: readonly string[]): Found[] =>
@@ -59,7 +60,14 @@ export function pathOpRefusal(doc: Doc, ids: readonly string[], op: PathOp): str
     return null;
   }
   const ps = paths(found);
-  if (ps.length === 0) return REASON.noPath;
+  if (ps.length === 0) {
+    // A live shape (ellipse, rect, polygon) is refused on purpose (spec M11 §5) — converting it
+    // silently would destroy its liveness without being asked. But "select a path" reads as "you
+    // selected nothing" to someone who plainly has a shape selected, so tell them what to do
+    // instead (invariant 24). An empty or group-only selection keeps the plainer reason.
+    if (found.some((f) => f.node.kind !== "group")) return REASON.shape;
+    return REASON.noPath;
+  }
   if (op === "breakApart" && !ps.some((p) => p.subpaths.length > 1)) return REASON.single;
   return null;
 }
