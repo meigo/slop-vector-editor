@@ -14,6 +14,7 @@ declare global {
 }
 
 const TYPES: PickerType[] = [{ description: "SVG image", accept: { "image/svg+xml": [".svg"] } }];
+const PNG_TYPES: PickerType[] = [{ description: "PNG image", accept: { "image/png": [".png"] } }];
 
 export type OpenedFile = { text: string; name: string; handle: FileSystemFileHandle | null };
 
@@ -74,4 +75,30 @@ export async function writeSvgFile(
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   return { name, handle: null };
+}
+
+/** Spec (M12) §3. Deliberately separate from `writeSvgFile` rather than a generalisation of it: a
+ *  PNG never saves in place, so it needs none of the handle bookkeeping invariant 10 protects, and
+ *  entangling the two would put that rule at risk for no gain. Returns the saved name, or null if
+ *  the user cancelled the picker. */
+export async function writePngFile(blob: Blob, name: string): Promise<string | null> {
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: name, types: PNG_TYPES });
+      const w = await handle.createWritable();
+      await w.write(blob);
+      await w.close();
+      return handle.name;
+    } catch (err) {
+      if (isAbort(err)) return null;
+      throw err;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return name;
 }
