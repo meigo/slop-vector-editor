@@ -10,7 +10,10 @@
 export type ShareFailure = "dismissed" | "needs-tap" | "failed";
 export type ShareOutcome = "shared" | ShareFailure;
 
-/** The slice of `navigator` this module asks about, so a test can pass its own (spec M13 §9). */
+/** The slice of `navigator` this module asks about, so a test can pass its own (spec M13 §9).
+ *  Method shorthand is deliberate — it gets bivariant parameter checking. Property syntax
+ *  (`canShare?: (data: unknown) => boolean`) fails: `Navigator.canShare(data?: ShareData)` won't
+ *  assign into a `(data: unknown) => boolean`, since that direction is checked contravariantly. */
 type ShareCapable = { canShare?(data: unknown): boolean };
 
 /** iPhone / iPad.
