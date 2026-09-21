@@ -140,11 +140,25 @@ import paper" becomes "only `src/geom/paper.ts`", and CLAUDE.md's chunk-size bar
 match, or the next person to read it will treat a correct build as a violation. The rule itself is
 unchanged — one module, imported dynamically, on first use.
 
-**Tolerance** is relative to the path's own bounding-box diagonal (`diag × 2e-3`), not absolute.
-Paper's default of 2.5 is meaningful only in its own example's coordinate space; a logo 20 units
-across and an artboard-sized traced path cannot share an absolute number. Repeating the command
-simplifies a little further and then converges, which is the honest behaviour — no escalating
-aggressiveness on repeat.
+**Tolerance** is relative to the path's own bounding-box diagonal, not absolute. Paper's default
+of 2.5 is meaningful only in its own example's coordinate space; a logo 20 units across and an
+artboard-sized traced path cannot share an absolute number.
+
+**The value passed to paper is `(diag × 5e-3)²`, and the square is load-bearing** (amended
+2026-09-21, during implementation). Paper's `tolerance` bounds a **squared** distance internally,
+so passing `diag × k` yields a deviation proportional to `√diag` — which is not scale-invariant at
+all, and defeats the entire reason the tolerance is relative. Measured, on one shape scaled ×1,
+×10 and ×100: `diag × 2e-3` left **60 / 81 / 81** segments — the same drawing simplified
+differently purely because it was bigger — while `(diag × 2e-3)²` left **81 / 81 / 81**. Squaring
+is what makes the promise in the paragraph above true.
+
+The fraction is **5e-3**, also measured rather than chosen: squared, `2e-3` removes *nothing* from
+a realistically noisy path (81 → 81 segments, 0% deviation), so Simplify would report "nothing to
+remove" and look broken. `5e-3` takes 81 → 56 at a maximum deviation of 0.49% of the diagonal, and
+`1e-2` takes it to 33 at 0.97% — more aggressive than a destructive command should be by default.
+
+Repeating the command simplifies a little further and then converges, which is the honest
+behaviour — no escalating aggressiveness on repeat.
 
 **It drops `text`** through `withBakedSubpaths`, since the outlines stop matching the string
 (invariant 40). **It is async**, so it copies `booleanSelection`'s shape exactly:
@@ -233,8 +247,10 @@ file or it silently becomes a tautology; the extraction must not reorder it.
   a press is the only way to read them (invariant 24). Record it in the CHANGELOG.
 - **The `geom/paper.ts` extraction rewords invariant 37 and CLAUDE.md's build-check paragraph.** If
   the wording is not updated in the same commit, a correct build looks like a violation.
-- **Simplify's tolerance is reasoned, not validated.** `diag × 2e-3` has not been tried against a
-  real traced path or a heavily-noded import; it may want tuning after the first browser pass.
+- **Simplify's tolerance is now measured, but only against a synthetic path.** The square and the
+  `5e-3` fraction were both settled with numbers (§6), but on a generated noisy sine, not on a real
+  traced path or a heavily-noded import. The fraction may still want tuning after the first browser
+  pass; the square is not a tuning knob and must not be removed.
 - **Paper's failed-load path is still never browser-verified** — parked since M7, and Simplify now
   makes it reachable from a second command. DevTools request-blocking on the paper chunk would
   settle it in two minutes.
