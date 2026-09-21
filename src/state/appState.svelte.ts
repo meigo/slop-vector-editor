@@ -91,10 +91,12 @@ import {
   type Prefs,
   type SectionId,
 } from "../persist/preferences";
+import type { DeliverResult } from "../persist/deliver";
 import { errorMessage } from "../persist/errors";
-import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
+import { downloadBlob, writePngFile } from "../persist/file-io";
 import { rasterise, writeClipboardPng } from "../persist/png";
-import { writePngFile } from "../persist/file-io";
+import { shareFile } from "../persist/share";
+import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
 import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
@@ -128,6 +130,19 @@ export type ConfirmRequest = {
   confirmLabel: string;
   resolve: (ok: boolean) => void;
 };
+/** A built file waiting for a fresh tap to open the share sheet (spec M13 §5). Carries a payload,
+ *  so it follows `ConfirmRequest`'s shape rather than the `DialogKind` enum. */
+export type ShareReadyRequest = {
+  file: File;
+  /** A document save rather than an export: only a document retires the dirty marker. */
+  isDoc: boolean;
+  /** Extra context for the notice, e.g. a PNG's pixel size. */
+  note: string;
+  /** The browser's own message when a direct share failed outright; empty for an expired tap. */
+  error: string;
+  /** The document the file was built from, so a later share marks exactly it saved. */
+  doc: Doc | null;
+};
 export type ContextMenuState = { x: number; y: number } | null;
 export type DockState = { shift: Latch; alt: Latch };
 
@@ -152,6 +167,7 @@ class AppState {
   notices = $state.raw<Notice[]>([]);
   dialog = $state<DialogKind>(null);
   confirm = $state.raw<ConfirmRequest | null>(null);
+  shareReady = $state.raw<ShareReadyRequest | null>(null);
   /** Where Save writes without asking. Not reactive: nothing renders from it. */
   fileHandle: FileSystemFileHandle | null = null;
 
@@ -337,6 +353,72 @@ export function markDocSaved(
   setSession(markSaved(app.session, doc));
   app.fileName = fileName;
   app.fileHandle = handle;
+}
+
+/** Map a `deliverFile` result onto notices, the dirty marker and the fresh-tap dialog.
+ *
+ *  **A completed sheet clears the dirty marker, and the wording never says "Saved"** (spec M13 §6).
+ *  The sheet completing does not prove the file reached Files — AirDrop, Messages and Copy complete
+ *  it too, and iPadOS reports nothing about which. Treating it as saved is the lesser evil: the
+ *  alternative is a dirty dot that no action on iPad can ever clear, which teaches people to ignore
+ *  it and never retires the autosave warning either. The honest wording is the price of that, and
+ *  it is not optional. */
+export function reportDelivery(
+  result: DeliverResult,
+  { file, isDoc, note, doc }: { file: File; isDoc: boolean; note: string; doc: Doc | null },
+): void {
+  const tail = note ? ` — ${note}` : "";
+  switch (result.kind) {
+    case "shared":
+      if (isDoc && doc) markDocSaved(doc, file.name, null);
+      notify("info", `Sent ${file.name} to the share sheet${tail}`);
+      return;
+    case "downloaded":
+      if (isDoc && doc) markDocSaved(doc, file.name, null);
+      notify("info", `Downloaded ${file.name}${tail}`);
+      return;
+    case "dismissed":
+      // Closing the sheet is a choice, not a failure, and nothing was saved.
+      notify("info", `${file.name} was not saved — the share sheet was closed.`);
+      return;
+    case "ready":
+      app.shareReady = { file, isDoc, note, error: result.error, doc };
+      return;
+  }
+}
+
+/** The dialog's Save to Files… button. THIS tap is the fresh activation the direct attempt
+ *  lacked, so `shareFile` must be called before anything awaits (spec M13 §4). */
+export async function shareReadyRetry(): Promise<void> {
+  const r = app.shareReady;
+  if (!r) return;
+  const out = await shareFile(r.file);
+  if (out.outcome === "shared") {
+    app.shareReady = null;
+    reportDelivery({ kind: "shared" }, r);
+    return;
+  }
+  app.shareReady = {
+    ...r,
+    error:
+      out.outcome === "dismissed"
+        ? ""
+        : out.outcome === "needs-tap"
+          ? "The browser refused to open the share sheet."
+          : errorMessage(out.error),
+  };
+}
+
+export function shareReadyDownload(): void {
+  const r = app.shareReady;
+  if (!r) return;
+  app.shareReady = null;
+  downloadBlob(r.file, r.file.name);
+  reportDelivery({ kind: "downloaded" }, r);
+}
+
+export function shareReadyCancel(): void {
+  app.shareReady = null;
 }
 
 export function setView(v: View): void {

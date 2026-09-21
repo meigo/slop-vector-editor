@@ -9,6 +9,7 @@
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
+  import ShareReadyDialog from "./lib/ShareReadyDialog.svelte";
   import Sidebar from "./lib/Sidebar.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
   import ToolStrip from "./lib/ToolStrip.svelte";
@@ -230,4 +231,8 @@
 
 {#if app.confirm}
   <ConfirmDialog request={app.confirm} />
+{/if}
+
+{#if app.shareReady}
+  <ShareReadyDialog request={app.shareReady} />
 {/if}
