@@ -16,7 +16,7 @@ entries supersede earlier ones — mark superseded entries).
   size bar on the app chunk (it grows with every feature) but that the two libraries stay in chunks
   of their own: paper in `dist/assets/paper-core-*.js` (~72 KB gzipped) and opentype in
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
-  outside `src/geom/boolean.ts` or `src/text/font.ts` imported it statically. The four bundled
+  outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
 - `npm test` — Vitest, node env, no DOM — 625 tests in 49 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
@@ -392,22 +392,25 @@ every user-visible change.
     a row at any depth while `enteredGroupId` points at that row's parent, so the selection can
     legitimately hold ids `selectableIds` would not offer. Without keeping them, a Select Same that
     matched nothing would silently clear the whole selection.
-37. **Paper is loaded on first use, and only `src/geom/boolean.ts` may import it** (spec M7 §2).
-    The specifier is `paper/dist/paper-core`, with **no file extension** — that is the exact name
-    the package's own type declarations use, and the extension-ful path resolves to no types — and
-    it must never be the package's default entry (`paper`), which is the full PaperScript build and
-    expects a DOM. `booleanOf` maps every operand into **document space** through its shape's world
-    matrix before handing it to Paper, and maps the result back into the **frontmost input's parent
-    space**, which is where the combined shape is stored (an identity transform, as the pen commits
-    a new path). An operation that leaves no area — `booleanOf` returning `[]` — must leave the
-    document at the same reference rather than write a path the importer would drop; `booleanRefusal`
-    (`src/doc/boolean-edit.ts`) is the one predicate both the menus and `booleanShapes` read, so they
-    can't disagree about what's allowed (it de-duplicates the ids: one shape named twice is one
-    shape, and combining it with itself would delete it). **The load can fail** — it is a network
-    fetch — so the loader caches the _promise_ and clears it on rejection, and `booleanSelection`
-    catches, leaves the document alone and raises an **error** notice telling the user to try
-    again. Because the action is async even when paper is cached, it also refuses to run twice at
-    once, and hands the result the selection only if the user hasn't moved it meanwhile.
+37. **Paper is loaded on first use, and only `src/geom/paper.ts` may import it** (spec M7 §2,
+    M11 §6). That module holds the loader and the two-way conversion; `src/geom/boolean.ts`
+    (`booleanOf`) and `src/geom/simplify.ts` (`simplifyOf`) are its callers, and neither imports
+    paper itself. The specifier is `paper/dist/paper-core`, with **no file extension** — that is
+    the exact name the package's own type declarations use, and the extension-ful path resolves
+    to no types — and it must never be the package's default entry (`paper`), which is the full
+    PaperScript build and expects a DOM. `booleanOf` maps every operand into **document space**
+    through its shape's world matrix before handing it to Paper, and maps the result back into the
+    **frontmost input's parent space**, which is where the combined shape is stored (an identity
+    transform, as the pen commits a new path). An operation that leaves no area — `booleanOf`
+    returning `[]` — must leave the document at the same reference rather than write a path the
+    importer would drop; `booleanRefusal` (`src/doc/boolean-edit.ts`) is the one predicate both the
+    menus and `booleanShapes` read, so they can't disagree about what's allowed (it de-duplicates
+    the ids: one shape named twice is one shape, and combining it with itself would delete it).
+    **The load can fail** — it is a network fetch — so the loader caches the _promise_ and clears
+    it on rejection, and `booleanSelection` catches, leaves the document alone and raises an
+    **error** notice telling the user to try again. Because the action is async even when paper is
+    cached, it also refuses to run twice at once, and hands the result the selection only if the
+    user hasn't moved it meanwhile.
 
 38. **A latched Shift is not a held Shift.** `Mods` carries `shiftLatched` beside `shift`, and
     `Canvas.svelte` sets it when the dock's latch is the only reason Shift is on. A held key means
