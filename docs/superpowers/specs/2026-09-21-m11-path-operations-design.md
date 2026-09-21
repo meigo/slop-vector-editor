@@ -59,8 +59,10 @@ node per subpath. The fragments keep the original's `style`, `transform`, parent
 take fresh ids, and inherit its `name` if it had one — several rows sharing a label is honest, since
 they did come from one object. The selection becomes the fragments.
 
-**Combine** takes two or more selected paths and produces a single path node holding all of their
-subpaths. It follows `booleanOf`'s rule exactly (invariant 37): the result is built in the
+**Combine** takes two or more selected shapes and produces a single path node holding all of their
+subpaths. A rect, ellipse or polygon is converted with `toPath` first, exactly as `booleanShapes`
+converts its operands — refusing an ellipse here while `Unite` accepts one would be arbitrary, and
+§8's donut is built from two circles. A group is refused. It follows `booleanOf`'s rule exactly (invariant 37): the result is built in the
 **frontmost input's parent space**, carries the frontmost's style, and is inserted at the frontmost's
 z-position; every other operand's subpaths are mapped there through its own world matrix, and the
 operands are deleted. A node whose world matrix is singular contributes nothing, as in `booleanOf`.
@@ -182,7 +184,8 @@ reason instead of `disabled` when it does not apply — "Combine — select two 
 
 Pure modules, as ever; the menu wiring is browser work (§10).
 
-**Subdivide** — node count doubles on an open subpath and gains one per segment on a closed one;
+**Subdivide** — a subpath gains exactly one node per segment, so an open subpath of `n` nodes
+comes back with `2n − 1` and a closed one with `2n`;
 sampling both paths at matching parameters gives identical points; a straight segment yields a
 handle-free midpoint; existing node types survive unchanged; the inserted node is `symmetric`; the
 wrap segment of a closed subpath is subdivided; a selection with no path refuses with a reason.
