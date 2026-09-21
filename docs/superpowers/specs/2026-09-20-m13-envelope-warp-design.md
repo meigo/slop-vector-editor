@@ -1,9 +1,11 @@
-# slop-vector-editor — milestone 12 design: envelope warp
+# slop-vector-editor — milestone 13 design: envelope warp
 
 Date: 2026-09-20. Status: approved in brainstorming, then **deferred** on 2026-09-21 and renumbered
-from M11 to M12. Path operations (`2026-09-21-m11-path-operations-design.md`) were pulled ahead of
+twice — M11 → M12 → M13 — as smaller milestones were pulled ahead of it. Nothing below is
+withdrawn; it is still the largest unbuilt thing on the roadmap. Path operations (`2026-09-21-m11-path-operations-design.md`) were pulled ahead of
 it: five small operations against one large one, and two of them — Subdivide and Simplify — are
-this milestone's near neighbours. Nothing below is withdrawn; it is next after M11.
+this milestone's near neighbours. PNG export (`2026-09-21-m12-png-export-design.md`) was then
+pulled ahead of it too, on the same reasoning. Nothing below is withdrawn; it is next after M11.
 Follows M10e (the panel density work, recorded in `CHANGELOG.md` rather than a spec of its own). Implements a post-v1 item the project design's
 §10 list does not name but which the M10 documents have assumed five times over — every one of them
 an argument for keeping a title an ordinary path so that "M11's warp" would need no special case.

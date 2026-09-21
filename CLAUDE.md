@@ -577,8 +577,10 @@ every user-visible change.
 ## Current state
 
 Milestone 11 (path operations: Subdivide, Reverse direction, Break apart, Combine and Simplify, in
-the Path menu beside the booleans) — see CHANGELOG. **M12 — envelope warp** is specced
-(`docs/superpowers/specs/2026-09-20-m12-envelope-warp-design.md`) and is next. Beyond that the
+the Path menu beside the booleans) — see CHANGELOG. **M12 — PNG export** is specced
+(`docs/superpowers/specs/2026-09-21-m12-png-export-design.md`) and is next; **M13 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m13-envelope-warp-design.md`) is specced and deferred behind
+it, having been renumbered twice as smaller milestones were pulled ahead. Beyond that the
 post-v1 list (project design §10) still holds gradients, a freehand tool, PNG export, grid and
 smart guides, masks, align and distribute, and image paste. **A light theme is no longer planned**
 (2026-09-19), and **multiple artboards are no longer planned** (2026-09-20) — the design doc still
@@ -592,7 +594,8 @@ M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
 resizable sidebar) and M11 (path operations) are complete — see CHANGELOG.
-**M12 — envelope warp** is specced and is the next step.
+**M12 — PNG export** is specced and is the next step; **M13 — envelope warp** is specced and
+parked behind it.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
