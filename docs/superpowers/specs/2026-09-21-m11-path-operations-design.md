@@ -150,7 +150,17 @@ so passing `diag × k` yields a deviation proportional to `√diag` — which is
 all, and defeats the entire reason the tolerance is relative. Measured, on one shape scaled ×1,
 ×10 and ×100: `diag × 2e-3` left **60 / 81 / 81** segments — the same drawing simplified
 differently purely because it was bigger — while `(diag × 2e-3)²` left **81 / 81 / 81**. Squaring
-is what makes the promise in the paragraph above true.
+is what makes **our** contribution to that promise true.
+
+**It does not make the promise true in general, and the spec should not pretend otherwise**
+(measured during the same task's re-review). Even with the squared formula, paper's own
+`PathFitter` still reaches different split decisions at different scales on some inputs — one
+fixture went 38 nodes → 24 across ×1 → ×1000, a 37% divergence, which is far too large to be
+float noise. The cause is internal absolute epsilons in paper's recursive fitter, below the
+tolerance we pass and outside our control. So: squaring removes the scale dependence *we*
+introduced, and a residual one belonging to the library remains. The unit test pins one fixture
+that is exactly invariant, and its real job is to fail if the square is ever removed — which was
+verified by removing it (29/29/29/29 becomes 19/31/31/31).
 
 The fraction is **5e-3**, also measured rather than chosen: squared, `2e-3` removes *nothing* from
 a realistically noisy path (81 → 81 segments, 0% deviation), so Simplify would report "nothing to
