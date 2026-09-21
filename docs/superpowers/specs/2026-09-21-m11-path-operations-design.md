@@ -178,7 +178,11 @@ behaviour — no escalating aggressiveness on repeat.
   "try again": a failed module fetch is cached by the browser's own module map, so clearing our
   promise does not make a retry re-fetch;
 - it refuses to run twice at once, because it is async even when Paper is cached;
-- it applies the result only if the selection has not moved meanwhile.
+- it re-checks that the **document** has not changed under the await and abandons the result if it
+  has. It does **not** check the selection (amended 2026-09-21; this section first said it did):
+  unlike the booleans, Simplify neither deletes nodes nor selects a new one, so a selection the
+  user moved during the load is simply their newer intent and the edit still lands where it was
+  asked for.
 
 A result subpath left with fewer than two nodes is dropped, and a path left with no subpaths leaves
 the document at the same reference rather than being written out for the importer to reject
@@ -232,9 +236,11 @@ oppositely, which is what nonzero needs. Asserted on winding direction, since th
 renderer to ask (§4).
 
 **Simplify** — node count drops on a dense path and every sampled point stays within the tolerance
-of the original; a path already at minimum node count comes back at the same reference; a result
-subpath with fewer than two nodes is dropped; `text` is gone; the node-count notice reports the real
-before and after. Paper's own `simplify` is not re-tested — the tests cover our conversion and our
+of the original; a path already at minimum node count comes back at the same reference; `text` is gone; the node-count notice reports the real before and after. **The "a result subpath
+with fewer than two nodes is dropped" guard is deliberately left untested** (amended 2026-09-21):
+`fromPaperItem` already filters those out one layer down, so nothing reaching `simplifyShapes` can
+exercise it. It stays as the document layer restating invariant 30 at the boundary that owns it,
+rather than leaning on a geometry module to keep the promise. Paper's own `simplify` is not re-tested — the tests cover our conversion and our
 guards.
 
 **`geom/paper.ts`** — the extracted conversion keeps `boolean.test.ts` green unchanged, which is the
