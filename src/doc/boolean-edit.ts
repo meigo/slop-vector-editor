@@ -1,9 +1,9 @@
 import { booleanOf, type BoolOp } from "../geom/boolean";
-import { applyMat, invert, multiply, IDENTITY } from "../geom/mat";
-import { toPath } from "../geom/shapes";
+import { invert, multiply, IDENTITY } from "../geom/mat";
+import { toPath, transformSubpaths } from "../geom/shapes";
 import type { Doc, Node, PathShape, Subpath } from "./document";
 import { deleteNodes } from "./edits";
-import { findNode, mapNodes } from "./tree";
+import { findNode, isAfter, mapNodes, paintKey } from "./tree";
 
 /** Why an operation cannot run (spec M7 §7). */
 export type BoolRefusal = "few" | "group" | "open";
@@ -13,27 +13,6 @@ export type BoolOutcome =
   /** The operation ran and left no area: the document must not change (spec M7 §7). */
   | { kind: "empty" }
   | { kind: "refused"; why: BoolRefusal };
-
-/** Paint order: later children sit in front, so the greatest key is the frontmost. */
-const order = (layerIndex: number, path: readonly number[]) => [layerIndex, ...path];
-const after = (a: readonly number[], b: readonly number[]) => {
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const x = a[i] ?? -1;
-    const y = b[i] ?? -1;
-    if (x !== y) return x > y;
-  }
-  return false;
-};
-
-const mapSubpath = (sp: Subpath, m: import("../geom/mat").Mat): Subpath => ({
-  closed: sp.closed,
-  nodes: sp.nodes.map((n) => ({
-    ...n,
-    p: applyMat(m, n.p),
-    in: n.in ? applyMat(m, n.in) : null,
-    out: n.out ? applyMat(m, n.out) : null,
-  })),
-});
 
 /** The one place that decides whether an operation can run, so the menus and the edit itself can
  *  never disagree about it (spec M7 §7). */
@@ -63,21 +42,21 @@ export async function booleanShapes(
   const shapes = found.map((f) => ({
     found: f,
     path: f.node.kind === "path" ? f.node : toPath(f.node as Parameters<typeof toPath>[0]),
-    key: order(f.layerIndex, f.path),
+    key: paintKey(f.layerIndex, f.path),
   }));
 
   // Only the two extremes of the paint order are picked out: the frontmost gives the result its id,
   // place and name, and Subtract has to hand the backmost to paper first, because every later
   // operand is removed from the first. The operands otherwise stay in selection order — the other
   // three operations are commutative, and subtracting several shapes is order-independent too.
-  const back = shapes.reduce((a, b) => (after(a.key, b.key) ? b : a));
-  const front = shapes.reduce((a, b) => (after(a.key, b.key) ? a : b));
+  const back = shapes.reduce((a, b) => (isAfter(a.key, b.key) ? b : a));
+  const front = shapes.reduce((a, b) => (isAfter(a.key, b.key) ? a : b));
   const ordered = op === "subtract" ? [back, ...shapes.filter((s) => s !== back)] : shapes;
 
   const operands: Subpath[][] = [];
   for (const s of ordered) {
     const world = multiply(s.found.parent, s.path.transform);
-    operands.push(s.path.subpaths.map((sp) => mapSubpath(sp, world)));
+    operands.push(transformSubpaths(s.path.subpaths, world));
   }
   const result = await booleanOf(operands, op);
   if (result.length === 0) return { kind: "empty" };
@@ -94,7 +73,7 @@ export async function booleanShapes(
     id: front.path.id,
     transform: IDENTITY,
     style: styleFrom.path.style,
-    subpaths: result.map((sp) => mapSubpath(sp, toParent)),
+    subpaths: transformSubpaths(result, toParent),
   };
   // The name follows the style, not the place: it is a label on the shape whose area survived, and
   // for Subtract that is the backmost one. Naming the result after the knife would leave the user's

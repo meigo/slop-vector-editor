@@ -213,3 +213,51 @@ export function shapesOf(node: Node): Shape[] {
   if (node.kind !== "group") return [node];
   return node.children.flatMap(shapesOf);
 }
+
+/** Paint order: later children sit in front, so the greatest key is the frontmost. Shared by the
+ *  booleans and by Combine, both of which build their result in the frontmost operand's place. */
+export const paintKey = (layerIndex: number, path: readonly number[]): number[] => [
+  layerIndex,
+  ...path,
+];
+
+export const isAfter = (a: readonly number[], b: readonly number[]): boolean => {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? -1;
+    const y = b[i] ?? -1;
+    if (x !== y) return x > y;
+  }
+  return false;
+};
+
+/** Replaces one node with several, in its own parent and at its own index. Same reference when `id`
+ *  is not found, or when `nodes` is empty — emptying a group that way would leave the shape the
+ *  importer drops (invariant 27).
+ *
+ *  `mapNodes` is 1→1 and `insertNodes` appends to a layer, so neither can express Break apart's
+ *  requirement that the fragments keep the original's place in the z-order (spec M11 §3). */
+export function replaceNode(doc: Doc, id: string, nodes: readonly Node[]): Doc {
+  if (nodes.length === 0) return doc;
+  let hit = false;
+  const walk = (children: readonly Node[]): Node[] | null => {
+    const i = children.findIndex((n) => n.id === id);
+    if (i >= 0) {
+      hit = true;
+      return [...children.slice(0, i), ...nodes, ...children.slice(i + 1)];
+    }
+    let changed = false;
+    const out = children.map((n) => {
+      if (n.kind !== "group") return n;
+      const inner = walk(n.children);
+      if (!inner) return n;
+      changed = true;
+      return { ...n, children: inner };
+    });
+    return changed ? out : null;
+  };
+  const layers = doc.layers.map((l) => {
+    const c = walk(l.children);
+    return c ? { ...l, children: c } : l;
+  });
+  return hit ? { ...doc, layers } : doc;
+}
