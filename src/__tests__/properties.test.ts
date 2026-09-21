@@ -10,6 +10,7 @@ import {
   type Style,
 } from "../doc/document";
 import { setNodeOpacity } from "../doc/edits";
+import { PATH_OPS } from "../doc/path-ops";
 import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, rotateAbout, translate, type Mat } from "../geom/mat";
 import {
@@ -331,5 +332,12 @@ describe("selected node summary", () => {
 
   it("returns null when a node ref no longer exists on the path", () => {
     expect(selectedNodeSummary(d, "p", [{ sub: 0, i: 5 }])).toBeNull();
+  });
+});
+
+describe("selectionActions.pathReason", () => {
+  it("carries a reason for every operation when nothing is selected", () => {
+    const a = selectionActions(createDoc(100, 100), []);
+    for (const op of PATH_OPS) expect(a.pathReason[op]).not.toBeNull();
   });
 });
