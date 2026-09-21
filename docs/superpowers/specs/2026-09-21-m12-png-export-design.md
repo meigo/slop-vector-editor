@@ -198,7 +198,9 @@ unit-tested and the rasterisation is browser-verified**.
 - `filterToSelection`: a selected node comes back whole with its children; a node with a selected
   descendant comes back pruned to that descendant; **ancestor group transforms survive**; an
   emptied group is dropped (invariant 27); an emptied layer is dropped; an unselected sibling is
-  gone; the same reference back when every node is selected.
+  gone; an **equal** document when every node is selected. Equal, not the same reference: this
+  is not an edit — the result goes straight to the serializer and never enters the session, so it
+  does not owe invariant 1's same-reference guarantee, and change-tracking it would buy nothing.
 - `serializeDoc(doc, view)`: writes the given `width`/`height`/`viewBox`; **called without `view`
   it is byte-identical to today** — a tripwire, since every round-trip test depends on it.
 - The size arithmetic: `round(region × scale)` at fractional scales, and that a selection's region
