@@ -9,6 +9,7 @@
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
+  import ShareReadyDialog from "./lib/ShareReadyDialog.svelte";
   import Sidebar from "./lib/Sidebar.svelte";
   import StatusBar from "./lib/StatusBar.svelte";
   import ToolStrip from "./lib/ToolStrip.svelte";
@@ -98,7 +99,8 @@
 
   function onkeydown(e: KeyboardEvent) {
     // Modals and menus own the keyboard (they handle Escape themselves).
-    if (app.dialog || app.confirm || app.contextMenu || isEditable(e.target)) return;
+    if (app.dialog || app.confirm || app.shareReady || app.contextMenu || isEditable(e.target))
+      return;
     if (e.key === " ") {
       e.preventDefault();
       app.spaceHeld = true;
@@ -142,7 +144,12 @@
 
   /** Text fields and dialogs keep the browser's own clipboard behaviour. */
   function clipboardIgnored(e: Event): boolean {
-    return app.dialog !== null || app.confirm !== null || isTextField(e.target);
+    return (
+      app.dialog !== null ||
+      app.confirm !== null ||
+      app.shareReady !== null ||
+      isTextField(e.target)
+    );
   }
 
   function writeClipboard(e: ClipboardEvent, action: () => string | null) {
@@ -230,4 +237,8 @@
 
 {#if app.confirm}
   <ConfirmDialog request={app.confirm} />
+{/if}
+
+{#if app.shareReady}
+  <ShareReadyDialog request={app.shareReady} />
 {/if}

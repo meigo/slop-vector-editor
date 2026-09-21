@@ -1,10 +1,19 @@
 import { createDoc } from "../doc/document";
-import { app, askConfirm, markDocSaved, notify, replaceDocument } from "../state/appState.svelte";
+import {
+  app,
+  askConfirm,
+  markDocSaved,
+  notify,
+  replaceDocument,
+  reportDelivery,
+} from "../state/appState.svelte";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 import { loadAutosave, type AutosaveRecord } from "./autosave";
+import { deliverFile } from "./deliver";
 import { errorMessage } from "./errors";
 import { pickSvgFile, writeSvgFile } from "./file-io";
+import { saveToFilesAvailable } from "./share";
 
 export function createNewDocument(w: number, h: number): void {
   replaceDocument(createDoc(w, h), "Untitled.svg", null, true);
@@ -53,6 +62,15 @@ export async function saveDocument(asNew: boolean): Promise<void> {
   // Capture the doc being written: edits made while the write is in flight stay dirty.
   const doc = app.doc;
   try {
+    if (saveToFilesAvailable()) {
+      // `asNew` is deliberately ignored here: with no file handle there is no "in place" to save
+      // to, so Save and Save As are the same action on iPad (spec M13 §7).
+      const file = new File([serializeDoc(doc)], app.fileName, { type: "image/svg+xml" });
+      // Serializing is synchronous, so the sheet can still ride the tap that started the save.
+      const r = await deliverFile(file, { tryDirect: true });
+      reportDelivery(r, { file, isDoc: true, note: "", doc });
+      return;
+    }
     const r = await writeSvgFile(serializeDoc(doc), app.fileName, app.fileHandle, asNew);
     if (r) markDocSaved(doc, r.name, r.handle);
   } catch (err) {

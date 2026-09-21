@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 715 tests in 53 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 734 tests in 55 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -91,14 +91,19 @@ every user-visible change.
   `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper), `png.ts` (`rasterise`, `writeClipboardPng` — the impure half of
-  PNG export; needs a DOM, so it is browser-verified rather than unit-tested).
+  PNG export; needs a DOM, so it is browser-verified rather than unit-tested), `share.ts`
+  (`isAppleTouch`, `saveToFilesAvailable`, `canShareFile`, `classifyShareError` — Save to Files
+  detection and the share sheet itself), `deliver.ts` (`deliverFile`, the shared/dismissed/ready/
+  downloaded decision table between a built file and the share sheet, with `share`/`canShare`/
+  `download` injectable exactly as `system-clipboard.ts` injects its `ClipboardLike`).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Properties + Layers column: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
   helper), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
-  `Modal`, dialogs, `Notices`.
+  `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a fresh tap at Save to Files when
+  `deliverFile` didn't attempt a direct share, or the attempt needs a fresh tap), `Notices`.
 
 ## Invariants and gotchas
 
@@ -582,32 +587,37 @@ every user-visible change.
       `bakeShape`, and this is quiet data loss where a drift would go unnoticed.
     - The select tool warns **once per drag**, on pointer-up, not per pointermove.
 
+45. **Safari opens a share sheet or writes the clipboard only during a recent tap.** `navigator.share`
+    and `navigator.clipboard.write` must be **called** inside the activation — not merely handed a
+    promise that settles later. `copyPng` (M12) and `deliverFile`'s `tryDirect` (M13) both encode
+    this: build nothing before the call that you can build after it, and where a build is
+    unavoidable — a PNG render — do not attempt the direct path at all, but go straight to a dialog
+    whose button supplies a fresh tap.
+
 ## Current state
 
-Milestone 12 (PNG export: File ▸ Export PNG… with a region, scale and transparency, and Edit ▸ Copy
-as PNG) — see CHANGELOG. **M13 — Save to Files on iPad**
-(`docs/superpowers/specs/2026-09-21-m13-save-to-files-design.md`) is specced and is next: iPad
-Safari has no save picker, so every Save and Export lands in Downloads as a renumbered copy, and
-`navigator.share({ files })` is the only way a web page there can put a file where the user
-chooses. It jumped the queue on urgency rather than size — it fixes a save path that is actively
-broken on a first-class device. **M14 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and deferred behind
-it, having been renumbered three times. Beyond that the post-v1 list
-(project design §10) still holds gradients, a freehand tool, grid and smart guides, masks, align
-and distribute, and image paste. **A light theme is no longer planned** (2026-09-19), and
-**multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
-dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d),
-so it has left the list, and so has **PNG export** (M12). The accessibility group and the
-performance group (both parked below) remain the two obvious milestones after M14.
+Milestone 13 (Save to Files on iPad: Save, Save As and Export PNG route through the share sheet
+on an Apple touch device, so the user picks a destination instead of every save landing in
+Downloads as a renumbered copy — still a new file each time, never a true overwrite) — see
+CHANGELOG. Verification is outstanding: the whole feature needs an iPad and none of it is
+confirmed yet, including whether `image/svg+xml` is shareable at all on iPadOS. **M14 — envelope
+warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and is next.
+Beyond that the post-v1 list (project design §10) still holds gradients, a freehand tool, grid and
+smart guides, masks, align and distribute, and image paste. **A light theme is no longer planned**
+(2026-09-19), and **multiple artboards are no longer planned** (2026-09-20) — the design doc still
+lists both, as a dated document that later decisions supersede rather than rewrite. **Text is
+done** (M10a-M10d), so it has left the list, and so has **PNG export** (M12) and **Save to Files**
+(M13). The accessibility group and the performance group (both parked below) remain the two
+obvious milestones after M14.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
-resizable sidebar), M11 (path operations) and M12 (PNG export) are complete — see CHANGELOG.
-**M13 — Save to Files on iPad** is specced and is the next step; **M14 — envelope warp** is
-specced and parked behind it.
+resizable sidebar), M11 (path operations), M12 (PNG export) and M13 (Save to Files on iPad) are
+complete — see CHANGELOG. **M14 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and is the next step.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
