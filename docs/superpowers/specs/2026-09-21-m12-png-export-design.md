@@ -61,9 +61,11 @@ run against Paper and M10's against opentype. Every number below is measured, no
 serializeDoc(doc, view)  →  Blob  →  <img>  →  drawImage(0, 0, w·s, h·s)  →  toBlob  →  save
 ```
 
-Five steps, four of which already exist. The save step is `writeSvgFile`'s own path — File System
-Access picker where available, `<a download>` fallback where not — generalised to take a Blob and a
-media type rather than SVG text.
+Five steps, four of which already exist. The save step follows `writeSvgFile`'s shape — File System
+Access picker where available, `<a download>` fallback where not — as a **separate `writePngFile`**
+rather than a generalisation of it. A PNG never saves in place, so it needs none of the handle
+bookkeeping that keeps a lossy re-export from silently overwriting an Inkscape original
+(invariant 10); entangling the two would put that rule at risk for no gain.
 
 **`serializeDoc` gains an optional second argument** overriding the root's `width`, `height` and
 `viewBox`:
@@ -123,9 +125,13 @@ height = round(region.h × scale)
 
 ```ts
 export const MAX_SIDE = 8192;
-export const MAX_PIXELS = 16_777_216;   // 4096²
-export function exportRefusal(w: number, h: number): string | null
+export const MAX_PIXELS = 16_777_216; // 4096²
+export function exportRefusal(box: Box | null, scale: number): string | null
 ```
+
+It takes the box and the scale rather than the computed pixels, so that one predicate answers every
+way an export can fail to be sensible — nothing to export, a scale that is not a positive number,
+a scale that rounds the region away to nothing, and the cap itself.
 
 Refusing with a reason naming the computed size — `Export — 24000 × 18000 is too large; reduce the
 scale`. Both bounds are **deliberately below what Chrome manages**: the spike proved Chrome reaches
