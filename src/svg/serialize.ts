@@ -41,7 +41,11 @@ function node(n: Node, depth: number): string {
   return element(tag, attrs, [], depth);
 }
 
-export function serializeDoc(doc: Doc): string {
+/** The box the root element aims at. Absent means the artboard's own, which is what a save writes;
+ *  an export passes the region it is rendering (spec M12 §3). */
+export type View = { x: number; y: number; w: number; h: number };
+
+export function serializeDoc(doc: Doc, view?: View): string {
   const { w, h, background } = doc.artboard;
   const body: string[] = [];
   if (background) {
@@ -80,13 +84,14 @@ export function serializeDoc(doc: Doc): string {
       ),
     );
   }
+  const v = view ?? { x: 0, y: 0, w, h };
   const root = element(
     "svg",
     {
       xmlns: "http://www.w3.org/2000/svg",
-      width: fmt(w),
-      height: fmt(h),
-      viewBox: `0 0 ${fmt(w)} ${fmt(h)}`,
+      width: fmt(v.w),
+      height: fmt(v.h),
+      viewBox: `${fmt(v.x)} ${fmt(v.y)} ${fmt(v.w)} ${fmt(v.h)}`,
       "data-sv-version": "1",
     },
     body,
