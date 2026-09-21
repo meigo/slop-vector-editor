@@ -5,6 +5,7 @@
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
+  import ExportPngDialog from "./lib/ExportPngDialog.svelte";
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
@@ -14,7 +15,8 @@
   import TopBar from "./lib/TopBar.svelte";
   import { hintFrom } from "./lib/hover-hint";
   import { flushAutosave, scheduleAutosave } from "./persist/autosave";
-  import { autosaveRecord, errorMessage, restoreAutosave } from "./persist/project-io";
+  import { errorMessage } from "./persist/errors";
+  import { autosaveRecord, restoreAutosave } from "./persist/project-io";
   import { watchOtherTabs } from "./persist/tab-presence";
   import { app, copySelection, cutSelection, notify, pasteText } from "./state/appState.svelte";
   import { runCommand, runEditAction } from "./state/commands";
@@ -222,6 +224,8 @@
   <NewDocumentDialog />
 {:else if app.dialog === "settings"}
   <DocumentSettingsDialog />
+{:else if app.dialog === "export"}
+  <ExportPngDialog />
 {/if}
 
 {#if app.confirm}

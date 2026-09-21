@@ -1675,3 +1675,75 @@ exactly what a per-task review has no way to look at.
   verbatim in both files. And the Path menu is now nine items with no overflow handling for a
   short viewport — one for the iPad pass.
 - 685 tests in 51 files.
+
+## 2026-09-21 — Milestone 12: PNG export
+
+- **File ▸ Export PNG…** opens a dialog — Region (Artboard or Selection), a scale multiplier with a
+  live pixel readout, and a Transparent toggle defaulting off for the artboard and on for a
+  selection — and **Edit ▸ Copy as PNG** puts the artboard on the clipboard at 1×. Menu entries
+  only, no top-bar icon and no keyboard shortcut, for the reason M11 gave: the bar's four hiding
+  breakpoints are measured and it fits at 739px today, and an icon would invalidate all of them.
+- **The spike's findings, carried from the design spec into the shipped feature.** The canvas is
+  not tainted, because a serialized document holds neither a `<text>` element (titles are stored as
+  outlines) nor any external reference. `drawImage` re-rasterises the vector at the destination
+  size rather than upscaling a fixed raster — proven crisp at 8× with no blur ramp — so scale needs
+  no SVG rewriting: size the canvas and draw. A region is aimed with the root's `viewBox`, not a
+  crop of a fixed-size raster, which is what keeps a crop crisp at any scale. And **the size ceiling
+  fails silently**: Chrome draws a 16384² canvas but 16385² comes back blank with a null blob,
+  throwing nothing — which is why `exportRefusal` is a pre-emptive predicate checked before
+  anything is drawn, not a `try`/`catch` around the draw.
+- The dialog's Region/Background wiring matches the spec exactly: picking Selection is only
+  possible when something is selected — otherwise it is a disabled `<option>` reading "Selection —
+  nothing selected", never a hidden control — and picking it auto-flips Transparent on; picking
+  Artboard leaves Transparent off. The scale field's readout is live arithmetic
+  (`round(region × scale)`), and a refusing scale disables Export rather than hiding it, naming the
+  computed size it refused.
+- **Browser-verified** (desktop Chrome, :5198): opened the dialog with two shapes drawn — Region
+  read Artboard, the readout read the artboard's own 800 × 600 at 1×. Setting Scale to 2 doubled the
+  readout to 1600 × 1200, and exporting produced the notice `Exported Untitled.png — 1600 × 1200.`
+  Selecting one shape and reopening the dialog enabled the Selection option; picking it flipped
+  Transparent on, and exporting that selection produced `Exported Untitled.png — 149 × 100.`,
+  matching the shape's own bounds rather than the artboard. With nothing selected, the Selection
+  `<option>` is `disabled` in the DOM with the reason as its own label, verbatim `Selection —
+  nothing selected`.
+  Setting Scale to 500 disabled the Export button and showed the refusal naming the exact computed
+  size: `400000 × 300000 is too large; reduce the scale`. Edit ▸ Copy as PNG succeeded on the first
+  try, reporting `Copied 800 × 600 to the clipboard.` — the browser did not refuse the clipboard, so
+  the fallback error notice ("use Export PNG… instead") was not exercised this session. Console was
+  clean throughout: no errors, only Vite's own reconnect debug lines from repeated reloads.
+  A second, deliberately provoked native-picker call (while a first was still pending) surfaced the
+  browser's own error verbatim as a notice — `Export PNG — Failed to execute 'showSaveFilePicker' on
+  'Window': File picker already active.` — caught and shown rather than an uncaught exception, which
+  is itself a small confirmation that `exportPng`'s catch-all works on a real, unanticipated error.
+- **Not verified: opening the saved file and inspecting its pixels.** Chrome's native Save-file
+  picker is a true OS-level dialog outside this session's browser-automation reach — every attempt
+  to drive it with a screenshot or a keystroke left the export waiting on a picker nothing could
+  resolve. Forcing the `<a download>` fallback (by clearing `window.showSaveFilePicker` for the
+  test) let exports complete without a native dialog and is what produced the two notices above, but
+  reading the resulting blob back — via `fetch`, `<img>`, or `createImageBitmap` — failed from the
+  automation's script-injection context with a bare `Failed to fetch` even immediately after
+  creation, while a blob created and fetched within that same call succeeded; the failure is
+  specific to reading a blob: URL from a different execution context than the one that made it, not
+  a defect in the app. So the pixel-level part of the plan's checks — exact colours, transparent
+  pixels, the unselected shape actually absent rather than merely out of frame — rests on the
+  spike's own Chrome DevTools measurements above and on `filterToSelection`'s unit coverage, not a
+  fresh look at a file from this session. Recorded here rather than folded into the browser-verified
+  paragraph above, per the standing rule that an inferred check must never be written up as an
+  observed one.
+- Owed (spec §11, most pressing first): **Safari and iPad are unverified, and remain the
+  milestone's real risk.** Both the tainting rule and the size ceiling are known to differ there —
+  iOS caps total area rather than per-side dimensions, historically well below 16384² — and if iOS
+  taints an SVG-backed canvas, `toBlob` fails and PNG export does not work on the device this project
+  treats as first-class. Check this first in the device pass, not last. `MAX_SIDE`/`MAX_PIXELS` are
+  chosen conservatively against that unmeasured limit and may need retuning once it's known. Copy as
+  PNG's Safari behaviour (§8) is likewise unconfirmed — this session's one attempt was on desktop
+  Chrome, where it simply worked. **A selection export clips strokes** (added 2026-09-21, found by
+  the whole-branch review): `selectionBounds` builds on `nodeBounds`, whose contract is "Geometric
+  bounds (stroke excluded)", so the outer half of every edge stroke falls outside the `viewBox`.
+  Accepted for this milestone on one ground — the PNG then matches exactly the selection frame the
+  app already draws, built from the same bounds, so what you see selected is what you get. The
+  proper fix needs visual bounds, which in turn needs miter-join overshoot, a number this codebase
+  computes nowhere yet. Large exports are still synchronous with no progress indicator.
+- Plan: `docs/superpowers/plans/2026-09-21-m12-png-export.md`. Spec:
+  `docs/superpowers/specs/2026-09-21-m12-png-export-design.md`.
+- 715 tests in 53 files.

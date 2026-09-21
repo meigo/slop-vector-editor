@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 681 tests in 51 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 715 tests in 53 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -43,7 +43,9 @@ every user-visible change.
   intersect/exclude on the current selection, in document space), `path-ops.ts` (`pathOpRefusal`,
   `subdivideSelection`, `reverseSelection`, `breakApart`, `combine` — Subdivide/Reverse
   direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
-  the async Simplify action, modelled on `booleanSelection`'s shape).
+  the async Simplify action, modelled on `booleanSelection`'s shape), `subset.ts`
+  (`filterToSelection` — the document reduced to a selection, for exporting a region that contains
+  only the selected objects).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
@@ -56,7 +58,9 @@ every user-visible change.
   the other caller — Paper's `simplify(tolerance)` through the same conversion).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
-  `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
+  `polygonD`), `serialize.ts` (`serializeDoc` takes an optional second argument overriding the
+  root's `width`/`height`/`viewBox`, for PNG export's region; absent, output is byte-identical to
+  today), `parse.ts` (reads polygons back via `parsePolygonAttr`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
@@ -71,7 +75,10 @@ every user-visible change.
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
   `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
-  planning: cascade, centring, errors), `appState.svelte.ts` (the `app` store + actions).
+  planning: cascade, centring, errors), `export-plan.ts` (`ExportRegion`, `exportBox`,
+  `exportSize`, `exportRefusal`, `sizeLabel`, `pngFileName`, `MAX_SIDE`, `MAX_PIXELS` — the pure
+  half of PNG export), `appState.svelte.ts` (the `app` store + actions, incl. `exportPng` and
+  `copyPng`).
 - `src/text/` — `font.ts` (the **only** importer of `opentype.js`, and only dynamically: font
   registry, `loadFont`, `registerFontFile`, `outlineText`, the unshaped-script and no-glyph
   guards), `layout.ts` (pure: pen positions, kerning, letter-spacing, alignment), `attrs.ts` (pure:
@@ -83,7 +90,8 @@ every user-visible change.
   sidebar's split ratio and the Layers panel's collapse),
   `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
-  `navigator.clipboard` wrapper).
+  `navigator.clipboard` wrapper), `png.ts` (`rasterise`, `writeClipboardPng` — the impure half of
+  PNG export; needs a DOM, so it is browser-verified rather than unit-tested).
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
@@ -576,26 +584,24 @@ every user-visible change.
 
 ## Current state
 
-Milestone 11 (path operations: Subdivide, Reverse direction, Break apart, Combine and Simplify, in
-the Path menu beside the booleans) — see CHANGELOG. **M12 — PNG export** is specced
-(`docs/superpowers/specs/2026-09-21-m12-png-export-design.md`) and is next; **M13 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m13-envelope-warp-design.md`) is specced and deferred behind
-it, having been renumbered twice as smaller milestones were pulled ahead. Beyond that the
-post-v1 list (project design §10) still holds gradients, a freehand tool, PNG export, grid and
-smart guides, masks, align and distribute, and image paste. **A light theme is no longer planned**
-(2026-09-19), and **multiple artboards are no longer planned** (2026-09-20) — the design doc still
-lists both, as a dated document that later decisions supersede rather than rewrite. **Text is
-done** (M10a-M10d), so it has left the list. The accessibility group and the performance group
-(both parked below) remain the two obvious milestones after M12.
+Milestone 12 (PNG export: File ▸ Export PNG… with a region, scale and transparency, and Edit ▸ Copy
+as PNG) — see CHANGELOG. **M13 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m13-envelope-warp-design.md`) is specced and is next, having
+been renumbered twice as smaller milestones were pulled ahead of it. Beyond that the post-v1 list
+(project design §10) still holds gradients, a freehand tool, grid and smart guides, masks, align
+and distribute, and image paste. **A light theme is no longer planned** (2026-09-19), and
+**multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
+dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d),
+so it has left the list, and so has **PNG export** (M12). The accessibility group and the
+performance group (both parked below) remain the two obvious milestones after M13.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
-resizable sidebar) and M11 (path operations) are complete — see CHANGELOG.
-**M12 — PNG export** is specced and is the next step; **M13 — envelope warp** is specced and
-parked behind it.
+resizable sidebar), M11 (path operations) and M12 (PNG export) are complete — see CHANGELOG.
+**M13 — envelope warp** is specced and is the next step.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

@@ -59,6 +59,7 @@ import {
 } from "../doc/path-ops";
 import { simplifyShapes, type SimplifyOutcome } from "../doc/simplify-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
+import { filterToSelection } from "../doc/subset";
 import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
@@ -69,6 +70,7 @@ import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
 import { newSeed } from "../text/random";
+import { serializeDoc } from "../svg/serialize";
 import {
   loadFont,
   charQuads,
@@ -89,12 +91,22 @@ import {
   type Prefs,
   type SectionId,
 } from "../persist/preferences";
+import { errorMessage } from "../persist/errors";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
+import { rasterise, writeClipboardPng } from "../persist/png";
+import { writePngFile } from "../persist/file-io";
 import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
 import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
 import { canRedo, canUndo } from "./history";
 import { droppedTitle } from "../doc/resize";
+import {
+  exportBox,
+  exportRefusal,
+  exportSize,
+  pngFileName,
+  type ExportRegion,
+} from "./export-plan";
 import { applyGeometryField, type GeometryField } from "./properties";
 import {
   beginGesture,
@@ -110,7 +122,7 @@ import {
 import { fitRect, screenToDoc, zoomAt, type View } from "./viewport";
 
 export type Notice = { id: number; kind: "info" | "error"; text: string };
-export type DialogKind = "new" | "settings" | null;
+export type DialogKind = "new" | "settings" | "export" | null;
 export type ConfirmRequest = {
   text: string;
   confirmLabel: string;
@@ -715,6 +727,74 @@ export function visibleDocBox(): Box {
   const a = screenToDoc(app.view, { x: 0, y: 0 });
   const b = screenToDoc(app.view, { x: w, y: h });
   return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+}
+
+// ----- PNG export (spec M12) -----
+
+/** Spec (M12) §3–§6. Builds the SVG for a region and hands it to the rasteriser.
+ *
+ *  This reads the document but never edits it, so it needs no `cancelActiveGesture()` — nothing it
+ *  does can be clobbered by, or clobber, a running tool drag. */
+async function pngFor(
+  region: ExportRegion,
+  scale: number,
+  transparent: boolean,
+): Promise<{ blob: Blob; w: number; h: number } | string> {
+  const doc = app.doc;
+  const ids = app.selection;
+  const box = exportBox(doc, region, ids);
+  const why = exportRefusal(box, scale);
+  // `!box` only narrows the type for the `exportSize(box, …)` below — `exportRefusal(null, …)`
+  // always returns a string, so `why` alone already covers the null case; `?? "nothing to export"`
+  // is dead in practice, not a second way this can fail.
+  if (why || !box) return why ?? "nothing to export";
+  const { w, h } = exportSize(box, scale);
+  const picked = region === "selection" ? filterToSelection(doc, ids) : doc;
+  const source = transparent
+    ? { ...picked, artboard: { ...picked.artboard, background: null } }
+    : picked;
+  const blob = await rasterise(serializeDoc(source, box), w, h);
+  return { blob, w, h };
+}
+
+export async function exportPng(
+  region: ExportRegion,
+  scale: number,
+  transparent: boolean,
+): Promise<void> {
+  try {
+    const out = await pngFor(region, scale, transparent);
+    if (typeof out === "string") return notify("info", `Export PNG — ${out}`);
+    const name = await writePngFile(out.blob, pngFileName(app.fileName));
+    // A null name is the user cancelling the picker, which is not a failure and says nothing.
+    if (name) notify("info", `Exported ${name} — ${out.w} × ${out.h}.`);
+  } catch (err) {
+    notify("error", `Export PNG — ${errorMessage(err)}`);
+  }
+}
+
+/** Spec (M12) §8. The whole artboard at 1×, with its background — the clipboard has no dialog.
+ *
+ *  Everything up to `writeClipboardPng` must stay synchronous: that call has to happen inside the
+ *  click's user activation for Safari to allow it, which is the whole reason the blob is handed
+ *  over as a PENDING promise rather than awaited first. `pngFor` (which itself awaits
+ *  `img.decode()`) is started but never awaited here — only its returned promise, still settling,
+ *  is passed on. */
+export async function copyPng(): Promise<void> {
+  const box = exportBox(app.doc, "artboard", app.selection);
+  const why = exportRefusal(box, 1);
+  if (why || !box) return notify("info", `Copy as PNG — ${why ?? "nothing to export"}`);
+  const { w, h } = exportSize(box, 1);
+  const pending = pngFor("artboard", 1, false).then((out) =>
+    typeof out === "string" ? Promise.reject(new Error(out)) : out.blob,
+  );
+  const ok = await writeClipboardPng(pending);
+  notify(
+    ok ? "info" : "error",
+    ok
+      ? `Copied ${w} × ${h} to the clipboard.`
+      : "Copy as PNG — this browser refused the clipboard. Use File ▸ Export PNG… instead.",
+  );
 }
 
 /** Returns the SVG text for the system clipboard, or null when nothing is selected. */

@@ -251,3 +251,32 @@ describe("name sanitising", () => {
     expect(serializeDoc(bad)).toContain('data-sv-name="ABCD\uD83D\uDE00"');
   });
 });
+
+describe("serializeDoc with a view", () => {
+  it("writes the artboard's own box when no view is given", () => {
+    const svg = serializeDoc(createDoc(400, 300));
+    expect(svg).toContain('width="400"');
+    expect(svg).toContain('height="300"');
+    expect(svg).toContain('viewBox="0 0 400 300"');
+  });
+
+  it("writes the given box as width, height and viewBox", () => {
+    const svg = serializeDoc(createDoc(400, 300), { x: 200, y: 100, w: 80, h: 60 });
+    expect(svg).toContain('width="80"');
+    expect(svg).toContain('height="60"');
+    expect(svg).toContain('viewBox="200 100 80 60"');
+  });
+
+  it("leaves everything but the root untouched, so a view only re-aims the camera", () => {
+    const doc = createDoc(400, 300);
+    const plain = serializeDoc(doc);
+    const aimed = serializeDoc(doc, { x: 10, y: 20, w: 30, h: 40 });
+    const body = (s: string) => s.split("\n").slice(2).join("\n");
+    expect(body(aimed)).toBe(body(plain));
+  });
+
+  it("rounds a fractional box through fmt, as every other coordinate is", () => {
+    const svg = serializeDoc(createDoc(400, 300), { x: 1.5, y: 2.25, w: 10.125, h: 20 });
+    expect(svg).toContain('viewBox="1.5 2.25 10.125 20"');
+  });
+});

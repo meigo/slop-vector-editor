@@ -72,6 +72,10 @@ What works today:
   (Object ▸ Convert to path); Combine converts its shapes for you, since the result can't stay a
   live rectangle or ellipse. To cut a hole in a shape: convert both to paths, reverse the one that
   should become the hole, then Combine — reversing after combining flips both and leaves no hole.
+- **PNG export**: File ▸ Export PNG… offers the whole artboard or just the current selection, a
+  scale multiplier with a live pixel readout, and a transparent-background toggle (on by default
+  for a selection, off for the artboard). Edit ▸ Copy as PNG puts the artboard on the clipboard at
+  1× for pasting straight into another app.
 
 ## Keyboard
 
@@ -100,8 +104,8 @@ What works today:
 
 ## Roadmap
 
-Unplanned: gradients; a freehand pencil/brush tool; PNG export; grid and smart guides;
-masks/clipping; align & distribute; system-clipboard image paste.
+Unplanned: gradients; a freehand pencil/brush tool; grid and smart guides; masks/clipping;
+align & distribute; system-clipboard image paste.
 
 ## Development
 
@@ -109,7 +113,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 681 unit tests
+npm test          # 715 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

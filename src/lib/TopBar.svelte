@@ -32,6 +32,7 @@
     bringSelectionToFront,
     combineSelection,
     convertSelectionToPath,
+    copyPng,
     copyToSystem,
     cutToSystem,
     deleteSelection,
@@ -207,6 +208,9 @@
         <button class="menu-item" role="menuitem" onclick={() => command("saveAs")}>
           Save As… <span class="kbd">{shiftMod}S</span>
         </button>
+        <button class="menu-item" role="menuitem" onclick={() => dialog("export")}>
+          Export PNG…
+        </button>
         <div class="my-1 h-px bg-line"></div>
         <button class="menu-item" role="menuitem" onclick={() => dialog("settings")}>
           Document settings…
@@ -288,6 +292,17 @@
           onclick={() => runEdit(() => void pasteFromClipboard())}
         >
           Paste <span class="kbd">{mod}V</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          title="Copy the artboard to the clipboard as a PNG"
+          onclick={() => {
+            editOpen = false;
+            void copyPng();
+          }}
+        >
+          Copy as PNG
         </button>
       </div>
     {/if}
