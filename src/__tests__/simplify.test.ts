@@ -9,9 +9,34 @@ import {
 } from "../doc/document";
 import { simplifyShapes } from "../doc/simplify-edit";
 import { findNode } from "../doc/tree";
+import { flattenSubpath } from "../geom/bezier";
 import { simplifyOf } from "../geom/simplify";
+import { dist, type Vec } from "../geom/vec";
 
 const IDENT: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
+
+/** Shortest distance from `p` to the segment `a`–`b`. */
+function distToSegment(p: Vec, a: Vec, b: Vec): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  if (len2 === 0) return dist(p, a);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2));
+  return dist(p, { x: a.x + t * abx, y: a.y + t * aby });
+}
+
+/** The largest, over every point of `sample`, of its distance to the polyline `ref` — not to
+ *  `ref`'s nearest vertex, which for a coarse original would overstate the true deviation. */
+function maxDeviation(sample: readonly Vec[], ref: readonly Vec[]): number {
+  let max = 0;
+  for (const p of sample) {
+    let nearest = Infinity;
+    for (let i = 1; i < ref.length; i++)
+      nearest = Math.min(nearest, distToSegment(p, ref[i - 1], ref[i]));
+    max = Math.max(max, nearest);
+  }
+  return max;
+}
 
 /** A noisy polyline: many corner nodes tracing a sine, the shape a trace or a flatten leaves. */
 function noisy(n: number): Subpath {
@@ -48,16 +73,16 @@ describe("simplifyOf", () => {
     expect(out[0].nodes.length).toBeGreaterThan(2);
   });
 
-  it("keeps the result near the original", async () => {
+  it("keeps every sampled point within the tolerance of the original", async () => {
     const before = noisy(40);
-    const [after] = await simplifyOf([before], 0.8);
-    // Endpoints are preserved by the fit, which is the cheapest check that we did not lose the
-    // path's extent while losing its nodes.
-    expect(after.nodes[0].p.x).toBeCloseTo(before.nodes[0].p.x, 6);
-    expect(after.nodes[after.nodes.length - 1].p.x).toBeCloseTo(
-      before.nodes[before.nodes.length - 1].p.x,
-      6,
-    );
+    const tolerance = 0.8;
+    const [after] = await simplifyOf([before], tolerance);
+    // `before`'s nodes are all plain corners with no handles, so flattening it costs nothing: the
+    // polyline IS its own nodes. The fitted curve is sampled far more finely (scale 8) than the
+    // default, so a bulge between its own nodes is not missed.
+    const original = flattenSubpath(before);
+    const fitted = flattenSubpath(after, 8);
+    expect(maxDeviation(fitted, original)).toBeLessThanOrEqual(tolerance);
   });
 
   it("keeps a closed subpath closed", async () => {

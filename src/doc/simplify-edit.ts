@@ -2,6 +2,7 @@ import { nodeBounds } from "../geom/bounds";
 import { IDENTITY } from "../geom/mat";
 import { simplifyOf } from "../geom/simplify";
 import { withBakedSubpaths, type Doc, type Node, type PathShape } from "./document";
+import { pathOpRefusal } from "./path-ops";
 import { findNode, mapNodes } from "./tree";
 
 export type SimplifyOutcome =
@@ -22,10 +23,11 @@ const countNodes = (p: PathShape): number => p.subpaths.reduce((n, sp) => n + sp
  *  await). */
 export async function simplifyShapes(doc: Doc, ids: readonly string[]): Promise<SimplifyOutcome> {
   const unique = [...new Set(ids)];
+  const why = pathOpRefusal(doc, unique, "simplify");
+  if (why) return { kind: "refused", why };
   const targets = unique
     .flatMap((id) => findNode(doc, id) ?? [])
     .flatMap((f) => (f.node.kind === "path" ? [f.node] : []));
-  if (targets.length === 0) return { kind: "refused", why: "select a path" };
 
   let before = 0;
   let after = 0;
@@ -36,7 +38,9 @@ export async function simplifyShapes(doc: Doc, ids: readonly string[]): Promise<
     if (diag === 0) continue;
     const subpaths = await simplifyOf(p.subpaths, diag * TOL_FRACTION);
     // A subpath the fit left with fewer than two nodes is dropped, and a path left with none is
-    // not written at all — the importer would drop it (invariant 30).
+    // not written at all — the importer would drop it (invariant 30). `fromPaperItem` already
+    // filters this; the check stays here too, since this is the document-layer boundary that
+    // owns invariant 30 and should not lean on a geometry module to keep it true.
     const kept = subpaths.filter((sp) => sp.nodes.length >= 2);
     if (kept.length === 0) continue;
     const next = withBakedSubpaths(p, kept);
