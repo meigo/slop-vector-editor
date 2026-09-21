@@ -128,7 +128,9 @@ export function combine(doc: Doc, ids: readonly string[]): { doc: Doc; id: strin
   const subpaths: Subpath[] = [];
   for (const s of shapes) {
     const world = multiply(s.found.parent, s.path.transform);
-    // A singular world matrix contributes nothing, as in `booleanOf`.
+    // `toParent` is already known invertible, and det(into) = det(toParent) · det(world), so a
+    // singular `into` means this operand's own world matrix is singular — it draws nothing, so
+    // it contributes no subpaths rather than propagating NaNs into the result.
     const into = multiply(toParent, world);
     if (!invert(into)) continue;
     subpaths.push(...transformSubpaths(s.path.subpaths, into));

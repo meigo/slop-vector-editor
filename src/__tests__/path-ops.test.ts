@@ -107,6 +107,18 @@ describe("breakApart", () => {
     const doc = docWith([path("a", [ring(50, 20)])]);
     expect(breakApart(doc, ["a"]).doc).toBe(doc);
   });
+
+  it("breaks two multi-subpath paths in one call, allocating fresh ids across both without collision", () => {
+    const doc = docWith([
+      path("a", [ring(50, 20), ring(50, 10)]),
+      path("b", [ring(150, 20), ring(150, 10), ring(150, 5)]),
+    ]);
+    const out = breakApart(doc, ["a", "b"]);
+    expect(out.ids).toEqual(["a", idFor(100), "b", idFor(101), idFor(102)]);
+    expect(new Set(out.ids).size).toBe(out.ids.length);
+    expect(out.doc.nextId).toBe(103);
+    expect(out.doc.layers[0].children.map((n) => n.id)).toEqual(out.ids);
+  });
 });
 
 describe("combine", () => {
@@ -192,6 +204,43 @@ describe("combine", () => {
     ]);
     const out = combine(doc, ["a", "b"])!;
     expect((findNode(out.doc, out.id)!.node as PathShape).text).toBeUndefined();
+  });
+
+  it("maps an outside operand into the frontmost operand's group, which sits under a translate", () => {
+    const base = createDoc(200, 200);
+    const doc: Doc = {
+      ...base,
+      layers: [
+        {
+          ...base.layers[0],
+          children: [
+            // Outside the group, so it must be re-expressed in the group's space.
+            path("outside", [ring(150, 20)]),
+            {
+              kind: "group",
+              id: "g",
+              transform: [1, 0, 0, 1, 100, 0],
+              opacity: 1,
+              children: [path("inside", [ring(0, 10)])],
+            },
+          ],
+        },
+      ],
+    };
+    // "inside" is nested in the group placed AFTER "outside" in the layer, so it is the
+    // frontmost operand: the result must replace it in place, inside the group.
+    const out = combine(doc, ["outside", "inside"])!;
+    const g = out.doc.layers[0].children.find((n) => n.id === "g") as Group;
+    expect(g.children).toHaveLength(1);
+    expect(g.children[0].id).toBe("inside");
+
+    // "outside"'s leftmost point is at world x = 150 - 20 = 130. The group's own transform adds
+    // +100, so to draw at the same world position from inside the group, the stored coordinate
+    // must be 130 - 100 = 30. A `toParent` of IDENTITY (i.e. dropping the group's transform)
+    // would instead leave it at 130, so this fails if the parent-space mapping is skipped.
+    const p = findNode(out.doc, "inside")!.node as PathShape;
+    const xs = p.subpaths.flatMap((sp) => sp.nodes.map((n) => n.p.x));
+    expect(xs).toContain(30);
   });
 });
 
