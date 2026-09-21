@@ -1701,10 +1701,11 @@ exactly what a per-task review has no way to look at.
 - **Browser-verified** (desktop Chrome, :5198): opened the dialog with two shapes drawn — Region
   read Artboard, the readout read the artboard's own 800 × 600 at 1×. Setting Scale to 2 doubled the
   readout to 1600 × 1200, and exporting produced the notice `Exported Untitled.png — 1600 × 1200.`
-  Selecting one shape and reopening the dialog auto-enabled Selection and flipped Transparent on by
-  itself; exporting that selection produced `Exported Untitled.png — 149 × 100.`, matching the
-  shape's own bounds rather than the artboard. With nothing selected, the Selection `<option>` is
-  `disabled` in the DOM with the reason as its own label, verbatim `Selection — nothing selected`.
+  Selecting one shape and reopening the dialog enabled the Selection option; picking it flipped
+  Transparent on, and exporting that selection produced `Exported Untitled.png — 149 × 100.`,
+  matching the shape's own bounds rather than the artboard. With nothing selected, the Selection
+  `<option>` is `disabled` in the DOM with the reason as its own label, verbatim `Selection —
+  nothing selected`.
   Setting Scale to 500 disabled the Export button and showed the refusal naming the exact computed
   size: `400000 × 300000 is too large; reduce the scale`. Edit ▸ Copy as PNG succeeded on the first
   try, reporting `Copied 800 × 600 to the clipboard.` — the browser did not refuse the clipboard, so
@@ -1736,7 +1737,13 @@ exactly what a per-task review has no way to look at.
   treats as first-class. Check this first in the device pass, not last. `MAX_SIDE`/`MAX_PIXELS` are
   chosen conservatively against that unmeasured limit and may need retuning once it's known. Copy as
   PNG's Safari behaviour (§8) is likewise unconfirmed — this session's one attempt was on desktop
-  Chrome, where it simply worked. Large exports are still synchronous with no progress indicator.
+  Chrome, where it simply worked. **A selection export clips strokes** (added 2026-09-21, found by
+  the whole-branch review): `selectionBounds` builds on `nodeBounds`, whose contract is "Geometric
+  bounds (stroke excluded)", so the outer half of every edge stroke falls outside the `viewBox`.
+  Accepted for this milestone on one ground — the PNG then matches exactly the selection frame the
+  app already draws, built from the same bounds, so what you see selected is what you get. The
+  proper fix needs visual bounds, which in turn needs miter-join overshoot, a number this codebase
+  computes nowhere yet. Large exports are still synchronous with no progress indicator.
 - Plan: `docs/superpowers/plans/2026-09-21-m12-png-export.md`. Spec:
   `docs/superpowers/specs/2026-09-21-m12-png-export-design.md`.
 - 715 tests in 53 files.

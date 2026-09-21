@@ -744,6 +744,9 @@ async function pngFor(
   const ids = app.selection;
   const box = exportBox(doc, region, ids);
   const why = exportRefusal(box, scale);
+  // `!box` only narrows the type for the `exportSize(box, …)` below — `exportRefusal(null, …)`
+  // always returns a string, so `why` alone already covers the null case; `?? "nothing to export"`
+  // is dead in practice, not a second way this can fail.
   if (why || !box) return why ?? "nothing to export";
   const { w, h } = exportSize(box, scale);
   const picked = region === "selection" ? filterToSelection(doc, ids) : doc;
@@ -770,21 +773,28 @@ export async function exportPng(
   }
 }
 
-/** Spec (M12) §8. The whole artboard at 1×, with its background — the clipboard has no dialog. */
+/** Spec (M12) §8. The whole artboard at 1×, with its background — the clipboard has no dialog.
+ *
+ *  Everything up to `writeClipboardPng` must stay synchronous: that call has to happen inside the
+ *  click's user activation for Safari to allow it, which is the whole reason the blob is handed
+ *  over as a PENDING promise rather than awaited first. `pngFor` (which itself awaits
+ *  `img.decode()`) is started but never awaited here — only its returned promise, still settling,
+ *  is passed on. */
 export async function copyPng(): Promise<void> {
-  try {
-    const out = await pngFor("artboard", 1, false);
-    if (typeof out === "string") return notify("info", `Copy as PNG — ${out}`);
-    const ok = await writeClipboardPng(out.blob);
-    notify(
-      ok ? "info" : "error",
-      ok
-        ? `Copied ${out.w} × ${out.h} to the clipboard.`
-        : "Copy as PNG — this browser refused the clipboard. Use File ▸ Export PNG… instead.",
-    );
-  } catch (err) {
-    notify("error", `Copy as PNG — ${errorMessage(err)}`);
-  }
+  const box = exportBox(app.doc, "artboard", app.selection);
+  const why = exportRefusal(box, 1);
+  if (why || !box) return notify("info", `Copy as PNG — ${why ?? "nothing to export"}`);
+  const { w, h } = exportSize(box, 1);
+  const pending = pngFor("artboard", 1, false).then((out) =>
+    typeof out === "string" ? Promise.reject(new Error(out)) : out.blob,
+  );
+  const ok = await writeClipboardPng(pending);
+  notify(
+    ok ? "info" : "error",
+    ok
+      ? `Copied ${w} × ${h} to the clipboard.`
+      : "Copy as PNG — this browser refused the clipboard. Use File ▸ Export PNG… instead.",
+  );
 }
 
 /** Returns the SVG text for the system clipboard, or null when nothing is selected. */

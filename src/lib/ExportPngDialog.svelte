@@ -7,8 +7,11 @@
   let region = $state<ExportRegion>("artboard");
   let scale = $state<number | null>(1);
   // Exporting the artboard is "give me this document", where the background belongs; exporting a
-  // selection is "give me this object", where it almost never does (spec M12 §6).
+  // selection is "give me this object", where it almost never does (spec M12 §6). These are
+  // defaults, not a standing rule: once the user has touched the toggle themselves, a region
+  // change no longer overrides their choice.
   let transparent = $state(false);
+  let transparentTouched = $state(false);
   let busy = $state(false);
 
   const hasSelection = $derived(app.selection.length > 0);
@@ -18,7 +21,12 @@
 
   function pickRegion(next: ExportRegion) {
     region = next;
-    transparent = next === "selection";
+    if (!transparentTouched) transparent = next === "selection";
+  }
+
+  function setTransparent(on: boolean) {
+    transparent = on;
+    transparentTouched = true;
   }
 
   function close() {
@@ -71,12 +79,12 @@
       label="Transparent"
       ariaLabel="Transparent background"
       value={transparent}
-      onchange={(on) => (transparent = on)}
+      onchange={setTransparent}
     />
   </div>
 
   {#if refusal}
-    <p class="mt-3 text-xs text-muted">{refusal}</p>
+    <p class="mt-3 text-xs text-danger">{refusal}</p>
   {/if}
 
   {#snippet actions()}

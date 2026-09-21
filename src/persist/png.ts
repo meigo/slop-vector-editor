@@ -34,13 +34,20 @@ export async function rasterise(svgText: string, w: number, h: number): Promise<
 /** Spec (M12) §8. Never throws, like `system-clipboard.ts`'s text wrapper: false means the caller
  *  should tell the user to use Export PNG… instead.
  *
- *  The **promise form** of `ClipboardItem` is deliberate — Safari accepts only that form, and it is
- *  equally valid everywhere else. */
-export async function writeClipboardPng(blob: Blob): Promise<boolean> {
+ *  Takes a **pending** `Promise<Blob>` rather than a settled one — this is the whole point of the
+ *  promise form of `ClipboardItem`. Safari requires `navigator.clipboard.write` to be *called*
+ *  synchronously inside the click's user activation; it does not merely accept a promise, it
+ *  requires one, because that is what lets the call happen before the blob exists. A caller that
+ *  awaits the blob first and only then calls `write` with an already-resolved `Promise.resolve`
+ *  satisfies the type and defeats the purpose — the activation is gone by the time `write` runs. */
+export async function writeClipboardPng(pending: Promise<Blob>): Promise<boolean> {
+  // Attach a handler immediately, so a rejection can never be reported as unhandled — regardless
+  // of whether `write` below ever gets called, or ever reads this same promise itself.
+  pending.catch(() => {});
   try {
     const Item = (globalThis as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem;
     if (!Item || typeof navigator === "undefined" || !navigator.clipboard?.write) return false;
-    await navigator.clipboard.write([new Item({ "image/png": Promise.resolve(blob) })]);
+    await navigator.clipboard.write([new Item({ "image/png": pending })]);
     return true;
   } catch {
     return false;

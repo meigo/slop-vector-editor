@@ -42,10 +42,12 @@ function node(n: Node, depth: number): string {
 }
 
 /** The box the root element aims at. Absent means the artboard's own, which is what a save writes;
- *  an export passes the region it is rendering (spec M12 §3). */
-export type View = { x: number; y: number; w: number; h: number };
+ *  an export passes the region it is rendering (spec M12 §3). Named `ViewBox`, not `View`, because
+ *  `src/state/viewport.ts` already exports a `View` (the pan/zoom viewport) — same name, unrelated
+ *  shape. */
+export type ViewBox = { x: number; y: number; w: number; h: number };
 
-export function serializeDoc(doc: Doc, view?: View): string {
+export function serializeDoc(doc: Doc, view?: ViewBox): string {
   const { w, h, background } = doc.artboard;
   const body: string[] = [];
   if (background) {
