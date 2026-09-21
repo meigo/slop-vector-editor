@@ -41,6 +41,34 @@
   const ready = $derived(width > 0 && height > 0);
   const view = $derived(app.view);
   const artboard = $derived(app.doc.artboard);
+
+  /** How strongly art outside the artboard is muted. The ground is near-black, so the scrim is
+   *  invisible over empty canvas and shows only where artwork crosses the boundary — which is
+   *  exactly when it is wanted. */
+  const SCRIM_OPACITY = 0.6;
+
+  /** Everything outside the artboard, as one path with the artboard punched out of it.
+   *
+   *  Art outside the artboard is dimmed rather than hidden: it stays visible, selectable and
+   *  draggable, but the root's `viewBox` clips it out of both the saved SVG and the PNG, and
+   *  nothing else on screen says so. This is canvas chrome — it never reaches `svg/attrs.ts`,
+   *  the serializer or an export, so invariant 3's single-renderer rule is untouched.
+   *
+   *  Drawn in **screen** space, outside the zoom group, because the artboard's on-screen rect is
+   *  four numbers this component already has. In document space the outer rectangle would have to
+   *  cover the viewport at `MIN_ZOOM` — a 100 000-unit span before any margin — and that magic
+   *  number would quietly stop working the day the zoom range widened.
+   *
+   *  `evenodd` makes the inner rectangle a hole whichever way each is wound, so there is no
+   *  direction bookkeeping; an artboard entirely off-screen or larger than the viewport needs no
+   *  special case, because the hole simply falls outside or covers everything. */
+  const scrimPath = $derived.by(() => {
+    const bw = artboard.w * view.zoom;
+    const bh = artboard.h * view.zoom;
+    const outer = `M0 0H${width}V${height}H0Z`;
+    const hole = `M${view.x} ${view.y}H${view.x + bw}V${view.y + bh}H${view.x}Z`;
+    return `${outer} ${hole}`;
+  });
   const cursor = $derived(
     gesture?.kind === "pan"
       ? "grabbing"
@@ -320,6 +348,13 @@
         pointer-events="none"
       />
     </g>
+    <path
+      d={scrimPath}
+      fill-rule="evenodd"
+      fill="var(--color-ground)"
+      fill-opacity={SCRIM_OPACITY}
+      pointer-events="none"
+    />
     <Overlay />
   </svg>
 </div>

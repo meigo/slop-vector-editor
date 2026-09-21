@@ -1747,3 +1747,37 @@ exactly what a per-task review has no way to look at.
 - Plan: `docs/superpowers/plans/2026-09-21-m12-png-export.md`. Spec:
   `docs/superpowers/specs/2026-09-21-m12-png-export-design.md`.
 - 715 tests in 53 files.
+
+## 2026-09-21 — Art outside the artboard is dimmed
+
+- A **translucent scrim** over everything outside the artboard, so out-of-frame artwork reads as
+  secondary instead of sitting on the dark ground as though it were on a table. Prompted by a
+  screenshot of a circle straddling the frame's edge: both halves drew the same `#d9d9d9`, so the
+  object looked half-lit rather than half-out.
+- **It closes a real communication gap, not just a cosmetic one.** The artboard is a frame, not a
+  container — nothing is clipped on the canvas, and objects live wherever you drag them. But the
+  serialized root carries `viewBox="0 0 w h"` and an `<svg>` root hides overflow, so **art outside
+  the frame is fully visible while you work and silently absent from the saved file — and now from
+  the PNG too** (M12). Nothing on screen said so.
+- **Drawn in screen space**, outside the zoom group, as one `<path>` with `fill-rule="evenodd"`:
+  a viewport rectangle with the artboard punched out of it. The artboard's on-screen rect is four
+  numbers `Canvas.svelte` already has from its `clientWidth`/`clientHeight` bindings. In document
+  space the outer rectangle would have had to cover the viewport at `MIN_ZOOM` — a 100 000-unit
+  span before any margin — and that magic number would have quietly stopped working the day the
+  zoom range widened. `evenodd` makes the hole work whichever way each rectangle is wound, and an
+  artboard entirely off-screen or larger than the viewport needs no special case.
+- **The ground is `#101013`, so the scrim is invisible over empty canvas** — black at 60% over
+  black is black. It appears only where artwork crosses the boundary, which is exactly when it is
+  wanted, so a document whose art sits inside the frame looks identical to before.
+- `pointer-events="none"`: out-of-frame objects stay fully selectable and draggable. The artboard's
+  hairline stays on top; the scrim's hole edge coincides with it, so only the outer half-pixel of a
+  1px stroke falls under it.
+- **Canvas chrome only.** It lives in `Canvas.svelte` and never reaches `svg/attrs.ts`, the
+  serializer or an export, so invariant 3's single-renderer rule is untouched — this adds no new
+  way to style a shape, only a fixed overlay above all of them.
+- Browser-verified (desktop Chrome, :5198): a circle straddling the left edge shows its outside
+  half muted and its inside half true; a rectangle wholly outside goes from `#e4674a` to a muted
+  brick while staying visible and clickable; empty canvas is unchanged.
+- Owed: `SCRIM_OPACITY` of 0.6 is one constant and one judgement — it has been looked at on a
+  desktop display only, and an iPad's screen may want a different number.
+
