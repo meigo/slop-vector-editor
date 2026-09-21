@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from "../doc/document";
-import { exportBox, exportRefusal, exportSize, sizeLabel, MAX_SIDE } from "../state/export-plan";
+import {
+  exportBox,
+  exportRefusal,
+  exportSize,
+  pngFileName,
+  sizeLabel,
+  MAX_SIDE,
+} from "../state/export-plan";
 
 const I: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0];
 const rect = (id: string, x: number, y: number, w: number, h: number): RectShape => ({
@@ -94,5 +101,20 @@ describe("sizeLabel", () => {
   it("is a dash when there is nothing to measure", () => {
     expect(sizeLabel(null, 2)).toBe("—");
     expect(sizeLabel({ x: 0, y: 0, w: 400, h: 300 }, Number.NaN)).toBe("—");
+  });
+});
+
+describe("pngFileName", () => {
+  it("swaps an .svg extension for .png", () => {
+    expect(pngFileName("Logo.svg")).toBe("Logo.png");
+    expect(pngFileName("My.Icon.svg")).toBe("My.Icon.png");
+  });
+
+  it("appends .png when there is no .svg to swap", () => {
+    expect(pngFileName("Untitled")).toBe("Untitled.png");
+  });
+
+  it("falls back to a name rather than producing a bare extension", () => {
+    expect(pngFileName("")).toBe("Untitled.png");
   });
 });

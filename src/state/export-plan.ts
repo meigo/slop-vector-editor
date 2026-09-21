@@ -43,6 +43,13 @@ export function exportRefusal(box: Box | null, scale: number): string | null {
   return null;
 }
 
+/** The document's name with a PNG extension. Kept here, beside the other pure export decisions,
+ *  so it is testable without a DOM. */
+export function pngFileName(svgName: string): string {
+  const base = svgName.replace(/\.svg$/i, "").trim();
+  return `${base === "" ? "Untitled" : base}.png`;
+}
+
 /** The dialog's live readout, so the pixel count is never a surprise (spec M12 §5). */
 export function sizeLabel(box: Box | null, scale: number): string {
   if (!box || !Number.isFinite(scale) || scale <= 0) return "—";
