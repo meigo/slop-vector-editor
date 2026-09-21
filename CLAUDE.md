@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 625 tests in 49 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 681 tests in 51 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -40,15 +40,20 @@ every user-visible change.
   close, `appendNode`, `reverseSubpath`), `resize.ts` (bakes a resize into shape geometry; see
   gotcha below), `select-match.ts` (pure reach and matching for the selection commands: `allIds`,
   `invertIds`, `sameIds`), `boolean-edit.ts` (`booleanShapes`, `booleanRefusal` — unite/subtract/
-  intersect/exclude on the current selection, in document space).
+  intersect/exclude on the current selection, in document space), `path-ops.ts` (`pathOpRefusal`,
+  `subdivideSelection`, `reverseSelection`, `breakApart`, `combine` — Subdivide/Reverse
+  direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
+  the async Simplify action, modelled on `booleanSelection`'s shape).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
   `bounds.ts` (node/selection bounds through the matrix), `hit.ts` (hit-testing and marquee
   select; caches flattened outlines keyed per subpath array and scale bucket), `snap.ts` (snap
   targets from the artboard and object bounds, plus path node points via `collectTargets`'s
-  `nodes` option, `snapValue`/`snapBox`/`snapPoint`), `boolean.ts` (`booleanOf` — the only module
-  that imports paper, loaded on first use; converts subpaths to and from Paper's path model).
+  `nodes` option, `snapValue`/`snapBox`/`snapPoint`), `paper.ts` (the only module that imports
+  paper, loaded on first use; the loader and the two-way conversion between subpaths and Paper's
+  path model), `boolean.ts` (`booleanOf`, a caller of `paper.ts`) and `simplify.ts` (`simplifyOf`,
+  the other caller — Paper's `simplify(tolerance)` through the same conversion).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
   `polygonD`), `serialize.ts`, `parse.ts` (reads polygons back via `parsePolygonAttr`).
@@ -571,22 +576,23 @@ every user-visible change.
 
 ## Current state
 
-Milestone 10e (panel density, a resizable sidebar, the bar's menu homes) — see CHANGELOG. What
-comes next is unplanned: the post-v1 list (project design §10) still holds gradients, a freehand
-tool, PNG export, grid and smart guides, masks, align and distribute, and image paste. **A light
-theme is no longer planned** (2026-09-19), and **multiple artboards are no longer planned**
-(2026-09-20) — the design doc still lists both, as a dated document that later decisions supersede
-rather than rewrite. **Text is done** (M10a-M10d), so it has left the list. The accessibility group and the performance
-group (both parked below) remain the two obvious milestones.
+Milestone 11 (path operations: Subdivide, Reverse direction, Break apart, Combine and Simplify, in
+the Path menu beside the booleans) — see CHANGELOG. **M12 — envelope warp** is specced
+(`docs/superpowers/specs/2026-09-20-m12-envelope-warp-design.md`) and is next. Beyond that the
+post-v1 list (project design §10) still holds gradients, a freehand tool, PNG export, grid and
+smart guides, masks, align and distribute, and image paste. **A light theme is no longer planned**
+(2026-09-19), and **multiple artboards are no longer planned** (2026-09-20) — the design doc still
+lists both, as a dated document that later decisions supersede rather than rewrite. **Text is
+done** (M10a-M10d), so it has left the list. The accessibility group and the performance group
+(both parked below) remain the two obvious milestones after M12.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
-polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split) and
-M9 (per-object visibility and lock) and M10a (titles) are complete — see CHANGELOG.
-**M10b — the randomiser** (seed, per-property amounts, re-roll, per-character overrides) is specced
-in the M10 design §10 and is the next step; the model and the file format already carry its fields
-at identity values, so it needs no format change.
+polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
+(per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
+resizable sidebar) and M11 (path operations) are complete — see CHANGELOG.
+**M12 — envelope warp** is specced and is the next step.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

@@ -65,6 +65,13 @@ What works today:
 - Boolean operations: Unite, Subtract, Intersect and Exclude, on two or more selected shapes — in a
   Path menu in the top bar (with icons on wider windows) and in the right-click menu. The result
   replaces the shapes it was made from; undo brings them back.
+- Path operations, in the same Path menu (menu only, no icons): **Subdivide** (add a node to the
+  middle of every segment), **Reverse direction**, **Break apart** (a multi-part path back into
+  separate shapes) and its inverse **Combine**, and **Simplify** (fewer nodes, same shape).
+  Reverse, Subdivide and Break apart work on paths — convert a rectangle, ellipse or polygon first
+  (Object ▸ Convert to path); Combine converts its shapes for you, since the result can't stay a
+  live rectangle or ellipse. To cut a hole in a shape: convert both to paths, reverse the one that
+  should become the hole, then Combine — reversing after combining flips both and leaves no hole.
 
 ## Keyboard
 
@@ -102,7 +109,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 625 unit tests
+npm test          # 681 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
