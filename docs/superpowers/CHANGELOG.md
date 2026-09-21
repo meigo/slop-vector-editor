@@ -1636,3 +1636,42 @@ design decision about which controls to drop and at which widths, so it is left 
 - 681 tests in 51 files (56 new, across the new `path-ops.test.ts` and `simplify.test.ts` — the
   latter covers both `doc/simplify-edit.ts` and `geom/simplify.ts` — plus the `geom/paper.ts`
   extraction, which keeps `boolean.test.ts` green unchanged).
+
+### Final whole-branch review — two defects only a cross-task pass could see
+
+Both were invisible to every fixture on the branch, because every fixture had an identity
+transform and two-sided handles. Both were consistency-with-the-neighbours problems, which is
+exactly what a per-task review has no way to look at.
+
+- **Subdivide wrote handles equal to their own anchor.** `segmentCubic` fills a missing handle with
+  the anchor, so on a **one-sided** segment — a handle-free corner beside a curved node, which is
+  what the pen makes from a click then a click-drag — the split returned a control point equal to
+  the anchor and it was stored unconditionally. `pickAt` gives a selected node's handles priority
+  over the node, so the user would drag a phantom handle instead of moving the node, and
+  anchor-equal `C` controls went into saved files. `insertNode`, 150 lines up in the same file,
+  already guarded exactly this; Subdivide now mirrors it. The guard is exact, not a tolerance:
+  `L[1] === a.p` **iff** `a.out` was null.
+- **Simplify measured its tolerance in the wrong space.** `nodeBounds(p, IDENTITY)` applies the
+  node's own transform, giving the parent-space box, while the geometry handed to paper is the
+  path's untransformed subpaths. A path carrying `scale(10)` got a tolerance 10× too large in the
+  space it was applied in — 5% of the diagonal instead of 0.5%, an order of magnitude more
+  destructive than the fraction §6 spent two amendments measuring, and silent. This was the same
+  class of scale dependence §6 exists to remove, reintroduced one line below the comment
+  explaining it.
+- Also fixed: node selection survived renumbering (Subdivide maps `i → 2i`, Reverse inverts the
+  order, and `app.nodeSel` pointed at different nodes afterwards); `pathReason` walked the tree
+  five times per recompute, on a path that recomputes every pointermove during a drag.
+- **Three spec sentences were wrong rather than the code**, and the spec was amended: `breakApart`
+  keeps the original id on its first fragment (it reads as a split, not a delete plus N inserts);
+  `simplifySelection` re-checks the document, not the selection, because it neither deletes nodes
+  nor selects anything; and the "<2-node result dropped" guard cannot be reached through
+  `simplifyOf`, because `fromPaperItem` filters first.
+- **Owed, newly:** `combine` restates `booleanShapes`' front-operand pipeline and the two have
+  **already drifted** — `combine` guards a singular per-operand matrix, `booleanShapes` does not.
+  Spec §3 says Combine follows `booleanOf`'s rule "exactly", which is an argument for one
+  implementation; a shared `operandsInFrontSpace(doc, ids)` would remove ~15 duplicated lines and
+  the drift with it. Also: two refusal dialects now coexist (`boolean-edit.ts` returns a code
+  mapped through `BOOL_REASON`, `path-ops.ts` returns the string), with two reason literals
+  verbatim in both files. And the Path menu is now nine items with no overflow handling for a
+  short viewport — one for the iPad pass.
+- 685 tests in 51 files.
