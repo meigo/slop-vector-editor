@@ -1568,12 +1568,20 @@ Append to `src/__tests__/properties.test.ts`, using whatever document builder th
 
 ```ts
 describe("selectionActions.pathReason", () => {
-  it("carries a reason for every operation when nothing is selected", () => {
-    const a = selectionActions(createDoc(100, 100), []);
-    for (const op of PATH_OPS) expect(a.pathReason[op]).not.toBeNull();
+  it("carries the predicate's own reason for every operation, not merely a non-null", () => {
+    const doc = createDoc(100, 100);
+    const a = selectionActions(doc, []);
+    for (const op of PATH_OPS) {
+      // `.not.toBeNull()` would also pass for `undefined`, i.e. for a table that was never
+      // wired at all — which is the bug this test is named for. Compare against the predicate.
+      expect(a.pathReason[op]).toBe(pathOpRefusal(doc, [], op));
+      expect(typeof a.pathReason[op]).toBe("string");
+    }
   });
 });
 ```
+
+`pathOpRefusal` and `PATH_OPS` come from `../doc/path-ops`; add them to that file's imports.
 
 Run: `npx vitest run src/__tests__/properties.test.ts`
 Expected: PASS.
@@ -1587,11 +1595,11 @@ Expected: 0 errors, 0 warnings.
 
 Run the dev server on a port that is **not** the user's 5173, so their own autosaved document is untouched: `npx vite --port 5198 --strictPort`. Then, in the app:
 
-1. Draw two concentric ellipses. Select the **inner** one → **Path ▸ Reverse direction**.
+1. Draw two concentric ellipses. Select the **inner** one → **Object ▸ Convert to path** (Reverse, Subdivide and Break apart operate on paths only and will refuse a live ellipse) → **Path ▸ Reverse direction**.
 2. Select both → **Path ▸ Combine** → one object in the Layers panel, and the inner ring is now a **hole**. (Order matters — see Task 7 Step 2. Combining first and reversing after flips both rings and makes no hole.)
 3. **Path ▸ Break apart** → two objects again, in the same z-position.
 4. Select one → **Path ▸ Subdivide** → the node tool (N) shows a node added in the middle of every segment and the shape is unchanged.
-5. Select it → **Path ▸ Simplify** → a notice reports a node count drop.
+5. Select it → **Path ▸ Simplify** → **read the notice on screen** and record its exact text; it should read `Simplified — N nodes → M.` Do not infer this from node counts — quote what you saw.
 6. Select nothing → open the Path menu → all five read as disabled with a reason in their tooltip, and pressing one does nothing. On a touch device the reason appears in the status bar on press (invariant 24).
 7. Check the browser console is clean.
 
@@ -1664,7 +1672,11 @@ Append, at the end of the file, following the house format (what shipped, what w
 
 - [ ] **Step 2: Update README.md**
 
-Add the five operations wherever the booleans are described, and update the test count to whatever `npm test` now reports. **State the donut order explicitly** — reverse the inner shape, *then* Combine — because Reverse acts on a whole path and the other order silently does nothing useful.
+Add the five operations wherever the booleans are described, and update the test count to whatever `npm test` now reports.
+
+Two things the browser pass proved the docs must say:
+- **The donut order**: reverse the inner shape, *then* Combine. Reverse acts on a whole path, so the other order flips both rings and makes no hole.
+- **Reverse, Subdivide and Break apart operate on paths only.** A live rect, ellipse or polygon must go through **Object ▸ Convert to path** first — deliberately, since converting silently would destroy liveness (spec §5). Combine is the exception: it converts its operands, because a multi-subpath result cannot stay a live shape. Say this, or the donut recipe reads as broken for anyone who starts from two ellipses.
 
 - [ ] **Step 3: Update CLAUDE.md**
 
