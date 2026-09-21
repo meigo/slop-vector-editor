@@ -91,11 +91,11 @@ import {
   type Prefs,
   type SectionId,
 } from "../persist/preferences";
-import type { DeliverResult } from "../persist/deliver";
+import { deliverFile, type DeliverResult } from "../persist/deliver";
 import { errorMessage } from "../persist/errors";
 import { downloadBlob, writePngFile } from "../persist/file-io";
 import { rasterise, writeClipboardPng } from "../persist/png";
-import { shareFile } from "../persist/share";
+import { saveToFilesAvailable, shareFile } from "../persist/share";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import type { Overlay } from "../tools/tool";
 import type { Mods, ToolId } from "../tools/types";
@@ -847,9 +847,18 @@ export async function exportPng(
   try {
     const out = await pngFor(region, scale, transparent);
     if (typeof out === "string") return notify("info", `Export PNG — ${out}`);
-    const name = await writePngFile(out.blob, pngFileName(app.fileName));
+    const name = pngFileName(app.fileName);
+    if (saveToFilesAvailable()) {
+      const file = new File([out.blob], name, { type: "image/png" });
+      // `tryDirect: false`: rasterising awaited `img.decode()`, so the tap that opened the dialog
+      // is long gone and a direct share would only earn a NotAllowedError (spec M13 §4).
+      const r = await deliverFile(file, { tryDirect: false });
+      reportDelivery(r, { file, isDoc: false, note: `${out.w} × ${out.h}`, doc: null });
+      return;
+    }
+    const saved = await writePngFile(out.blob, name);
     // A null name is the user cancelling the picker, which is not a failure and says nothing.
-    if (name) notify("info", `Exported ${name} — ${out.w} × ${out.h}.`);
+    if (saved) notify("info", `Exported ${saved} — ${out.w} × ${out.h}.`);
   } catch (err) {
     notify("error", `Export PNG — ${errorMessage(err)}`);
   }
