@@ -24,9 +24,12 @@ import {
 import {
   ancestorIds,
   findNode,
+  isAfter,
   mapNodes,
   mapShapes,
+  paintKey,
   pruneSelection,
+  replaceNode,
   selectableIds,
   shapesOf,
 } from "../doc/tree";
@@ -415,5 +418,60 @@ describe("edits inside a group", () => {
     const d = inLayer([turned([leaf("a", 0), leaf("b", 20)])]);
     const g = findNode(deleteNodes(d, ["a"]), "g")!.node as Group;
     expect(g.children.map((c) => c.id)).toEqual(["b"]);
+  });
+});
+
+const docWith = (children: Node[]): Doc => {
+  const base = createDoc(100, 100);
+  return { ...base, layers: [{ ...base.layers[0], children }] };
+};
+
+describe("replaceNode", () => {
+  it("puts the replacements at the original's index in its own parent", () => {
+    const doc = deepFreeze(docWith([rect("a"), rect("b"), rect("c")]));
+    const out = replaceNode(doc, "b", [rect("b1"), rect("b2")]);
+    expect(out.layers[0].children.map((n) => n.id)).toEqual(["a", "b1", "b2", "c"]);
+  });
+
+  it("works inside a group, at any depth", () => {
+    const group: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("x"), rect("y")],
+    };
+    const doc = deepFreeze(docWith([group]));
+    const out = replaceNode(doc, "x", [rect("x1"), rect("x2")]);
+    const g = out.layers[0].children[0] as Group;
+    expect(g.children.map((n) => n.id)).toEqual(["x1", "x2", "y"]);
+  });
+
+  it("returns the same reference when the id is not there", () => {
+    const doc = deepFreeze(docWith([rect("a")]));
+    expect(replaceNode(doc, "nope", [rect("z")])).toBe(doc);
+  });
+
+  it("returns the same reference for an empty replacement, so no group is emptied", () => {
+    const doc = deepFreeze(docWith([rect("a")]));
+    expect(replaceNode(doc, "a", [])).toBe(doc);
+  });
+});
+
+describe("paintKey / isAfter", () => {
+  it("ranks a later sibling in front", () => {
+    expect(isAfter(paintKey(0, [2]), paintKey(0, [1]))).toBe(true);
+  });
+
+  it("ranks a later layer in front of an earlier one, whatever the child index", () => {
+    expect(isAfter(paintKey(1, [0]), paintKey(0, [9]))).toBe(true);
+  });
+
+  it("ranks a child in front of its own shallower sibling slot", () => {
+    expect(isAfter(paintKey(0, [1, 0]), paintKey(0, [1]))).toBe(true);
+  });
+
+  it("is false for a key compared with itself", () => {
+    expect(isAfter(paintKey(0, [1]), paintKey(0, [1]))).toBe(false);
   });
 });

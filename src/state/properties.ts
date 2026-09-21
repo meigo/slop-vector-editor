@@ -1,4 +1,5 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
+import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import type {
   Doc,
   LineCap,
@@ -76,6 +77,8 @@ export type SelectionActions = {
   canSelectSameKind: boolean;
   /** null when a boolean operation can run; otherwise why it cannot (spec M7 §7). */
   booleanRefusal: BoolRefusal | null;
+  /** null per operation when it can run; otherwise why it cannot (spec M11 §7). */
+  pathReason: Readonly<Record<PathOp, string | null>>;
 };
 
 /** Which shape actions apply to the selection (shared by the top bar and the context menu). */
@@ -91,6 +94,7 @@ export function selectionActions(doc: Doc, ids: readonly string[]): SelectionAct
     canSelectSameStyle: nodes.some((n) => n.kind !== "group"),
     canSelectSameKind: nodes.length > 0,
     booleanRefusal: booleanRefusal(doc, ids),
+    pathReason: pathOpRefusals(doc, ids),
   };
 }
 

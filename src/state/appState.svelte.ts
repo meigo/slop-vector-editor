@@ -49,6 +49,15 @@ import {
   setNodeType,
   type NodeRef,
 } from "../doc/path-edit";
+import {
+  combine,
+  breakApart,
+  pathOpRefusal,
+  reverseSelection,
+  subdivideSelection,
+  PATH_LABEL,
+} from "../doc/path-ops";
+import { simplifyShapes, type SimplifyOutcome } from "../doc/simplify-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
@@ -573,6 +582,99 @@ export async function booleanSelection(op: BoolOp): Promise<void> {
     if (keepResult) setSelection([out.id]);
   } finally {
     booleanRunning = false;
+  }
+}
+
+/** Spec (M11) §5. */
+export function subdivideSelectionNodes(): void {
+  cancelActiveGesture();
+  const why = pathOpRefusal(app.doc, app.selection, "subdivide");
+  if (why) return notify("info", `${PATH_LABEL.subdivide} — ${why}`);
+  commitDoc(subdivideSelection(app.doc, app.selection));
+  // Subdivide renumbers every subpath's nodes (i → 2i), so a stale node selection would land on
+  // different nodes rather than being dropped — setSession's pruning only checks the index is in
+  // range, not that it still names the same node.
+  setNodeSel([]);
+}
+
+/** Spec (M11) §4. */
+export function reverseSelectionDirection(): void {
+  cancelActiveGesture();
+  const why = pathOpRefusal(app.doc, app.selection, "reverse");
+  if (why) return notify("info", `${PATH_LABEL.reverse} — ${why}`);
+  commitDoc(reverseSelection(app.doc, app.selection));
+  // Reverse inverts each subpath's node order, so a stale node selection would land on different
+  // nodes rather than being dropped — setSession's pruning only checks the index is in range, not
+  // that it still names the same node.
+  setNodeSel([]);
+}
+
+/** Spec (M11) §3. */
+export function breakApartSelection(): void {
+  cancelActiveGesture();
+  const why = pathOpRefusal(app.doc, app.selection, "breakApart");
+  if (why) return notify("info", `${PATH_LABEL.breakApart} — ${why}`);
+  const out = breakApart(app.doc, app.selection);
+  commitDoc(out.doc);
+  setSelection(out.ids);
+}
+
+/** Spec (M11) §3. */
+export function combineSelection(): void {
+  cancelActiveGesture();
+  const why = pathOpRefusal(app.doc, app.selection, "combine");
+  if (why) return notify("info", `${PATH_LABEL.combine} — ${why}`);
+  const out = combine(app.doc, app.selection);
+  if (!out) return notify("info", `${PATH_LABEL.combine} — nothing to combine.`);
+  commitDoc(out.doc);
+  setSelection([out.id]);
+}
+
+let simplifyRunning = false;
+
+/** Spec (M11) §6. Async even when paper is cached, so it refuses to run twice at once and
+ *  re-checks the document after the await — the same hazard `booleanSelection` guards. */
+export async function simplifySelection(): Promise<void> {
+  if (simplifyRunning) return;
+  simplifyRunning = true;
+  try {
+    cancelActiveGesture();
+    const why = pathOpRefusal(app.doc, app.selection, "simplify");
+    if (why) {
+      notify("info", `${PATH_LABEL.simplify} — ${why}`);
+      return;
+    }
+    const before = app.doc;
+    const sel = app.selection;
+    let out: SimplifyOutcome;
+    try {
+      out = await simplifyShapes(before, sel);
+    } catch {
+      notify(
+        "error",
+        // Reload, not "try again": a module fetch that failed is recorded in the browser's module
+        // map, so every later import of the same chunk fails without asking the network again.
+        `${PATH_LABEL.simplify} — the operation could not load. Check your connection, then reload the page.`,
+      );
+      return;
+    }
+    cancelActiveGesture();
+    if (app.doc !== before) {
+      notify("info", `${PATH_LABEL.simplify} — the document changed while it loaded; try again.`);
+      return;
+    }
+    if (out.kind === "refused") {
+      notify("info", `${PATH_LABEL.simplify} — ${out.why}`);
+      return;
+    }
+    if (out.kind === "none") {
+      notify("info", `${PATH_LABEL.simplify} — nothing to remove.`);
+      return;
+    }
+    commitDoc(out.doc);
+    notify("info", `Simplified — ${out.before} nodes → ${out.after}.`);
+  } finally {
+    simplifyRunning = false;
   }
 }
 

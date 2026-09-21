@@ -259,3 +259,73 @@ export function reverseSubpath(path: PathShape, sub: number): PathShape {
   subpaths[sub] = { ...sp, nodes };
   return withSubpaths(path, subpaths, true);
 }
+
+/** Spec (M11) §5. Splits one subpath's every segment at `t = 0.5`, the wrap segment of a closed
+ *  subpath included.
+ *
+ *  Each node's `in` comes from the segment that *ends* at it and its `out` from the segment that
+ *  *starts* there, so the incoming handle is only known one iteration late — hence `pendingIn`. */
+function subdivideSubpath(sp: Subpath): Subpath {
+  const n = sp.nodes;
+  if (n.length < 2) return sp;
+  const segments = sp.closed ? n.length : n.length - 1;
+  const out: PathNode[] = [];
+  let pendingIn: Vec | null = null;
+  for (let s = 0; s < segments; s++) {
+    const a = n[s];
+    const b = n[(s + 1) % n.length];
+    const c = segmentCubic(a, b);
+    if (c) {
+      const [L, R] = splitCubic(c, 0.5);
+      // A one-sided segment's missing handle was filled with the anchor itself (`segmentCubic`),
+      // so the split control point can come back equal to its own anchor — which this model
+      // reads as "no handle" (invariant: a control equal to its anchor means `null`), not as a
+      // zero-length handle. `insertNode`, above, guards its four control points the same way.
+      out.push({ ...a, in: s === 0 ? a.in : pendingIn, out: same(L[1], a.p) ? null : L[1] });
+      // A midpoint split leaves the two halves' handles mirrored about the new point, which is
+      // exactly what `symmetric` asserts — so it is a fact here, not a guess.
+      out.push({ p: L[3], in: L[2], out: R[1], type: "symmetric" });
+      pendingIn = same(R[2], b.p) ? null : R[2];
+    } else {
+      out.push({ ...a, in: s === 0 ? a.in : pendingIn, out: null });
+      out.push({
+        p: { x: (a.p.x + b.p.x) / 2, y: (a.p.y + b.p.y) / 2 },
+        in: null,
+        out: null,
+        type: "corner",
+      });
+      pendingIn = null;
+    }
+  }
+  if (sp.closed) {
+    // Node 0's incoming handle comes from the wrap segment, which is only fitted at the very end.
+    out[0] = { ...out[0], in: pendingIn };
+  } else {
+    // An open subpath's final anchor starts no segment, so the loop never pushed it.
+    const last = n[n.length - 1];
+    out.push({ ...last, in: pendingIn });
+  }
+  return { ...sp, nodes: out };
+}
+
+/** Spec (M11) §5. The geometry is unchanged **exactly**, not within a tolerance: de Casteljau at
+ *  one half halves every existing handle without turning it, so collinearity survives and each
+ *  existing node keeps its declared type. This is the opposite of the warp's rule (M12 §4), which
+ *  must recompute types because a non-affine map breaks collinearity. */
+export function subdividePath(path: PathShape): PathShape {
+  let changed = false;
+  const subpaths = path.subpaths.map((sp) => {
+    const next = subdivideSubpath(sp);
+    if (next !== sp) changed = true;
+    return next;
+  });
+  return withSubpaths(path, subpaths, changed);
+}
+
+/** Spec (M11) §4. Reverses every subpath. Under nonzero winding — which is all this app has, since
+ *  `Style` carries no `fill-rule` — this is what turns a combined inner subpath into a hole. */
+export function reversePath(path: PathShape): PathShape {
+  let out = path;
+  for (let i = 0; i < path.subpaths.length; i++) out = reverseSubpath(out, i);
+  return out;
+}

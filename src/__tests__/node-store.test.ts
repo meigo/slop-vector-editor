@@ -18,6 +18,7 @@ import {
   nudgeSelection,
   redo,
   replaceDocument,
+  reverseSelectionDirection,
   selectAll,
   selectSame,
   setEnteredGroup,
@@ -25,6 +26,7 @@ import {
   setNodeTarget,
   setSelection,
   setTool,
+  subdivideSelectionNodes,
   toggleLayerLocked,
   toggleLayerVisible,
   undo,
@@ -379,6 +381,31 @@ describe("deleteSelectedNodes", () => {
     expect(pathNodeCount()).toBe(2);
     expect(app.nodeTarget).toBe("p");
     expect(app.nodeSel).toEqual([]);
+  });
+});
+
+describe("path operations clear a stale node selection", () => {
+  // Both operations renumber a subpath's nodes (subdivide: i -> 2i; reverse: order inverted), so
+  // a node selection surviving in range would silently land on a different node than the one the
+  // user picked.
+  it("clears the node selection after subdivide", () => {
+    setSelection(["p"]);
+    setTool("node");
+    setNodeTarget("p");
+    setNodeSel([{ sub: 0, i: 1 }]);
+    subdivideSelectionNodes();
+    expect(app.nodeSel).toEqual([]);
+    expect(app.nodeTarget).toBe("p");
+  });
+
+  it("clears the node selection after reverse direction", () => {
+    setSelection(["p"]);
+    setTool("node");
+    setNodeTarget("p");
+    setNodeSel([{ sub: 0, i: 1 }]);
+    reverseSelectionDirection();
+    expect(app.nodeSel).toEqual([]);
+    expect(app.nodeTarget).toBe("p");
   });
 });
 

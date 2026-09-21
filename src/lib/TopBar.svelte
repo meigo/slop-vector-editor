@@ -27,8 +27,10 @@
   import {
     app,
     booleanSelection,
+    breakApartSelection,
     bringSelectionForward,
     bringSelectionToFront,
+    combineSelection,
     convertSelectionToPath,
     copyToSystem,
     cutToSystem,
@@ -39,10 +41,13 @@
     deselectAll,
     invertSelection,
     pasteFromClipboard,
+    reverseSelectionDirection,
     selectAll,
     selectSame,
     sendSelectionBackward,
     sendSelectionToBack,
+    simplifySelection,
+    subdivideSelectionNodes,
     type DialogKind,
     ungroupSelection,
   } from "../state/appState.svelte";
@@ -50,6 +55,7 @@
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
   import { BOOL_LABEL, BOOL_OPS, BOOL_REASON, BOOL_TITLE, type BoolOp } from "../geom/boolean";
+  import { PATH_LABEL, PATH_OPS, PATH_TITLE, type PathOp } from "../doc/path-ops";
   import { selectionActions } from "../state/properties";
   import IconButton from "./IconButton.svelte";
 
@@ -137,6 +143,19 @@
   function runPath(op: BoolOp) {
     pathOpen = false;
     void booleanSelection(op);
+  }
+
+  const PATH_RUN: Readonly<Record<PathOp, () => void>> = {
+    subdivide: subdivideSelectionNodes,
+    reverse: reverseSelectionDirection,
+    breakApart: breakApartSelection,
+    combine: combineSelection,
+    simplify: () => void simplifySelection(),
+  };
+
+  function runPathOp(op: PathOp) {
+    pathOpen = false;
+    PATH_RUN[op]();
   }
 </script>
 
@@ -416,6 +435,20 @@
             onclick={() => boolReason === null && runPath(op)}
           >
             {BOOL_LABEL[op]}
+          </button>
+        {/each}
+        <div class="my-1 h-px bg-line"></div>
+        {#each PATH_OPS as op (op)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={actions.pathReason[op] !== null}
+            title={actions.pathReason[op] === null
+              ? PATH_TITLE[op]
+              : `${PATH_LABEL[op]} — ${actions.pathReason[op]}`}
+            onclick={() => actions.pathReason[op] === null && runPathOp(op)}
+          >
+            {PATH_LABEL[op]}
           </button>
         {/each}
       </div>

@@ -140,11 +140,35 @@ import paper" becomes "only `src/geom/paper.ts`", and CLAUDE.md's chunk-size bar
 match, or the next person to read it will treat a correct build as a violation. The rule itself is
 unchanged — one module, imported dynamically, on first use.
 
-**Tolerance** is relative to the path's own bounding-box diagonal (`diag × 2e-3`), not absolute.
-Paper's default of 2.5 is meaningful only in its own example's coordinate space; a logo 20 units
-across and an artboard-sized traced path cannot share an absolute number. Repeating the command
-simplifies a little further and then converges, which is the honest behaviour — no escalating
-aggressiveness on repeat.
+**Tolerance** is relative to the path's own bounding-box diagonal, not absolute. Paper's default
+of 2.5 is meaningful only in its own example's coordinate space; a logo 20 units across and an
+artboard-sized traced path cannot share an absolute number.
+
+**The value passed to paper is `(diag × 5e-3)²`, and the square is load-bearing** (amended
+2026-09-21, during implementation). Paper's `tolerance` bounds a **squared** distance internally,
+so passing `diag × k` yields a deviation proportional to `√diag` — which is not scale-invariant at
+all, and defeats the entire reason the tolerance is relative. Measured, on one shape scaled ×1,
+×10 and ×100: `diag × 2e-3` left **60 / 81 / 81** segments — the same drawing simplified
+differently purely because it was bigger — while `(diag × 2e-3)²` left **81 / 81 / 81**. Squaring
+is what makes **our** contribution to that promise true.
+
+**It does not make the promise true in general, and the spec should not pretend otherwise**
+(measured during the same task's re-review). Even with the squared formula, paper's own
+`PathFitter` still reaches different split decisions at different scales on some inputs — one
+fixture went 38 nodes → 24 across ×1 → ×1000, a 37% divergence, which is far too large to be
+float noise. The cause is internal absolute epsilons in paper's recursive fitter, below the
+tolerance we pass and outside our control. So: squaring removes the scale dependence *we*
+introduced, and a residual one belonging to the library remains. The unit test pins one fixture
+that is exactly invariant, and its real job is to fail if the square is ever removed — which was
+verified by removing it (29/29/29/29 becomes 19/31/31/31).
+
+The fraction is **5e-3**, also measured rather than chosen: squared, `2e-3` removes *nothing* from
+a realistically noisy path (81 → 81 segments, 0% deviation), so Simplify would report "nothing to
+remove" and look broken. `5e-3` takes 81 → 56 at a maximum deviation of 0.49% of the diagonal, and
+`1e-2` takes it to 33 at 0.97% — more aggressive than a destructive command should be by default.
+
+Repeating the command simplifies a little further and then converges, which is the honest
+behaviour — no escalating aggressiveness on repeat.
 
 **It drops `text`** through `withBakedSubpaths`, since the outlines stop matching the string
 (invariant 40). **It is async**, so it copies `booleanSelection`'s shape exactly:
@@ -154,7 +178,11 @@ aggressiveness on repeat.
   "try again": a failed module fetch is cached by the browser's own module map, so clearing our
   promise does not make a retry re-fetch;
 - it refuses to run twice at once, because it is async even when Paper is cached;
-- it applies the result only if the selection has not moved meanwhile.
+- it re-checks that the **document** has not changed under the await and abandons the result if it
+  has. It does **not** check the selection (amended 2026-09-21; this section first said it did):
+  unlike the booleans, Simplify neither deletes nodes nor selects a new one, so a selection the
+  user moved during the load is simply their newer intent and the edit still lands where it was
+  asked for.
 
 A result subpath left with fewer than two nodes is dropped, and a path left with no subpaths leaves
 the document at the same reference rather than being written out for the importer to reject
@@ -208,9 +236,11 @@ oppositely, which is what nonzero needs. Asserted on winding direction, since th
 renderer to ask (§4).
 
 **Simplify** — node count drops on a dense path and every sampled point stays within the tolerance
-of the original; a path already at minimum node count comes back at the same reference; a result
-subpath with fewer than two nodes is dropped; `text` is gone; the node-count notice reports the real
-before and after. Paper's own `simplify` is not re-tested — the tests cover our conversion and our
+of the original; a path already at minimum node count comes back at the same reference; `text` is gone; the node-count notice reports the real before and after. **The "a result subpath
+with fewer than two nodes is dropped" guard is deliberately left untested** (amended 2026-09-21):
+`fromPaperItem` already filters those out one layer down, so nothing reaching `simplifyShapes` can
+exercise it. It stays as the document layer restating invariant 30 at the boundary that owns it,
+rather than leaning on a geometry module to keep the promise. Paper's own `simplify` is not re-tested — the tests cover our conversion and our
 guards.
 
 **`geom/paper.ts`** — the extracted conversion keeps `boolean.test.ts` green unchanged, which is the
@@ -233,8 +263,10 @@ file or it silently becomes a tautology; the extraction must not reorder it.
   a press is the only way to read them (invariant 24). Record it in the CHANGELOG.
 - **The `geom/paper.ts` extraction rewords invariant 37 and CLAUDE.md's build-check paragraph.** If
   the wording is not updated in the same commit, a correct build looks like a violation.
-- **Simplify's tolerance is reasoned, not validated.** `diag × 2e-3` has not been tried against a
-  real traced path or a heavily-noded import; it may want tuning after the first browser pass.
+- **Simplify's tolerance is now measured, but only against a synthetic path.** The square and the
+  `5e-3` fraction were both settled with numbers (§6), but on a generated noisy sine, not on a real
+  traced path or a heavily-noded import. The fraction may still want tuning after the first browser
+  pass; the square is not a tuning knob and must not be removed.
 - **Paper's failed-load path is still never browser-verified** — parked since M7, and Simplify now
   makes it reachable from a second command. DevTools request-blocking on the paper chunk would
   settle it in two minutes.

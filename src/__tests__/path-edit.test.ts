@@ -7,8 +7,10 @@ import {
   insertNode,
   moveHandle,
   movePathNodes,
+  reversePath,
   reverseSubpath,
   setNodeType,
+  subdividePath,
 } from "../doc/path-edit";
 import { cubicPoint, flattenSubpath, segmentCubic } from "../geom/bezier";
 import { IDENTITY } from "../geom/mat";
@@ -280,5 +282,135 @@ describe("closeSubpath", () => {
     const short = path({ closed: false, nodes: [corner(0, 0)] });
     expect(closeSubpath(short, 0)).toBe(short);
     expect(closeSubpath(p, 9)).toBe(p);
+  });
+});
+
+const style = DEFAULT_STYLE;
+const mk = (subpaths: Subpath[]): PathShape => ({
+  kind: "path",
+  id: "p1",
+  transform: [1, 0, 0, 1, 0, 0],
+  style,
+  subpaths,
+});
+
+/** A cubic quarter-ish arc, so handles are non-null and asymmetric. */
+const curvedSub: Subpath = {
+  closed: false,
+  nodes: [
+    { p: { x: 0, y: 0 }, in: null, out: { x: 10, y: 0 }, type: "corner" },
+    { p: { x: 30, y: 30 }, in: { x: 30, y: 10 }, out: null, type: "corner" },
+  ],
+};
+
+const square: Subpath = {
+  closed: true,
+  nodes: [
+    { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+    { p: { x: 10, y: 0 }, in: null, out: null, type: "corner" },
+    { p: { x: 10, y: 10 }, in: null, out: null, type: "corner" },
+    { p: { x: 0, y: 10 }, in: null, out: null, type: "corner" },
+  ],
+};
+
+describe("subdividePath", () => {
+  it("gains one node per segment: an open subpath of n nodes comes back with 2n - 1", () => {
+    const out = subdividePath(mk([curvedSub]));
+    expect(out.subpaths[0].nodes).toHaveLength(3);
+  });
+
+  it("gains one node per segment: a closed subpath of n nodes comes back with 2n", () => {
+    const out = subdividePath(mk([square]));
+    expect(out.subpaths[0].nodes).toHaveLength(8);
+    expect(out.subpaths[0].closed).toBe(true);
+  });
+
+  it("does not move the curve: the midpoint of the original is the inserted node", () => {
+    const out = subdividePath(mk([curvedSub]));
+    // B(0.5) of [(0,0) (10,0) (30,10) (30,30)] = (P0 + 3P1 + 3P2 + P3) / 8
+    const mid = out.subpaths[0].nodes[1].p;
+    expect(mid.x).toBeCloseTo(18.75, 10);
+    expect(mid.y).toBeCloseTo(7.5, 10);
+  });
+
+  it("inserts a symmetric node, because a midpoint split mirrors its handles", () => {
+    const out = subdividePath(mk([curvedSub]));
+    const n = out.subpaths[0].nodes[1];
+    expect(n.type).toBe("symmetric");
+    expect(n.in!.x + n.out!.x).toBeCloseTo(2 * n.p.x, 10);
+    expect(n.in!.y + n.out!.y).toBeCloseTo(2 * n.p.y, 10);
+  });
+
+  it("keeps a straight segment straight, with a handle-free midpoint", () => {
+    const out = subdividePath(mk([square]));
+    const n = out.subpaths[0].nodes[1];
+    expect(n.p).toEqual({ x: 5, y: 0 });
+    expect(n.in).toBeNull();
+    expect(n.out).toBeNull();
+    expect(n.type).toBe("corner");
+  });
+
+  it("keeps each existing node's declared type, because handles halve without turning", () => {
+    const sp: Subpath = {
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: { x: 10, y: 0 }, type: "smooth" },
+        { p: { x: 30, y: 30 }, in: { x: 30, y: 10 }, out: null, type: "symmetric" },
+      ],
+    };
+    const out = subdividePath(mk([sp]));
+    expect(out.subpaths[0].nodes[0].type).toBe("smooth");
+    expect(out.subpaths[0].nodes[2].type).toBe("symmetric");
+  });
+
+  it("subdivides the wrap segment of a closed subpath", () => {
+    const out = subdividePath(mk([square]));
+    // The last node is the midpoint of the wrap segment (0,10) -> (0,0).
+    expect(out.subpaths[0].nodes[7].p).toEqual({ x: 0, y: 5 });
+  });
+
+  it("drops a title's text, because the geometry is hand-edited from now on", () => {
+    const titled: PathShape = { ...mk([curvedSub]), text: { seed: 1 } as never };
+    expect(subdividePath(titled).text).toBeUndefined();
+  });
+
+  it("never comes back with a handle equal to its own anchor, for a one-sided segment", () => {
+    // corner -> symmetric -> corner, exactly what the pen produces from a click followed by a
+    // click-drag: the two outer segments are one-sided (one endpoint has a handle, the other
+    // doesn't), which is what makes segmentCubic fill the missing handle with the anchor itself.
+    const sp: Subpath = {
+      closed: false,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 30, y: 20 }, in: { x: 20, y: 0 }, out: { x: 40, y: 40 }, type: "symmetric" },
+        { p: { x: 60, y: 0 }, in: null, out: null, type: "corner" },
+      ],
+    };
+    const out = subdividePath(mk([sp])).subpaths[0].nodes;
+    for (const n of out) {
+      if (n.in) expect(n.in).not.toEqual(n.p);
+      if (n.out) expect(n.out).not.toEqual(n.p);
+    }
+  });
+});
+
+describe("reversePath", () => {
+  it("visits the points in the opposite order with handles swapped", () => {
+    const out = reversePath(mk([curvedSub]));
+    const n = out.subpaths[0].nodes;
+    expect(n[0].p).toEqual({ x: 30, y: 30 });
+    expect(n[0].out).toEqual({ x: 30, y: 10 });
+    expect(n[1].in).toEqual({ x: 10, y: 0 });
+  });
+
+  it("is the identity when applied twice", () => {
+    const start = mk([curvedSub, square]);
+    const out = reversePath(reversePath(start));
+    expect(out.subpaths).toEqual(start.subpaths);
+  });
+
+  it("reverses every subpath, not just the first", () => {
+    const out = reversePath(mk([curvedSub, square]));
+    expect(out.subpaths[1].nodes[0].p).toEqual({ x: 0, y: 10 });
   });
 });

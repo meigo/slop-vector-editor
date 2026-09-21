@@ -56,7 +56,7 @@ A pure refactor: no behaviour changes and no new tests. Its proof is that `boole
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `loadPaper(): Promise<Paper>`, `toPaperItem(P: Paper, subpaths: readonly Subpath[]): PaperItem`, `fromPaperItem(item: PaperItem): Subpath[]`, and exported types `Paper`, `PaperPath`, `PaperItem`, `PaperSegment`.
+- Produces: `loadPaper(): Promise<Paper>`, `toPaperItem(P: Paper, subpaths: readonly Subpath[]): PaperItem`, `paperPaths(item: PaperItem): PaperPath[]`, `fromPaperItem(item: PaperItem): Subpath[]`, and exported types `Paper`, `PaperPath`, `PaperItem`, `PaperSegment`.
 
 - [ ] **Step 1: Run the boolean tests first, to have a green baseline**
 
@@ -299,10 +299,10 @@ describe("subdividePath", () => {
 
   it("does not move the curve: the midpoint of the original is the inserted node", () => {
     const out = subdividePath(mk([curved]));
-    // de Casteljau at t = 0.5 of [(0,0) (10,0) (30,10) (30,30)]
+    // B(0.5) of [(0,0) (10,0) (30,10) (30,30)] = (P0 + 3P1 + 3P2 + P3) / 8
     const mid = out.subpaths[0].nodes[1].p;
-    expect(mid.x).toBeCloseTo(17.5, 10);
-    expect(mid.y).toBeCloseTo(6.25, 10);
+    expect(mid.x).toBeCloseTo(18.75, 10);
+    expect(mid.y).toBeCloseTo(7.5, 10);
   });
 
   it("inserts a symmetric node, because a midpoint split mirrors its handles", () => {
@@ -828,16 +828,30 @@ describe("combine", () => {
   });
 });
 
-describe("combine then reverse: the donut", () => {
-  it("winds the inner subpath against the outer, which is what nonzero fill needs", () => {
+describe("reverse then combine: the donut", () => {
+  it("leaves two rings winding the same way when they are merely combined", () => {
     const doc = docWith([path("outer", [ring(50, 20)]), path("inner", [ring(50, 10)])]);
-    const combined = combine(doc, ["outer", "inner"])!;
-    const before = findNode(combined.doc, combined.id)!.node as PathShape;
-    expect(Math.sign(area(before.subpaths[0]))).toBe(Math.sign(area(before.subpaths[1])));
+    const out = combine(doc, ["outer", "inner"])!;
+    const p = findNode(out.doc, out.id)!.node as PathShape;
+    expect(Math.sign(area(p.subpaths[0]))).toBe(Math.sign(area(p.subpaths[1])));
+  });
 
-    const reversed = reverseSelection(combined.doc, [combined.id]);
-    const after = findNode(reversed, combined.id)!.node as PathShape;
-    expect(Math.sign(area(after.subpaths[0]))).not.toBe(Math.sign(area(after.subpaths[1])));
+  it("winds the inner subpath against the outer when the inner is reversed FIRST", () => {
+    const doc = docWith([path("outer", [ring(50, 20)]), path("inner", [ring(50, 10)])]);
+    // Order matters: Reverse direction acts on a whole path, so it must be applied while the
+    // inner ring is still its own node. Reversing AFTER the combine flips both subpaths and
+    // leaves their relative winding exactly as it was.
+    const reversed = reverseSelection(doc, ["inner"]);
+    const out = combine(reversed, ["outer", "inner"])!;
+    const p = findNode(out.doc, out.id)!.node as PathShape;
+    expect(Math.sign(area(p.subpaths[0]))).not.toBe(Math.sign(area(p.subpaths[1])));
+  });
+
+  it("reversing the combined path flips both subpaths, so it does not make a hole", () => {
+    const doc = docWith([path("outer", [ring(50, 20)]), path("inner", [ring(50, 10)])]);
+    const out = combine(doc, ["outer", "inner"])!;
+    const after = findNode(reverseSelection(out.doc, [out.id]), out.id)!.node as PathShape;
+    expect(Math.sign(area(after.subpaths[0]))).toBe(Math.sign(area(after.subpaths[1])));
   });
 });
 
@@ -890,6 +904,7 @@ describe("pathOpRefusal", () => {
       kind: "group",
       id: "g",
       transform: IDENT,
+      opacity: 1,
       children: [path("c1", [ring(0, 5)])],
     };
     const doc: Doc = {
@@ -1134,7 +1149,14 @@ Create `src/__tests__/simplify.test.ts`. These exercise our conversion and our g
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { createDoc, DEFAULT_STYLE, type Doc, type PathShape, type Subpath } from "../doc/document";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  type Doc,
+  type PathNode,
+  type PathShape,
+  type Subpath,
+} from "../doc/document";
 import { simplifyShapes } from "../doc/simplify-edit";
 import { findNode } from "../doc/tree";
 import { simplifyOf } from "../geom/simplify";
@@ -1143,7 +1165,7 @@ const IDENT: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 
 
 /** A noisy polyline: many corner nodes tracing a sine, the shape a trace or a flatten leaves. */
 function noisy(n: number): Subpath {
-  const nodes = [];
+  const nodes: PathNode[] = [];
   for (let i = 0; i <= n; i++) {
     nodes.push({
       p: { x: i * 2, y: 20 * Math.sin(i / 4) + (i % 2 ? 0.6 : -0.6) },
@@ -1546,12 +1568,20 @@ Append to `src/__tests__/properties.test.ts`, using whatever document builder th
 
 ```ts
 describe("selectionActions.pathReason", () => {
-  it("carries a reason for every operation when nothing is selected", () => {
-    const a = selectionActions(createDoc(100, 100), []);
-    for (const op of PATH_OPS) expect(a.pathReason[op]).not.toBeNull();
+  it("carries the predicate's own reason for every operation, not merely a non-null", () => {
+    const doc = createDoc(100, 100);
+    const a = selectionActions(doc, []);
+    for (const op of PATH_OPS) {
+      // `.not.toBeNull()` would also pass for `undefined`, i.e. for a table that was never
+      // wired at all — which is the bug this test is named for. Compare against the predicate.
+      expect(a.pathReason[op]).toBe(pathOpRefusal(doc, [], op));
+      expect(typeof a.pathReason[op]).toBe("string");
+    }
   });
 });
 ```
+
+`pathOpRefusal` and `PATH_OPS` come from `../doc/path-ops`; add them to that file's imports.
 
 Run: `npx vitest run src/__tests__/properties.test.ts`
 Expected: PASS.
@@ -1565,11 +1595,11 @@ Expected: 0 errors, 0 warnings.
 
 Run the dev server on a port that is **not** the user's 5173, so their own autosaved document is untouched: `npx vite --port 5198 --strictPort`. Then, in the app:
 
-1. Draw two overlapping ellipses. Select both → **Path ▸ Combine** → one object in the Layers panel, both rings still drawn.
-2. With it selected → **Path ▸ Reverse direction** → the inner ring becomes a hole.
+1. Draw two concentric ellipses. Select the **inner** one → **Object ▸ Convert to path** (Reverse, Subdivide and Break apart operate on paths only and will refuse a live ellipse) → **Path ▸ Reverse direction**.
+2. Select both → **Path ▸ Combine** → one object in the Layers panel, and the inner ring is now a **hole**. (Order matters — see Task 7 Step 2. Combining first and reversing after flips both rings and makes no hole.)
 3. **Path ▸ Break apart** → two objects again, in the same z-position.
 4. Select one → **Path ▸ Subdivide** → the node tool (N) shows a node added in the middle of every segment and the shape is unchanged.
-5. Select it → **Path ▸ Simplify** → a notice reports a node count drop.
+5. Select it → **Path ▸ Simplify** → **read the notice on screen** and record its exact text; it should read `Simplified — N nodes → M.` Do not infer this from node counts — quote what you saw.
 6. Select nothing → open the Path menu → all five read as disabled with a reason in their tooltip, and pressing one does nothing. On a touch device the reason appears in the status bar on press (invariant 24).
 7. Check the browser console is clean.
 
@@ -1623,6 +1653,10 @@ Append, at the end of the file, following the house format (what shipped, what w
 - **Reverse direction is load-bearing, not a nicety.** `Style` carries no `fill-rule` and nothing
   in `src/svg/` writes one, so everything renders **nonzero** — Combine on two circles gives a
   blob, and reversing the inner one is what makes the donut.
+- **The donut recipe has an order: reverse the inner shape *first*, then Combine.** Reverse
+  direction acts on a whole path, so once two rings share one node it flips both and their
+  relative winding is unchanged. Found by the plan's own pre-flight scan, which had the test
+  asserting the impossible order.
 - **Subdivide is exact.** A midpoint split halves each existing handle without turning it, so every
   node keeps its declared type and the inserted node is `symmetric` by construction. It is **not**
   warp preparation — M12's fit inserts the nodes its tolerance demands, so hand-added ones are
@@ -1639,6 +1673,10 @@ Append, at the end of the file, following the house format (what shipped, what w
 - [ ] **Step 2: Update README.md**
 
 Add the five operations wherever the booleans are described, and update the test count to whatever `npm test` now reports.
+
+Two things the browser pass proved the docs must say:
+- **The donut order**: reverse the inner shape, *then* Combine. Reverse acts on a whole path, so the other order flips both rings and makes no hole.
+- **Reverse, Subdivide and Break apart operate on paths only.** A live rect, ellipse or polygon must go through **Object ▸ Convert to path** first — deliberately, since converting silently would destroy liveness (spec §5). Combine is the exception: it converts its operands, because a multi-subpath result cannot stay a live shape. Say this, or the donut recipe reads as broken for anyone who starts from two ellipses.
 
 - [ ] **Step 3: Update CLAUDE.md**
 

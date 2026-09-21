@@ -1569,3 +1569,109 @@ design decision about which controls to drop and at which widths, so it is left 
   Those elements are genuinely still dropped (`parse.test.ts` asserts `["<text>"]`), so the caveat
   stays — it just says what it means now.
 - Test count 607 → 625.
+
+## 2026-09-21 — Milestone 11: path operations
+
+- Five operations in the **Path** menu beside the four booleans: **Subdivide**, **Reverse
+  direction**, **Break apart**, **Combine** and **Simplify**. No new top-bar icons and no new
+  keyboard shortcuts — the bar's four hiding breakpoints are measured (invariant 24), and five
+  more icons would invalidate every one of them.
+- **Two cost estimates were wrong, in opposite directions, both settled by probing `paper-core`
+  rather than reasoning about it.** Simplify was *not* the large one: paper ships
+  `simplify(tolerance)`, which *is* Schneider's curve fitter (`segments: 41 → 16` on a noisy
+  sine), so it costs only the async plumbing `booleanSelection` already models. Outline stroke
+  *was*: `expand` is undefined on `Path` and there is no `outline` or `offset`, so outlining a
+  stroke means offsetting by ±`strokeWidth / 2` with joins, caps and self-intersection cleanup —
+  offset path under another name. Both were dropped together.
+- **Simplify's tolerance must be squared, and the square is load-bearing.** Paper's `tolerance`
+  bounds a *squared* distance, so passing `diag × k` yields deviation proportional to `√diag` —
+  not scale-invariant at all. Measured, on one shape at ×1/×10/×100: `diag × 2e-3` left
+  **60 / 81 / 81** segments — the same drawing simplified differently purely because it was
+  bigger — versus **81 / 81 / 81** with `(diag × 2e-3)²`. The fraction is `5e-3`, also measured:
+  squared, `2e-3` removes nothing from a realistically noisy path (81 → 81), while `5e-3` takes
+  81 → 56 at 0.49% of the diagonal. **But squaring fixes only our half** — paper's own
+  `PathFitter` keeps absolute internal epsilons, and one fixture still goes 38 → 24 nodes across
+  ×1 → ×1000. The spec says both halves; so does this entry.
+- **The donut has an order: reverse the inner shape *first*, then Combine.** Reverse acts on a
+  whole path, so once two rings share one node it flips both and their relative winding is
+  unchanged. Caught by the plan's own pre-flight scan, which had the test asserting the
+  impossible order. There is no `fill-rule` anywhere in this app — `Style` has no such field, so
+  everything renders SVG's default **nonzero** winding — which is why Reverse has to do the work
+  that `fill-rule: evenodd` would otherwise do for free.
+- **Reverse, Subdivide and Break apart operate on paths only** — a live rect, ellipse or polygon
+  needs **Object ▸ Convert to path** first. Deliberate: converting silently would destroy
+  liveness (spec §5). Combine is the exception, because a multi-subpath result cannot stay a live
+  shape, so it converts its operands itself, exactly as `booleanShapes` already does. The
+  browser pass confirmed the refusal reads as a specific instruction rather than "you selected
+  nothing": the Path menu's Reverse direction item, with an unconverted ellipse selected, reads
+  `Reverse direction — convert the shape to a path first (Object ▸ Convert to path)` — in both
+  its accessible title and the status-bar hint. This was itself a fix: the browser pass found the
+  refusal reason said only "select a path", which reads as "you selected nothing" rather than
+  naming the remedy.
+- **`geom/paper.ts` now owns the paper loader and the two-way conversion**, with `boolean.ts` and
+  the new `simplify.ts` as its callers — invariant 37 and the build-check paragraph now name it.
+  `boolean-edit.ts`'s private `mapSubpath` turned out to be a duplicate of `transformSubpaths`,
+  and its `order`/`after` logic is the frontmost-operand rule Combine needed too — both are now
+  shared rather than copied a second time.
+- Plan: `docs/superpowers/plans/2026-09-21-m11-path-operations.md`. Spec:
+  `docs/superpowers/specs/2026-09-21-m11-path-operations-design.md` (amended twice during
+  implementation: the squared-tolerance finding above, and the shape-vs-path refusal wording).
+- **Browser-verified** (desktop Chrome, :5198): converted two concentric ellipses to paths,
+  reversed the inner one, and Combine produced one Layers-panel row rendering as a **donut** — a
+  visible hole, not a second solid disc. Break apart on that result gave back two rows in the
+  original nested layout. Subdivide took a 4-node circle to 8 (confirmed with the node tool), and
+  a separate 64-node circle simplified with a notice reading, character for character,
+  `Simplified — 64 nodes → 8.` (em dash and arrow both correct, matching the code's template
+  verbatim — this exact string was re-checked in a second pass after an earlier pass could not
+  confirm it had appeared on screen and downgraded the claim rather than assume it). With nothing
+  selected, all five Path-menu entries render `aria-disabled` with their reasons — confirmed
+  verbatim: `Simplify — select a path` and `Combine — select two or more shapes` — and clicking a
+  disabled entry does nothing. Console was clean (only Vite's own HMR lines) throughout every
+  pass.
+- Owed: an iPad pass (the disabled-with-reason titles in particular, since a press is the only
+  way to read them there); paper's failed-load path is still never browser-verified, now
+  reachable from a second command; Simplify's tolerance is measured against a synthetic noisy
+  sine, not a real traced path or a heavily-noded import, so the `5e-3` fraction may still want
+  tuning.
+- 681 tests in 51 files (56 new, across the new `path-ops.test.ts` and `simplify.test.ts` — the
+  latter covers both `doc/simplify-edit.ts` and `geom/simplify.ts` — plus the `geom/paper.ts`
+  extraction, which keeps `boolean.test.ts` green unchanged).
+
+### Final whole-branch review — two defects only a cross-task pass could see
+
+Both were invisible to every fixture on the branch, because every fixture had an identity
+transform and two-sided handles. Both were consistency-with-the-neighbours problems, which is
+exactly what a per-task review has no way to look at.
+
+- **Subdivide wrote handles equal to their own anchor.** `segmentCubic` fills a missing handle with
+  the anchor, so on a **one-sided** segment — a handle-free corner beside a curved node, which is
+  what the pen makes from a click then a click-drag — the split returned a control point equal to
+  the anchor and it was stored unconditionally. `pickAt` gives a selected node's handles priority
+  over the node, so the user would drag a phantom handle instead of moving the node, and
+  anchor-equal `C` controls went into saved files. `insertNode`, 150 lines up in the same file,
+  already guarded exactly this; Subdivide now mirrors it. The guard is exact, not a tolerance:
+  `L[1] === a.p` **iff** `a.out` was null.
+- **Simplify measured its tolerance in the wrong space.** `nodeBounds(p, IDENTITY)` applies the
+  node's own transform, giving the parent-space box, while the geometry handed to paper is the
+  path's untransformed subpaths. A path carrying `scale(10)` got a tolerance 10× too large in the
+  space it was applied in — 5% of the diagonal instead of 0.5%, an order of magnitude more
+  destructive than the fraction §6 spent two amendments measuring, and silent. This was the same
+  class of scale dependence §6 exists to remove, reintroduced one line below the comment
+  explaining it.
+- Also fixed: node selection survived renumbering (Subdivide maps `i → 2i`, Reverse inverts the
+  order, and `app.nodeSel` pointed at different nodes afterwards); `pathReason` walked the tree
+  five times per recompute, on a path that recomputes every pointermove during a drag.
+- **Three spec sentences were wrong rather than the code**, and the spec was amended: `breakApart`
+  keeps the original id on its first fragment (it reads as a split, not a delete plus N inserts);
+  `simplifySelection` re-checks the document, not the selection, because it neither deletes nodes
+  nor selects anything; and the "<2-node result dropped" guard cannot be reached through
+  `simplifyOf`, because `fromPaperItem` filters first.
+- **Owed, newly:** `combine` restates `booleanShapes`' front-operand pipeline and the two have
+  **already drifted** — `combine` guards a singular per-operand matrix, `booleanShapes` does not.
+  Spec §3 says Combine follows `booleanOf`'s rule "exactly", which is an argument for one
+  implementation; a shared `operandsInFrontSpace(doc, ids)` would remove ~15 duplicated lines and
+  the drift with it. Also: two refusal dialects now coexist (`boolean-edit.ts` returns a code
+  mapped through `BOOL_REASON`, `path-ops.ts` returns the string), with two reason literals
+  verbatim in both files. And the Path menu is now nine items with no overflow handling for a
+  short viewport — one for the iPad pass.
+- 685 tests in 51 files.
