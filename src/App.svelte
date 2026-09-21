@@ -5,6 +5,7 @@
   import ConfirmDialog from "./lib/ConfirmDialog.svelte";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
+  import ExportPngDialog from "./lib/ExportPngDialog.svelte";
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
@@ -223,6 +224,8 @@
   <NewDocumentDialog />
 {:else if app.dialog === "settings"}
   <DocumentSettingsDialog />
+{:else if app.dialog === "export"}
+  <ExportPngDialog />
 {/if}
 
 {#if app.confirm}
