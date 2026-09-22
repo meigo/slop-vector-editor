@@ -48,7 +48,7 @@ export function createTextTool(): Tool {
         if (s && b && movedEnough(s.screen, e.screen)) {
           ctx.setCharOffset(b.dx + (e.doc.x - s.doc.x), b.dy + (e.doc.y - s.doc.y));
         }
-        ctx.endGesture();
+        ctx.finishCharDrag();
       }
       if (!s) return;
       // A click, not a drag — the project's one threshold, shared with select and the shape tools.
@@ -61,7 +61,7 @@ export function createTextTool(): Tool {
     },
 
     cancel(ctx: ToolContext) {
-      if (dragging) ctx.endGesture();
+      if (dragging) ctx.finishCharDrag();
       start = null;
       base = null;
       dragging = false;

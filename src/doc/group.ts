@@ -1,4 +1,4 @@
-import { IDENTITY, multiply } from "../geom/mat";
+import { IDENTITY, multiply, type Mat } from "../geom/mat";
 import { idFor, type Doc, type Group, type Node } from "./document";
 import { moveNodes } from "./layers";
 import { findNode } from "./tree";
@@ -89,17 +89,22 @@ export function ungroupNodes(doc: Doc, ids: readonly string[]): { doc: Doc; ids:
   const walk = (children: readonly Node[]): Node[] | null => {
     let hit = false;
     const out: Node[] = [];
+    const place = (c: Node, xf: Mat, op: number): void => {
+      // A selected group nested in a selected group dissolves in the same pass, or it is only
+      // promoted and the user has to Ungroup again to reach its children.
+      if (c.kind === "group" && set.has(c.id)) {
+        const next = multiply(xf, c.transform);
+        for (const g of c.children) place(g, next, op * c.opacity);
+        return;
+      }
+      const composed: Node = { ...fold(c, op), transform: multiply(xf, c.transform) };
+      out.push(composed);
+      result.push(composed.id);
+    };
     for (const n of children) {
       if (set.has(n.id) && n.kind === "group") {
         hit = true;
-        for (const c of n.children) {
-          const composed: Node = {
-            ...fold(c, n.opacity),
-            transform: multiply(n.transform, c.transform),
-          };
-          out.push(composed);
-          result.push(composed.id);
-        }
+        for (const c of n.children) place(c, n.transform, n.opacity);
         continue;
       }
       if (set.has(n.id)) result.push(n.id);

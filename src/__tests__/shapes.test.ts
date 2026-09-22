@@ -110,6 +110,26 @@ describe("toPath", () => {
     expect(p.subpaths[0].nodes).toHaveLength(6); // radius clamped to 5 → pill
   });
 
+  it("keeps hidden and locked, and only when they are set", () => {
+    const r: RectShape = {
+      kind: "rect",
+      id: "n",
+      transform: translate(0, 0),
+      style: DEFAULT_STYLE,
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      rx: 0,
+      hidden: true,
+      locked: true,
+    };
+    const p = toPath(r);
+    expect(p.hidden).toBe(true);
+    expect(p.locked).toBe(true);
+    expect("hidden" in toPath({ ...r, hidden: undefined, locked: undefined })).toBe(false);
+  });
+
   it("converts an ellipse", () => {
     const e: EllipseShape = {
       kind: "ellipse",

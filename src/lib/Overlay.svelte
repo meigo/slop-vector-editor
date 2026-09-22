@@ -21,7 +21,8 @@
    *  guides and the pen draft already share. */
   const charOutline = $derived.by(() => {
     if (app.toolId !== "text" || app.charSel === null) return null;
-    const quad = app.charQuads[app.charSel];
+    const slot = app.charAt.indexOf(app.charSel);
+    const quad = slot < 0 ? undefined : app.charQuads[slot];
     if (!quad) return null;
     const id = app.selection[0];
     const found = id === undefined ? null : findNode(app.doc, id);

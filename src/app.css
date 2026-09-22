@@ -25,6 +25,9 @@
 :root {
   color-scheme: dark;
   accent-color: var(--color-accent);
+  /* 240px sidebar plus the 12px the old `right-63` left beside it. App overwrites this from the
+     live sidebar width; this is the value before that runs. */
+  --sidebar-inset: 252px;
 }
 
 html,

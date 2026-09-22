@@ -1,10 +1,12 @@
-import type {
-  EllipseShape,
-  PathNode,
-  PathShape,
-  PolygonShape,
-  RectShape,
-  Subpath,
+import {
+  isHidden,
+  isLocked,
+  type EllipseShape,
+  type PathNode,
+  type PathShape,
+  type PolygonShape,
+  type RectShape,
+  type Subpath,
 } from "../doc/document";
 import { applyMat, type Mat } from "./mat";
 import type { Vec } from "./vec";
@@ -135,7 +137,7 @@ export function transformSubpaths(subpaths: readonly Subpath[], m: Mat): Subpath
   }));
 }
 
-/** An equivalent path in the same local space, with the same id, name, transform and style. */
+/** An equivalent path in the same local space, with the same id, name, transform, style and flags. */
 export function toPath(s: RectShape | EllipseShape | PolygonShape): PathShape {
   let sp: Subpath;
   if (s.kind === "rect") {
@@ -154,5 +156,8 @@ export function toPath(s: RectShape | EllipseShape | PolygonShape): PathShape {
     subpaths: [sp],
   };
   if (s.name !== undefined) out.name = s.name;
+  // Absent means normal (invariant 39). Copying a `false` would invent a second representation.
+  if (isHidden(s)) out.hidden = true;
+  if (isLocked(s)) out.locked = true;
   return out;
 }

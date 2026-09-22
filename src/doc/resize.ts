@@ -60,15 +60,23 @@ function bakeShape(s: Shape, L: Mat): Shape {
       return out;
     }
     case "path": {
-      const subpaths = transformSubpaths(s.subpaths, L);
       // A title survives a UNIFORM resize, because that is expressible as a text size and the
       // metadata can be kept in step with the baked outlines (spec M10e §7). Anything else — a
       // stretch, a flip — cannot be, so the title becomes an ordinary path rather than one that
       // would snap back to its old shape on the next keystroke.
       const k = s.text ? uniformScale(L) : null;
-      return k === null || !s.text
-        ? withBakedSubpaths(s, subpaths)
-        : { ...s, subpaths, text: scaleTextMeta(s.text, k) };
+      if (k !== null && s.text) {
+        // Scale about the local origin only. A Shift-drag is a scale about a corner, so `L` also
+        // carries a translation; baking that into the outlines makes the next re-outline (which
+        // anchors the baseline at y = 0) jump the title. The translation belongs on the transform.
+        const subpaths = transformSubpaths(s.subpaths, [k, 0, 0, k, 0, 0]);
+        const tx = L[4];
+        const ty = L[5];
+        const transform =
+          tx === 0 && ty === 0 ? s.transform : multiply(s.transform, [1, 0, 0, 1, tx, ty]);
+        return { ...s, transform, subpaths, text: scaleTextMeta(s.text, k) };
+      }
+      return withBakedSubpaths(s, transformSubpaths(s.subpaths, L));
     }
   }
 }
@@ -97,13 +105,20 @@ export function uniformScale(L: Mat): number | null {
  *  second copy of "is this uniform, in the node's own space, through its parent" is a copy that
  *  can drift from `bakeShape`, and this is the kind of quiet data loss where a drift would not be
  *  noticed. `ids` keeps the walk to what was resized. */
-export function droppedTitle(before: Doc, after: Doc, ids: readonly string[]): boolean {
-  return ids.some((id) => {
-    const b = findNode(before, id)?.node;
-    if (!b || b.kind !== "path" || !b.text) return false;
+function titleDropped(before: Doc, after: Doc, id: string): boolean {
+  const b = findNode(before, id)?.node;
+  if (!b) return false;
+  if (b.kind === "path" && b.text) {
     const a = findNode(after, id)?.node;
     return !!a && a.kind === "path" && !a.text;
-  });
+  }
+  // A group resize bakes every descendant. The notice has to see a title that was not itself selected.
+  if (b.kind === "group") return b.children.some((c) => titleDropped(before, after, c.id));
+  return false;
+}
+
+export function droppedTitle(before: Doc, after: Doc, ids: readonly string[]): boolean {
+  return ids.some((id) => titleDropped(before, after, id));
 }
 
 /** Resize `node` by `A`, given in the node's parent space. */

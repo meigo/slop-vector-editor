@@ -308,8 +308,11 @@ export function createSelectTool(): Tool {
       mode = null;
       if (!m) return;
       if (m.kind === "pending") {
+        // A double-tap is two clicks on the same object with nothing in between. A miss, a handle
+        // grab, or a drag must not leave the previous hit armed.
+        if (m.handle || m.hitId === null) lastTap = null;
+        else lastTap = { id: m.hitId, time: e.time };
         if (m.handle) return;
-        if (m.hitId !== null) lastTap = { id: m.hitId, time: e.time };
         // The gesture stayed a click (never dragged): apply a pending double tap now.
         if (m.secondTap === "path" && m.hitId !== null) {
           ctx.setNodeTarget(m.hitId);
@@ -339,6 +342,7 @@ export function createSelectTool(): Tool {
         }
         return;
       }
+      lastTap = null;
       drag(ctx, m, e);
       ctx.setOverlay(null);
       if (m.kind === "marquee") return;

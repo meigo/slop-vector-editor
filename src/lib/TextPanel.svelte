@@ -5,6 +5,8 @@
     addFontFile,
     beginDocGesture,
     endDocGesture,
+    titleGestureEpoch,
+    titleInFlight,
     fontsChangedTick,
     app,
     clearCharOverride,
@@ -45,11 +47,12 @@
    *  because clearing the selection removes the panel mid-burst and a gesture left open silently
    *  stops recording undo history for everything after it. */
   let typing = false;
+  let typingEpoch = 0;
 
   function startTyping() {
     if (typing) return;
     typing = true;
-    beginDocGesture();
+    typingEpoch = beginDocGesture();
   }
 
   function endTyping() {
@@ -58,7 +61,17 @@
     endDocGesture();
   }
 
-  $effect(() => () => endTyping());
+  // Unmount is the usual end of a burst (the selection changed). Closing the gesture before the
+  // outline drain finishes splits the word into extra undo steps. Wait for that drain, and only
+  // close the bracket if a newer gesture has not started.
+  $effect(() => () => {
+    if (!typing) return;
+    typing = false;
+    const epoch = typingEpoch;
+    void titleInFlight().then(() => {
+      if (titleGestureEpoch() === epoch) endDocGesture();
+    });
+  });
 
   /** Spec M10 §6 sketches sliders; this app has no range input anywhere, and `NumberField` is the
    *  control it does have — already styled, already 32px for touch, and it already guards a no-op

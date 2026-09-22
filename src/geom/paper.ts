@@ -81,8 +81,28 @@ function nodeFrom(s: PaperSegment): PathNode {
     p: { x: s.point.x, y: s.point.y },
     in: inH,
     out: outH,
-    type: inH === null && outH === null ? "corner" : mirrored ? "symmetric" : "smooth",
+    // `smooth` means collinear handles: a later handle drag keeps the other one on that line.
+    // A boolean junction is a real corner. One handle is a corner too — the importer's rule.
+    type: mirrored ? "symmetric" : collinearSmooth(s.point, inH, outH) ? "smooth" : "corner",
   };
+}
+
+/** Same test as `inferNodeTypes`: both handles, collinear, and on opposite sides of the point.
+ *  The threshold is the importer's 1e-3, not `MIRROR` — a smooth node is not a symmetric one. */
+function collinearSmooth(
+  p: { x: number; y: number },
+  inH: { x: number; y: number } | null,
+  outH: { x: number; y: number } | null,
+): boolean {
+  if (!inH || !outH) return false;
+  const ax = p.x - inH.x;
+  const ay = p.y - inH.y;
+  const bx = outH.x - p.x;
+  const by = outH.y - p.y;
+  const la = Math.hypot(ax, ay);
+  const lb = Math.hypot(bx, by);
+  if (la === 0 || lb === 0) return false;
+  return Math.abs(ax * by - ay * bx) / (la * lb) < 1e-3 && ax * bx + ay * by > 0;
 }
 
 export function fromPaperItem(item: PaperItem): Subpath[] {

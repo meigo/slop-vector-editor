@@ -25,6 +25,13 @@
 
   let cursor = $state<Vec | null>(null);
 
+  // Notices and the narrow-screen dock are fixed to the viewport, so they cannot see the sidebar's
+  // width the way an in-flow sibling can. 12px is the gap the old 252px inset left beside a 240px
+  // column.
+  $effect(() => {
+    document.documentElement.style.setProperty("--sidebar-inset", `${app.prefs.sidebarPx + 12}px`);
+  });
+
   // Autosave starts only after the restore attempt, so the empty startup document never
   // overwrites the saved one. It stays off entirely when storage is unavailable, so we don't
   // schedule a write that would just fail a few seconds later.

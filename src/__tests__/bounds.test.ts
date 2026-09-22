@@ -124,6 +124,33 @@ describe("nodeBounds", () => {
     expect(nodeBounds({ ...g, children: [] }, IDENTITY)).toBeNull();
   });
 
+  it("bounds a rotated rounded rect by its arc, and skips a hidden group child", () => {
+    const round: Node = {
+      kind: "rect",
+      id: "r",
+      transform: rotateAbout(Math.PI / 4, { x: 50, y: 50 }),
+      style: DEFAULT_STYLE,
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 100,
+      rx: 50,
+    };
+    const b = nodeBounds(round, IDENTITY)!;
+    // The sharp box of this rotation is about 141 wide and starts near -20. The circle is 100.
+    expect(b.w).toBeGreaterThan(99);
+    expect(b.w).toBeLessThan(102);
+    expect(b.x).toBeGreaterThan(-1);
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect(0, 0, 10, 10), { ...rect(100, 0, 10, 10), id: "h", hidden: true }],
+    };
+    expectBox(nodeBounds(g, IDENTITY), 0, 0, 10, 10);
+  });
+
   it("bounds a polygon by its corners", () => {
     const p: Node = {
       kind: "polygon",

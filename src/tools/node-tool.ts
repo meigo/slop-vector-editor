@@ -30,7 +30,7 @@ type Pick =
   | null;
 
 type Mode =
-  | { kind: "pending"; start: ToolEvent; pick: Pick; collapseOnUp: boolean }
+  | { kind: "pending"; start: ToolEvent; pick: Pick; collapseOnUp: boolean; toggleOnUp: boolean }
   | {
       kind: "nodes";
       base: Doc;
@@ -110,7 +110,13 @@ function pickAt(t: Target, sel: readonly NodeRef[], p: Vec, tol: number): Pick {
 }
 
 function replacePath(ctx: ToolContext, base: Doc, path: PathShape, next: PathShape): void {
-  if (next === path) return;
+  // A drag commits every move from the gesture base. Returning here when the node is back where
+  // it started leaves the previous commit on screen. Committing the base restores it; committing
+  // the current document onto itself is a no-op.
+  if (next === path) {
+    ctx.commit(base);
+    return;
+  }
   ctx.commit(mapNodes(base, [path.id], () => next));
 }
 
@@ -251,20 +257,21 @@ export function createNodeTool(): Tool {
       }
 
       let collapseOnUp = false;
+      let toggleOnUp = false;
       if (pick.kind === "node") {
         const sel = ctx.nodeSel();
         const already = sel.some((r) => sameRef(r, pick.ref));
-        if (e.mods.shift) {
-          ctx.setNodeSel(already ? sel.filter((r) => !sameRef(r, pick.ref)) : [...sel, pick.ref]);
-        } else if (!already) {
-          ctx.setNodeSel([pick.ref]);
-        } else if (sel.length > 1) {
+        // Shift is also the 45° constrain. Toggling on pointer-down removes the grabbed node from
+        // a drag. Apply it on pointer-up, and only when the gesture stayed a click.
+        if (e.mods.shift) toggleOnUp = true;
+        else if (!already) ctx.setNodeSel([pick.ref]);
+        else if (sel.length > 1) {
           // A plain click on an already-selected node narrows the selection to it, but only if
           // the gesture turns out to be a click rather than a drag (spec M4a §6).
           collapseOnUp = true;
         }
       }
-      mode = { kind: "pending", start: e, pick, collapseOnUp };
+      mode = { kind: "pending", start: e, pick, collapseOnUp, toggleOnUp };
     },
 
     move(ctx, e) {
@@ -303,8 +310,13 @@ export function createNodeTool(): Tool {
       mode = null;
       if (!m) return;
       if (m.kind === "pending") {
-        // The gesture stayed a click (never dragged): apply a deferred collapse now.
-        if (m.collapseOnUp && m.pick && m.pick.kind === "node") ctx.setNodeSel([m.pick.ref]);
+        // The gesture stayed a click (never dragged): apply a deferred toggle or collapse now.
+        if (m.toggleOnUp && m.pick && m.pick.kind === "node") {
+          const sel = ctx.nodeSel();
+          const ref = m.pick.ref;
+          const already = sel.some((r) => sameRef(r, ref));
+          ctx.setNodeSel(already ? sel.filter((r) => !sameRef(r, ref)) : [...sel, ref]);
+        } else if (m.collapseOnUp && m.pick && m.pick.kind === "node") ctx.setNodeSel([m.pick.ref]);
         return;
       }
       const t = targetOf(ctx);

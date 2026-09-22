@@ -68,6 +68,24 @@ describe("booleanOf", () => {
     expect(await booleanOf([[circle], [sq]], "exclude")).toHaveLength(2);
   });
 
+  it("keeps a boolean junction a corner", async () => {
+    const shifted: Subpath = {
+      ...circle,
+      nodes: circle.nodes.map((n) => ({
+        ...n,
+        p: { x: n.p.x + 20, y: n.p.y },
+        in: n.in && { x: n.in.x + 20, y: n.in.y },
+        out: n.out && { x: n.out.x + 20, y: n.out.y },
+      })),
+    };
+    const out = await booleanOf([[circle], [shifted]], "unite");
+    // The two circles cross near x = 60. Those vertices are corners; a handle drag must not
+    // straighten them. The extrema that stay collinear stay smooth or symmetric.
+    const crossings = out.flatMap((sp) => sp.nodes).filter((n) => Math.abs(n.p.x - 60) < 1);
+    expect(crossings.length).toBeGreaterThan(0);
+    expect(crossings.every((n) => n.type === "corner")).toBe(true);
+  });
+
   it("keeps curves", async () => {
     const out = await booleanOf([[circle], [rect(50, 50, 40, 40)]], "subtract");
     expect(out[0].nodes.some((n) => n.in !== null || n.out !== null)).toBe(true);

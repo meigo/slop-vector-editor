@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { IDENTITY } from "../geom/mat";
 import { nodeBounds } from "../geom/bounds";
 import { DEFAULT_STYLE, type PathShape, type TextMeta } from "../doc/document";
-import { charQuads, outlineText, type LoadedFont } from "../text/font";
+import { charHits, charQuads, outlineText, type LoadedFont } from "../text/font";
 
 /** Read from disk, not through Vite's `?url`: the pipeline must be testable without a bundler. */
 let f: LoadedFont;
@@ -199,6 +199,13 @@ describe("multi-line titles", () => {
   it("gives one quad per glyph — a newline has none", () => {
     expect(charQuads(f, meta("A\nB"))).toHaveLength(2);
     expect(charQuads(f, meta("AB"))).toHaveLength(2);
+    // "A\nB": A is 0, the newline is 1, B is 2. The quad slot is not that index.
+    expect(charHits(f, meta("A\nB")).map((h) => h.index)).toEqual([0, 2]);
+  });
+
+  it("places every character of a ligature pair", () => {
+    expect(charQuads(f, meta("office"))).toHaveLength(6);
+    expect(charQuads(f, meta("fi"))).toHaveLength(2);
   });
 
   it("keeps an override pointing at the character it was made for, across a newline", () => {

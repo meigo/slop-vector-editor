@@ -391,6 +391,17 @@ describe("a title through a resize", () => {
     expect(out.subpaths[0].nodes.map((n) => n.p.x)).toEqual([0, 20]);
   });
 
+  it("puts a uniform resize's translation on the transform, not in the outlines", () => {
+    const out = resizeNode(title(), [2, 0, 0, 2, 5, 9]) as PathShape;
+    expect(out.text).toBeDefined();
+    expect(out.text!.size).toBe(200);
+    expect(out.subpaths[0].nodes.map((n) => n.p)).toEqual([
+      { x: 0, y: 0 },
+      { x: 20, y: 20 },
+    ]);
+    expect(out.transform).toEqual([1, 0, 0, 1, 5, 9]);
+  });
+
   it("drops the text on a stretch or a flip", () => {
     expect((resizeNode(title(), [2, 0, 0, 3, 0, 0]) as PathShape).text).toBeUndefined();
     expect((resizeNode(title(), [-2, 0, 0, -2, 0, 0]) as PathShape).text).toBeUndefined();
@@ -412,5 +423,25 @@ describe("a title through a resize", () => {
       layers: [{ ...doc.layers[0], children: [{ ...title(), text: undefined }] }],
     };
     expect(droppedTitle(plain, resizeNodes(plain, ["t"], [2, 0, 0, 3, 0, 0]), ["t"])).toBe(false);
+    const grouped: Doc = {
+      ...doc,
+      layers: [
+        {
+          ...doc.layers[0],
+          children: [
+            {
+              kind: "group",
+              id: "g",
+              transform: IDENTITY,
+              opacity: 1,
+              children: [title()],
+            },
+          ],
+        },
+      ],
+    };
+    expect(droppedTitle(grouped, resizeNodes(grouped, ["g"], [2, 0, 0, 3, 0, 0]), ["g"])).toBe(
+      true,
+    );
   });
 });

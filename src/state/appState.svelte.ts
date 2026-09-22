@@ -60,7 +60,7 @@ import {
 import { simplifyShapes, type SimplifyOutcome } from "../doc/simplify-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { filterToSelection } from "../doc/subset";
-import { ancestorIds, findNode, mapNodes, pruneSelection } from "../doc/tree";
+import { ancestorIds, blocked, findNode, mapNodes, pruneSelection } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
@@ -73,7 +73,7 @@ import { newSeed } from "../text/random";
 import { serializeDoc } from "../svg/serialize";
 import {
   loadFont,
-  charQuads,
+  charHits,
   outlineText,
   FontUnavailableError,
   noGlyphsFor,
@@ -191,6 +191,8 @@ class AppState {
    *  lazy-chunk load, and a tool's `down` is synchronous. */
   charSel = $state<number | null>(null);
   charQuads = $state.raw<Vec[][]>([]);
+  /** String index of each quad. The quad list skips newlines, so slot and index disagree. */
+  charAt = $state.raw<number[]>([]);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -276,19 +278,16 @@ function setSession(s: Session): void {
   if (current !== app.currentLayerId) app.currentLayerId = current;
   if (app.enteredGroupId !== null) {
     const entered = findNode(s.doc, app.enteredGroupId);
-    if (
-      !entered ||
-      entered.node.kind !== "group" ||
-      !entered.layer.visible ||
-      entered.layer.locked
-    ) {
+    // `blocked` covers the node, its ancestors and its layer. Layer-only used to leave "Inside …"
+    // up, and Escape trying to select a group the user can no longer enter.
+    if (!entered || entered.node.kind !== "group" || blocked(s.doc, app.enteredGroupId)) {
       app.enteredGroupId = null;
     }
   }
   if (app.nodeTarget !== null) {
     const target = findNode(s.doc, app.nodeTarget);
     const path = target && target.node.kind === "path" ? target.node : null;
-    if (!path || !target?.layer.visible || target?.layer.locked) {
+    if (!path || blocked(s.doc, app.nodeTarget)) {
       app.nodeTarget = null;
       app.nodeSel = [];
     } else {
@@ -302,12 +301,31 @@ export function commitDoc(next: Doc): void {
   setSession(commit(app.session, next));
 }
 
-export function beginDocGesture(): void {
+/** Identifies the open document gesture, so a panel that unmounts mid-typing can close *that*
+ *  bracket after the outline drain and not a newer one that started while it was waiting. */
+let gestureEpoch = 0;
+
+export function beginDocGesture(): number {
+  if (app.session.gestureBase === null) gestureEpoch += 1;
   setSession(beginGesture(app.session));
+  return gestureEpoch;
+}
+
+export function titleGestureEpoch(): number {
+  return gestureEpoch;
 }
 
 export function endDocGesture(): void {
   setSession(endGesture(app.session));
+}
+
+/** The character drag's outline commit is async. Closing the bracket in `pointerup` would land
+ *  that commit outside it, as its own undo step. */
+export function finishCharDrag(): void {
+  const epoch = gestureEpoch;
+  void titleInFlight().then(() => {
+    if (gestureEpoch === epoch) endDocGesture();
+  });
 }
 
 export function undo(): void {
@@ -675,6 +693,9 @@ export async function booleanSelection(op: BoolOp): Promise<void> {
     // before the commit, which prunes the old ids away and replaces the array either way.
     const keepResult = app.selection === sel;
     commitDoc(out.doc);
+    // The result reuses the frontmost path's id and replaces its nodes, so an in-range node
+    // selection would name different nodes. Subdivide and reverse already clear it for that reason.
+    setNodeSel([]);
     if (keepResult) setSelection([out.id]);
   } finally {
     booleanRunning = false;
@@ -723,6 +744,7 @@ export function combineSelection(): void {
   const out = combine(app.doc, app.selection);
   if (!out) return notify("info", `${PATH_LABEL.combine} — nothing to combine.`);
   commitDoc(out.doc);
+  setNodeSel([]);
   setSelection([out.id]);
 }
 
@@ -768,6 +790,7 @@ export async function simplifySelection(): Promise<void> {
       return;
     }
     commitDoc(out.doc);
+    setNodeSel([]);
     notify("info", `Simplified — ${out.before} nodes → ${out.after}.`);
   } finally {
     simplifyRunning = false;
@@ -1268,9 +1291,22 @@ export async function placeTitle(at: Vec): Promise<void> {
   setSelection([r.id]);
   // Spec §6: placing a title is immediately followed by typing it. On iPad this is the difference
   // between the keyboard appearing and hunting for the field in a panel that just re-laid out.
-  queueMicrotask(() =>
-    (document.querySelector('input[aria-label="Title text"]') as HTMLInputElement | null)?.focus(),
-  );
+  // The control is a textarea. Below 900px the sidebar is a drawer and is not mounted until opened,
+  // and a wide window can have a hidden copy of it first in the document.
+  queueMicrotask(() => {
+    if (window.matchMedia("(max-width: 899px)").matches) app.propertiesOpen = true;
+    requestAnimationFrame(() => {
+      const fields = document.querySelectorAll<HTMLTextAreaElement>(
+        'textarea[aria-label="Title text"]',
+      );
+      for (const el of fields) {
+        if (el.getClientRects().length > 0) {
+          el.focus();
+          return;
+        }
+      }
+    });
+  });
 }
 
 /** The single selected title, or null. */
@@ -1293,28 +1329,38 @@ let queuedPatch: Partial<TextMeta> | null = null;
  *  and the panel keeps whatever is in the field; the commit on blur is what reports and corrects.
  *  Without this, typing raised an error notice per keystroke and yanked the caret back. */
 let titleQuiet = false;
+/** A character drag is itself the tool gesture. Cancelling it aborts the drag on the first move. */
+let titleKeepGesture = false;
 
-async function reshapeTitle(patch: Partial<TextMeta>, quiet = false): Promise<void> {
+async function reshapeTitle(
+  patch: Partial<TextMeta>,
+  quiet = false,
+  keepGesture = false,
+): Promise<void> {
   if (titleRunning) {
     queuedPatch = { ...queuedPatch, ...patch };
     // A burst that ends on a live keystroke must stay quiet when it drains, and one that ends on
     // the commit must not — so the flag follows the newest arrival, like the patch itself.
     titleQuiet = quiet;
+    titleKeepGesture = keepGesture;
     return;
   }
-  cancelActiveGesture();
+  if (!keepGesture) cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
   const meta: TextMeta = { ...target.text, ...patch };
-  // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
-  // Re-picking the current font, or tapping the alignment button already on, reached here.
-  if (sameMeta(meta, target.text)) return;
-  if (refuseUnshaped(meta.text, quiet)) return;
-  // Overrides never outlive the string they were made for (spec M10 §4).
+  // Overrides never outlive the string they were made for (spec M10 §4). Drop them before
+  // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
+  // still records an undo step for a change that is not there.
   const len = [...meta.text].length;
   meta.overrides = Object.fromEntries(
     Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
   );
+  if (app.charSel !== null && app.charSel >= len) app.charSel = null;
+  // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
+  // Re-picking the current font, or tapping the alignment button already on, reached here.
+  if (sameMeta(meta, target.text)) return;
+  if (refuseUnshaped(meta.text, quiet)) return;
   const before = app.doc;
   const beforeSel = app.selection;
   const id = target.id;
@@ -1341,7 +1387,7 @@ async function reshapeTitle(patch: Partial<TextMeta>, quiet = false): Promise<vo
     if (!quiet) notify("info", "A title needs at least one character.");
     return;
   }
-  cancelActiveGesture();
+  if (!keepGesture) cancelActiveGesture();
   commitDoc(
     mapNodes(app.doc, [id], (n) => (n.kind === "path" ? { ...n, subpaths, text: meta } : n)),
   );
@@ -1369,20 +1415,31 @@ function sameMeta(a: TextMeta, b: TextMeta): boolean {
  *  landed outside the bracket and became undo steps of their own. */
 let titleWork: Promise<void> | null = null;
 
-function reshapeTitleDraining(patch: Partial<TextMeta>, quiet = false): Promise<void> {
+/** The in-flight title drain, or a resolved promise when nothing is queued. */
+export function titleInFlight(): Promise<void> {
+  return titleWork ?? Promise.resolve();
+}
+
+function reshapeTitleDraining(
+  patch: Partial<TextMeta>,
+  quiet = false,
+  keepGesture = false,
+): Promise<void> {
   if (titleRunning) {
     // Queued onto the running drain; awaiting *that* is what makes the caller wait for this patch.
     queuedPatch = { ...queuedPatch, ...patch };
     titleQuiet = quiet;
+    titleKeepGesture = keepGesture;
     return titleWork ?? Promise.resolve();
   }
   titleQuiet = quiet;
+  titleKeepGesture = keepGesture;
   titleWork = (async () => {
-    await reshapeTitle(patch, quiet);
+    await reshapeTitle(patch, quiet, keepGesture);
     while (queuedPatch !== null && !titleRunning) {
       const next = queuedPatch;
       queuedPatch = null;
-      await reshapeTitle(next, titleQuiet);
+      await reshapeTitle(next, titleQuiet, titleKeepGesture);
     }
   })().finally(() => {
     titleWork = null;
@@ -1445,7 +1502,7 @@ export function pickCharacter(at: Vec): void {
   // Last match wins: later characters are drawn on top, so that is what the eye picked.
   for (let i = quads.length - 1; i >= 0; i--) {
     if (pointInQuad(p, quads[i])) {
-      app.charSel = i;
+      app.charSel = app.charAt[i] ?? i;
       return;
     }
   }
@@ -1496,27 +1553,43 @@ export function charOffset(): { dx: number; dy: number } {
  *  fraction of the pointer's speed. An absolute value makes every call carry the whole drag, so a
  *  dropped one costs nothing and the next one lands the character exactly where the pointer is. */
 export function setCharOffset(dx: number, dy: number): Promise<void> {
-  return setCharOverride({ dx, dy });
+  const t = selectedTitle();
+  const i = app.charSel;
+  if (!t?.text || i === null) return Promise.resolve();
+  const overrides = { ...t.text.overrides, [i]: { ...t.text.overrides[i], dx, dy } };
+  // Keep the text tool's drag. `reshapeTitle` otherwise cancels the gesture that called it.
+  return reshapeTitleDraining({ overrides }, true, true);
 }
 
 /** The quads follow the selected title. This lives in the store, not in `TextPanel`, because M8 put
  *  that panel behind `{#if expanded}` — with Properties collapsed, character picking would have
  *  silently stopped working. */
+let quadGen = 0;
+
 $effect.root(() => {
   $effect(() => {
     const t = selectedTitle();
+    const gen = ++quadGen;
     if (!t?.text) {
       if (app.charQuads.length > 0) app.charQuads = [];
+      if (app.charAt.length > 0) app.charAt = [];
       return;
     }
     const id = t.id;
     const meta = t.text;
     void loadFont(meta.font)
       .then((f) => {
-        if (selectedTitle()?.id === id) app.charQuads = charQuads(f, meta);
+        // A slower load for the previous font or string must not overwrite the quads, and a
+        // failure for that old request must not clear the ones a newer load already installed.
+        if (gen !== quadGen || selectedTitle()?.id !== id) return;
+        const hits = charHits(f, meta);
+        app.charQuads = hits.map((h) => h.quad);
+        app.charAt = hits.map((h) => h.index);
       })
       .catch(() => {
+        if (gen !== quadGen) return;
         app.charQuads = [];
+        app.charAt = [];
       });
   });
 });

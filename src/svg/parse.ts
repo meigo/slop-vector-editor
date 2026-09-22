@@ -163,8 +163,18 @@ export function parseSvg(src: string): ParseResult {
     for (const decl of (el.attrs.style ?? "").split(";")) {
       const colon = decl.indexOf(":");
       if (colon < 0) continue;
-      const key = decl.slice(0, colon).trim() as (typeof PROPS)[number];
-      if ((PROPS as readonly string[]).includes(key)) out[key] = decl.slice(colon + 1).trim();
+      // CSS property names are case-insensitive. A value that does not parse must not replace a
+      // presentation attribute that did: `paint` treats a miss as "inherit", and the attribute is
+      // already gone by then. `!important` is not part of the value.
+      const key = decl.slice(0, colon).trim().toLowerCase();
+      if (!(PROPS as readonly string[]).includes(key)) continue;
+      const value = decl
+        .slice(colon + 1)
+        .trim()
+        .replace(/\s*!important\s*$/i, "")
+        .trim();
+      if ((key === "fill" || key === "stroke") && parseColor(value) === null) continue;
+      out[key as (typeof PROPS)[number]] = value;
     }
     if (el.attrs.class !== undefined) drop("CSS classes");
     if (out.filter && out.filter !== "none") drop("filters");
@@ -238,8 +248,10 @@ export function parseSvg(src: string): ParseResult {
    *  reads the element's own attributes and its `style` attribute, never the inherited value, so a
    *  hidden group marks itself and its children stay ordinary — which is what makes the group
    *  round-trip as one `display="none"` rather than one per descendant. */
+  const keyword = (v: string | undefined) => (v ?? "").trim().toLowerCase();
+
   function flagsOf(el: XmlElement, p: ReturnType<typeof props>) {
-    const hidden = p.display === "none" || p.visibility === "hidden";
+    const hidden = keyword(p.display) === "none" || keyword(p.visibility) === "hidden";
     const locked =
       el.attrs["data-sv-locked"] !== undefined || el.attrs["sodipodi:insensitive"] === "true";
     return { hidden, locked };
@@ -248,14 +260,26 @@ export function parseSvg(src: string): ParseResult {
   /** SVG lets a descendant override an inherited `visibility`; our one flag per node cannot say
    *  that, so we report it rather than change the picture silently. */
   function hasVisibleDescendant(el: XmlElement): boolean {
-    return el.children.some((c) => c.attrs.visibility === "visible" || hasVisibleDescendant(c));
+    return el.children.some(
+      (c) => keyword(props(c).visibility) === "visible" || hasVisibleDescendant(c),
+    );
   }
 
   function convert(el: XmlElement, inh: Inherited): Node | null {
     const node = convertNode(el, inh);
     if (!node) return null;
-    const { hidden, locked } = flagsOf(el, props(el));
-    if (hidden && hasVisibleDescendant(el)) drop("nested visibility override");
+    const p = props(el);
+    const { hidden, locked } = flagsOf(el, p);
+    // `visibility` can be overridden by a descendant; `display: none` cannot. Reporting the latter
+    // tells the user content was dropped when the picture was already right. A `style` value counts
+    // the same as the attribute — that is the case the report exists for.
+    if (
+      keyword(p.display) !== "none" &&
+      keyword(p.visibility) === "hidden" &&
+      hasVisibleDescendant(el)
+    ) {
+      drop("nested visibility override");
+    }
     if (!hidden && !locked) return node;
     return {
       ...node,
@@ -444,6 +468,13 @@ export function parseSvg(src: string): ParseResult {
     if (!ownFormat && kids.length > 0 && (!isIdentity(t) || opacity !== 1)) {
       kids = [{ kind: "group", id: newId(), transform: t, opacity, children: kids }];
     }
+    if (
+      keyword(p.display) !== "none" &&
+      keyword(p.visibility) === "hidden" &&
+      hasVisibleDescendant(el)
+    ) {
+      drop("nested visibility override");
+    }
     return {
       id,
       name:
@@ -451,7 +482,7 @@ export function parseSvg(src: string): ParseResult {
         el.attrs["inkscape:label"] ??
         el.attrs.id ??
         `Layer ${index + 1}`,
-      visible: p.display !== "none",
+      visible: keyword(p.display) !== "none" && keyword(p.visibility) !== "hidden",
       locked:
         el.attrs["data-sv-locked"] !== undefined || el.attrs["sodipodi:insensitive"] === "true",
       children: kids.map(place),
@@ -462,10 +493,11 @@ export function parseSvg(src: string): ParseResult {
     for (const el of root.children) {
       // Styles/classes on skipped top-level elements are still reported via props() in convert().
       if (ownFormat && el.name === "rect" && el.attrs["data-sv-background"] !== undefined) {
-        const fill = paint(el.attrs.fill, null);
+        const bp = props(el);
+        const fill = paint(bp.fill, null);
         background = fill && {
           color: fill.color,
-          opacity: fill.opacity * opacityValue(el.attrs["fill-opacity"], 1),
+          opacity: fill.opacity * opacityValue(bp["fill-opacity"], 1),
         };
         continue;
       }

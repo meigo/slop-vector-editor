@@ -134,6 +134,20 @@ describe("clipboardText", () => {
     const back = parseSvg(text).doc;
     expect(back.layers[0].children).toHaveLength(2);
   });
+
+  it("does not copy a descendant twice when its group is also selected", () => {
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("child", 5, 5)],
+    };
+    const d = doc([{ children: [g] }]);
+    const back = parseSvg(clipboardText(d, ["g", "child"])!).doc;
+    expect(back.layers[0].children).toHaveLength(1);
+    expect(back.layers[0].children[0].kind).toBe("group");
+  });
 });
 
 describe("planPaste", () => {

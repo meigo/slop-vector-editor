@@ -1,18 +1,20 @@
-import type {
-  Doc,
-  EllipseShape,
-  Node,
-  PathShape,
-  PolygonShape,
-  Shape,
-  Subpath,
+import {
+  isHidden,
+  type Doc,
+  type EllipseShape,
+  type Node,
+  type PathShape,
+  type PolygonShape,
+  type RectShape,
+  type Shape,
+  type Subpath,
 } from "../doc/document";
 import { enteredReach, reachableNodes, topLevelReach, type Reachable } from "../doc/tree";
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
 import { applyMat, IDENTITY, invert } from "./mat";
-import { polygonSubpath } from "./shapes";
+import { polygonSubpath, rectPath } from "./shapes";
 import type { Vec } from "./vec";
 
 export type Hit = { layerId: string; nodeId: string };
@@ -53,6 +55,23 @@ function ellipsePolylines(s: EllipseShape): Vec[][] {
     }
     polys = [pts];
     ellipseCache.set(s, polys);
+  }
+  return polys;
+}
+
+/** Rounded-rect outline, cached per (immutable) rect. A zero radius never comes here. */
+const rectCache = new WeakMap<RectShape, Vec[][]>();
+
+function rectRadius(s: RectShape): number {
+  return Math.min(Math.max(s.rx, 0), s.w / 2, s.h / 2);
+}
+
+function rectPolylines(s: RectShape): Vec[][] {
+  let polys = rectCache.get(s);
+  if (!polys) {
+    const r = rectRadius(s);
+    polys = [flattenSubpath(rectPath(s.x, s.y, s.w, s.h, r, r))];
+    rectCache.set(s, polys);
   }
   return polys;
 }
@@ -109,6 +128,12 @@ function shapeHit(s: Shape, p: Vec, tol: number, scale = 1): boolean {
   const reach = tol + (s.style.stroke ? s.style.strokeWidth / 2 : 0);
   switch (s.kind) {
     case "rect": {
+      // A corner radius is drawn; the sharp box both hits empty corners and misses the arc.
+      if (rectRadius(s) > 0) {
+        const polys = rectPolylines(s);
+        if (s.style.fill && insideNonzero(p, polys)) return true;
+        return distToPolylines(p, polys) <= reach;
+      }
       const inside = p.x >= s.x && p.x <= s.x + s.w && p.y >= s.y && p.y <= s.y + s.h;
       if (inside && s.style.fill) return true;
       const d = inside
@@ -140,6 +165,10 @@ function shapeHit(s: Shape, p: Vec, tol: number, scale = 1): boolean {
 }
 
 function nodeHit(n: Node, p: Vec, tol: number, scale = 1): boolean {
+  // A hidden descendant of a group is not offered to hitTest on its own — the group is — so the
+  // check has to happen here, before the walk. A locked child stays hittable: it is visible, and
+  // the click selects the group.
+  if (isHidden(n)) return false;
   const inv = invert(n.transform);
   if (!inv) return false;
   const m = n.transform;

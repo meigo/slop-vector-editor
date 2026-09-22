@@ -168,13 +168,11 @@ export function unshapedScript(text: string): boolean {
 /** True when the font has no glyph for any character — every index is `.notdef`. Drawing that gives
  *  a row of boxes or nothing at all, which spec §9's principle says to refuse rather than draw. */
 export function noGlyphsFor(f: LoadedFont, text: string): boolean {
-  if (text.length === 0) return false;
-  return f.font.stringToGlyphs(text).every((g: Glyph) => g.index === 0);
+  const chars = [...text].filter((c) => c !== "\n");
+  if (chars.length === 0) return false;
+  return chars.every((c) => f.font.charToGlyph(c).index === 0);
 }
 
-/** string + font + options → outlines, in the title's own space with the baseline at y = 0.
- *  M10a applies no per-character transform; `seed`, `amounts` and `overrides` ride along unused
- *  and M10b adds that step here. */
 /** One placed glyph. `index` is into the whole string, newlines included, so overrides survive.
  *  Newlines themselves never appear here — they have no glyph. */
 type Placed = { char: string; index: number; penX: number; penY: number; advance: number };
@@ -185,7 +183,10 @@ type Placed = { char: string; index: number; penX: number; penY: number; advance
  *  Alignment across lines needs no new arithmetic: applying the per-line rule to every line aligns
  *  the block on its own. With `left` every line starts at 0, with `center` every line is centred on
  *  0, with `right` every line ends at 0 — so the block is aligned because each line is. */
-function runLayout(f: LoadedFont, m: TextMeta): { placed: Placed[]; font: ParsedFont; upm: number } {
+function runLayout(
+  f: LoadedFont,
+  m: TextMeta,
+): { placed: Placed[]; font: ParsedFont; upm: number } {
   const font = f.font;
   const upm = font.unitsPerEm;
   const placed: Placed[] = [];
@@ -193,7 +194,9 @@ function runLayout(f: LoadedFont, m: TextMeta): { placed: Placed[]; font: Parsed
   lines.forEach((line, lineNo) => {
     const chars = [...line.text];
     if (chars.length === 0) return;
-    const glyphs = font.stringToGlyphs(line.text);
+    // One glyph per code point. `stringToGlyphs` applies `liga`, so "office" in Anton is four
+    // glyphs and the loop below would drop `c` and `e`.
+    const glyphs = chars.map((ch) => font.charToGlyph(ch));
     const advances = glyphs.map((g: Glyph) => (g.advanceWidth ?? 0) / upm);
     const kerns = glyphs.map((g: Glyph, i: number) =>
       i === 0 ? 0 : font.getKerningValue(glyphs[i - 1], g) / upm,
@@ -236,10 +239,14 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
   return out;
 }
 
+/** A glyph's hit box plus the string index it belongs to. The quad list skips newlines, so the
+ *  slot in that list is not the override key. */
+export type CharHit = { index: number; quad: Vec[] };
+
 /** Each glyph's advance box, jittered like its outline, in the title's own space — four corners,
  *  clockwise from the top left. This is what a click is tested against (spec M10 §6). One per
  *  **glyph**, so a newline contributes none. */
-export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
+export function charHits(f: LoadedFont, m: TextMeta): CharHit[] {
   const { placed, font, upm } = runLayout(f, m);
   const top = (-font.ascender / upm) * m.size;
   const bottom = (-font.descender / upm) * m.size;
@@ -252,10 +259,15 @@ export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
       { x: p.penX, y: p.penY + bottom },
     ];
     const t = transformFor(m, p.index);
-    if (isIdentityChar(t)) return corners;
-    const mat = charMatrix(t, centreOf(p, m.size), p.penY);
-    return corners.map((c) => applyMat(mat, c));
+    const quad = isIdentityChar(t)
+      ? corners
+      : corners.map((c) => applyMat(charMatrix(t, centreOf(p, m.size), p.penY), c));
+    return { index: p.index, quad };
   });
+}
+
+export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
+  return charHits(f, m).map((h) => h.quad);
 }
 
 /** The centre of a glyph's own advance box, on its own baseline — the anchor every per-character

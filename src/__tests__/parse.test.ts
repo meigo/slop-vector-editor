@@ -200,6 +200,40 @@ describe("parseSvg — foreign files", () => {
     expect(dropped).toEqual(["CSS stylesheets", "CSS classes"]);
   });
 
+  it("hides a top-level group with visibility, and reads a styled background", () => {
+    const hidden = parseSvg(`<svg><g visibility="hidden"><rect width="10" height="10"/></g></svg>`);
+    expect(hidden.doc.layers[0].visible).toBe(false);
+    expect(hidden.dropped).toEqual([]);
+    const styled = parseSvg(
+      `<svg data-sv-version="1" width="10" height="10" viewBox="0 0 10 10">` +
+        `<rect data-sv-background="" width="10" height="10" style="fill:#010203;fill-opacity:0.5"/>` +
+        `<g data-sv-layer="" data-sv-name="Layer 1"/></svg>`,
+    );
+    expect(styled.doc.artboard.background).toEqual({ color: "#010203", opacity: 0.5 });
+  });
+
+  it("keeps a presentation color when the style value does not parse", () => {
+    const { doc } = parseSvg(
+      `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:red !important"/></svg>`,
+    );
+    expect((doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#ff0000");
+    const kept = parseSvg(
+      `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:not-a-color"/></svg>`,
+    );
+    expect((kept.doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#0000ff");
+  });
+
+  it("reports a style visibility override and not one under display:none", () => {
+    const styled = parseSvg(
+      `<svg><g visibility="hidden"><rect width="5" height="5" style="visibility:visible"/></g></svg>`,
+    );
+    expect(styled.dropped).toContain("nested visibility override");
+    const displayed = parseSvg(
+      `<svg><g display="none"><rect width="5" height="5" visibility="visible"/></g></svg>`,
+    );
+    expect(displayed.dropped).not.toContain("nested visibility override");
+  });
+
   it("multiplies color alpha into opacity and honors style over attributes", () => {
     const { doc } = parseSvg(
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:#ff000080" fill-opacity="0.5"/></svg>`,

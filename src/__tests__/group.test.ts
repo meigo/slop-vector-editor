@@ -132,4 +132,18 @@ describe("ungroupNodes", () => {
     const both = ungroupNodes(d, ["a", "g"]);
     expect(both.ids).toEqual(["a", "b"]);
   });
+
+  it("ungroups a selected group nested in another selected group", () => {
+    const d = doc({
+      id: "L0",
+      children: [
+        group("g", translate(10, 0), [group("h", translate(0, 5), [rect("a")]), rect("b")]),
+      ],
+    });
+    const r = ungroupNodes(d, ["g", "h"]);
+    expect(r.doc.layers[0].children.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(findNode(r.doc, "h")).toBeNull();
+    expect(r.ids).toEqual(["a", "b"]);
+    expect(world(r.doc, "a")).toEqual({ x: 10, y: 5 });
+  });
 });

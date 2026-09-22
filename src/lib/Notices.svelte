@@ -14,7 +14,7 @@
     // <main> and so already narrowed by the docked column, these notices are fixed to the
     // viewport: they must step aside for the column at 900px and up, where it is always present,
     // and below 900px only while the drawer is open.
-    app.propertiesOpen ? "right-63" : "right-3 min-[900px]:right-63",
+    app.propertiesOpen ? "right-(--sidebar-inset)" : "right-3 min-[900px]:right-(--sidebar-inset)",
   ]}
 >
   {#each app.notices as n (n.id)}

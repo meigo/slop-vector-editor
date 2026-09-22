@@ -137,6 +137,45 @@ describe("hitTest", () => {
     expect(hitTest(big, at(-29, 50), 10)?.nodeId).toBe("s");
   });
 
+  it("hits a rounded rect on its arc, not its sharp box", () => {
+    const round = rect("r", 0, 0, filled);
+    if (round.kind !== "rect") throw new Error("rect");
+    round.w = 100;
+    round.h = 100;
+    round.rx = 50;
+    const d = doc({ children: [round] });
+    expect(hitTest(d, at(50, 50), 0)?.nodeId).toBe("r");
+    // (2, 2) is inside the sharp corner and outside the circle.
+    expect(hitTest(d, at(2, 2), 0)).toBeNull();
+    const bare = {
+      ...round,
+      style: {
+        ...filled,
+        fill: null,
+        stroke: { color: "#000", opacity: 1 },
+        strokeWidth: 1,
+      },
+    };
+    const stroke = doc({ children: [bare] });
+    // On the circle, well clear of the sharp edge.
+    expect(hitTest(stroke, at(50 + 50 * Math.SQRT1_2, 50 - 50 * Math.SQRT1_2), 2)?.nodeId).toBe(
+      "r",
+    );
+  });
+
+  it("does not hit a hidden child through its group", () => {
+    const g: Node = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("shown", 0, 0), { ...rect("gone", 100, 0), hidden: true }],
+    };
+    const d = doc({ children: [g] });
+    expect(hitTest(d, at(5, 5), 0)?.nodeId).toBe("g");
+    expect(hitTest(d, at(105, 5), 0)).toBeNull();
+  });
+
   it("returns the top-level group for a hit on a child", () => {
     const g: Node = {
       kind: "group",

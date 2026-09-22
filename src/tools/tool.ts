@@ -56,6 +56,8 @@ export interface ToolContext {
   charOffset(): { dx: number; dy: number };
   /** Sets that offset absolutely — see the note on `setCharOffset` in the store. */
   setCharOffset(dx: number, dy: number): void;
+  /** Closes the character-drag bracket after its outline commit, which is async. */
+  finishCharDrag(): void;
   /** The selected title's id, or null — the tool needs it to tell "click inside a title I am
    *  already editing" from "click on empty canvas, place a new one". */
   titleId(): string | null;

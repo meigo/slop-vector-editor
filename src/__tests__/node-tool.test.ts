@@ -137,6 +137,18 @@ describe("node tool: editing", () => {
     expect(state.session.history.past).toHaveLength(1);
   });
 
+  it("restores a node dragged back to where it started", () => {
+    const { ctx, state } = fakeContext(curvedDoc(), { ...DEFAULT_PREFS, snap: false });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(0, 0));
+    tool.move(ctx, ev(10, 0));
+    tool.move(ctx, ev(0, 0));
+    tool.up(ctx, ev(0, 0));
+    expect(target(state).subpaths[0].nodes[0].p).toEqual({ x: 0, y: 0 });
+  });
+
   it("applies the pointer-up position when it's only reported on up, not on a prior move", () => {
     // Snapping off: this checks the drag maths, not the snap targets. Only one intermediate
     // move is sent before up, and up itself carries the final position — nothing reports it
@@ -230,6 +242,24 @@ describe("node tool: editing", () => {
     const n = target(state).subpaths[0].nodes[0];
     expect(n.p.x).toBeCloseTo(10);
     expect(n.p.y).toBe(0);
+  });
+
+  it("Shift-dragging a selected node does not toggle it out of the drag", () => {
+    const { ctx, state } = fakeContext(curvedDoc(), { ...DEFAULT_PREFS, snap: false });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ];
+    tool.down(ctx, ev(0, 0, { shift: true }));
+    tool.move(ctx, ev(10, 4, { shift: true }));
+    tool.up(ctx, ev(10, 4, { shift: true }));
+    expect(state.nodeSel).toEqual([
+      { sub: 0, i: 0 },
+      { sub: 0, i: 1 },
+    ]);
+    expect(target(state).subpaths[0].nodes[0].p.x).toBeCloseTo(10);
   });
 
   it("a plain click on an already-selected node collapses the selection to it", () => {

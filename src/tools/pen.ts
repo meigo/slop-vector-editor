@@ -1,4 +1,12 @@
-import type { Doc, Node, PathNode, PathShape, Subpath } from "../doc/document";
+import {
+  isHidden,
+  isLocked,
+  type Doc,
+  type Node,
+  type PathNode,
+  type PathShape,
+  type Subpath,
+} from "../doc/document";
 import { addShape } from "../doc/edits";
 import { blockMessage, layerBlock } from "../doc/layers";
 import { appendNode, reverseSubpath } from "../doc/path-edit";
@@ -332,6 +340,9 @@ function resumeAt(doc: Doc, at: Vec, tol: number, snap: boolean): Draft | null {
   let bestDist = Infinity;
 
   const visit = (node: Node, parent: Mat, layerId: string) => {
+    // Hit-testing refuses a hidden or locked node. Resuming one would append onto a path the user
+    // cannot see, or onto one they locked.
+    if (isHidden(node) || isLocked(node)) return;
     const world = multiply(parent, node.transform);
     if (node.kind === "group") {
       for (const child of node.children) visit(child, world, layerId);

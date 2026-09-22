@@ -29,6 +29,7 @@ import {
   subdivideSelectionNodes,
   toggleLayerLocked,
   toggleLayerVisible,
+  toggleNodeLocked,
   undo,
 } from "../state/appState.svelte";
 import { runEditAction } from "../state/commands";
@@ -140,6 +141,14 @@ describe("setSession node re-resolution", () => {
     setNodeTarget("p");
     setNodeSel([{ sub: 0, i: 0 }]);
     toggleLayerLocked("L0");
+    expect(app.nodeTarget).toBeNull();
+    expect(app.nodeSel).toEqual([]);
+  });
+
+  it("clears the node target when the path itself is locked", () => {
+    setNodeTarget("p");
+    setNodeSel([{ sub: 0, i: 0 }]);
+    toggleNodeLocked("p");
     expect(app.nodeTarget).toBeNull();
     expect(app.nodeSel).toEqual([]);
   });

@@ -47,7 +47,7 @@
 <div
   class={[
     "absolute bottom-3 z-10 flex gap-1 rounded-lg border border-line bg-panel p-1 shadow-lg",
-    app.propertiesOpen ? "right-3 max-[900px]:right-63" : "right-3",
+    app.propertiesOpen ? "right-3 max-[900px]:right-(--sidebar-inset)" : "right-3",
   ]}
   role="toolbar"
   aria-label="Modifier keys"

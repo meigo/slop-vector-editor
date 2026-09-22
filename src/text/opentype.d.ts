@@ -37,6 +37,8 @@ declare module "opentype.js" {
     /** Keyed by platform in 2.0 — see the note above. */
     names: NameTable;
     stringToGlyphs(text: string): Glyph[];
+    /** One glyph for this code point. Missing characters come back as `.notdef` (index 0). */
+    charToGlyph(char: string): Glyph;
     getKerningValue(left: Glyph, right: Glyph): number;
     getPath(text: string, x: number, y: number, fontSize: number): Path;
     getAdvanceWidth(text: string, fontSize: number, opts?: { kerning?: boolean }): number;

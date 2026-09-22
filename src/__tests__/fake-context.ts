@@ -85,6 +85,9 @@ export function fakeContext(
     endGesture: () => {
       state.session = endGesture(state.session);
     },
+    finishCharDrag: () => {
+      state.session = endGesture(state.session);
+    },
     prefs: () => prefs,
     snapEnabled: () => prefs.snap,
     placeTitle: (at) => {

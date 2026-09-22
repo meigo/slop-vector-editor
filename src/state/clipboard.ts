@@ -1,7 +1,7 @@
 import type { Doc, Node } from "../doc/document";
 import { insertNodes } from "../doc/edits";
 import { blockMessage, layerBlock } from "../doc/layers";
-import { findNode } from "../doc/tree";
+import { ancestorIds, findNode } from "../doc/tree";
 import { nodeBounds } from "../geom/bounds";
 import { boxCenter, unionBox, type Box } from "../geom/box";
 import { IDENTITY, multiply } from "../geom/mat";
@@ -42,7 +42,11 @@ function documentOrder(doc: Doc): string[] {
  *  on-screen position: its ancestors' matrix is baked into the copy's own transform. */
 export function clipboardText(doc: Doc, ids: readonly string[]): string | null {
   const wanted = new Set(ids);
-  const ordered = documentOrder(doc).filter((id) => wanted.has(id));
+  // A group is copied with its children still inside it. A descendant that is also selected would
+  // be pasted a second time, with the parent's transform baked in.
+  const ordered = documentOrder(doc).filter(
+    (id) => wanted.has(id) && !ancestorIds(doc, id).some((a) => wanted.has(a)),
+  );
   const nodes = ordered.flatMap((id) => {
     const f = findNode(doc, id);
     return f ? [{ ...f.node, transform: multiply(f.parent, f.node.transform) }] : [];
