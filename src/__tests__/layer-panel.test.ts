@@ -4,6 +4,7 @@ import { moveNodes } from "../doc/layers";
 import { IDENTITY } from "../geom/mat";
 import { DOUBLE_TAP_MS, isDoubleTap } from "../input/double-tap";
 import { dropTarget, type RowBox } from "../lib/layer-drop";
+import { trashAction } from "../lib/layer-trash";
 import { deepFreeze } from "./helpers";
 
 const rect = (id: string): Node => ({
@@ -231,5 +232,20 @@ describe("dropping onto a row after the drag empties a group", () => {
     const moved = moveNodes(d, ["b"], drop.parentId, drop.index);
     // Display order (top first, i.e. the children array reversed): c above b.
     expect([...moved.layers[0].children].reverse().map((n) => n.id)).toEqual(["c", "b"]);
+  });
+});
+
+describe("the Layers header trash", () => {
+  it("deletes the selection whenever something is selected, even with a single layer", () => {
+    expect(trashAction(1, 1)).toBe("selection");
+    expect(trashAction(3, 2)).toBe("selection");
+  });
+
+  it("deletes the current layer when nothing is selected and another layer remains", () => {
+    expect(trashAction(0, 2)).toBe("layer");
+  });
+
+  it("is disabled with nothing selected and only one layer", () => {
+    expect(trashAction(0, 1)).toBe("disabled");
   });
 });

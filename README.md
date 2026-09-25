@@ -55,7 +55,9 @@ What works today:
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back). **Every shape and group has its own
   eye and lock too** — a hidden or locked object can't be clicked, dragged or marquee-selected, and
-  its row in the panel is how you get it back.
+  its row in the panel is how you get it back. The panel's trash deletes the selected objects when
+  anything is selected, and the current layer only when nothing is — click a layer's name to
+  select the layer itself.
 - Hidden content in other tools' files is kept, not thrown away: `display:none` and
   `visibility:hidden` come in as hidden objects you can switch back on.
 - Groups: group and ungroup (⌘G / ⇧⌘G), double-click to work inside a group, nested rows in the

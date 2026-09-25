@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 734 tests in 55 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 752 tests in 55 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -100,7 +100,7 @@ every user-visible change.
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Properties + Layers column: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
+  helper), `layer-trash.ts` (pure: what the header trash deletes), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
   `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a fresh tap at Save to Files when
   `deliverFile` didn't attempt a direct share, or the attempt needs a fresh tap), `Notices`.
@@ -257,6 +257,12 @@ every user-visible change.
     - **The Layers header keeps its New layer and Delete layer buttons while collapsed**, because
       they are the only route to those commands — no menu, no shortcut. Both open the panel as a
       side effect, so the result is visible.
+    - **The Layers trash deletes the selection first** (`trashAction`, `lib/layer-trash.ts`): with
+      anything selected it is ⌫ (no confirm, one undo step), and only with nothing selected does it
+      delete the current layer. Selecting an object makes its layer current and highlights that
+      row, so a layer-only trash read as "delete this path" and took the whole layer. Clicking a
+      layer's name therefore clears the object selection (`deselectAll`) before making it current —
+      otherwise a leftover selection elsewhere would be what the trash deletes.
     - **The properties panel's sections collapse** (`FieldSection`, M10e §1), and which ones are
       closed is `prefs.closedSections` — the **closed** ids, so a section added later appears open
       with no migration and the common case is an empty array. `SECTION_IDS` is the whole
