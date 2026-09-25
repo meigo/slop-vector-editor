@@ -1876,3 +1876,16 @@ exactly what a per-task review has no way to look at.
   emptied the selection, kept Layer 1 current and turned the trash into `Delete layer “Layer 1”`.
   Not pressed in that state — the delete-layer path itself is unchanged. Owed: an iPad tap pass.
 - 752 tests in 55 files.
+
+## 2026-09-25 — New favicon from the slop logo
+
+- `public/favicon.svg` is now the mark from `temp/slop-logo.svg` (saved from this editor): its path
+  and transform copied verbatim, in the source's own 500×500 viewBox, where the 494×472 mark is
+  already centred. The fill is the logo's `#667fff` in every theme — chosen over the old
+  black/white `prefers-color-scheme` switch — so the favicon no longer carries a `<style>`.
+- `public/apple-touch-icon.png` regenerated from it: 180×180, opaque, the blue mark at 156px on the
+  app's `#1e1e22`. The manifest and `index.html` needed no change (same file names).
+- Checked by rasterising with `sharp` at 16 and 32px on a white and a dark tab-bar colour; the
+  two-piece mark stays legible at 16px. Browsers cache favicons aggressively and neither file is
+  under `/assets/` (so neither is content-hashed); an already-open tab or an existing home-screen
+  icon may show the old mark until reloaded or re-added.
