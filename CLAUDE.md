@@ -393,8 +393,9 @@ every user-visible change.
     `/assets/*`, plus the CSP). Never hand-place a file under `public/assets/`: it lands in
     `dist/assets/` unhashed, and the immutable year-long `Cache-Control` then pins it in every
     browser cache with no way to bust it — that rule is safe only because everything Vite emits
-    there is content-hashed. Regenerate the icon from `favicon.svg` when the mark changes; the
-    favicon's own fill is theme-dependent and will not rasterise white. The CSP's `style-src`
+    there is content-hashed. Regenerate the icon from `favicon.svg` when the mark changes — the mark
+    in `#667fff` at 156px, 12px in from each edge of the 180px `#1e1e22` tile (`sharp`, present as a
+    dependency of wrangler, rasterises it). The CSP's `style-src`
     needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such
     exception.
