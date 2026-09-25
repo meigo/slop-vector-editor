@@ -1843,3 +1843,36 @@ exactly what a per-task review has no way to look at.
   unverified: the `needs-tap` retry path, `ShareReadyDialog`'s three buttons and their notices, and
   the AirDrop-then-close unsaved-changes gap above.
 - 734 tests in 55 files.
+
+## 2026-09-25 — The Layers trash deletes the selection
+
+- **Defect (user report):** selecting one path in a layer and pressing the Layers header's trash
+  deleted the whole layer. The trash was **Delete layer** only, and selecting an object makes its
+  layer current — the highlighted row — so the button read as "delete what I selected". It did ask
+  first ("Delete layer … and its N objects?"), but the confirm named the layer the user did not
+  think they had picked. With a single layer the button was dimmed, so the path could not be
+  deleted from the panel at all.
+- Diagnosis went through two wrong turns worth recording: first an importer wrapper group (a
+  foreign top-level `<g>` with a `transform` or `opacity` is wrapped in one group inside its
+  layer — true, but slop-vectorizer writes no `<g>`), then merged per-colour paths (its default
+  "Merge paths" writes one `<path>` per colour — also true, but the user's file had separately
+  selectable paths). The user's screenshot of the Layers panel settled it.
+- **Fix:** `trashAction(selectionCount, layerCount)` (`src/lib/layer-trash.ts`) decides the button:
+  anything selected → `deleteSelection` (exactly ⌫: no confirm, one undo step, enabled even with
+  one layer, titled "Delete selection (⌫)"); nothing selected → delete the current layer as
+  before; nothing selected and one layer → disabled. Same icon, same place — only the label and
+  title change, so the layout does not move.
+- Clicking a layer's **name** now also clears the object selection (`deselectAll`, then
+  `setCurrentLayer`), so "click a layer, press trash" deletes that layer and never a leftover
+  selection elsewhere. The eye, lock, chevron and rename are unchanged. The Properties panel
+  collapses as a result, as it does for any empty selection.
+- Not done, considered: making layers ordinary groups (their contents would be click-through-once
+  again — the original complaint), or a no-layer Figma-style model (a core rewrite for its own
+  milestone, if ever).
+- **Desktop-verified** (Chrome, :5198) on a two-path file shaped like slop-vectorizer's output:
+  selecting one path's row turned the trash into "Delete selection (⌫)", enabled; pressing it
+  removed that path alone and left the layer, after which the trash was dimmed again (one layer,
+  nothing selected). With a second layer added and a path selected, clicking "Layer 1"'s name
+  emptied the selection, kept Layer 1 current and turned the trash into `Delete layer “Layer 1”`.
+  Not pressed in that state — the delete-layer path itself is unchanged. Owed: an iPad tap pass.
+- 752 tests in 55 files.

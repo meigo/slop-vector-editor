@@ -16,6 +16,8 @@
     addLayerAboveCurrent,
     app,
     deleteCurrentLayer,
+    deleteSelection,
+    deselectAll,
     moveLayerTo,
     moveNodesTo,
     renameLayerById,
@@ -31,6 +33,7 @@
   import IconButton from "./IconButton.svelte";
   import PanelHeader from "./PanelHeader.svelte";
   import { dropTarget, type Drag, type Drop, type RowBox } from "./layer-drop";
+  import { trashAction } from "./layer-trash";
 
   /** Spec (M3a) §5. Collapsed layers and the rename draft are panel-local, never saved. */
   const collapsed = $state<Record<string, boolean>>({});
@@ -44,6 +47,7 @@
 
   const layers = $derived([...app.doc.layers].reverse());
   const current = $derived(app.doc.layers.find((l) => l.id === app.currentLayerId) ?? null);
+  const trash = $derived(trashAction(app.selection.length, app.doc.layers.length));
   const selected = $derived(new Set(app.selection));
 
   /** Says which thing is responsible, so a greyed row explains itself (invariant 24). */
@@ -285,12 +289,17 @@
         onclick={() => reveal(addLayerAboveCurrent)}
       />
       <IconButton
-        label="Delete layer"
-        title={current ? `Delete layer “${current.name}”` : "Delete layer"}
+        label={trash === "selection" ? "Delete selection" : "Delete layer"}
+        title={trash === "selection"
+          ? "Delete selection (⌫)"
+          : current
+            ? `Delete layer “${current.name}”`
+            : "Delete layer"}
         icon={Trash2}
-        disabled={app.doc.layers.length <= 1}
+        disabled={trash === "disabled"}
         disabledTitle="Delete layer — it is the only layer"
-        onclick={() => reveal(() => void deleteCurrentLayer())}
+        onclick={() =>
+          reveal(() => (trash === "selection" ? deleteSelection() : void deleteCurrentLayer()))}
       />
     {/snippet}
   </PanelHeader>
@@ -355,7 +364,12 @@
                     blocked && "text-muted",
                   ]}
                   title="Make “{layer.name}” current — double-click to rename"
-                  onclick={() => setCurrentLayer(layer.id)}
+                  onclick={() => {
+                    // Clicking a layer targets the layer itself, so the trash then deletes it
+                    // rather than whatever object was still selected elsewhere.
+                    deselectAll();
+                    setCurrentLayer(layer.id);
+                  }}
                   onpointerup={(e) => tapName("layer", layer.id, layer.name, e)}
                 >
                   {layer.name}
