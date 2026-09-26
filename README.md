@@ -40,7 +40,8 @@ What works today:
 - The Layers and Properties panels split one column, Layers on top, with a divider you can drag
   and a chevron on each to fold it away. Properties folds itself away when nothing is selected —
   click its header to reach the new-shape defaults, and it stays open until you select something.
-  Opening and closing it never moves the layer rows, and the selected row stays in view.
+  Opening and closing it never shifts the layer list; a selected row that would be hidden scrolls
+  just into view.
 - An on-screen Shift/Alt/Snap pad for touch. Snap is always there; the Shift and Alt latches fold
   away behind a chevron, and open themselves the first time you use a finger or a Pencil.
 - An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover

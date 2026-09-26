@@ -1915,7 +1915,9 @@ Spec `docs/superpowers/specs/2026-09-26-layers-on-top-design.md`, plan
   in place; dragging the divider down 100px grows the list 314→414px, ratio 0.55→0.42,
   `aria-valuenow` 45→58; the ratio survives a reload; no console errors.
 - **Not verified:** the `<900px` drawer (the harness window is maximised and would not resize) —
-  it mounts the same `Sidebar`, so it inherits the order by construction; the whole thing on an
+  it mounts the same `Sidebar`, so it inherits the order by construction; a ratio stored before
+  the swap giving Properties the same share (true by construction — the key and `sanitizePrefs`
+  are untouched — but not exercised); the whole thing on an
   iPad, by finger and Pencil, including the reversed divider drag. `docs/screenshot.png` still
   shows the old order and is owed a retake.
 - 758 tests in 56 files.
