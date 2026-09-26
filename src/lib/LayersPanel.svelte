@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import {
     ChevronDown,
     ChevronRight,
@@ -34,6 +35,7 @@
   import PanelHeader from "./PanelHeader.svelte";
   import { dropTarget, type Drag, type Drop, type RowBox } from "./layer-drop";
   import { trashAction } from "./layer-trash";
+  import { revealScrollTop } from "./reveal";
 
   /** Spec (M3a) §5. Collapsed layers and the rename draft are panel-local, never saved. */
   const collapsed = $state<Record<string, boolean>>({});
@@ -49,6 +51,26 @@
   const current = $derived(app.doc.layers.find((l) => l.id === app.currentLayerId) ?? null);
   const trash = $derived(trashAction(app.selection.length, app.doc.layers.length));
   const selected = $derived(new Set(app.selection));
+
+  /** Properties sits below this panel and opens when something is selected, shrinking this list
+   *  from the bottom — so a row selected low in the list, here or on the canvas, would end up under
+   *  its header. Scroll it back into view once the layout has settled, nearest edge only, so a
+   *  visible row never moves (spec 2026-09-26 §4). `scrollTop` directly, never `scrollIntoView`,
+   *  which would also scroll the drawer and the page. */
+  $effect(() => {
+    const id = app.selection.at(-1);
+    const el = list;
+    if (id === undefined || !el) return;
+    void tick().then(() => {
+      const row = el.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
+      if (!row) return;
+      const view = el.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      const top = r.top - view.top + el.scrollTop;
+      const next = revealScrollTop(el.scrollTop, el.clientHeight, top, top + r.height);
+      if (next !== el.scrollTop) el.scrollTop = next;
+    });
+  });
 
   /** Says which thing is responsible, so a greyed row explains itself (invariant 24). */
   const nodeBlockedTitle = (n: Node, l: Layer, inherited: boolean): string | undefined =>
