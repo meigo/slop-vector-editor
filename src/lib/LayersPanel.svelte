@@ -176,11 +176,12 @@
     ids: selected.has(id) ? app.selection : [id],
   });
 
-  /** Row geometry, shared with slop-animator and slop-paint: every row starts 8px in plus 16px
-   *  per level, and its state toggles sit in fixed 20px columns at a 6px right inset — whatever
-   *  the row's kind or depth — so the eyes and locks make straight columns. An "off" toggle
+  /** Row geometry, shared with slop-animator and slop-paint: every row starts 8px in, and each
+   *  level indents by one grip slot plus its gap (14 + 4px), so a child's grip sits exactly under
+   *  its parent's chevron. The state toggles sit in fixed 20px columns at a 6px right inset —
+   *  whatever the row's kind or depth — so the eyes and locks make straight columns. An "off" toggle
    *  (hidden, locked) is warn-coloured so it stands out in a column of muted icons. */
-  const rowPad = (depth: number) => `padding-left: ${8 + 16 * depth}px`;
+  const rowPad = (depth: number) => `padding-left: ${8 + 18 * depth}px`;
   const toggleClass = (off: boolean) => [
     "flex h-8 w-5 shrink-0 items-center justify-center rounded",
     off ? "text-warn" : "text-muted hover:text-text",

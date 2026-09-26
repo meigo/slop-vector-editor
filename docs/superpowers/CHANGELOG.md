@@ -1946,3 +1946,11 @@ geometry slop-animator and slop-paint already share.
   layer-row buttons — worth a finger check), and a classic (non-overlay) scrollbar, which would
   take its width from the rows' right edge but not the header's.
 - 758 tests in 56 files.
+
+## 2026-09-26 — A child's grip sits under its parent's chevron
+
+Supersedes the "16px per level" in the entry above. Reported with a screenshot of slop-animator,
+where a member's grip is exactly under its group's chevron; here it sat 2px left of it, because a
+level indented 16px while the grip slot plus its gap is 18px. A level now indents 18px
+(`rowPad`, `8 + 18 * depth`): at depth n the grip starts at 8 + 18n px, which is where the chevron
+of a row at depth n − 1 starts. Measured in Chrome at :5198 on the same test document as above.
