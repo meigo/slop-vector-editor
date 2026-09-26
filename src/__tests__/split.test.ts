@@ -49,14 +49,15 @@ describe("clampRatio", () => {
 });
 
 describe("ratioFromDrag", () => {
-  it("moves the ratio by the pointer's share of the body", () => {
-    expect(ratioFromDrag(0.5, 80, 800, 120)).toBeCloseTo(0.6, 10);
-    expect(ratioFromDrag(0.5, -80, 800, 120)).toBeCloseTo(0.4, 10);
+  // Properties sits BELOW the divider, and the ratio is its share: dragging down shrinks it.
+  it("moves the ratio against the pointer's share of the body", () => {
+    expect(ratioFromDrag(0.5, 80, 800, 120)).toBeCloseTo(0.4, 10);
+    expect(ratioFromDrag(0.5, -80, 800, 120)).toBeCloseTo(0.6, 10);
   });
 
   it("clamps a drag that would starve either panel", () => {
-    expect(ratioFromDrag(0.5, 1000, 800, 120)).toBeCloseTo(0.85, 10);
-    expect(ratioFromDrag(0.5, -1000, 800, 120)).toBeCloseTo(0.15, 10);
+    expect(ratioFromDrag(0.5, 1000, 800, 120)).toBeCloseTo(0.15, 10);
+    expect(ratioFromDrag(0.5, -1000, 800, 120)).toBeCloseTo(0.85, 10);
   });
 
   it("cannot divide by a body of zero", () => {
