@@ -394,9 +394,9 @@ every user-visible change.
     `dist/assets/` unhashed, and the immutable year-long `Cache-Control` then pins it in every
     browser cache with no way to bust it — that rule is safe only because everything Vite emits
     there is content-hashed. Regenerate the icon from `favicon.svg` when the mark changes — the mark
-    in `#667fff` at 156px, 12px in from each edge of the 180px `#1e1e22` tile (`sharp`, present as a
-    dependency of wrangler, rasterises it). `#667fff` is the family blue; each slop app's favicon
-    colour is listed in `../SLOP-FAVICON-COLOURS.md`. The CSP's `style-src`
+    in `#ccff66` at 156px, 12px in from each edge of the 180px `#1e1e22` tile (`sharp`, present as a
+    dependency of wrangler, rasterises it). `#ccff66` is this app's hue of the family blue `#667fff`;
+    each slop app's favicon colour is listed in `../SLOP-FAVICON-COLOURS.md`. The CSP's `style-src`
     needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such
     exception.
