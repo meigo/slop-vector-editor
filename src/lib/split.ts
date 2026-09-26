@@ -23,7 +23,8 @@ export function clampRatio(ratio: number, bodyPx: number, minPx: number): number
   return Math.min(Math.max(ratio, min), 1 - min);
 }
 
-/** The ratio a drag lands on: the pointer's travel since pointer-down, as a share of the body. */
+/** The ratio a drag lands on. `deltaPx` is the pointer's downward travel since pointer-down.
+ *  Properties — whose share the ratio is — sits below the divider, so travel down gives it less. */
 export function ratioFromDrag(
   startRatio: number,
   deltaPx: number,
@@ -31,7 +32,7 @@ export function ratioFromDrag(
   minPx: number,
 ): number {
   if (!Number.isFinite(bodyPx) || bodyPx <= 0) return clampRatio(startRatio, bodyPx, minPx);
-  return clampRatio(startRatio + deltaPx / bodyPx, bodyPx, minPx);
+  return clampRatio(startRatio - deltaPx / bodyPx, bodyPx, minPx);
 }
 
 /** Properties is open when the user has said so, and otherwise whenever something is selected —

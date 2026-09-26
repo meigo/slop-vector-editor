@@ -37,9 +37,11 @@ What works today:
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
-- The Properties and Layers panels split one column, with a divider you can drag and a chevron on
-  each to fold it away. Properties folds itself away when nothing is selected — click its header to
-  reach the new-shape defaults, and it stays open until you select something.
+- The Layers and Properties panels split one column, Layers on top, with a divider you can drag
+  and a chevron on each to fold it away. Properties folds itself away when nothing is selected —
+  click its header to reach the new-shape defaults, and it stays open until you select something.
+  Opening and closing it never shifts the layer list; a selected row that would be hidden scrolls
+  just into view.
 - An on-screen Shift/Alt/Snap pad for touch. Snap is always there; the Shift and Alt latches fold
   away behind a chevron, and open themselves the first time you use a finger or a Pencil.
 - An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover

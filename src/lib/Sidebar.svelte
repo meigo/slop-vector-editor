@@ -8,7 +8,9 @@
   /** Spec (M8): two panels with raised headers, a draggable divider between them, and a ratio that
    *  persists. Properties follows the selection unless the user overrode it; Layers is a plain
    *  toggle. The divider only exists while both are open — with one collapsed there is nothing to
-   *  distribute, and an inert strip between two bars would be dead space that looks draggable. */
+   *  distribute, and an inert strip between two bars would be dead space that looks draggable.
+   *  Layers sits on top (spec 2026-09-26) so that Properties opening and closing with the
+   *  selection moves only Layers' bottom edge, never its rows. */
   const showProps = $derived(propsOpen(app.propsOverride, app.selection.length > 0));
   const showLayers = $derived(app.prefs.layersOpen);
   const split = $derived(showProps && showLayers);
@@ -192,17 +194,18 @@
       aria-hidden="true"
     ></span>
   </button>
-  <PropertiesPanel
-    expanded={showProps}
-    ontoggle={togglePropsPanel}
-    flex={flexFor(ratio, showProps, showLayers)}
+  <LayersPanel
+    expanded={showLayers}
+    ontoggle={toggleLayers}
+    flex={flexFor(1 - ratio, showLayers, showProps)}
   />
   {#if split}
+    <!-- aria-valuenow is the separator's position from the top, which is Layers' share. -->
     <div
       class="group flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center bg-panel"
       role="separator"
       aria-orientation="horizontal"
-      aria-valuenow={Math.round(ratio * 100)}
+      aria-valuenow={Math.round((1 - ratio) * 100)}
       aria-valuemin={0}
       aria-valuemax={100}
       title="Drag to resize the panels"
@@ -215,9 +218,9 @@
       <div class="h-0.5 w-8 rounded-full bg-disabled group-hover:bg-muted"></div>
     </div>
   {/if}
-  <LayersPanel
-    expanded={showLayers}
-    ontoggle={toggleLayers}
-    flex={flexFor(1 - ratio, showLayers, showProps)}
+  <PropertiesPanel
+    expanded={showProps}
+    ontoggle={togglePropsPanel}
+    flex={flexFor(ratio, showProps, showLayers)}
   />
 </div>
