@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 752 tests in 55 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 758 tests in 56 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -99,8 +99,8 @@ every user-visible change.
 - `src/lib/` — `Canvas`, `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
-  (the Properties + Layers column: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `layer-trash.ts` (pure: what the header trash deletes), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
+  (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
+  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
   `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a fresh tap at Save to Files when
   `deliverFile` didn't attempt a direct share, or the attempt needs a fresh tap), `Notices`.
@@ -217,6 +217,12 @@ every user-visible change.
       deferred to a microtask and only the first "was empty" of a tick counts, so one user action is
       judged by its net effect: Unite and Ungroup both delete every selected id and select the
       result on the next statement, and per-assignment that reads as a flip to empty and back.
+      **That is why Properties sits BELOW Layers** (2026-09-26): above it, every flip moved the
+      whole layer list — a row clicked with nothing selected jumped from 188px to 592px, away from
+      the pointer. Below it, the exception moves only Layers' bottom edge, never a row, and the
+      Layers list scrolls the last selected row back into view nearest-edge (`reveal.ts`) so the
+      shrinking list cannot hide it. `splitRatio` is still **Properties'** share, so stored splits
+      survived the swap; only `ratioFromDrag`'s sign flipped (dragging down shrinks Properties).
     - **The root font-size stays at the browser's 16px.** Tailwind's whole scale is in `rem`, which
       resolves against `html`, so setting a root size silently rescales every size in the app:
       `font-size: 14px` on `html` made `text-xs` 10.5px, `h-8` controls 28px, the 240px sidebar

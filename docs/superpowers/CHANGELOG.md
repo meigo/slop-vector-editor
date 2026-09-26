@@ -1889,3 +1889,33 @@ exactly what a per-task review has no way to look at.
   two-piece mark stays legible at 16px. Browsers cache favicons aggressively and neither file is
   under `/assets/` (so neither is content-hashed); an already-open tab or an existing home-screen
   icon may show the old mark until reloaded or re-added.
+
+## 2026-09-26 — Layers above Properties
+
+Spec `docs/superpowers/specs/2026-09-26-layers-on-top-design.md`, plan
+`docs/superpowers/plans/2026-09-26-layers-on-top.md`.
+
+- **The fault, measured** (desktop Chrome, :5198, before the change): with Properties above Layers,
+  a real click on a layer row with nothing selected moved that row from y=188 to y=592 CSS px as
+  Properties opened above it, and Escape moved it back — every flip of the selection's emptiness
+  shifted the whole layer list, against invariant 23's own reason for existing.
+- **The sidebar now stacks Layers, divider, Properties.** Properties' open/close moves only Layers'
+  bottom edge. `prefs.splitRatio` still means Properties' share, so stored splits carry over with
+  no migration; `ratioFromDrag` flipped its sign (dragging down now shrinks Properties) and the
+  divider's `aria-valuenow` is Layers' share, the separator's position from the top.
+- **The selected layer row stays in view** (`src/lib/reveal.ts`, `revealScrollTop`): on a
+  selection change the Layers list scrolls the last selected row in, nearest edge, by setting
+  `scrollTop` directly (never `scrollIntoView`, which would scroll the drawer and page too). A
+  visible row causes no scroll. A row inside a collapsed layer or group is left alone.
+- **Desktop-verified** (Chrome, :5198): Layers header at the top and Properties header at the
+  bottom with nothing selected; the same click-and-Escape as above leaves the row at y=148 both
+  times; with 26 rows, clicking one at y=660 with Properties collapsed ends it flush with the
+  shrunken list's bottom (row bottom 398 = list bottom 398, scrollTop 0→294) — it does move, but
+  the alternative was hidden; clicking a visible row near the top leaves scrollTop at 0 and the row
+  in place; dragging the divider down 100px grows the list 314→414px, ratio 0.55→0.42,
+  `aria-valuenow` 45→58; the ratio survives a reload; no console errors.
+- **Not verified:** the `<900px` drawer (the harness window is maximised and would not resize) —
+  it mounts the same `Sidebar`, so it inherits the order by construction; the whole thing on an
+  iPad, by finger and Pencil, including the reversed divider drag. `docs/screenshot.png` still
+  shows the old order and is owed a retake.
+- 758 tests in 56 files.
