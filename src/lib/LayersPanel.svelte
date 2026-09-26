@@ -175,6 +175,16 @@
     kind: "node",
     ids: selected.has(id) ? app.selection : [id],
   });
+
+  /** Row geometry, shared with slop-animator and slop-paint: every row starts 8px in plus 16px
+   *  per level, and its state toggles sit in fixed 20px columns at a 6px right inset — whatever
+   *  the row's kind or depth — so the eyes and locks make straight columns. An "off" toggle
+   *  (hidden, locked) is warn-coloured so it stands out in a column of muted icons. */
+  const rowPad = (depth: number) => `padding-left: ${8 + 16 * depth}px`;
+  const toggleClass = (off: boolean) => [
+    "flex h-8 w-5 shrink-0 items-center justify-center rounded",
+    off ? "text-warn" : "text-muted hover:text-text",
+  ];
 </script>
 
 <svelte:window
@@ -199,17 +209,17 @@
       data-row-id={node.id}
       data-row-kind="node"
       class={[
-        "flex h-8 items-center gap-0.5 pr-1",
+        "flex h-8 items-center gap-1 pr-[6px]",
         isSelected && "ui-selected",
         blocked && "text-muted",
       ]}
-      style="padding-left: {depth * 20}px"
+      style={rowPad(depth)}
       title={nodeBlockedTitle(node, layer, inherited)}
     >
       <button
         type="button"
         tabindex="-1"
-        class="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-muted"
+        class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
         style="touch-action: none"
         aria-label="Drag “{rowLabel(node)}”"
         onpointerdown={(e) => {
@@ -225,7 +235,7 @@
       {#if isGroup}
         <button
           type="button"
-          class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+          class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
           aria-label={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           aria-expanded={open}
           onclick={() => (collapsed[node.id] = open)}
@@ -233,7 +243,7 @@
           {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
         </button>
       {:else}
-        <span class="w-5 shrink-0"></span>
+        <span class="w-3.5 shrink-0"></span>
       {/if}
       {#if editing?.kind === "node" && editing.id === node.id}
         <input
@@ -268,21 +278,21 @@
            cannot be selected, so its own row is the only way back. -->
       <button
         type="button"
-        class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
-        aria-label={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
-        title={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
-        onclick={() => toggleNodeVisible(node.id)}
-      >
-        {#if isHidden(node)}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
-      </button>
-      <button
-        type="button"
-        class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+        class={toggleClass(isLocked(node))}
         aria-label={isLocked(node) ? `Unlock “${rowLabel(node)}”` : `Lock “${rowLabel(node)}”`}
         title={isLocked(node) ? `Unlock “${rowLabel(node)}”` : `Lock “${rowLabel(node)}”`}
         onclick={() => toggleNodeLocked(node.id)}
       >
         {#if isLocked(node)}<Lock size={14} />{:else}<LockOpen size={14} />{/if}
+      </button>
+      <button
+        type="button"
+        class={toggleClass(isHidden(node))}
+        aria-label={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
+        title={isHidden(node) ? `Show “${rowLabel(node)}”` : `Hide “${rowLabel(node)}”`}
+        onclick={() => toggleNodeVisible(node.id)}
+      >
+        {#if isHidden(node)}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
       </button>
     </div>
     {#if isGroup && open}
@@ -340,12 +350,13 @@
             <div
               data-row-id={layer.id}
               data-row-kind="layer"
-              class={["flex h-8 items-center gap-0.5 pr-1", isCurrent && "ui-selected-tint"]}
+              class={["flex h-8 items-center gap-1 pr-[6px]", isCurrent && "ui-selected-tint"]}
+              style={rowPad(0)}
             >
               <button
                 type="button"
                 tabindex="-1"
-                class="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-muted"
+                class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
                 style="touch-action: none"
                 aria-label="Drag “{layer.name}”"
                 onpointerdown={(e) => startDrag(e, { kind: "layer", id: layer.id })}
@@ -358,7 +369,7 @@
               </button>
               <button
                 type="button"
-                class="flex h-8 w-5 shrink-0 items-center justify-center text-muted"
+                class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
                 aria-label={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 aria-expanded={open}
                 onclick={() => (collapsed[layer.id] = open)}
@@ -399,21 +410,21 @@
               {/if}
               <button
                 type="button"
-                class="icon-btn"
-                aria-label={layer.visible ? `Hide “${layer.name}”` : `Show “${layer.name}”`}
-                title={layer.visible ? `Hide “${layer.name}”` : `Show “${layer.name}”`}
-                onclick={() => toggleLayerVisible(layer.id)}
-              >
-                {#if layer.visible}<Eye size={14} />{:else}<EyeOff size={14} />{/if}
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
+                class={toggleClass(layer.locked)}
                 aria-label={layer.locked ? `Unlock “${layer.name}”` : `Lock “${layer.name}”`}
                 title={layer.locked ? `Unlock “${layer.name}”` : `Lock “${layer.name}”`}
                 onclick={() => toggleLayerLocked(layer.id)}
               >
                 {#if layer.locked}<Lock size={14} />{:else}<LockOpen size={14} />{/if}
+              </button>
+              <button
+                type="button"
+                class={toggleClass(!layer.visible)}
+                aria-label={layer.visible ? `Hide “${layer.name}”` : `Show “${layer.name}”`}
+                title={layer.visible ? `Hide “${layer.name}”` : `Show “${layer.name}”`}
+                onclick={() => toggleLayerVisible(layer.id)}
+              >
+                {#if layer.visible}<Eye size={14} />{:else}<EyeOff size={14} />{/if}
               </button>
             </div>
 

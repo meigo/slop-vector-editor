@@ -1921,3 +1921,28 @@ Spec `docs/superpowers/specs/2026-09-26-layers-on-top-design.md`, plan
   iPad, by finger and Pencil, including the reversed divider drag. `docs/screenshot.png` still
   shows the old order and is owed a retake.
 - 758 tests in 56 files.
+
+## 2026-09-26 — Layers panel rows line up
+
+No spec: a markup-only pass over `LayersPanel.svelte` and `PanelHeader.svelte`, taking the row
+geometry slop-animator and slop-paint already share.
+
+- **The fault** (reported with a screenshot): the header's actions, a layer row's toggles and an
+  object row's toggles used three different boxes (32/18px, 32/14px, 20/14px) at three insets, so
+  their icon centres sat 24, 20 and 14px from the right edge; layer toggles were white and object
+  toggles muted. On the left, a layer row's grip was flush with the panel edge while the header's
+  chevron started 8px in, and depth indented 20px per level.
+- **Right:** every row's toggles are 20px columns at a 6px right inset, 14px icons, muted; the
+  header's right padding is 2px, so its 18px icons in 32px buttons end on the same edge (9px).
+  **Order is now lock, then eye** (outermost, as the siblings) and **an off toggle — hidden or
+  locked — is `text-warn`.**
+- **Left:** a row starts 8px in plus 16px per level; the grip and chevron slots are 14px, so a
+  top-level grip sits under the header's chevron and names step by exactly 16px per level.
+- **Desktop-verified** (Chrome, :5198, a document with a hidden+locked layer, a nested group, a
+  hidden rect and a locked ellipse): every row's eye and the header trash end 9px from the edge,
+  every lock 33px; grips at 8/24/40/56px by depth with names at 44/60/76/92px; the warn colour
+  lands on exactly the hidden/locked toggles. Screenshot-checked.
+- **Not verified:** iPad (the 20px toggle column is the siblings' size, narrower than the old 32px
+  layer-row buttons — worth a finger check), and a classic (non-overlay) scrollbar, which would
+  take its width from the rows' right edge but not the header's.
+- 758 tests in 56 files.

@@ -27,7 +27,9 @@
      it sits on, and between two collapsed headers it is the darker line that keeps them apart.
      `border-line` (#2e2e35) against `bg-raised` (#2d2d33) would be the very non-boundary this
      milestone exists to remove — and two stacked headers is the default state. -->
-<div class="flex h-10 shrink-0 items-center gap-1 border-b border-panel bg-raised pr-2 pl-1">
+<!-- `pr-0.5`: a 32px action holds an 18px icon with 7px of air, so its icon ends 9px from the edge —
+     the same edge as the layer rows' 14px toggles in 20px boxes at a 6px inset. -->
+<div class="flex h-10 shrink-0 items-center gap-1 border-b border-panel bg-raised pr-0.5 pl-1">
   <button
     type="button"
     class="flex h-8 items-center gap-1 rounded px-1 text-muted hover:text-text"
