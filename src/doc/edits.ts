@@ -5,11 +5,12 @@ import {
   MAX_SIDES,
   MIN_INNER,
   MIN_SIDES,
+  sameFill,
   withBakedSubpaths,
   type Artboard,
   type Doc,
+  type Fill,
   type Node,
-  type Paint,
   type PolygonShape,
   type Shape,
   type Style,
@@ -30,11 +31,6 @@ import { mapShapes, mapNodes } from "./tree";
 /** Pure document edits: `(doc, args) => doc`. An edit that changes nothing returns the SAME
  *  reference, which is how the undo session knows not to record a step. */
 
-function samePaint(a: Paint | null, b: Paint | null): boolean {
-  if (a === null || b === null) return a === b;
-  return a.color === b.color && a.opacity === b.opacity;
-}
-
 export function setArtboard(doc: Doc, artboard: Artboard): Doc {
   if (!isValidArtboardSize(artboard.w) || !isValidArtboardSize(artboard.h)) {
     throw new RangeError(`Invalid artboard size ${artboard.w} × ${artboard.h}`);
@@ -43,7 +39,7 @@ export function setArtboard(doc: Doc, artboard: Artboard): Doc {
   if (
     cur.w === artboard.w &&
     cur.h === artboard.h &&
-    samePaint(cur.background, artboard.background)
+    sameFill(cur.background, artboard.background)
   ) {
     return doc;
   }
@@ -167,7 +163,7 @@ export function rotateNodes(doc: Doc, ids: readonly string[], angle: number, cen
 function styleMatches(s: Style, patch: Partial<Style>): boolean {
   return (Object.keys(patch) as (keyof Style)[]).every((k) =>
     k === "fill" || k === "stroke"
-      ? samePaint(s[k], (patch[k] ?? null) as Paint | null)
+      ? sameFill(s[k] as Fill | null, (patch[k] ?? null) as Fill | null)
       : s[k] === patch[k],
   );
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createDoc, DEFAULT_STYLE, type Doc, type Shape } from "../doc/document";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  type Doc,
+  type LinearGradient,
+  type Shape,
+} from "../doc/document";
 import { IDENTITY } from "../geom/mat";
 import { layerAttrs, polygonD, shapeAttrs, styleAttrs } from "../svg/attrs";
 import { parseSvg } from "../svg/parse";
@@ -7,7 +13,7 @@ import { serializeDoc } from "../svg/serialize";
 
 describe("styleAttrs", () => {
   it("writes the default style compactly", () => {
-    expect(styleAttrs(DEFAULT_STYLE)).toEqual({
+    expect(styleAttrs(DEFAULT_STYLE, "n1")).toEqual({
       fill: "#d9d9d9",
       stroke: "#000000",
       "stroke-width": "1",
@@ -16,14 +22,17 @@ describe("styleAttrs", () => {
 
   it("writes none, opacities and non-default caps", () => {
     expect(
-      styleAttrs({
-        fill: null,
-        stroke: { color: "#ff0000", opacity: 0.5 },
-        strokeWidth: 2.5,
-        cap: "round",
-        join: "bevel",
-        opacity: 0.25,
-      }),
+      styleAttrs(
+        {
+          fill: null,
+          stroke: { color: "#ff0000", opacity: 0.5 },
+          strokeWidth: 2.5,
+          cap: "round",
+          join: "bevel",
+          opacity: 0.25,
+        },
+        "n1",
+      ),
     ).toEqual({
       fill: "none",
       stroke: "#ff0000",
@@ -36,7 +45,7 @@ describe("styleAttrs", () => {
   });
 
   it("keeps stroke width and caps when stroke is none", () => {
-    const a = styleAttrs({ ...DEFAULT_STYLE, stroke: null, strokeWidth: 3, cap: "square" });
+    const a = styleAttrs({ ...DEFAULT_STYLE, stroke: null, strokeWidth: 3, cap: "square" }, "n1");
     expect(a.stroke).toBeUndefined();
     expect(a["stroke-width"]).toBe("3");
     expect(a["stroke-linecap"]).toBe("square");
@@ -278,5 +287,55 @@ describe("serializeDoc with a view", () => {
   it("rounds a fractional box through fmt, as every other coordinate is", () => {
     const svg = serializeDoc(createDoc(400, 300), { x: 1.5, y: 2.25, w: 10.125, h: 20 });
     expect(svg).toContain('viewBox="1.5 2.25 10.125 20"');
+  });
+});
+
+describe("gradients (spec M15 §3)", () => {
+  const g: LinearGradient = {
+    kind: "linear",
+    from: { x: 10, y: 20 },
+    to: { x: 110, y: 20 },
+    start: { color: "#ff3366", opacity: 1 },
+    end: { color: "#ff3366", opacity: 0 },
+  };
+  const withGradient = () => {
+    const d = createDoc(200, 100);
+    return {
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          children: [
+            {
+              kind: "rect" as const,
+              id: "n12",
+              transform: IDENTITY,
+              style: { ...DEFAULT_STYLE, fill: g, stroke: { ...g, to: { x: 10, y: 90 } } },
+              x: 0,
+              y: 0,
+              w: 100,
+              h: 50,
+              rx: 0,
+            },
+          ],
+        },
+      ],
+    };
+  };
+
+  it("writes one userSpaceOnUse gradient per paint in a leading <defs>, and url() references", () => {
+    const out = serializeDoc(withGradient());
+    expect(out).toContain(
+      '<defs>\n    <linearGradient id="sv-grad-n12-fill" gradientUnits="userSpaceOnUse" x1="10" y1="20" x2="110" y2="20">\n      <stop offset="0" stop-color="#ff3366"/>\n      <stop offset="1" stop-color="#ff3366" stop-opacity="0"/>\n    </linearGradient>',
+    );
+    expect(out).toContain('id="sv-grad-n12-stroke"');
+    expect(out).toContain('fill="url(#sv-grad-n12-fill)"');
+    expect(out).toContain('stroke="url(#sv-grad-n12-stroke)"');
+    expect(out).not.toContain("fill-opacity");
+    expect(out.indexOf("<defs>")).toBeLessThan(out.indexOf("data-sv-layer"));
+  });
+
+  it("writes no <defs> at all without gradients", () => {
+    expect(serializeDoc(createDoc(200, 100))).not.toContain("<defs");
   });
 });

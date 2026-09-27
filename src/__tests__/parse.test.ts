@@ -5,7 +5,10 @@ import inkscape from "../../fixtures/inkscape-layers.svg?raw";
 import {
   createDoc,
   DEFAULT_STYLE,
+  isGradient,
   type Doc,
+  type Fill,
+  type Paint,
   type PathShape,
   type PolygonShape,
   type Shape,
@@ -19,6 +22,12 @@ import { parsePathData } from "../svg/pathdata";
 import { serializeDoc } from "../svg/serialize";
 import { XmlError } from "../svg/xml";
 import { stripIds } from "./helpers";
+
+/** The importer never produces a gradient (Task 2 adds that); every fixture's fill here is flat. */
+function flatFill(f: Fill | null): Paint {
+  if (f === null || isGradient(f)) throw new Error("expected a flat paint");
+  return f;
+}
 
 describe("rectPath", () => {
   it("makes 4 corners without radius and 8 nodes with one", () => {
@@ -216,11 +225,11 @@ describe("parseSvg — foreign files", () => {
     const { doc } = parseSvg(
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:red !important"/></svg>`,
     );
-    expect((doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#ff0000");
+    expect(flatFill((doc.layers[0].children[0] as Shape).style.fill).color).toBe("#ff0000");
     const kept = parseSvg(
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:not-a-color"/></svg>`,
     );
-    expect((kept.doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#0000ff");
+    expect(flatFill((kept.doc.layers[0].children[0] as Shape).style.fill).color).toBe("#0000ff");
   });
 
   it("reports a style visibility override and not one under display:none", () => {
@@ -239,8 +248,8 @@ describe("parseSvg — foreign files", () => {
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:#ff000080" fill-opacity="0.5"/></svg>`,
     );
     const [rect] = doc.layers[0].children as Shape[];
-    expect(rect.style.fill!.color).toBe("#ff0000");
-    expect(rect.style.fill!.opacity).toBeCloseTo(0.25, 2);
+    expect(flatFill(rect.style.fill).color).toBe("#ff0000");
+    expect(flatFill(rect.style.fill).opacity).toBeCloseTo(0.25, 2);
   });
 
   it("skips empty and zero-size content, but KEEPS hidden content (spec M9 §1)", () => {

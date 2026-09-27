@@ -1,17 +1,12 @@
-import type { Doc, Node, Paint, Style } from "./document";
+import { sameColours, type Doc, type Node, type Style } from "./document";
 import { findNode, selectableIds } from "./tree";
 
 /** What "the same" means for `sameIds` (spec M6 §3). */
 export type MatchField = "fill" | "stroke" | "style" | "kind";
 
-/** Colours compare exactly: the document stores what the user picked, and a nearly-equal orange is
- *  a different colour. `null` (no paint) matches only `null`. */
-const samePaint = (a: Paint | null, b: Paint | null): boolean =>
-  a === null || b === null ? a === b : a.color === b.color && a.opacity === b.opacity;
-
 const sameStyle = (a: Style, b: Style): boolean =>
-  samePaint(a.fill, b.fill) &&
-  samePaint(a.stroke, b.stroke) &&
+  sameColours(a.fill, b.fill) &&
+  sameColours(a.stroke, b.stroke) &&
   a.strokeWidth === b.strokeWidth &&
   a.cap === b.cap &&
   a.join === b.join &&
@@ -25,8 +20,8 @@ function matches(field: MatchField, a: Node, b: Node): boolean {
   const x = styleOf(a);
   const y = styleOf(b);
   if (x === null || y === null) return false;
-  if (field === "fill") return samePaint(x.fill, y.fill);
-  if (field === "stroke") return samePaint(x.stroke, y.stroke);
+  if (field === "fill") return sameColours(x.fill, y.fill);
+  if (field === "stroke") return sameColours(x.stroke, y.stroke);
   return sameStyle(x, y);
 }
 

@@ -1,9 +1,11 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
 import {
   createDoc,
+  isGradient,
   isHidden,
   isLocked,
   type Doc,
+  type FlatStyle,
   type NodeType,
   type PathShape,
   type Style,
@@ -620,7 +622,13 @@ export function setSelectionPolygon(patch: PolygonPatch): void {
 export function setSelectionStyle(patch: Partial<Style>): void {
   cancelActiveGesture();
   if (app.selection.length === 0) {
-    setPrefs({ ...app.prefs, style: { ...app.prefs.style, ...patch } });
+    // Spec M15 §2: new shapes are drawn flat; the panel never offers a gradient here, and a
+    // gradient patch must not reach the preferences if one ever arrives.
+    const { fill, stroke, ...rest } = patch;
+    const flat: Partial<FlatStyle> = { ...rest };
+    if (fill !== undefined && !isGradient(fill)) flat.fill = fill;
+    if (stroke !== undefined && !isGradient(stroke)) flat.stroke = stroke;
+    setPrefs({ ...app.prefs, style: { ...app.prefs.style, ...flat } });
     return;
   }
   commitDoc(setStyle(app.doc, app.selection, patch));

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Paint } from "../doc/document";
+  import { isGradient, type Fill, type Paint } from "../doc/document";
   import type { Field } from "../state/properties";
   import NumberField from "./NumberField.svelte";
   import ToggleButton from "./ToggleButton.svelte";
@@ -14,7 +14,7 @@
     onliveend,
   }: {
     label: string;
-    field: Field<Paint | null>;
+    field: Field<Fill | null>;
     present: Field<boolean>;
     fallback: Paint;
     onchange: (p: Paint | null) => void;
@@ -24,7 +24,8 @@
     onliveend?: () => void;
   } = $props();
 
-  const paint = $derived(field.mixed ? null : field.value);
+  // A gradient shows no row yet (Task 6 adds one); until then, the panel treats it like "mixed".
+  const paint = $derived(field.mixed || isGradient(field.value) ? null : field.value);
   let hexDraft = $state<string | null>(null);
   /** True between the first `input` of a picker drag and the `change`/`blur` that ends it. */
   let live = $state(false);

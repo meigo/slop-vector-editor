@@ -1,14 +1,15 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
 import { pathOpRefusals, type PathOp } from "../doc/path-ops";
-import type {
-  Doc,
-  LineCap,
-  LineJoin,
-  NodeType,
-  Paint,
-  PolygonShape,
-  RectShape,
-  Style,
+import {
+  sameColours,
+  type Doc,
+  type Fill,
+  type LineCap,
+  type LineJoin,
+  type NodeType,
+  type PolygonShape,
+  type RectShape,
+  type Style,
 } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import type { NodeRef } from "../doc/path-edit";
@@ -22,8 +23,8 @@ import { normalizeAngle } from "../tools/gizmo";
 export type Field<T> = { mixed: true } | { mixed: false; value: T };
 
 export type StyleSummary = {
-  fill: Field<Paint | null>;
-  stroke: Field<Paint | null>;
+  fill: Field<Fill | null>;
+  stroke: Field<Fill | null>;
   fillOn: Field<boolean>;
   strokeOn: Field<boolean>;
   strokeWidth: Field<number>;
@@ -37,11 +38,6 @@ export type GeometryField = keyof Geometry;
 
 const EPS = 1e-9;
 
-function samePaint(a: Paint | null, b: Paint | null): boolean {
-  if (a === null || b === null) return a === b;
-  return a.color === b.color && a.opacity === b.opacity;
-}
-
 function merge<T>(values: readonly T[], eq: (a: T, b: T) => boolean = (a, b) => a === b): Field<T> {
   const first = values[0];
   return values.every((v) => eq(v, first)) ? { mixed: false, value: first } : { mixed: true };
@@ -52,11 +48,11 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
   return {
     fill: merge(
       styles.map((s) => s.fill),
-      samePaint,
+      sameColours,
     ),
     stroke: merge(
       styles.map((s) => s.stroke),
-      samePaint,
+      sameColours,
     ),
     fillOn: merge(styles.map((s) => s.fill !== null)),
     strokeOn: merge(styles.map((s) => s.stroke !== null)),

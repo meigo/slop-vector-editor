@@ -2,7 +2,7 @@
 
 <script lang="ts">
   import type { Node } from "../doc/document";
-  import { groupAttrs, shapeAttrs } from "../svg/attrs";
+  import { gradientDefs, groupAttrs, shapeAttrs } from "../svg/attrs";
   import NodeView from "./NodeView.svelte";
 
   let { node }: { node: Node } = $props();
@@ -17,6 +17,20 @@
   </g>
 {:else}
   {@const s = shapeAttrs(node)}
+  {@const defs = gradientDefs(node)}
+  <!-- Spec M15 §3: a shape's gradients sit right before it; SVG allows <defs> anywhere, and ids are
+       page-unique because node ids are. Built by the same function the exporter uses. -->
+  {#if defs.length > 0}
+    <defs>
+      {#each defs as g (g.id)}
+        <linearGradient {...g.attrs}>
+          {#each g.stops as st, i (i)}
+            <stop {...st} />
+          {/each}
+        </linearGradient>
+      {/each}
+    </defs>
+  {/if}
   {#if s.tag === "rect"}
     <rect {...s.attrs} />
   {:else if s.tag === "ellipse"}
