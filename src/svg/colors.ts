@@ -1,5 +1,8 @@
 export type ParsedColor =
-  { kind: "none" } | { kind: "color"; color: string; alpha: number } | { kind: "unsupported" };
+  | { kind: "none" }
+  | { kind: "color"; color: string; alpha: number }
+  | { kind: "url"; id: string; fallback: ParsedColor | null }
+  | { kind: "unsupported" };
 
 const NAMED_SRC =
   "aliceblue:f0f8ff,antiquewhite:faebd7,aqua:00ffff,aquamarine:7fffd4,azure:f0ffff,beige:f5f5dc," +
@@ -61,7 +64,15 @@ function alphaOf(s: string | undefined): number | null {
 
 export function parseColor(value: string): ParsedColor | null {
   const v = value.trim().toLowerCase();
-  if (v.startsWith("url(")) return { kind: "unsupported" };
+  if (v.startsWith("url(")) {
+    // Spec M15 §4: a same-document reference, with an optional fallback after it. An external
+    // reference (`other.svg#g`) can never resolve here. Matched against the ORIGINAL value, not
+    // the lowercased `v`: an id is a case-sensitive XML fragment identifier.
+    const m = /^url\(\s*(['"]?)#([^'")]+)\1\s*\)\s*(.*)$/i.exec(value.trim());
+    if (!m) return { kind: "unsupported" };
+    const rest = m[3].trim();
+    return { kind: "url", id: m[2], fallback: rest === "" ? null : parseColor(rest) };
+  }
   if (v === "none" || v === "transparent") return { kind: "none" };
   if (v === "currentcolor") return { kind: "color", color: "#000000", alpha: 1 };
 

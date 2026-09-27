@@ -189,7 +189,8 @@ export function parseSvg(src: string): ParseResult {
     const c = parseColor(value);
     if (c === null) return current;
     if (c.kind === "none") return null;
-    if (c.kind === "unsupported") {
+    if (c.kind === "unsupported" || c.kind === "url") {
+      // Task 3 resolves `url()` references; until then this stays exactly today's behaviour.
       drop("gradients/patterns");
       return null;
     }

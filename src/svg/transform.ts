@@ -33,24 +33,32 @@ function fnMatrix(name: string, a: number[]): Mat | null {
   return null;
 }
 
-export function parseTransform(value: string): Mat {
+/** Spec M15 §4: `null` when the list could not be read in full, so a caller that must not guess
+ *  (a gradient's `gradientTransform`) can tell that apart from an explicit identity. */
+export function parseTransformOrNull(value: string): Mat | null {
   let result: Mat = IDENTITY;
   let found = false;
   for (const m of value.matchAll(FN_RE)) {
     const args = (m[2].match(NUM_RE) ?? []).map(Number);
-    if (args.some((a) => !Number.isFinite(a))) return IDENTITY;
+    if (args.some((a) => !Number.isFinite(a))) return null;
     const fm = fnMatrix(m[1], args);
-    if (!fm) return IDENTITY; // SVG: an invalid list disables the whole transform
+    if (!fm) return null; // SVG: an invalid list disables the whole transform
     result = multiply(result, fm);
     found = true;
   }
-  // If we found functions, check that the whole string is valid
-  // (only recognized functions, whitespace, and commas)
-  if (found && !/^[\s,]*$/.test(value.replace(FN_RE, ""))) {
-    return IDENTITY;
+  // Whatever recognized functions matched, the rest of the string must be only whitespace and
+  // commas. Not gated on `found`: a value that matches NO recognized function at all (e.g. a
+  // single unknown function) must still be told apart from a truly empty list.
+  if (!/^[\s,]*$/.test(value.replace(FN_RE, ""))) {
+    return null;
   }
   if (found && result.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_COORD)) {
-    return IDENTITY;
+    return null;
   }
   return found ? result : IDENTITY;
+}
+
+/** Shapes: SVG disables an invalid transform list as a whole, which reads as identity. */
+export function parseTransform(value: string): Mat {
+  return parseTransformOrNull(value) ?? IDENTITY;
 }
