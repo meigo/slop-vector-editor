@@ -27,10 +27,12 @@ import {
   setGradientStop,
   setGradientTarget,
   setGradientType,
+  setHoverCursor,
   setSelection,
   setSelectionGradientMid,
   setSelectionGradientStop,
   setSelectionPaintKind,
+  setTool,
   undo,
 } from "../state/appState.svelte";
 
@@ -356,4 +358,11 @@ describe("setSelectionGradientMid (spec M17 §5)", () => {
     undo();
     expect("mid" in (styleOf("a").fill as object)).toBe(false);
   });
+});
+
+it("a tool change clears the hover cursor (spec M17 §6)", () => {
+  setTool("gradient");
+  setHoverCursor("grab");
+  setTool("select");
+  expect(app.hoverCursor).toBeNull();
 });

@@ -553,3 +553,44 @@ describe("midpoint diamond (spec M17 §6)", () => {
     expect((fillOf(ctx.doc(), "a") as LinearGradient).mid).toBe(0.3);
   });
 });
+
+describe("hover cursors (spec M17 §6)", () => {
+  const rad: RadialGradient = {
+    kind: "radial",
+    center: { x: 50, y: 25 },
+    a: { x: 90, y: 25 },
+    b: { x: 50, y: 45 },
+    start: red,
+    end: blue,
+  };
+  it("names each part's cursor and clears over nothing", () => {
+    // "b"'s transform puts its radial's knobs at x 250–290 in document space.
+    const { ctx, state } = fakeContext(
+      doc([rect("a", 0, lin), rect("b", 0, rad, translate(200, 0))]),
+    );
+    state.selection = ["a"];
+    const tool = createGradientTool();
+    const at = (x: number, y: number) => {
+      tool.hover!(ctx, ev(x, y));
+      return state.hoverCursor;
+    };
+    expect(at(0, 25)).toBe("move");
+    expect(at(100, 25)).toBe("move");
+    expect(at(50, 25)).toBe("ew-resize");
+    expect(at(20, 25)).toBe("move");
+    expect(at(300, 300)).toBeNull();
+    state.selection = ["b"];
+    expect(at(250, 25)).toBe("move");
+    expect(at(290, 25)).toBe("move");
+    expect(at(250, 45)).toBe("grab");
+  });
+
+  it("a press clears the hover cursor", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    state.selection = ["a"];
+    const tool = createGradientTool();
+    tool.hover!(ctx, ev(50, 25));
+    tool.down(ctx, ev(300, 300));
+    expect(state.hoverCursor).toBeNull();
+  });
+});

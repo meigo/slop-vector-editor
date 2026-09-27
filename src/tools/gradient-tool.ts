@@ -65,6 +65,18 @@ function stopFor(part: Exclude<HandlePart, "line" | "mid">): StopEnd {
   return part === "center" || part === "start" ? "start" : "end";
 }
 
+/** Spec M17 §6: what a press here would do. CSS has no rotate cursor, so rim B (rotate and scale)
+ *  gets `grab`. */
+const CURSORS: Record<HandlePart, string> = {
+  start: "move",
+  end: "move",
+  center: "move",
+  rimA: "move",
+  line: "move",
+  rimB: "grab",
+  mid: "ew-resize",
+};
+
 function toOwnGradient(h: GradientHandle, g: Gradient): Gradient | null {
   const inv = invert(h.world);
   if (!inv) return null;
@@ -175,6 +187,9 @@ export function createGradientTool(): Tool {
     cursor: "crosshair",
 
     down(ctx, e) {
+      // The canvas does not call `hover` during a gesture, so a stale cursor would otherwise
+      // outlive the knob it named.
+      ctx.setHoverCursor(null);
       cancelMode(ctx);
       const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
       mode = { kind: "pending", start: e, pick: pickHandle(handles(ctx), e.doc, tol) };
@@ -250,6 +265,12 @@ export function createGradientTool(): Tool {
 
     cancel(ctx) {
       cancelMode(ctx);
+    },
+
+    hover(ctx, e) {
+      const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
+      const pick = pickHandle(handles(ctx), e.doc, tol);
+      ctx.setHoverCursor(pick ? CURSORS[pick.part] : null);
     },
   };
 }

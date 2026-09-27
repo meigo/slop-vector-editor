@@ -1,6 +1,7 @@
 <svelte:options namespace="svg" />
 
 <script lang="ts">
+  import { midStop } from "../doc/document";
   import { findNode } from "../doc/tree";
   import { flattenSubpath } from "../geom/bezier";
   import { applyMat, multiply } from "../geom/mat";
@@ -85,7 +86,8 @@
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 
   /** Spec M15 §7, M16 §6: the gradient lines, from the same function the tool hit-tests against.
-   *  Each knob is filled with its stop's colour so start and end are told apart at a glance. */
+   *  Each knob is filled with its stop's colour so start and end are told apart at a glance, and
+   *  shaped by its role (spec M17 §6) so the rims and the centre are too. */
   const gradientView = $derived.by(() => {
     if (app.toolId !== "gradient") return [];
     return gradientHandles(app.doc, app.selection, app.gradientTarget).map((h) => {
@@ -100,6 +102,8 @@
           kind: "linear" as const,
           a: docToScreen(view, h.from),
           b: docToScreen(view, h.to),
+          mid: docToScreen(view, h.mid),
+          midColor: midStop(h.start, h.end).color,
           start: h.start.color,
           end: h.end.color,
           picked,
@@ -123,6 +127,8 @@
         center: docToScreen(view, h.center),
         a: docToScreen(view, h.a),
         b: docToScreen(view, h.b),
+        mid: docToScreen(view, h.mid),
+        midColor: midStop(h.start, h.end).color,
         rim,
         start: h.start.color,
         end: h.end.color,
@@ -208,50 +214,73 @@
   {/if}
 
   {#each gradientView as g, i (i)}
+    {@const r = knobSize / 2 + 1}
+    {@const w = (on: boolean) => (on ? 3 : 1.5)}
+    {@const dm = r * 0.85}
     {#if g.kind === "linear"}
       <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
-      <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
-           drawing in reverse puts the tie's winner, start, on top. -->
-      <circle
-        cx={g.b.x}
-        cy={g.b.y}
-        r={knobSize / 2 + 1}
-        style="stroke: var(--color-accent); fill: {g.end}"
-        stroke-width={g.picked === "end" ? 3 : 1.5}
-      />
-      <circle
-        cx={g.a.x}
-        cy={g.a.y}
-        r={knobSize / 2 + 1}
-        style="stroke: var(--color-accent); fill: {g.start}"
-        stroke-width={g.picked === "start" ? 3 : 1.5}
-      />
     {:else}
       <line x1={g.center.x} y1={g.center.y} x2={g.a.x} y2={g.a.y} style={LINE} stroke-width="1" />
       <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
       <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
-      <!-- Drawn B, then A, then centre (review finding 2): `pickHandle`'s tie order is centre, A,
-           B, so drawing in reverse puts the tie's winner, centre, on top. -->
-      <circle
-        cx={g.b.x}
-        cy={g.b.y}
-        r={knobSize / 2 + 1}
+    {/if}
+    <!-- Spec M17 §6: the midpoint diamond, filled with the 50/50 mix it stands for. Below the
+         knobs, as `pickHandle` ranks it below them. -->
+    <polygon
+      points={points([
+        { x: g.mid.x, y: g.mid.y - dm },
+        { x: g.mid.x + dm, y: g.mid.y },
+        { x: g.mid.x, y: g.mid.y + dm },
+        { x: g.mid.x - dm, y: g.mid.y },
+      ])}
+      style="stroke: var(--color-accent); fill: {g.midColor}"
+      stroke-width="1.5"
+    />
+    {#if g.kind === "linear"}
+      <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
+           drawing in reverse puts the tie's winner, start, on top. Spec M17 §6: end is a square,
+           start a circle. -->
+      <rect
+        x={g.b.x - r}
+        y={g.b.y - r}
+        width={r * 2}
+        height={r * 2}
         style="stroke: var(--color-accent); fill: {g.end}"
-        stroke-width={g.picked === "end" ? 3 : 1.5}
+        stroke-width={w(g.picked === "end")}
       />
       <circle
         cx={g.a.x}
         cy={g.a.y}
-        r={knobSize / 2 + 1}
+        {r}
+        style="stroke: var(--color-accent); fill: {g.start}"
+        stroke-width={w(g.picked === "start")}
+      />
+    {:else}
+      <!-- Drawn B, then A, then centre (review finding 2): `pickHandle`'s tie order is centre, A,
+           B. Spec M17 §6: B (rotate/scale) is a ring in the end colour over the accent, A
+           (stretch) a square, the centre a circle. -->
+      <circle
+        cx={g.b.x}
+        cy={g.b.y}
+        {r}
+        style="stroke: var(--color-accent); fill: none"
+        stroke-width={w(g.picked === "end") + 2.5}
+      />
+      <circle cx={g.b.x} cy={g.b.y} {r} style="stroke: {g.end}; fill: none" stroke-width="2" />
+      <rect
+        x={g.a.x - r}
+        y={g.a.y - r}
+        width={r * 2}
+        height={r * 2}
         style="stroke: var(--color-accent); fill: {g.end}"
-        stroke-width={g.picked === "end" ? 3 : 1.5}
+        stroke-width={w(g.picked === "end")}
       />
       <circle
         cx={g.center.x}
         cy={g.center.y}
-        r={knobSize / 2 + 1}
+        {r}
         style="stroke: var(--color-accent); fill: {g.start}"
-        stroke-width={g.picked === "start" ? 3 : 1.5}
+        stroke-width={w(g.picked === "start")}
       />
     {/if}
   {/each}

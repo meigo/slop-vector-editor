@@ -79,6 +79,9 @@ export interface ToolContext {
    *  commits — never on a cancelled one, which restores the document instead — so a stashed
    *  gradient older than what was just drawn can't be resurrected by a later Type switch. */
   forgetGradients(ids: readonly string[], which: PaintSlot): void;
+  /** A cursor for what is under a hovering pointer (spec M17 §6), shown in place of the tool's
+   *  static `cursor`; null restores it. Desktop only in practice — touch has no hover. */
+  setHoverCursor(c: string | null): void;
 }
 
 export interface Tool {

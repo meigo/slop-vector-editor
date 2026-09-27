@@ -222,6 +222,9 @@ class AppState {
   /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
    *  `nodeSel`: not saved, not undoable, cleared with the selection. */
   gradientStop = $state.raw<{ id: string; stop: StopEnd; which: PaintSlot } | null>(null);
+  /** A cursor named by a tool's `hover` for whatever is under the pointer (spec M17 §6), shown in
+   *  place of the tool's static cursor; null restores it. Not saved, not undoable. */
+  hoverCursor = $state<string | null>(null);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -581,6 +584,11 @@ export function setTool(id: ToolId): void {
   finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
+  app.hoverCursor = null;
+}
+
+export function setHoverCursor(c: string | null): void {
+  if (app.hoverCursor !== c) app.hoverCursor = c;
 }
 
 export function setOverlay(o: Overlay): void {

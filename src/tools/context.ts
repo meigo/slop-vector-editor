@@ -13,6 +13,7 @@ import {
   registerToolFinish,
   setEnteredGroup,
   setGradientStop,
+  setHoverCursor,
   setNodeSel,
   setNodeTarget,
   setOverlay,
@@ -57,6 +58,7 @@ export const storeContext: ToolContext = {
   gradientStop: () => app.gradientStop,
   setGradientStop,
   forgetGradients,
+  setHoverCursor,
 };
 
 // A tool that still holds a draft finishes when the user picks another tool (spec M4b §3).
