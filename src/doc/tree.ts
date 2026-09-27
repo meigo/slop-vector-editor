@@ -214,6 +214,13 @@ export function shapesOf(node: Node): Shape[] {
   return node.children.flatMap(shapesOf);
 }
 
+/** Like `shapesOf`, with each shape's world matrix given the node's `parent` matrix. */
+export function shapesWithWorld(node: Node, parent: Mat): { shape: Shape; world: Mat }[] {
+  const world = multiply(parent, node.transform);
+  if (node.kind !== "group") return [{ shape: node, world }];
+  return node.children.flatMap((c) => shapesWithWorld(c, world));
+}
+
 /** Paint order: later children sit in front, so the greatest key is the frontmost. Shared by the
  *  booleans and by Combine, both of which build their result in the frontmost operand's place. */
 export const paintKey = (layerIndex: number, path: readonly number[]): number[] => [
