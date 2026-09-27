@@ -20,7 +20,12 @@ import {
 import { findNode, mapNodes } from "./tree";
 
 /** Spec (M2a) §1: move/rotate touch the matrix; resize is baked into geometry so stroke widths
- *  and corner radii never scale. `L` is the resize expressed in the shape's own space. */
+ *  and corner radii never scale. `L` is the resize expressed in the shape's own space.
+ *
+ *  Spec (M15) §5: each branch also maps the style with EXACTLY the matrix it applies to that
+ *  branch's geometry — for the title's uniform-scale branch that is the scale-only matrix, not the
+ *  full `L`, because the translation goes onto `transform` rather than into the own-space points
+ *  (see that branch). Mapping with the wrong matrix there would double-count the translation. */
 function bakeShape(s: Shape, L: Mat): Shape {
   if (isIdentity(L)) return s;
   if (s.kind !== "path" && !isAxisAligned(L)) return bakeShape(toPath(s), L);
@@ -32,6 +37,7 @@ function bakeShape(s: Shape, L: Mat): Shape {
       const h = Math.abs(b.y - a.y);
       return {
         ...s,
+        style: mapStyle(s.style, L),
         x: Math.min(a.x, b.x),
         y: Math.min(a.y, b.y),
         w,
@@ -41,12 +47,21 @@ function bakeShape(s: Shape, L: Mat): Shape {
     }
     case "ellipse": {
       const c = applyMat(L, { x: s.cx, y: s.cy });
-      return { ...s, cx: c.x, cy: c.y, rx: s.rx * Math.abs(L[0]), ry: s.ry * Math.abs(L[3]) };
+      return {
+        ...s,
+        style: mapStyle(s.style, L),
+        cx: c.x,
+        cy: c.y,
+        rx: s.rx * Math.abs(L[0]),
+        ry: s.ry * Math.abs(L[3]),
+      };
     }
     case "polygon": {
       const c = applyMat(L, { x: s.cx, y: s.cy });
       const out: PolygonShape = {
         ...s,
+        // cx/cy/rx/ry are baked by L, so the gradient maps by L too.
+        style: mapStyle(s.style, L),
         cx: c.x,
         cy: c.y,
         rx: s.rx * Math.abs(L[0]),
@@ -70,14 +85,26 @@ function bakeShape(s: Shape, L: Mat): Shape {
         // Scale about the local origin only. A Shift-drag is a scale about a corner, so `L` also
         // carries a translation; baking that into the outlines makes the next re-outline (which
         // anchors the baseline at y = 0) jump the title. The translation belongs on the transform.
-        const subpaths = transformSubpaths(s.subpaths, [k, 0, 0, k, 0, 0]);
+        const scaleOnly: Mat = [k, 0, 0, k, 0, 0];
+        const subpaths = transformSubpaths(s.subpaths, scaleOnly);
         const tx = L[4];
         const ty = L[5];
         const transform =
           tx === 0 && ty === 0 ? s.transform : multiply(s.transform, [1, 0, 0, 1, tx, ty]);
-        return { ...s, transform, subpaths, text: scaleTextMeta(s.text, k) };
+        // The gradient's own-space points are baked by the same scale-only matrix as the outlines:
+        // the translation already lives on `transform`, so mapping by `L` here would apply it twice.
+        return {
+          ...s,
+          transform,
+          subpaths,
+          text: scaleTextMeta(s.text, k),
+          style: mapStyle(s.style, scaleOnly),
+        };
       }
-      return withBakedSubpaths(s, transformSubpaths(s.subpaths, L));
+      return {
+        ...withBakedSubpaths(s, transformSubpaths(s.subpaths, L)),
+        style: mapStyle(s.style, L),
+      };
     }
   }
 }
@@ -137,10 +164,11 @@ export function resizeNode(node: Node, A: Mat): Node {
     });
     return changed ? { ...node, children } : node;
   }
-  const baked = bakeShape(node, L);
-  // Spec M15 §5: the gradient lives in the same own space as the geometry just baked.
-  const style = mapStyle(baked.style, L);
-  return style === baked.style ? baked : { ...baked, style };
+  // Spec M15 §5: each `bakeShape` branch maps the style with the exact matrix it applies to that
+  // branch's geometry (see `bakeShape`'s doc comment) — mapping here too would use the wrong
+  // matrix for the title's uniform-scale branch, which bakes translation onto `transform` instead
+  // of into the outlines.
+  return bakeShape(node, L);
 }
 
 export function resizeNodes(doc: Doc, ids: readonly string[], A: Mat): Doc {

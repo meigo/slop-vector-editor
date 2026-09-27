@@ -6,7 +6,9 @@ import {
   type Doc,
   type LinearGradient,
   type Node,
+  type PathShape,
   type Shape,
+  type TextMeta,
 } from "../doc/document";
 import { flattenTransform } from "../doc/edits";
 import { combine } from "../doc/path-ops";
@@ -83,6 +85,46 @@ describe("bakes map the gradient (spec M15 §5)", () => {
     ]);
     expect(r).not.toBeNull();
     expect(fillOf(r!.doc, r!.id).from).toEqual({ x: 50, y: 5 });
+  });
+
+  it("a uniform title resize maps the gradient by the scale only, not by L", () => {
+    // Regression: `bakeShape`'s title branch bakes the outlines with the scale-only matrix and
+    // moves L's translation onto `transform` instead (resize.test.ts, "puts a uniform resize's
+    // translation on the transform, not in the outlines"). Mapping the style with the full `L`
+    // would double-count that translation.
+    const meta: TextMeta = {
+      text: "Hi",
+      font: "anton",
+      size: 100,
+      letterSpacing: 4,
+      lineHeight: 1.2,
+      align: "left",
+      seed: 7,
+      amounts: { rotate: 10, scale: 0.2, offset: 6, skew: 3 },
+      overrides: { 0: { r: 15, s: 1.5, dx: 8, dy: -4, k: 2 } },
+    };
+    const title: Node = {
+      kind: "path",
+      id: "t",
+      transform: [1, 0, 0, 1, 0, 0],
+      style: { ...DEFAULT_STYLE, fill: { ...g, from: { x: 0, y: 10 }, to: { x: 10, y: 10 } } },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" as const },
+            { p: { x: 10, y: 10 }, in: null, out: null, type: "corner" as const },
+          ],
+        },
+      ],
+      text: meta,
+    };
+    const out = resizeNodes(doc([title]), ["t"], [2, 0, 0, 2, 5, 9]);
+    const node = findNode(out, "t")!.node as PathShape;
+    expect(node.text).toBeDefined();
+    expect(node.transform).toEqual([1, 0, 0, 1, 5, 9]);
+    expect(fillOf(out, "t").from).toEqual({ x: 0, y: 20 });
+    expect(fillOf(out, "t").to).toEqual({ x: 20, y: 20 });
   });
 
   it("a boolean maps the surviving style's gradient into the result's space", async () => {
