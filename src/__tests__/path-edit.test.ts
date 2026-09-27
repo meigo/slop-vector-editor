@@ -206,13 +206,87 @@ describe("setNodeType", () => {
     expect(y.out!.x).toBeCloseTo(3, 9);
   });
 
-  it("only changes the type when a node has fewer than two handles", () => {
-    const p = path({ closed: false, nodes: [corner(0, 0), corner(10, 0)] });
-    const out = setNodeType(p, [{ sub: 0, i: 0 }], "smooth");
-    expect(out.subpaths[0].nodes[0].type).toBe("smooth");
-    expect(out.subpaths[0].nodes[0].in).toBeNull();
-    expect(setNodeType(out, [{ sub: 0, i: 0 }], "smooth")).toBe(out);
-    expect(setNodeType(p, [{ sub: 0, i: 0 }], "corner")).toBe(p);
+  const near = (v: { x: number; y: number } | null, x: number, y: number) => {
+    expect(v).not.toBeNull();
+    expect(v!.x).toBeCloseTo(x, 9);
+    expect(v!.y).toBeCloseTo(y, 9);
+  };
+
+  it("grows handles on a handle-less node, parallel to its neighbours, a third of each chord", () => {
+    const p = path({ closed: false, nodes: [corner(-30, 0), corner(0, 40), corner(30, 0)] });
+    const n = setNodeType(p, [{ sub: 0, i: 1 }], "smooth").subpaths[0].nodes[1];
+    expect(n.type).toBe("smooth");
+    near(n.in, -50 / 3, 40);
+    near(n.out, 50 / 3, 40);
+  });
+
+  it("gives a handle-less symmetric node equal handles, the mean of the two thirds", () => {
+    const p = path({ closed: false, nodes: [corner(-30, 0), corner(0, 0), corner(60, 0)] });
+    const smooth = setNodeType(p, [{ sub: 0, i: 1 }], "smooth").subpaths[0].nodes[1];
+    near(smooth.in, -10, 0);
+    near(smooth.out, 20, 0);
+    const sym = setNodeType(p, [{ sub: 0, i: 1 }], "symmetric").subpaths[0].nodes[1];
+    near(sym.in, -15, 0);
+    near(sym.out, 15, 0);
+  });
+
+  it("mirrors a lone handle: a third of the chord for smooth, the same length for symmetric", () => {
+    const p = path({
+      closed: false,
+      nodes: [
+        corner(-30, 0),
+        { p: { x: 0, y: 0 }, in: { x: -4, y: 3 }, out: null, type: "corner" },
+        corner(60, 0),
+      ],
+    });
+    const smooth = setNodeType(p, [{ sub: 0, i: 1 }], "smooth").subpaths[0].nodes[1];
+    near(smooth.in, -4, 3);
+    near(smooth.out, 16, -12); // 20 along (0.8, -0.6)
+    const sym = setNodeType(p, [{ sub: 0, i: 1 }], "symmetric").subpaths[0].nodes[1];
+    near(sym.in, -4, 3);
+    near(sym.out, 4, -3);
+  });
+
+  it("gives an open end only the handle on its neighbour's side", () => {
+    const p = path({ closed: false, nodes: [corner(0, 0), corner(30, 0)] });
+    const first = setNodeType(p, [{ sub: 0, i: 0 }], "smooth").subpaths[0].nodes[0];
+    expect(first.in).toBeNull();
+    near(first.out, 10, 0);
+    const last = setNodeType(p, [{ sub: 0, i: 1 }], "symmetric").subpaths[0].nodes[1];
+    near(last.in, 20, 0);
+    expect(last.out).toBeNull();
+  });
+
+  it("wraps round a closed subpath for the first node's neighbour", () => {
+    const p = path({ closed: true, nodes: [corner(0, 0), corner(30, 30), corner(-30, 30)] });
+    const n = setNodeType(p, [{ sub: 0, i: 0 }], "smooth").subpaths[0].nodes[0];
+    const third = Math.hypot(30, 30) / 3;
+    near(n.in, -third, 0);
+    near(n.out, third, 0);
+  });
+
+  it("only changes the type when the neighbours give no direction", () => {
+    const p = path({ closed: true, nodes: [corner(0, 0), corner(10, 0)] });
+    const n = setNodeType(p, [{ sub: 0, i: 0 }], "smooth").subpaths[0].nodes[0];
+    expect(n.type).toBe("smooth");
+    expect(n.in).toBeNull();
+    expect(n.out).toBeNull();
+  });
+
+  it("retracts both handles for corner, so the node turns sharp at once", () => {
+    for (const type of ["smooth", "symmetric", "corner"] as const) {
+      const n = setNodeType(bent(type), [{ sub: 0, i: 1 }], "corner").subpaths[0].nodes[1];
+      expect(n).toEqual({ p: { x: 0, y: 0 }, in: null, out: null, type: "corner" });
+    }
+  });
+
+  it("returns the same path when nothing changes", () => {
+    const p = path({ closed: false, nodes: [corner(-30, 0), corner(0, 40), corner(30, 0)] });
+    expect(setNodeType(p, [{ sub: 0, i: 1 }], "corner")).toBe(p);
+    const once = setNodeType(p, [{ sub: 0, i: 1 }], "smooth");
+    expect(setNodeType(once, [{ sub: 0, i: 1 }], "smooth")).toBe(once);
+    const sym = setNodeType(p, [{ sub: 0, i: 1 }], "symmetric");
+    expect(setNodeType(sym, [{ sub: 0, i: 1 }], "symmetric")).toBe(sym);
   });
 });
 

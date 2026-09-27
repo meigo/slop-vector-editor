@@ -186,28 +186,60 @@ export function deletePathNodes(path: PathShape, refs: readonly NodeRef[]): Path
   return subpaths.length === 0 ? null : withSubpaths(path, subpaths, true);
 }
 
-function retype(node: PathNode, type: NodeType): PathNode {
-  if (type === "corner" || !node.in || !node.out) {
-    return node.type === type ? node : { ...node, type };
+/** A handle as an offset from its node, or null when it is absent or has no length. */
+function handleOffset(h: Vec | null, p: Vec): Vec | null {
+  if (!h) return null;
+  const v = minus(h, p);
+  return length(v) < EPS ? null : v;
+}
+
+/** Corner retracts both handles, as Illustrator's convert-to-corner does: keeping them, the curve
+ *  looked the same and only the next handle drag showed they were unlinked. Smooth and symmetric
+ *  line the handles up; a handle a node lacks is grown, as Inkscape and
+ *  Illustrator do, or retyping a node on straight segments would change nothing visible. A lone
+ *  handle is mirrored; a node with none gets handles parallel to the line between its neighbours,
+ *  a third of each chord long. A handle is only grown on a side that has a neighbour — an open
+ *  end's outer handle would draw nothing. `prev`/`next` are the neighbours' points, if any. */
+function retype(node: PathNode, type: NodeType, prev: Vec | null, next: Vec | null): PathNode {
+  const typed = () => (node.type === type ? node : { ...node, type });
+  if (type === "corner") {
+    return node.type === type && !node.in && !node.out
+      ? node
+      : { ...node, type, in: null, out: null };
   }
-  const inV = minus(node.in, node.p);
-  const outV = minus(node.out, node.p);
-  const li = length(inV);
-  const lo = length(outV);
-  if (li < EPS || lo < EPS) return node.type === type ? node : { ...node, type };
-  const ux = inV.x / li;
-  const uy = inV.y / li;
-  const keepIn = type === "symmetric" ? (li + lo) / 2 : li;
-  const keepOut = type === "symmetric" ? (li + lo) / 2 : lo;
-  const next: PathNode = {
+  const inV = handleOffset(node.in, node.p);
+  const outV = handleOffset(node.out, node.p);
+  const third = (q: Vec | null) => (q ? length(minus(q, node.p)) / 3 : 0);
+  // `u` is the out handle's direction; the in handle points the opposite way.
+  let u: Vec;
+  let li: number;
+  let lo: number;
+  if (inV) {
+    li = length(inV);
+    u = { x: -inV.x / li, y: -inV.y / li };
+    lo = outV ? length(outV) : !next ? 0 : type === "symmetric" ? li : third(next);
+  } else if (outV) {
+    lo = length(outV);
+    u = { x: outV.x / lo, y: outV.y / lo };
+    li = !prev ? 0 : type === "symmetric" ? lo : third(prev);
+  } else {
+    const d = minus(next ?? node.p, prev ?? node.p);
+    const ld = length(d);
+    if (ld < EPS) return typed();
+    u = { x: d.x / ld, y: d.y / ld };
+    li = third(prev);
+    lo = third(next);
+  }
+  if (type === "symmetric" && li > 0 && lo > 0) li = lo = (li + lo) / 2;
+  const result: PathNode = {
     ...node,
     type,
-    in: { x: node.p.x + ux * keepIn, y: node.p.y + uy * keepIn },
-    out: { x: node.p.x - ux * keepOut, y: node.p.y - uy * keepOut },
+    in: li > 0 ? { x: node.p.x - u.x * li, y: node.p.y - u.y * li } : null,
+    out: lo > 0 ? { x: node.p.x + u.x * lo, y: node.p.y + u.y * lo } : null,
   };
-  return node.type === type && sameHandle(next.in, node.in) && sameHandle(next.out, node.out)
+  return node.type === type && sameHandle(result.in, node.in) && sameHandle(result.out, node.out)
     ? node
-    : next;
+    : result;
 }
 
 export function setNodeType(path: PathShape, refs: readonly NodeRef[], type: NodeType): PathShape {
@@ -217,9 +249,13 @@ export function setNodeType(path: PathShape, refs: readonly NodeRef[], type: Nod
     const idx = groups.get(si);
     if (!idx) return sp;
     let hit = false;
+    const count = sp.nodes.length;
+    // Neighbours come from the original nodes: retyping moves handles, never points.
+    const at = (j: number) =>
+      sp.closed ? sp.nodes[(j + count) % count].p : (sp.nodes[j]?.p ?? null);
     const nodes = sp.nodes.map((n, i) => {
       if (!idx.has(i)) return n;
-      const next = retype(n, type);
+      const next = retype(n, type, at(i - 1), at(i + 1));
       if (next !== n) hit = true;
       return next;
     });
