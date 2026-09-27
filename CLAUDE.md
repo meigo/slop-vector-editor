@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 765 tests in 56 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 824 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -31,7 +31,9 @@ every user-visible change.
 
 ## Architecture map
 
-- `src/doc/` — `document.ts` (types, `createDoc`), `edits.ts` (pure `(doc, args) => doc`, incl.
+- `src/doc/` — `document.ts` (types, incl. `Fill`, `LinearGradient`, `mapStyle`; `createDoc`),
+  `paint-edit.ts` (`setPaintKind`, `setGradientStop`, `setGradientPoints`, `drawGradientLine` — the
+  gradient edits behind the panel and the Gradient tool), `edits.ts` (pure `(doc, args) => doc`, incl.
   `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `ancestorIds` — node lookup and
   editing at any depth, with parent matrices — plus THE reach rule: `enteredReach`,
   `topLevelReach`, `reachableNodes`, `selectableIds`, `blocked`), `group.ts` (group/ungroup),
@@ -58,17 +60,24 @@ every user-visible change.
   the other caller — Paper's `simplify(tolerance)` through the same conversion).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
   `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
-  `polygonD`), `serialize.ts` (`serializeDoc` takes an optional second argument overriding the
+  `polygonD`, and a shape's gradient `<linearGradient>` elements via `gradientDefs`),
+  `gradient-import.ts` (paint-server collection, `href`/`xlink:href` chain resolution and
+  `foldLinear`'s exact affine fold of any unit/transform/offset into our two-point model),
+  `serialize.ts` (`serializeDoc` takes an optional second argument overriding the
   root's `width`/`height`/`viewBox`, for PNG export's region; absent, output is byte-identical to
-  today), `parse.ts` (reads polygons back via `parsePolygonAttr`).
+  today), `parse.ts` (reads polygons back via `parsePolygonAttr`; resolves `url()` paint references
+  per painted shape via `gradient-import.ts`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
   move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and
   handles, insert/delete, retype, close), `pen.ts` (the pen tool: draws a path node by node,
-  keeping its own draft; resumes an open path from either end), `registry.ts` (`TOOLS`, one
-  instance per id), `context.ts` (`storeContext`, the real `ToolContext` wired to `app`; tests use
-  `__tests__/fake-context.ts`).
+  keeping its own draft; resumes an open path from either end), `gradient-tool.ts` (the Gradient
+  tool: draws a new gradient line across the selection, drags a knob or the line, Shift for 45°),
+  `gradient-handles.ts` (pure `gradientHandles`/`pickHandle` — handle geometry in document order
+  back to front, shared by the tool's hit-testing and the Overlay's drawing), `registry.ts`
+  (`TOOLS`, one instance per id), `context.ts` (`storeContext`, the real `ToolContext` wired to
+  `app`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
   `double-tap.ts` (pure double-tap/double-click detection).
@@ -101,7 +110,9 @@ every user-visible change.
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
   helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
-  clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField`, `ToggleButton` (with `toggle.ts`, the pure state helper),
+  clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField` (Flat/
+  Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
+  flat row and both gradient stops), `ToggleButton` (with `toggle.ts`, the pure state helper),
   `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a fresh tap at Save to Files when
   `deliverFile` didn't attempt a direct share, or the attempt needs a fresh tap), `Notices`.
 
@@ -608,29 +619,60 @@ every user-visible change.
     unavoidable — a PNG render — do not attempt the direct path at all, but go straight to a dialog
     whose button supplies a fresh tap.
 
+46. **A gradient lives in its shape's own space, so every geometry bake calls `mapStyle`**
+    (`document.ts`) — `resize.ts`'s `bakeShape` (all four kinds), `edits.ts`'s `flattenTransform`,
+    `path-ops.ts`'s `combine` and `boolean-edit.ts`'s `booleanShapes` today; a new bake site must
+    too, exactly as it must use `withBakedSubpaths` for titles (invariant 40). `mapStyle` maps each
+    gradient's two own-space points through the same matrix the branch applies to the geometry — a
+    title's uniform resize bakes only the scale into its outlines (invariant 44), so its gradient is
+    mapped by the scale only, never the full resize matrix, or the translation that already went
+    onto `transform` would be double-counted. It returns the **same** style object when neither
+    paint is a gradient, so a document with no gradients keeps every reference it keeps today.
+    **Degenerate gradients collapse to the end stop's flat paint** (`flatIfDegenerate`), judged on
+    the two points **as written** (`fmt`'s rounding), because that is what the file holds and what a
+    reload would see. **Stops are always at 0 and 1** — there is no offset field — so a foreign
+    gradient's offsets fold into `from`/`to` on import, keeping one gradient to one representation.
+    `sameFill` compares kind, stops and both points exactly (what an edit uses to return the same
+    reference); `sameColours` drops the points (what Select Same and the panel's summaries use,
+    since two gradients with the same colours on different shapes read as "the same fill" and the
+    points aren't comparable across shapes anyway). **Export writes one `<linearGradient>` per
+    paint, never shared**, id `sv-grad-<node id>-<fill|stroke>`, `gradientUnits="userSpaceOnUse"`,
+    in one `<defs>` that `serializeDoc` writes as the root's leading child and omits entirely when
+    the document has no gradients — so a gradient-free document still serializes byte-identically.
+    **Import resolves `url()` per painted shape, never per declaring element**: a paint reference is
+    carried through inheritance unresolved (`colors.ts`'s `{ kind: "url" }`) because an
+    `objectBoundingBox` gradient depends on the painted shape's own box and a `userSpaceOnUse` one
+    on its own coordinate space, and only then is it folded — exactly, via an affine change of
+    variable, for any invertible units/`gradientTransform` composition — into a 2-point linear
+    gradient. Every 2-stop, pad-spread, non-degenerate linear gradient is kept exactly, whatever its
+    units, transform or offsets; 0 stops, 1 stop, 3+ stops, equal-offset stops, non-`pad` spread, a
+    `radialGradient`, a `pattern` or a missing reference each drop with their own label, same as any
+    other unsupported content (invariant 4).
+
 ## Current state
 
-Milestone 13 (Save to Files on iPad: Save, Save As and Export PNG route through the share sheet
-on an Apple touch device, so the user picks a destination instead of every save landing in
-Downloads as a renumbered copy — still a new file each time, never a true overwrite) — see
-CHANGELOG. Verification is outstanding: the whole feature needs an iPad and none of it is
-confirmed yet, including whether `image/svg+xml` is shareable at all on iPadOS. **M14 — envelope
-warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and is next.
-Beyond that the post-v1 list (project design §10) still holds gradients, a freehand tool, grid and
-smart guides, masks, align and distribute, and image paste. **A light theme is no longer planned**
-(2026-09-19), and **multiple artboards are no longer planned** (2026-09-20) — the design doc still
-lists both, as a dated document that later decisions supersede rather than rewrite. **Text is
-done** (M10a-M10d), so it has left the list, and so has **PNG export** (M12) and **Save to Files**
-(M13). The accessibility group and the performance group (both parked below) remain the two
-obvious milestones after M14.
+Milestone 15 (linear gradients: two-stop gradients on fill and stroke, a Gradient tool (G) that
+draws and drags the line on the canvas, Flat/Linear in the Properties panel, exact save/reload and
+exact import of every 2-stop pad-spread foreign gradient) — see CHANGELOG. It was taken ahead of
+M14, which stays specced and is next: **M14 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`). Verification is outstanding for
+M15's iPad/touch/Pencil behaviour (knob reach, the coarse-pointer control height) and Safari's
+rendering of `userSpaceOnUse` under a transform — see CHANGELOG. Beyond M14, the post-v1 list
+(project design §10) now holds radial gradients / more stops, a freehand tool, grid and smart
+guides, masks, align and distribute, and image paste — **linear gradients have left the list**
+(M15). **A light theme is no longer planned** (2026-09-19), and **multiple artboards are no longer
+planned** (2026-09-20) — the design doc still lists both, as a dated document that later decisions
+supersede rather than rewrite. **Text is done** (M10a-M10d), so it has left the list, and so has
+**PNG export** (M12) and **Save to Files** (M13). The accessibility group and the performance group
+(both parked below) remain the two obvious milestones after M14.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
-resizable sidebar), M11 (path operations), M12 (PNG export) and M13 (Save to Files on iPad) are
-complete — see CHANGELOG. **M14 — envelope warp**
+resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad) and M15
+(linear gradients, taken ahead of M14) are complete — see CHANGELOG. **M14 — envelope warp**
 (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and is the next step.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so

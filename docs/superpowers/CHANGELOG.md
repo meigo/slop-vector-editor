@@ -1979,3 +1979,83 @@ the handles at all — the curve looked the same until the next handle drag.
 - **Not verified:** the context-menu entries and the double-tap cycle in the browser (same store
   action / same pure edit), and iPad.
 - 765 tests in 56 files.
+
+## 2026-09-27 — Milestone 15: linear gradients
+
+Taken ahead of M14 (envelope warp, which stays specced and next). Implements the first half of
+"gradients" from the project design's post-v1 list.
+
+- **The model** (`doc/document.ts`): `Fill = Paint | LinearGradient`, where a `LinearGradient` is
+  `{ kind: "linear", from, to, start, end }` — two stops, always at offsets 0 and 1, with the two
+  points in the shape's **own space**, like path nodes, so move and rotate carry the gradient for
+  free and only a bake (invariant 46) needs to map it. `isGradient`, `sameFill` (exact — what an
+  edit uses to keep the same reference) and `sameColours` (kind + stops, not the points — what
+  Select Same and the panel's summaries use) are the two equalities the spec calls for. A gradient
+  whose two points coincide, judged on the numbers **as written**, collapses to the end stop's flat
+  paint (`flatIfDegenerate`).
+- **File format and canvas** (`svg/attrs.ts`): one `<linearGradient
+  gradientUnits="userSpaceOnUse">` per gradient paint, never shared, id `sv-grad-<node id>-<fill|
+  stroke>`; `serializeDoc` writes one leading `<defs>` holding every shape's gradients and omits it
+  entirely without any, so a gradient-free document still serializes byte-identically to before this
+  milestone. The canvas renders the same `gradientDefs` immediately before each shape that needs
+  them.
+- **Import** (`svg/gradient-import.ts`, `svg/parse.ts`): every `linearGradient`, `radialGradient`
+  and `pattern` is collected first (they may live anywhere and be referenced before they appear),
+  `href`/`xlink:href` chains resolve, and a paint reference is carried through inheritance
+  **unresolved** and only folded in per painted shape, against that shape's own units/box/
+  transform — because an `objectBoundingBox` or `userSpaceOnUse` gradient means something different
+  for each element that inherits it. The fold is an exact affine change of variable, so every
+  2-stop, pad-spread, non-degenerate linear gradient is kept exactly whatever its units, transform
+  or stop offsets. What cannot be kept drops with its own label: `radialGradient`, `pattern`, 0/1/3+
+  stops, equal-offset stops, a non-`pad` spread method, a missing or non-paint-server reference
+  (with its fallback colour if one was given).
+- **The Properties panel**: a Flat/Linear toggle per paint (disabled with a reason when nothing is
+  selected — `prefs.style` must stay flat), Start and End rows when Linear, each its own live-drag
+  undo bracket. `PaintRow.svelte` is the swatch + hex + opacity row shared by the flat paint and
+  both stops.
+- **The Gradient tool** (G, `tools/gradient-tool.ts` + `tools/gradient-handles.ts`): draws a new
+  gradient line across every selected shape on a plain drag, drags a knob to move one end or the
+  line to move both, Shift constrains to 45°. Handles are computed once in document space and
+  shared by hit-testing and the Overlay's drawing, so they can't disagree; where knobs of several
+  shapes overlap, the **frontmost** shape's wins, matching `hitTest`'s own reach order (a bug caught
+  and fixed during implementation — the design first said "first in document order"). A new
+  Gradient section in Properties (Fill/Stroke) appears while the tool is active.
+- **Rulings** (design spec §10, decided without asking, recorded so they can be challenged):
+  1. Stops are always at 0 and 1; a foreign gradient's offsets fold into the points.
+  2. Degenerate gradients collapse to the end stop's flat paint, judged on written values.
+  3. `sameColours` ignores the points for Select Same and the panel's summaries.
+  4. One `<linearGradient>` per paint, never shared.
+  5. Flat→Linear and a newly drawn line default to "same colour, fading to opacity 0".
+  6. A drawn line is one document-space line mapped into every selected shape.
+  7. A click on a knob picks the stop for the panel's highlight; the panel always shows both stops,
+     so picking is a pointer, not a mode.
+  8. Shift constrains to 45°; the gradient line does not snap.
+  9. The artboard background and new-shape defaults stay flat.
+- **Browser-verified** (desktop Chrome, a separate dev server on :5198, real mouse input where
+  noted): the Gradient tool drew a fade from `#ff3366` to transparent across a selected rect with a
+  real drag, and dragging the end knob re-aimed it diagonally, with knobs drawn filled in their
+  stop's colour. Switching to Stroke and dragging across a selected horizontal line (a zero-height
+  box) gave it a stroke gradient — confirming `userSpaceOnUse` was the right choice, since
+  `objectBoundingBox` would paint nothing there. Changing W (200→300) and R (0→30°) in the geometry
+  fields stretched and rotated the gradient with the rect. A save/reload round trip
+  (serialize → parse → serialize) came back byte-identical, nothing dropped, native still true. Two
+  foreign shapes both imported as gradients exactly: an Inkscape-style `xlink:href` chain with
+  `style="stop-color:…"` stops, and a Figma-style `gradientTransform`
+  (translate·rotate·scale); a radial gradient was reported by name. A pixel comparison of the
+  browser's own rendering of a harder foreign file (an `href` chain with 10%/70% offsets, a
+  `gradientTransform` composing rotate·non-uniform-scale·skewX with `fill-opacity` 0.8, and
+  `objectBoundingBox` units inherited from a `<g>` by a rect and an ellipse) against our re-export,
+  at 400×300, came back within 4/255 max channel difference, one channel 480 000 above tolerance 2 —
+  read as a rounding artefact, not a wrong fold. The Properties panel's Start/End rows fit the
+  default 240px sidebar with the full `#rrggbb` and opacity visible (found overflowing in the first
+  pass, fixed over two rounds); the Gradient section sits first while the tool is active; with
+  nothing selected, Linear carries the reason "Linear gradient — select an object first" and changes
+  nothing.
+- **Owed an iPad pass** (unverified): the tool by touch and Pencil (14px knob reach, the 32px
+  coarse-pointer control height in the stop rows); Safari's rendering of `userSpaceOnUse` under a
+  transform; the context-menu/keyboard G shortcut by a physical key press; PNG export and clipboard
+  of a gradient end to end (both go through `serializeDoc`, which the pixel comparison exercised,
+  but not as a full export/copy round trip); the picked-stop highlight by a real click.
+- Plan: `docs/superpowers/plans/2026-09-27-m15-linear-gradients.md`. Spec:
+  `docs/superpowers/specs/2026-09-27-m15-linear-gradients-design.md`.
+- 824 tests in 63 files.
