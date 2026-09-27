@@ -96,9 +96,11 @@ What works today:
   start or centre, a square for the end or the stretching rim, a ring for the rim that rotates
   and scales. A small diamond on the line is the **midpoint**, where the two colours mix 50/50:
   drag it, or use the Midpoint slider under the gradient's Start row, to push the blend toward one
-  end. Three-stop gradients from other apps whose middle stop is that mix are read as a midpoint.
-  Linear and radial gradients from other apps' SVGs are kept when they have two stops, or three
-  where the middle stop is the 50/50 mix.
+  end. Its colour is automatic — the mix of the two ends — until you give it one: edit the Mid
+  colour row (or click the diamond to pick it), and a colour can hold its strength out to the
+  diamond before fading. Auto puts the mix back. Three-colour gradients from other apps now open
+  with their middle colour instead of being dropped. Linear and radial gradients from other apps'
+  SVGs are kept when they have two or three stops.
 
 ## Keyboard
 
@@ -137,7 +139,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 936 unit tests
+npm test          # 960 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

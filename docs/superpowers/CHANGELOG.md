@@ -2296,3 +2296,89 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Plan: `docs/superpowers/plans/2026-09-27-m17-gradient-midpoint.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m17-gradient-midpoint-design.md`.
 - 936 tests in 63 files.
+
+## 2026-09-28 — M18: custom gradient midpoint colour
+
+- **The model** (`src/doc/document.ts`): `midPaint?: Paint` on both `LinearGradient` and
+  `RadialGradient`, independent of M17's `mid` (position) — absent means Auto, the middle stop is
+  `midStop(start, end)` exactly as before M18; present, it is that paint. `midPaintOf(g) = g.midPaint
+  ?? midStop(g.start, g.end)` is the only reader of the effective colour; `withMidPaint(g, p |
+  undefined)` sets it, deleting the key for `undefined` (the same single-representation rule as
+  `withMid`/`hidden`, invariants 39 and, from M17, 46). A custom colour stays put across a Start/End
+  edit — that is what makes it not Auto. `sameFill` now also compares the raw `midPaint` field
+  (`sameMidPaint`: absent must not match present, even at the same colour, so seeding the mix when
+  Auto turns off still registers as a change); `sameColours` compares `midPaintOf` of both, so an
+  Auto gradient and a custom one whose colour equals the mix still read as "the same fill." `mapFill`
+  carries `midPaint` through every bake with no change needed, exactly as it already carried `mid`.
+- **Paint edits** (`src/doc/paint-edit.ts`): `StopEnd` widens to include `"mid"`; `setGradientStop`'s
+  `"mid"` case now sets `midPaint` (was: read-only, since M17 had no custom colour). New
+  `setGradientMidAuto(doc, ids, which, auto)`: `true` deletes `midPaint` on every selected gradient;
+  `false` seeds `midPaint = midStop(start, end)` only on the ones that have none, so turning Auto off
+  changes nothing visible — an already-custom gradient is untouched. Same reference when nothing
+  changes, as every other paint edit.
+- **File format** (`src/svg/attrs.ts`, `src/svg/gradient-import.ts`): export writes three stops when
+  either `mid` or `midPaint` is set (was: `mid` alone), the middle one `fmt(midOf(f))` /
+  `midPaintOf(f)`; otherwise exactly two, unchanged. Import's `outerStops` now **keeps** any 3-stop
+  gradient whose middle offset sits strictly between the outer two (M17 already required this for the
+  offset; the middle stop's colour used to have to be the exact mix or the whole gradient dropped) —
+  a middle stop matching the mix within M17's tolerance (±1/255/channel, 0.005 opacity) still reads
+  as Auto, and anything else becomes `midPaint`. Four or more stops now drop under their own label,
+  **"gradients with more than three stops"**; three stops with a non-strictly-inner middle (equal to
+  or outside the outer offsets) still drop as "gradients with more than two stops," unchanged. Two
+  pre-existing `gradient-import.test.ts` fixtures that asserted a 3-colour gradient dropped were
+  updated to assert it is kept with `midPaint` instead — M18 makes that gradient representable, so
+  the old assertion described a limitation that no longer exists, not a rule.
+- **The Properties panel** (`src/lib/MidpointRow.svelte`, `PaintField.svelte`,
+  `src/state/properties.ts`, `PropertiesPanel.svelte`): `MidpointRow` gains an **Auto** `ToggleButton`
+  after the `%` field — pressed when every selected gradient is Auto, unpressed when every one is
+  custom, `"mixed"` otherwise; pressing it flips `setSelectionGradientMidAuto(which, auto)` as one
+  undo step, mirroring `setSelectionGradientMid`'s gesture shape. `PaintField` adds a **Mid colour
+  row** below the Midpoint row (a blank label cell + `PaintRow`, exactly like Start/End): it shows
+  the selection's effective middle colour, highlights when the canvas picked the middle stop, and
+  editing its swatch goes through `onstop("mid", p)` — which stores a custom colour and so turns
+  Auto off by itself, with the toggle as the only way back. `STOPS` (the Start/End loop) is typed
+  `readonly Exclude<StopEnd, "mid">[]` so widening `StopEnd` didn't let the loop try to render a
+  `"mid"` row of its own — svelte-check would otherwise have nothing to narrow `mid` out with.
+  `GradientSummary` gains `midAuto: Field<boolean> | null` and `midPaint: Field<Paint> | null`
+  (effective), both null exactly when `stops` is; `PropertiesPanel` wires both to
+  `setSelectionGradientMidAuto`.
+- **The canvas** (`src/tools/gradient-handles.ts`, `gradient-tool.ts`): `GradientHandle` gains
+  `midPaint: Paint` (effective), and the Overlay's diamond is filled with it in place of M17's
+  `midStop(start, end)` call, so a custom middle colour shows on the handle exactly as it will
+  render. **A click on the diamond now picks the middle stop**
+  (`gradientStop = { id, stop: "mid", which }`), the same as a click on a knob picks Start or End —
+  M17 shipped the diamond as drag-only; the Mid colour row highlights and the diamond gets the
+  picked emphasis. Picking never touches Auto. M17's test asserting a click on the diamond picks no
+  stop now asserts it picks the middle stop instead — that was M17's documented gap, not a
+  regression.
+- **Spec rulings** (§7, decided without asking):
+  1. `StopEnd` keeps its name while gaining `"mid"`.
+  2. The Mid colour row is always shown (effective colour), not only when custom — editing it is the
+     natural way to set a colour, and Auto is the way back.
+  3. A custom colour equal to the mix reloads as Auto.
+  4. `sameColours` uses the effective colour.
+  5. Four or more stops get the new label; the old label stays for a 3-stop gradient whose middle
+     offset isn't strictly inside, or for coincident/reversed 2-stop offsets.
+- **Controller rulings** (decided during review, recorded so they can be challenged): a raw
+  `g.midPaint === undefined` presence check — `GradientSummary`'s `midAuto` field and
+  `setGradientMidAuto`'s own "already custom?" branch — is permitted direct field inspection rather
+  than required to go through `midPaintOf`, because it is asking "is this Auto," not "what colour is
+  this," and `midPaintOf` cannot answer that question at all.
+- **Browser-verified** (controller, desktop Chrome, dev server on :5198, real click + typing input,
+  2026-09-28, after 772ab7c): the user's original case — two identical black → transparent-black
+  radials with a 70% midpoint — typing 100 into the Mid colour row's opacity field turned Auto off by
+  itself and the result holds solid black out to the diamond before fading, while the untouched Auto
+  gradient beside it still fades from the centre; at the default 240px sidebar the Midpoint row (Mid,
+  slider, `%`, Auto) and the Mid colour row (swatch, hex, opacity) both fit on one line, aligned with
+  Start/End; a real click on the diamond picked the middle stop and highlighted the Mid colour row
+  without touching `midPaint`; `serializeDoc` wrote the Auto gradient's 50% mix (`#000000`,
+  stop-opacity 0.5) at offset 0.7 and the custom gradient's `#000000` at full opacity at the same
+  offset; the opacity edit and the later Auto click were one undo step each (history 0 → 2) and
+  undo/redo walked both correctly; no console errors.
+- **Owed an iPad pass** (unverified): Safari; touch/Pencil (the Mid colour row and Auto toggle have
+  no touch-specific behaviour of their own, but inherit M15-M17's unverified drag/reach debt); the
+  mixed-selection Auto toggle's `"mixed"` state, visually; save to disk and reopen through the UI
+  (covered by the unit round-trip tests, not exercised end to end in the browser).
+- Plan: `docs/superpowers/plans/2026-09-27-m18-gradient-mid-colour.md`. Spec:
+  `docs/superpowers/specs/2026-09-27-m18-gradient-mid-colour-design.md`.
+- 960 tests in 63 files.
