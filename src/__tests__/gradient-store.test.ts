@@ -75,10 +75,10 @@ describe("gradient store actions", () => {
   });
 
   it("a picked stop is cleared by a selection change and by Escape before the selection", () => {
-    setGradientStop({ id: "a", stop: "start" });
+    setGradientStop({ id: "a", stop: "start", which: "fill" });
     setSelection(["a"]);
     expect(app.gradientStop).toBeNull();
-    setGradientStop({ id: "a", stop: "end" });
+    setGradientStop({ id: "a", stop: "end", which: "fill" });
     clearOrLeaveGroup();
     expect(app.gradientStop).toBeNull();
     expect(app.selection).toEqual(["a"]);

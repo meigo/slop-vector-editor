@@ -7,6 +7,7 @@ import {
   type LinearGradient,
   type Node,
   type PathShape,
+  type PolygonShape,
   type Shape,
   type TextMeta,
 } from "../doc/document";
@@ -14,7 +15,7 @@ import { flattenTransform } from "../doc/edits";
 import { combine } from "../doc/path-ops";
 import { resizeNodes } from "../doc/resize";
 import { findNode } from "../doc/tree";
-import { translate, type Mat } from "../geom/mat";
+import { applyMat, translate, type Mat } from "../geom/mat";
 
 const g: LinearGradient = {
   kind: "linear",
@@ -125,6 +126,58 @@ describe("bakes map the gradient (spec M15 §5)", () => {
     expect(node.transform).toEqual([1, 0, 0, 1, 5, 9]);
     expect(fillOf(out, "t").from).toEqual({ x: 0, y: 20 });
     expect(fillOf(out, "t").to).toEqual({ x: 20, y: 20 });
+  });
+
+  it("an odd polygon's vertical flip does not additionally rotate the gradient (review finding 1)", () => {
+    // Bug: the branch mapped the style by `L` alone, then composed a half-turn into `transform`
+    // for the flip odd polygons need — leaving the RENDERED gradient turned an extra 180° (a
+    // red→blue gradient came back blue→red). The gradient sits on the polygon's own horizontal
+    // centre line (cy = 5), which a vertical flip leaves fixed, so the correct render is
+    // unchanged.
+    const poly: Node = {
+      kind: "polygon",
+      id: "p",
+      transform: [1, 0, 0, 1, 0, 0],
+      style: { ...DEFAULT_STYLE, fill: { ...g, from: { x: 0, y: 5 }, to: { x: 10, y: 5 } } },
+      cx: 5,
+      cy: 5,
+      rx: 5,
+      ry: 5,
+      sides: 3,
+      star: false,
+      innerRatio: 0.5,
+    };
+    const A: Mat = [1, 0, 0, -1, 0, 10]; // vertical flip about y = 5
+    const out = resizeNodes(doc([poly]), ["p"], A);
+    const node = findNode(out, "p")!.node as PolygonShape;
+    const f = fillOf(out, "p");
+    const rendered = (p: { x: number; y: number }) => applyMat(node.transform, p);
+    const from = rendered(f.from);
+    const to = rendered(f.to);
+    expect(from.x).toBeCloseTo(0, 9);
+    expect(from.y).toBeCloseTo(5, 9);
+    expect(to.x).toBeCloseTo(10, 9);
+    expect(to.y).toBeCloseTo(5, 9);
+  });
+
+  it("an even polygon's horizontal flip still mirrors the gradient (no half-turn involved)", () => {
+    const poly: Node = {
+      kind: "polygon",
+      id: "p2",
+      transform: [1, 0, 0, 1, 0, 0],
+      style: { ...DEFAULT_STYLE, fill: { ...g, from: { x: 0, y: 5 }, to: { x: 10, y: 5 } } },
+      cx: 5,
+      cy: 5,
+      rx: 5,
+      ry: 5,
+      sides: 4,
+      star: false,
+      innerRatio: 0.5,
+    };
+    const A: Mat = [-1, 0, 0, 1, 10, 0]; // horizontal flip about x = 5
+    const out = resizeNodes(doc([poly]), ["p2"], A);
+    expect(fillOf(out, "p2").from).toEqual({ x: 10, y: 5 });
+    expect(fillOf(out, "p2").to).toEqual({ x: 0, y: 5 });
   });
 
   it("a boolean maps the surviving style's gradient into the result's space", async () => {

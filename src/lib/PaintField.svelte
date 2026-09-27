@@ -63,14 +63,14 @@
       />
       <!-- Spec M15 §6: with nothing selected the panel edits the defaults for new shapes, which
            stay flat — so Linear says why it does nothing instead of disappearing (invariant 24). -->
-      <span title={kind === null ? "Linear gradient — select an object first" : "Linear gradient"}>
-        <ToggleButton
-          label="Linear"
-          ariaLabel={`${label} linear gradient`}
-          value={kind === null ? false : kind.mixed ? "mixed" : kind.value === "linear"}
-          onchange={() => kind !== null && onkind("linear")}
-        />
-      </span>
+      <ToggleButton
+        label="Linear"
+        ariaLabel={`${label} linear gradient`}
+        value={kind === null ? false : kind.mixed ? "mixed" : kind.value === "linear"}
+        disabled={kind === null}
+        title={kind === null ? "Linear gradient — select an object first" : "Linear gradient"}
+        onchange={() => kind !== null && onkind("linear")}
+      />
     </div>
   {/if}
   {#if paint}

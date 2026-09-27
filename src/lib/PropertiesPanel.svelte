@@ -1,5 +1,7 @@
 <script lang="ts">
   import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
+  import type { PaintSlot } from "../doc/paint-edit";
+  import { gradientHandles } from "../tools/gradient-handles";
   import {
     app,
     beginDocGesture,
@@ -77,6 +79,18 @@
   const poly = $derived(app.prefs.polygon);
   /** Spec M10 §6: the Text section appears for a single selected title. */
   const title = $derived(selectedTitle());
+  /** Review finding 7: which stop's row is highlighted, for the given paint slot only — gated on
+   *  `which` (recorded when the pick was made), not the currently active Edit target, so switching
+   *  Fill/Stroke afterwards doesn't relabel the pick onto the other row. Reachability is checked
+   *  against `gradientHandles`, not raw `app.selection`, so a stop picked on a shape reached
+   *  through a selected group still highlights its row. */
+  const pickedStop = (which: PaintSlot) => {
+    const gs = app.gradientStop;
+    if (!gs || gs.which !== which) return null;
+    return gradientHandles(app.doc, app.selection, which).some((h) => h.id === gs.id)
+      ? gs.stop
+      : null;
+  };
   const value = <T,>(f: Field<T>): T | null => (f.mixed ? null : f.value);
 
   let { expanded, ontoggle, flex }: { expanded: boolean; ontoggle: () => void; flex: string } =
@@ -143,11 +157,7 @@
             fallback={app.prefs.style.fill ?? FILL_FALLBACK}
             kind={fillGrad?.kind ?? null}
             stops={fillGrad?.stops ?? null}
-            picked={app.gradientTarget === "fill" &&
-            app.gradientStop &&
-            app.selection.includes(app.gradientStop.id)
-              ? app.gradientStop.stop
-              : null}
+            picked={pickedStop("fill")}
             onchange={(p) => setSelectionStyle({ fill: p })}
             onkind={(k) => setSelectionPaintKind("fill", k)}
             onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
@@ -163,11 +173,7 @@
             fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
             kind={strokeGrad?.kind ?? null}
             stops={strokeGrad?.stops ?? null}
-            picked={app.gradientTarget === "stroke" &&
-            app.gradientStop &&
-            app.selection.includes(app.gradientStop.id)
-              ? app.gradientStop.stop
-              : null}
+            picked={pickedStop("stroke")}
             onchange={(p) => setSelectionStyle({ stroke: p })}
             onkind={(k) => setSelectionPaintKind("stroke", k)}
             onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}

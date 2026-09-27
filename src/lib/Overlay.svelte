@@ -93,7 +93,12 @@
       b: docToScreen(view, h.to),
       start: h.start.color,
       end: h.end.color,
-      picked: app.gradientStop?.id === h.id ? app.gradientStop.stop : null,
+      // review finding 7: `which` ties the pick to the paint it was made on, so switching
+      // Fill/Stroke afterwards doesn't relabel it onto the wrong knob.
+      picked:
+        app.gradientStop?.id === h.id && app.gradientStop.which === app.gradientTarget
+          ? app.gradientStop.stop
+          : null,
     }));
   });
 

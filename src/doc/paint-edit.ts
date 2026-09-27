@@ -67,9 +67,21 @@ export function setPaintKind(
     if (kind === "flat") return isGradient(f) ? withFill(s, which, f.start) : s;
     if (isGradient(f)) return s;
     const box = nodeBounds({ ...s, transform: IDENTITY }, IDENTITY);
-    if (!box || box.w <= 0) return s;
-    const y = box.y + box.h / 2;
-    return withFill(s, which, fadeOf(f, { x: box.x, y }, { x: box.x + box.w, y }));
+    if (!box || (box.w <= 0 && box.h <= 0)) return s;
+    // A zero-width shape (a vertical line) has no horizontal mid-line to fade across, but it does
+    // have a vertical one — lay the default line along it instead of silently doing nothing
+    // (review finding 3).
+    const [from, to] =
+      box.w > 0
+        ? [
+            { x: box.x, y: box.y + box.h / 2 },
+            { x: box.x + box.w, y: box.y + box.h / 2 },
+          ]
+        : [
+            { x: box.x, y: box.y },
+            { x: box.x, y: box.y + box.h },
+          ];
+    return withFill(s, which, fadeOf(f, from, to));
   });
 }
 

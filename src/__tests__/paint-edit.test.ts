@@ -71,6 +71,53 @@ describe("setPaintKind (spec M15 §6)", () => {
     expect(findNode(out, "c")!.node).toBe(findNode(d, "c")!.node);
     expect(setPaintKind(d, ["c"], "fill", "flat")).toBe(d);
   });
+
+  it("Flat→Linear on a zero-width shape (a vertical line) lays the default line vertically (review finding 3)", () => {
+    const verticalLine: Node = {
+      kind: "path",
+      id: "v",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: red },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 5, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 5, y: 40 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const d = doc([verticalLine]);
+    const out = setPaintKind(d, ["v"], "fill", "linear");
+    expect(fill(out, "v")).toEqual({
+      kind: "linear",
+      from: { x: 5, y: 0 },
+      to: { x: 5, y: 40 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("leaves a shape with zero width AND zero height alone", () => {
+    const point: Node = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: red },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 5, y: 5 }, in: null, out: null, type: "corner" },
+            { p: { x: 5, y: 5 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const d = doc([point]);
+    expect(setPaintKind(d, ["p"], "fill", "linear")).toBe(d);
+  });
 });
 
 describe("setGradientStop", () => {

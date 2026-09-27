@@ -29,7 +29,7 @@ export type FakeState = {
   notices: string[];
   view: View;
   gradientTarget: PaintSlot;
-  gradientStop: { id: string; stop: StopEnd } | null;
+  gradientStop: { id: string; stop: StopEnd; which: PaintSlot } | null;
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */

@@ -232,6 +232,14 @@ describe("parseSvg — foreign files", () => {
     expect(flatFill((kept.doc.layers[0].children[0] as Shape).style.fill).color).toBe("#0000ff");
   });
 
+  it("reports an external paint reference by its own label (review finding 10)", () => {
+    const { doc, dropped } = parseSvg(
+      `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="url(other.svg#g)"/></svg>`,
+    );
+    expect((doc.layers[0].children[0] as Shape).style.fill).toBeNull();
+    expect(dropped).toEqual(["external paint references"]);
+  });
+
   it("reports a style visibility override and not one under display:none", () => {
     const styled = parseSvg(
       `<svg><g visibility="hidden"><rect width="5" height="5" style="visibility:visible"/></g></svg>`,

@@ -58,19 +58,24 @@ function bakeShape(s: Shape, L: Mat): Shape {
     }
     case "polygon": {
       const c = applyMat(L, { x: s.cx, y: s.cy });
+      // Spec (M2c) §4: the corners are left-right symmetric, so a horizontal flip needs nothing.
+      // A vertical flip of an odd polygon must point down: add an exact half-turn about the centre.
+      // Review finding 1: when that half-turn is composed into `transform`, the style must be
+      // mapped by `multiply(half, L)`, not `L` alone — the half-turn is its own inverse, so the
+      // node's transform (which now carries it) un-does it again, leaving the RENDERED gradient
+      // equal to `L` applied to the original. Mapping by `L` alone left the rendered gradient
+      // turned an extra 180° (a red→blue gradient came back blue→red).
+      const flips = L[3] < 0 && s.sides % 2 === 1;
+      const half: Mat | null = flips ? [-1, 0, 0, -1, 2 * c.x, 2 * c.y] : null;
       const out: PolygonShape = {
         ...s,
-        // cx/cy/rx/ry are baked by L, so the gradient maps by L too.
-        style: mapStyle(s.style, L),
+        style: mapStyle(s.style, half ? multiply(half, L) : L),
         cx: c.x,
         cy: c.y,
         rx: s.rx * Math.abs(L[0]),
         ry: s.ry * Math.abs(L[3]),
       };
-      // Spec (M2c) §4: the corners are left-right symmetric, so a horizontal flip needs nothing.
-      // A vertical flip of an odd polygon must point down: add an exact half-turn about the centre.
-      if (L[3] < 0 && s.sides % 2 === 1) {
-        const half: Mat = [-1, 0, 0, -1, 2 * c.x, 2 * c.y];
+      if (half) {
         out.transform = multiply(s.transform, half);
       }
       return out;

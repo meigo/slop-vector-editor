@@ -1,4 +1,4 @@
-import { flatIfDegenerate, type Fill } from "../doc/document";
+import { flatIfDegenerate, isGradient, type Fill } from "../doc/document";
 import type { Box } from "../geom/box";
 import { applyMat, invert, multiply, type Mat } from "../geom/mat";
 import { parseColor } from "./colors";
@@ -6,6 +6,10 @@ import { parseTransformOrNull } from "./transform";
 import type { XmlElement } from "./xml";
 
 /** Spec M15 §4: foreign paint servers, resolved into our two-point model exactly or not at all. */
+
+/** Mirrors parse.ts's MAX_COORD; kept as a local copy because parse.ts imports foldLinear and
+ *  resolveServer, so importing from parse.ts here would be a circular import (invariant 8). */
+const MAX_COORD = 1e9;
 
 export type Len = { v: number; pct: boolean };
 export type RawStop = { offset: number; color: string; opacity: number };
@@ -47,7 +51,7 @@ function hrefOf(el: XmlElement): string | null {
 }
 
 /** The element and the gradients it inherits from, nearest first. A cycle or an over-long chain
- *  simply ends the walk. */
+ *  ends the walk here; `chainBroken` tells the two apart from an ordinary end of chain. */
 function chain(servers: Map<string, XmlElement>, first: XmlElement): XmlElement[] {
   const out = [first];
   let el = first;
@@ -61,12 +65,22 @@ function chain(servers: Map<string, XmlElement>, first: XmlElement): XmlElement[
   return out;
 }
 
+/** Spec M15 §4 / review finding 5: a cycle or a chain cut at `MAX_CHAIN` is dropped, not silently
+ *  followed as far as it goes. True when the chain's last link still points at a further, distinct,
+ *  non-pattern gradient — the two reasons `chain`'s walk can stop short of the end of the links. */
+function chainBroken(servers: Map<string, XmlElement>, all: readonly XmlElement[]): boolean {
+  const id = hrefOf(all[all.length - 1]);
+  const next = id === null ? undefined : servers.get(id);
+  if (!next || local(next.name) === "pattern") return false;
+  return all.includes(next) || all.length >= MAX_CHAIN;
+}
+
 function len(v: string | undefined, fallback: Len): Len {
   if (v === undefined) return fallback;
   const t = v.trim();
   const pct = t.endsWith("%");
   const n = Number(pct ? t.slice(0, -1) : t);
-  return Number.isFinite(n) ? { v: n, pct } : fallback;
+  return Number.isFinite(n) && Math.abs(n) <= MAX_COORD ? { v: n, pct } : fallback;
 }
 
 /** A stop's own attribute, overridden by its `style` declaration (Inkscape writes the latter). */
@@ -107,6 +121,7 @@ export function resolveServer(servers: Map<string, XmlElement>, id: string): Res
   if (name === "pattern") return { kind: "drop", label: "patterns" };
   if (name === "radialGradient") return { kind: "drop", label: "radial gradients" };
   const all = chain(servers, el);
+  if (chainBroken(servers, all)) return { kind: "drop", label: "broken gradient references" };
   const attr = (k: string) => all.find((e) => e.attrs[k] !== undefined)?.attrs[k];
   const withStops = all.find((e) => e.children.some((c) => local(c.name) === "stop"));
   const tr = attr("gradientTransform");
@@ -169,14 +184,21 @@ export function foldLinear(
   const gg = gx * gx + gy * gy;
   const q0 = applyMat(A, p1);
   const at = (o: number) => ({ x: q0.x + (gx * o) / gg, y: q0.y + (gy * o) / gg });
-  return {
-    kind: "fill",
-    fill: flatIfDegenerate({
-      kind: "linear",
-      from: at(g.stops[0].offset),
-      to: at(g.stops[1].offset),
-      start: stops[0],
-      end: stops[1],
-    }),
-  };
+  const fill = flatIfDegenerate({
+    kind: "linear",
+    from: at(g.stops[0].offset),
+    to: at(g.stops[1].offset),
+    start: stops[0],
+    end: stops[1],
+  });
+  // Invariant 8: a coordinate is rejected the same way whether it comes from the file directly or
+  // from folding it — an absurd `x2`, or a transform that blows the points up, must not silently
+  // reach the document as NaN or a coordinate `fmt` would overflow.
+  if (isGradient(fill)) {
+    const nums = [fill.from.x, fill.from.y, fill.to.x, fill.to.y];
+    if (nums.some((n) => !Number.isFinite(n) || Math.abs(n) > MAX_COORD)) {
+      return { kind: "drop", label: "invalid gradient coordinates" };
+    }
+  }
+  return { kind: "fill", fill };
 }

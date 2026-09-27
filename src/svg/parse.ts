@@ -225,7 +225,7 @@ export function parseSvg(src: string): ParseResult {
       };
     }
     if (c.kind === "unsupported") {
-      drop("gradients/patterns");
+      drop("external paint references");
       return null;
     }
     return { color: c.color, opacity: c.alpha };

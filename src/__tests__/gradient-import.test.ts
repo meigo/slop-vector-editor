@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isGradient, type LinearGradient } from "../doc/document";
+import { applyMat, invert, type Mat } from "../geom/mat";
 import { collectServers, foldLinear, resolveServer, type RawLinear } from "../svg/gradient-import";
 import { parseXml } from "../svg/xml";
 
@@ -85,8 +86,19 @@ describe("collectServers / resolveServer", () => {
     expect(resolve(`<linearGradient id="h"/>`)).toEqual({ kind: "missing" });
     expect(resolve(`<rect id="g"/>`)).toEqual({ kind: "missing" });
     const cyc = resolve(`<linearGradient id="g" href="#h"/><linearGradient id="h" href="#g"/>`);
-    expect(cyc.kind).toBe("linear"); // a cycle stops the walk; the gradient has no stops
-    if (cyc.kind === "linear") expect(cyc.g.stops).toEqual([]);
+    // Spec M15 §4 / review finding 5: a cycle is dropped, not silently followed into a gradient
+    // with no stops.
+    expect(cyc).toEqual({ kind: "drop", label: "broken gradient references" });
+  });
+
+  it("drops a chain longer than 16 links (review finding 5)", () => {
+    const N = 20;
+    const links = Array.from(
+      { length: N },
+      (_, i) =>
+        `<linearGradient id="g${i}"${i < N - 1 ? ` href="#g${i + 1}"` : ""}>${i === N - 1 ? stops2 : ""}</linearGradient>`,
+    ).join("");
+    expect(resolve(links, "g0")).toEqual({ kind: "drop", label: "broken gradient references" });
   });
 });
 
@@ -157,6 +169,40 @@ describe("foldLinear (spec M15 §4)", () => {
     }
   });
 
+  it("is exact for objectBoundingBox units combined with a non-identity gradientTransform (review finding 11)", () => {
+    const g = linear(
+      `<linearGradient id="g" gradientTransform="rotate(90 0.5 0.5)">${stops2}</linearGradient>`,
+    );
+    const f = foldOk(g, box); // box = { x: 0, y: 0, w: 200, h: 100 }
+    // Hand computation: rotate(90°, 0.5, 0.5) maps the default unit gradient line (0,0)→(1,0), in
+    // bbox fraction space, to (1,0)→(1,1); scaled by the 200×100 box that becomes (200,0)→(200,100)
+    // — a vertical line down the box's right edge.
+    close(f.from, 200, 0);
+    close(f.to, 200, 100);
+    // Sample t(q) against the source's own s(q) = ((A⁻¹q − p1)·d)/(d·d), where A is the unit map
+    // composed with gradientTransform — derived by hand from the same rotation.
+    const A: Mat = [0, 100, -200, 0, 200, 0];
+    const inv = invert(A)!;
+    const p1 = { x: 0, y: 0 };
+    const d = { x: 1, y: 0 };
+    const sOf = (q: { x: number; y: number }) => {
+      const iq = applyMat(inv, q);
+      return ((iq.x - p1.x) * d.x + (iq.y - p1.y) * d.y) / (d.x * d.x + d.y * d.y);
+    };
+    const tModel = (q: { x: number; y: number }) => {
+      const v = { x: f.to.x - f.from.x, y: f.to.y - f.from.y };
+      return ((q.x - f.from.x) * v.x + (q.y - f.from.y) * v.y) / (v.x * v.x + v.y * v.y);
+    };
+    for (const q of [
+      { x: 200, y: 0 },
+      { x: 200, y: 50 },
+      { x: 150, y: 30 },
+      { x: 0, y: 100 },
+    ]) {
+      expect(tModel(q)).toBeCloseTo(sOf(q), 9);
+    }
+  });
+
   it("turns 0 stops into none and 1 stop into a flat paint", () => {
     expect(foldLinear(user('x2="10"', ""), box, view, 1)).toEqual({ kind: "fill", fill: null });
     expect(
@@ -217,6 +263,40 @@ describe("foldLinear (spec M15 §4)", () => {
     expect(foldLinear(user('x1="5" y1="5" x2="5" y2="5"'), box, view, 1)).toEqual({
       kind: "fill",
       fill: { color: "#0000ff", opacity: 0.5 },
+    });
+  });
+});
+
+describe("bounded coordinates (review finding 2)", () => {
+  const userG = (attrs: string) =>
+    linear(
+      `<linearGradient id="g" gradientUnits="userSpaceOnUse" ${attrs}>${stops2}</linearGradient>`,
+    );
+
+  it("rejects a length over MAX_COORD instead of overflowing (x2 = 1e12)", () => {
+    const f = foldOk(userG('x1="0" y1="0" x2="1e12" y2="0"'));
+    // Rejected by `len`: falls back as if x2 were absent (100%).
+    close(f.to, 400, 0);
+  });
+
+  it("rejects a grossly absurd length the same way, instead of overflowing to NaN (x2 = 1e200)", () => {
+    // Before the fix, `Number("1e200")` is finite but overflows `dd` downstream and stored NaN
+    // points, unreported. `len` now bounds it exactly as it bounds 1e12, so the gradient still
+    // folds — with x2 falling back to 100%, same as if it were absent.
+    const f = foldOk(userG('x1="0" y1="0" x2="1e200" y2="0"'));
+    close(f.to, 400, 0);
+  });
+
+  it("drops a gradient whose folded points exceed MAX_COORD, even with a readable transform", () => {
+    // Every individual number here is well under MAX_COORD (1e9) — the transform parses, the
+    // points parse — but the FOLDED point (100 · 100000 + 999000000) does not.
+    const g = userG(
+      'x1="100000" y1="0" x2="100010" y2="0" ' +
+        'gradientTransform="matrix(100 0 0 100 999000000 0)"',
+    );
+    expect(foldLinear(g, box, view, 1)).toEqual({
+      kind: "drop",
+      label: "invalid gradient coordinates",
     });
   });
 });

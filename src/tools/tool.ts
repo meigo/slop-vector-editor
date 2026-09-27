@@ -67,9 +67,11 @@ export interface ToolContext {
   setOverlay(o: Overlay): void;
   /** Which paint the Gradient tool edits (spec M15 §6). */
   gradientTarget(): PaintSlot;
-  /** The stop picked on the canvas, or null (spec M15 §7). */
-  gradientStop(): { id: string; stop: StopEnd } | null;
-  setGradientStop(pick: { id: string; stop: StopEnd } | null): void;
+  /** The stop picked on the canvas, or null (spec M15 §7). `which` is the paint slot it was
+   *  picked on — recorded so switching `gradientTarget` afterwards can't relabel it (review
+   *  finding 7). */
+  gradientStop(): { id: string; stop: StopEnd; which: PaintSlot } | null;
+  setGradientStop(pick: { id: string; stop: StopEnd; which: PaintSlot } | null): void;
 }
 
 export interface Tool {

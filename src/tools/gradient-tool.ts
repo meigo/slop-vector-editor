@@ -119,7 +119,7 @@ export function createGradientTool(): Tool {
       if (m.kind === "pending") {
         // A click: a knob picks its stop; anything else selects what is under the press.
         if (m.pick && m.pick.part !== "line") {
-          ctx.setGradientStop({ id: m.pick.h.id, stop: m.pick.part });
+          ctx.setGradientStop({ id: m.pick.h.id, stop: m.pick.part, which: ctx.gradientTarget() });
           return;
         }
         if (m.pick) return;

@@ -2059,3 +2059,21 @@ Taken ahead of M14 (envelope warp, which stays specced and next). Implements the
 - Plan: `docs/superpowers/plans/2026-09-27-m15-linear-gradients.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m15-linear-gradients-design.md`.
 - 824 tests in 63 files.
+- **Final review** (2026-09-27): an odd polygon's vertical flip additionally rotated its gradient
+  180° — the half-turn composed into `transform` needs the style mapped by `multiply(half, L)`, not
+  `L` alone (invariant 46, `resize.ts`). Gradient import coordinates are now bounded against
+  `MAX_COORD`: `len` rejects an over-long value (falling back as if absent) and `foldLinear` drops
+  a folded result that is still non-finite or too large ("invalid gradient coordinates") — an
+  absurd `x2` no longer stores `NaN` unreported. `setPaintKind`'s Flat→Linear no longer no-ops on a
+  zero-width shape (a vertical line): it lays the default line vertically instead of doing nothing.
+  An `href` cycle or a chain cut at `MAX_CHAIN` now drops with its own label ("broken gradient
+  references") instead of silently resolving to a gradient with no stops. The picked gradient stop
+  now records which paint (`fill`/`stroke`) it was picked on, so switching Edit no longer shows the
+  wrong row or knob highlighted, and the Properties panel checks reachability through
+  `gradientHandles` rather than raw `app.selection`, so a stop picked on a shape reached through a
+  selected group still highlights its row. Also: the Linear toggle is `aria-disabled` with nothing
+  selected (`ToggleButton` gained optional `disabled`/`title` props); an external `url(other.svg#g)`
+  reference now drops as "external paint references" rather than the misleading
+  "gradients/patterns"; added a tool test for cancelling a knob drag mid-gesture and an import test
+  for `objectBoundingBox` units combined with a non-identity `gradientTransform` (both already
+  passed — coverage gaps, not bugs). 836 tests in 63 files.

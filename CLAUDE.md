@@ -626,7 +626,13 @@ every user-visible change.
     gradient's two own-space points through the same matrix the branch applies to the geometry — a
     title's uniform resize bakes only the scale into its outlines (invariant 44), so its gradient is
     mapped by the scale only, never the full resize matrix, or the translation that already went
-    onto `transform` would be double-counted. It returns the **same** style object when neither
+    onto `transform` would be double-counted. **The polygon branch's vertical flip of an odd
+    polygon** composes an extra half-turn into `transform` (invariant 22), because the corner set
+    is only left-right symmetric; the style must then be mapped by `multiply(half, L)`, not `L`
+    alone — the half-turn is its own inverse, so the node's transform (which now carries it) undoes
+    it again, leaving the RENDERED gradient equal to `L` applied to the original. Mapping by `L`
+    alone left the rendered gradient turned an extra 180° (a red→blue gradient came back
+    blue→red — caught in the M15 final review). It returns the **same** style object when neither
     paint is a gradient, so a document with no gradients keeps every reference it keeps today.
     **Degenerate gradients collapse to the end stop's flat paint** (`flatIfDegenerate`), judged on
     the two points **as written** (`fmt`'s rounding), because that is what the file holds and what a
@@ -645,9 +651,13 @@ every user-visible change.
     on its own coordinate space, and only then is it folded — exactly, via an affine change of
     variable, for any invertible units/`gradientTransform` composition — into a 2-point linear
     gradient. Every 2-stop, pad-spread, non-degenerate linear gradient is kept exactly, whatever its
-    units, transform or offsets; 0 stops, 1 stop, 3+ stops, equal-offset stops, non-`pad` spread, a
-    `radialGradient`, a `pattern` or a missing reference each drop with their own label, same as any
-    other unsupported content (invariant 4).
+    units, transform or offsets. **0 stops → no paint (`null`) and 1 stop → that stop as a flat
+    `Paint`, neither reported** — SVG paints them exactly that way too, so nothing was dropped.
+    3+ stops, equal-offset stops, non-`pad` spread, a `radialGradient`, a `pattern`, coordinates
+    that overflow or exceed `MAX_COORD` ("invalid gradient coordinates" — a length is bounded at
+    `len`, and the folded result is bounded again, since a fold can blow a bounded input up), an
+    `href` cycle or a chain cut at `MAX_CHAIN` ("broken gradient references"), or a missing
+    reference each drop with their own label, same as any other unsupported content (invariant 4).
 
 ## Current state
 

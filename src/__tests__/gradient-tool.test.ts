@@ -174,16 +174,56 @@ describe("the Gradient tool (spec M15 §7)", () => {
     expect(f.to.x).toBeCloseTo(Math.hypot(100, 10), 9);
   });
 
-  it("a click on a knob picks that stop; a click on empty canvas clears the selection", () => {
+  it("a click on a knob picks that stop, recording which paint it was picked on (review finding 7)", () => {
     const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
     ctx.setSelection(["a"]);
     const tool = createGradientTool();
     tool.down(ctx, ev(100, 25));
     tool.up(ctx, ev(100, 25));
-    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "end" });
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "end", which: "fill" });
     tool.down(ctx, ev(300, 300));
     tool.up(ctx, ev(300, 300));
     expect(state.selection).toEqual([]);
+  });
+
+  it("records which paint the pick belongs to, not just the current target (review finding 7)", () => {
+    const dual: Node = {
+      kind: "rect",
+      id: "a",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: lin, stroke: lin },
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 50,
+      rx: 0,
+    };
+    const { ctx, state } = fakeContext(doc([dual]));
+    ctx.setSelection(["a"]);
+    const tool = createGradientTool();
+    tool.down(ctx, ev(100, 25));
+    tool.up(ctx, ev(100, 25));
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "end", which: "fill" });
+    // Switching the target must not retroactively change which paint the earlier pick belongs to.
+    state.gradientTarget = "stroke";
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "end", which: "fill" });
+  });
+
+  it("cancelling mid-drag restores the base document and closes the gesture (review finding 9)", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    ctx.setSelection(["a"]);
+    const baseDoc = ctx.doc();
+    const historyBefore = state.session.history;
+    const tool = createGradientTool();
+    tool.down(ctx, ev(100, 25));
+    tool.move(ctx, ev(150, 25));
+    // Mid-drag: the document has already changed and a gesture is open.
+    expect(ctx.doc()).not.toBe(baseDoc);
+    expect(state.session.gestureBase).not.toBeNull();
+    tool.cancel(ctx);
+    expect(ctx.doc()).toBe(baseDoc);
+    expect(state.session.gestureBase).toBeNull();
+    expect(state.session.history).toBe(historyBefore);
   });
 
   it("dropping one knob on the other collapses to the end stop's flat paint", () => {

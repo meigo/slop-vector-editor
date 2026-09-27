@@ -207,7 +207,7 @@ class AppState {
   gradientTarget = $state<PaintSlot>("fill");
   /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
    *  `nodeSel`: not saved, not undoable, cleared with the selection. */
-  gradientStop = $state.raw<{ id: string; stop: StopEnd } | null>(null);
+  gradientStop = $state.raw<{ id: string; stop: StopEnd; which: PaintSlot } | null>(null);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -653,7 +653,9 @@ export function setGradientTarget(which: PaintSlot): void {
   app.gradientTarget = which;
 }
 
-export function setGradientStop(pick: { id: string; stop: StopEnd } | null): void {
+export function setGradientStop(
+  pick: { id: string; stop: StopEnd; which: PaintSlot } | null,
+): void {
   app.gradientStop = pick;
 }
 
