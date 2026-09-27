@@ -574,4 +574,28 @@ describe("custom middle colour import (spec M18 §3)", () => {
     expect(f.fill.mid).toBeCloseTo(0.7, 12);
     expect(f.fill.midPaint).toEqual({ color: "#000000", opacity: 1 });
   });
+
+  it("imports a transparent middle stop as black at zero opacity, not opaque black (final review 3)", () => {
+    const f = foldOk(linear(three("0.5", "transparent")));
+    expect(f.midPaint).toEqual({ color: "#000000", opacity: 0 });
+  });
+
+  it("imports a gradient ending in transparent as black at zero opacity, not opaque black (final review 3)", () => {
+    const defs =
+      `<linearGradient id="g"><stop offset="0" stop-color="#ff0000"/>` +
+      `<stop offset="1" stop-color="transparent"/></linearGradient>`;
+    const f = foldOk(linear(defs));
+    expect(f.end).toEqual({ color: "#000000", opacity: 0 });
+  });
+
+  it("still drops a radial with an inner first stop across three stops (final review 4)", () => {
+    const defs =
+      `<radialGradient id="g" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="40">` +
+      `<stop offset="0.2" stop-color="#ff0000"/><stop offset="0.5" stop-color="#00ff00"/>` +
+      `<stop offset="1" stop-color="#0000ff"/></radialGradient>`;
+    expect(foldRadial(radial(defs), box, view, 1)).toEqual({
+      kind: "drop",
+      label: "radial gradients with an inner stop",
+    });
+  });
 });

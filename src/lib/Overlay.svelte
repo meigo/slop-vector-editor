@@ -223,8 +223,9 @@
       <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
       <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
     {/if}
-    <!-- Spec M17 §6: the midpoint diamond, filled with the 50/50 mix it stands for. Below the
-         knobs, as `pickHandle` ranks it below them. -->
+    <!-- Spec M17 §6: the midpoint diamond, filled with the effective middle colour it stands for
+         (custom, or the 50/50 mix when Auto). Below the knobs, as `pickHandle` ranks it below
+         them. -->
     <polygon
       points={points([
         { x: g.mid.x, y: g.mid.y - dm },

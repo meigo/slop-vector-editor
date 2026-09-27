@@ -145,7 +145,9 @@ function readStops(el: XmlElement): RawStop[] {
       last = offset;
       const col = parseColor(stopProp(c, "stop-color") ?? "#000000");
       const color = col && col.kind === "color" ? col.color : "#000000";
-      const alpha = col && col.kind === "color" ? col.alpha : 1;
+      // `transparent`/`none` parses to `{ kind: "none" }`: SVG/CSS define that as black at zero
+      // opacity, not opaque black — any other unparseable value keeps the opaque-black fallback.
+      const alpha = col && col.kind === "color" ? col.alpha : col && col.kind === "none" ? 0 : 1;
       const so = Number(stopProp(c, "stop-opacity") ?? "1");
       const opacity = (Number.isFinite(so) ? Math.min(1, Math.max(0, so)) : 1) * alpha;
       return { offset, color, opacity };

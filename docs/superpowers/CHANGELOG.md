@@ -2379,6 +2379,10 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   no touch-specific behaviour of their own, but inherit M15-M17's unverified drag/reach debt); the
   mixed-selection Auto toggle's `"mixed"` state, visually; save to disk and reopen through the UI
   (covered by the unit round-trip tests, not exercised end to end in the browser).
+- **Final review fix**: `readStops` (`src/svg/gradient-import.ts`) read a `transparent`/`none`
+  `stop-color` as opaque black; it now reads it as black at zero opacity, as SVG/CSS define
+  `transparent` — pre-M18 this only ever showed on a 2-stop gradient's end colour, but a 3-stop
+  gradient can now carry it as an opaque-black `midPaint` too.
 - Plan: `docs/superpowers/plans/2026-09-27-m18-gradient-mid-colour.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m18-gradient-mid-colour-design.md`.
-- 960 tests in 63 files.
+- 963 tests in 63 files.

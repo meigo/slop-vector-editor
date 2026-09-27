@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 960 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 963 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -683,7 +683,8 @@ every user-visible change.
     written or defaulted — spec M16 §4) and its first stop at offset 0 (a first stop above 0
     would paint a solid disc inside the rim, which the centre-plus-two-rims model can't
     represent). **0 stops → no paint (`null`) and 1 stop → that stop as a flat `Paint`, neither
-    reported** — SVG paints them exactly that way too, so nothing was dropped. 3+ stops,
+    reported** — SVG paints them exactly that way too, so nothing was dropped. Four or more stops
+    ("gradients with more than three stops"), a middle stop on or rounding onto an outer offset,
     equal-offset stops, non-`pad` spread, a `pattern`, a radial with a focal point ("radial
     gradients with a focal point") or an inner first stop ("radial gradients with an inner
     stop"), coordinates that overflow or exceed `MAX_COORD` ("invalid gradient coordinates" — a
@@ -717,8 +718,9 @@ every user-visible change.
     deletes the key, as turning `hidden` off does (invariant 39); read it only through `midOf`. It
     is written as a third stop at `offset=mid` carrying `midStop(start, end)`, the **premultiplied**
     50/50 mix (so a fade to transparent has no dark band), and read back from any 3-stop gradient
-    whose middle stop matches that mix within ±1/255 per channel and 0.005 opacity — anything else
-    with three or more stops still drops. It is a stop property, not geometry: bakes leave it
+    whose middle stop matches that mix within ±1/255 per channel and 0.005 opacity — a middle stop
+    on or rounding onto an outer offset still drops, and any other middle stop is kept as a custom
+    middle colour (M18 below). It is a stop property, not geometry: bakes leave it
     alone, conversions and redraws keep it, a kind restore keeps the CURRENT one, and a diamond
     drag does not call `forgetGradients`.
     **A custom middle colour is `midPaint?: Paint` (spec M18)** — absent is Auto (`midStop`), read
