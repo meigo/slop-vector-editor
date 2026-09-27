@@ -40,8 +40,10 @@
 </script>
 
 <!-- Spec M17 §5: where the two colours mix 50/50. The slider is the app's first range input:
-     `touch-action: none` so iPadOS reads a drag on it as a drag, not a scroll (invariant 6), and
-     `--ctl-h` high like every other control (invariant 23). -->
+     `touch-action: none` so iPadOS reads a drag on it as a drag, not a scroll (invariant 6),
+     `--ctl-h` high like every other control (invariant 23), and the raised field look
+     (`rounded border border-line bg-raised`, as `PaintRow`'s `type="color"` input composes it —
+     a range input has no `.field` styling of its own to fall back on). -->
 <div class="flex items-center gap-2" title="Midpoint — where the two colours mix 50/50">
   <span class="w-9 shrink-0 text-muted">Mid</span>
   <input
@@ -49,7 +51,7 @@
     min="1"
     max="99"
     step="1"
-    class="min-w-0 flex-1 cursor-pointer"
+    class="min-w-0 flex-1 cursor-pointer rounded border border-line bg-raised"
     style="height: var(--ctl-h); touch-action: none"
     aria-label="{label} midpoint"
     value={pct ?? 50}
