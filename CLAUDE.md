@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 887 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 900 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -696,12 +696,15 @@ every user-visible change.
     (not the remembered ones), rather than reconverting through the lossy round trip above; the
     memory covers a kind change exactly as it already covered Flat, so a radial converted to
     linear and back stays the same ellipse rather than coming back a circle. **The memory is
-    dropped for a shape's slot the moment the Gradient tool commits a newer gradient there — a
-    finished draw or a knob/line drag, never a cancelled one** (`forgetGradients`, fix M16 final
-    review finding 1), so a later Type switch can't resurrect a gradient staler than what was just
-    drawn; it is also pruned in `setSession` for any id no longer in the document, so a shape
-    deleted (or undone past its creation, whose id `idFor` can then hand to a new shape) can't
-    leave its memory to be inherited.
+    dropped for the shapes it repainted, groups included, the moment the Gradient tool commits a
+    newer gradient there — a finished draw or a knob/line drag, never a cancelled one**
+    (`forgetGradients`, fix M16 final review findings 1 and 1-round-2), so a later Type switch
+    can't resurrect a gradient staler than what was just drawn; because the memory is keyed by LEAF
+    shape id, forgetting a selected GROUP expands through `findNode` + `shapesOf` to every leaf it
+    contains, not just the group's own (paint-less) id. It is also pruned in `setSession`, from one
+    whole-document walk into a `Set`, for any id no longer in the document, so a shape deleted (or
+    undone past its creation, whose id `idFor` can then hand to a new shape) can't leave its memory
+    to be inherited.
 
 ## Current state
 

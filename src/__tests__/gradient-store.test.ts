@@ -6,6 +6,7 @@ import {
   isLinear,
   isRadial,
   type Doc,
+  type Group,
   type LinearGradient,
   type Node,
   type RadialGradient,
@@ -94,6 +95,23 @@ function ellipseDoc(): Doc {
 
 function styleOf(id: string): Shape["style"] {
   return (findNode(app.doc, id)!.node as Shape).style;
+}
+
+/** A group "g" holding one red rect "c" — memory is keyed by LEAF shape id (`gradientsToRemember`/
+ *  `convertGradients` descend into groups via `mapShapesWorld`), so forgetting the GROUP's id must
+ *  reach "c:fill" too (fix M16 final review finding 1, still open after the leaf-shape fix). */
+function groupDoc(): Doc {
+  const g: Group = {
+    kind: "group",
+    id: "g",
+    transform: IDENTITY,
+    opacity: 1,
+    children: [rect("c", 0, 0, 10, 10)],
+  };
+  return {
+    ...createDoc(100, 100),
+    layers: [{ id: "L0", name: "L0", visible: true, locked: false, children: [g] }],
+  };
 }
 
 beforeEach(() => {
@@ -236,6 +254,42 @@ describe("forgetGradients drops stale memory (fix M16 review finding 1a)", () =>
     // the shape's CURRENT radial, not a restore of the old linear.
     setGradientType("linear");
     const after = styleOf("a").fill as LinearGradient;
+    expect(after).not.toEqual(oldLinear);
+    expect(after).toEqual({
+      kind: "linear",
+      from: newerRadial.center,
+      to: newerRadial.a,
+      start: newerRadial.start,
+      end: newerRadial.end,
+    });
+  });
+
+  it("forgetting a GROUP reaches its leaf shapes' memory too (fix M16 final review finding 1)", () => {
+    replaceDocument(groupDoc(), "Untitled.svg", null, true);
+    setSelection(["g"]);
+    setSelectionPaintKind("fill", "linear");
+    const oldLinear = styleOf("c").fill;
+    expect(isLinear(oldLinear)).toBe(true);
+    // Linear → Radial on the group: "c" gets a fresh circle, stashed under its OWN id ("c:fill"),
+    // never "g:fill" — the group itself carries no paint.
+    setGradientType("radial");
+    expect(isRadial(styleOf("c").fill)).toBe(true);
+    // A newer radial committed directly on "c" (the Gradient tool always addresses the leaf shape,
+    // group selected or not).
+    const newer: RadialGradient = {
+      kind: "radial",
+      center: { x: 1, y: 1 },
+      a: { x: 21, y: 1 },
+      b: { x: 1, y: 15 },
+      start: { color: "#000000", opacity: 1 },
+      end: { color: "#000000", opacity: 1 },
+    };
+    commitDoc(setGradientGeometry(app.doc, "c", "fill", newer));
+    const newerRadial = styleOf("c").fill as RadialGradient;
+    // Forgetting the GROUP's id must still reach "c:fill".
+    forgetGradients(["g"], "fill");
+    setGradientType("linear");
+    const after = styleOf("c").fill as LinearGradient;
     expect(after).not.toEqual(oldLinear);
     expect(after).toEqual({
       kind: "linear",

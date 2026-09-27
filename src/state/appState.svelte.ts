@@ -6,6 +6,7 @@ import {
   isLocked,
   type Doc,
   type FlatStyle,
+  type Node,
   type NodeType,
   type Paint,
   type PathShape,
@@ -73,7 +74,7 @@ import {
 import { simplifyShapes, type SimplifyOutcome } from "../doc/simplify-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { filterToSelection } from "../doc/subset";
-import { ancestorIds, blocked, findNode, mapNodes, pruneSelection } from "../doc/tree";
+import { ancestorIds, blocked, findNode, mapNodes, pruneSelection, shapesOf } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
@@ -295,6 +296,22 @@ function syncPropsOverride(wasEmpty: boolean): void {
   });
 }
 
+/** Every id anywhere in the document, at any depth — one walk, so `setSession`'s prune (below) can
+ *  test membership in a Set instead of running `findNode` (itself an O(depth) search) once per
+ *  memory key on every session change, including every pointermove commit of a drag (fix M16 final
+ *  review finding 2). */
+function allNodeIds(doc: Doc): Set<string> {
+  const out = new Set<string>();
+  const walk = (nodes: readonly Node[]) => {
+    for (const n of nodes) {
+      out.add(n.id);
+      if (n.kind === "group") walk(n.children);
+    }
+  };
+  for (const l of doc.layers) walk(l.children);
+  return out;
+}
+
 /** Every session change goes through here, so the selection never names a node that is gone,
  *  hidden or locked. */
 function setSession(s: Session): void {
@@ -305,8 +322,9 @@ function setSession(s: Session): void {
   // is reused — pruning here, wherever the id is actually gone, is what keeps that new shape from
   // inheriting a dead one's memory. Cheap only when there is something to prune.
   if (app.gradientMemory.size > 0) {
+    const ids = allNodeIds(s.doc);
     for (const key of app.gradientMemory.keys()) {
-      if (findNode(s.doc, key.slice(0, key.indexOf(":"))) === null) app.gradientMemory.delete(key);
+      if (!ids.has(key.slice(0, key.indexOf(":")))) app.gradientMemory.delete(key);
     }
   }
   const pruned = pruneSelection(s.doc, app.selection);
@@ -707,9 +725,21 @@ export function setGradientStop(
  *  review finding 1a): once a NEWER gradient is on a shape, the older one its paint gave up on an
  *  EARLIER Flat/Type conversion must not outlive it in `gradientMemory`, or switching Type back
  *  later would resurrect that older gradient instead of the one just drawn. Forgetting a key with
- *  no entry is harmless, so callers need not check first. */
+ *  no entry is harmless, so callers need not check first.
+ *
+ *  Memory is keyed by LEAF shape id — `gradientsToRemember`/`convertGradients` descend into groups
+ *  via `mapShapesWorld`, and stash under each leaf's own id, never the group's — so an id here that
+ *  names a GROUP must be expanded to the shapes it repainted, or forgetting the group's own key is
+ *  a no-op and every leaf's stale memory survives (fix M16 final review finding 1). `shapesOf`
+ *  (`doc/tree.ts`) is the same expansion `mapShapesWorld` itself is built on. */
 export function forgetGradients(ids: readonly string[], which: PaintSlot): void {
-  for (const id of ids) app.gradientMemory.delete(`${id}:${which}`);
+  for (const id of ids) {
+    app.gradientMemory.delete(`${id}:${which}`);
+    const found = findNode(app.doc, id);
+    if (found) {
+      for (const s of shapesOf(found.node)) app.gradientMemory.delete(`${s.id}:${which}`);
+    }
+  }
 }
 
 /** Every gradient about to be discarded — Flat drops any kind, Linear/Radial drops the other kind

@@ -2190,3 +2190,16 @@ clear on replace); not browser-checked. 843 tests in 63 files.
      (50%/0) and could wrongly drop the gradient as having a focal point; a browser ignores a bad
      value outright. `gradient-import.ts` now treats an unparseable value as absent, so it defaults
      to the centre/0 like a missing attribute does.
+- **Final review, round 2** (2026-09-27), fixed in one follow-up commit:
+  1. Finding 1 had a gap: memory is keyed by LEAF shape id (`gradientsToRemember`/
+     `convertGradients` descend into groups via `mapShapesWorld`), but `forgetGradients` only
+     deleted the exact id it was given — forgetting a selected GROUP left every leaf's stale memory
+     in place. It now expands each id through `findNode` + `shapesOf` and deletes every leaf's key
+     too (and the id's own, unchanged).
+  2. `setSession`'s prune ran one `findNode` per memory key on every session change, including every
+     pointermove commit of a drag. It now walks the document once into a `Set` of every id and tests
+     membership in that instead.
+  3. Test counts in README.md and CLAUDE.md's Commands line had drifted from actual (887 vs. the
+     real, higher count after M16's own fixes) — both now say 900, the real `npm test` count as of
+     this round.
+  - 900 tests in 63 files.
