@@ -290,4 +290,44 @@ describe("midpoint round trip (spec M17 §3–§4)", () => {
     if (!isRadial(f)) throw new Error("radial expected");
     expect(f.mid).toBe(0.2);
   });
+
+  describe("custom middle colour round trip (spec M18 §3)", () => {
+    it("the user's case: black held to 70% then fading (Review Focus 1)", () => {
+      const g: RadialGradient = {
+        ...rad,
+        start: { color: "#000000", opacity: 1 },
+        end: { color: "#000000", opacity: 0 },
+        mid: 0.7,
+        midPaint: { color: "#000000", opacity: 1 },
+      };
+      const text = serializeDoc(withFill(g));
+      expect(text).toContain('<stop offset="0.7" stop-color="#000000"/>');
+      const f = shapesOf(parseSvg(text).doc)[0].style.fill;
+      if (!isRadial(f)) throw new Error("radial expected");
+      expect(f.mid).toBe(0.7);
+      expect(f.midPaint).toEqual({ color: "#000000", opacity: 1 });
+    });
+
+    it("round-trips a custom colour at 50% (no mid key) for both kinds, native, nothing dropped", () => {
+      const white = { color: "#ffffff", opacity: 0.5 };
+      for (const g of [
+        { ...lin, midPaint: white },
+        { ...rad, midPaint: white },
+      ]) {
+        const text = serializeDoc(withFill(g));
+        expect(text).toContain('offset="0.5" stop-color="#ffffff" stop-opacity="0.5"');
+        const r = parseSvg(text);
+        expect(r.dropped).toEqual([]);
+        const f = shapesOf(r.doc)[0].style.fill;
+        if (!isGradient(f)) throw new Error("gradient expected");
+        expect(f.midPaint).toEqual(white);
+        expect("mid" in f).toBe(false);
+        expect(serializeDoc(r.doc)).toBe(text);
+      }
+    });
+
+    it("writes exactly two stops with neither mid nor midPaint", () => {
+      expect(serializeDoc(withFill(lin)).match(/<stop /g)).toHaveLength(2);
+    });
+  });
 });
