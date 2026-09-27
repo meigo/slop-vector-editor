@@ -1,6 +1,7 @@
 import {
   idFor,
   isValidArtboardSize,
+  mapStyle,
   MAX_INNER,
   MAX_SIDES,
   MIN_INNER,
@@ -224,7 +225,12 @@ export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
     n.kind === "path" && !isIdentity(n.transform)
       ? // Flatten moves the outlines and resets the matrix; a title re-typed afterwards would be
         // re-outlined at the baseline origin and jump off the artboard, so it stops being a title.
-        { ...withBakedSubpaths(n, transformSubpaths(n.subpaths, n.transform)), transform: IDENTITY }
+        // Spec M15 §5: the gradient's own space moves with the geometry, so it is mapped the same way.
+        {
+          ...withBakedSubpaths(n, transformSubpaths(n.subpaths, n.transform)),
+          style: mapStyle(n.style, n.transform),
+          transform: IDENTITY,
+        }
       : n,
   );
 }

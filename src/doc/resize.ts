@@ -9,6 +9,7 @@ import {
 } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
 import {
+  mapStyle,
   scaleTextMeta,
   withBakedSubpaths,
   type Doc,
@@ -136,7 +137,10 @@ export function resizeNode(node: Node, A: Mat): Node {
     });
     return changed ? { ...node, children } : node;
   }
-  return bakeShape(node, L);
+  const baked = bakeShape(node, L);
+  // Spec M15 §5: the gradient lives in the same own space as the geometry just baked.
+  const style = mapStyle(baked.style, L);
+  return style === baked.style ? baked : { ...baked, style };
 }
 
 export function resizeNodes(doc: Doc, ids: readonly string[], A: Mat): Doc {
