@@ -50,15 +50,19 @@
   }
 </script>
 
-<div class={["flex items-center gap-2 rounded", selected && "ui-selected"]}>
+<div class={["flex min-w-0 flex-1 items-center gap-2 rounded", selected && "ui-selected"]}>
   <!-- A square control of the shared height (`--ctl-h`), not a fixed `size-8`: it has to track
-       the 32/24px control size like every other control. `aspect-square` plus `shrink-0` is
-       what keeps it square — it was `h-8 w-10`, and a flex item shrinks below its width, so in
-       the 240px sidebar the row squeezed it to a tall ~17px sliver at full height. -->
+       the 32/24px control size like every other control. It was `h-8 w-10`, and a flex item
+       shrinks below its width, so in the 240px sidebar the row squeezed it to a tall ~17px sliver
+       at full height. `aspect-square` (width from height) replaced that, but `input[type=color]`
+       does not reliably honour `aspect-ratio` in Chrome — the swatch rendered ~50px wide instead
+       of square once this row had to share space with a stop label (spec M15 §7, found in the
+       browser check after Task 6). Setting `width` alongside `height` is what actually pins it
+       square; `shrink-0` still keeps flex-shrink from touching either one when the row is tight. -->
   <input
     type="color"
-    class="aspect-square shrink-0 cursor-pointer rounded border border-line bg-raised"
-    style="height: var(--ctl-h)"
+    class="shrink-0 cursor-pointer rounded border border-line bg-raised"
+    style="width: var(--ctl-h); height: var(--ctl-h)"
     value={paint.color}
     aria-label="{label} colour"
     oninput={(e) => {
@@ -72,7 +76,7 @@
     onblur={endLive}
   />
   <input
-    class="field w-20 font-mono tabular-nums"
+    class="field w-20 min-w-0 font-mono tabular-nums"
     aria-label="{label} hex"
     value={hexDraft ?? paint.color}
     oninput={(e) => (hexDraft = e.currentTarget.value)}

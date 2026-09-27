@@ -103,6 +103,31 @@
         {hasSelection ? "Selection" : "Defaults for new shapes"}
       </h2>
 
+      {#if app.toolId === "gradient"}
+        <!-- Spec M15 §6: first, not last — picking the Gradient tool switches this panel's job to
+             choosing which paint it edits, and the panel scrolls. Below the Fill/Stroke/Shape/Node
+             sections, this switch could sit off-screen exactly when the tool just became active
+             (the controller's browser check after Task 6 caught it there). As the Node section
+             appears only for the node tool, this appears only for the Gradient tool. -->
+        <FieldSection id="gradient" title="Gradient">
+          <div class="field-row">
+            <span class="text-muted">Edit</span>
+            <div class="flex gap-1">
+              <ToggleButton
+                label="Fill"
+                value={app.gradientTarget === "fill"}
+                onchange={() => setGradientTarget("fill")}
+              />
+              <ToggleButton
+                label="Stroke"
+                value={app.gradientTarget === "stroke"}
+                onchange={() => setGradientTarget("stroke")}
+              />
+            </div>
+          </div>
+        </FieldSection>
+      {/if}
+
       <!-- Spec M10 §6: first, not last. Placing a title is immediately followed by typing it, and
            this panel scrolls — below the paint and geometry sections it sat under the fold. -->
       {#if title}
@@ -258,28 +283,6 @@
               onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
             />
           {/if}
-        </FieldSection>
-      {/if}
-
-      {#if app.toolId === "gradient"}
-        <!-- Spec M15 §6: which paint the Gradient tool edits, only while it is the active tool —
-             as the Node section appears only for the node tool. -->
-        <FieldSection id="gradient" title="Gradient">
-          <div class="field-row">
-            <span class="text-muted">Edit</span>
-            <div class="flex gap-1">
-              <ToggleButton
-                label="Fill"
-                value={app.gradientTarget === "fill"}
-                onchange={() => setGradientTarget("fill")}
-              />
-              <ToggleButton
-                label="Stroke"
-                value={app.gradientTarget === "stroke"}
-                onchange={() => setGradientTarget("stroke")}
-              />
-            </div>
-          </div>
         </FieldSection>
       {/if}
 
