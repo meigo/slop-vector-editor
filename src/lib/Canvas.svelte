@@ -74,7 +74,7 @@
       ? "grabbing"
       : app.spaceHeld || app.toolId === "hand"
         ? "grab"
-        : TOOLS[app.toolId].cursor,
+        : (app.hoverCursor ?? TOOLS[app.toolId].cursor),
   );
 
   $effect(() => {

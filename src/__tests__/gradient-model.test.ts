@@ -6,9 +6,12 @@ import {
   isLinear,
   isRadial,
   mapStyle,
+  midOf,
+  midStop,
   radialMatrix,
   sameColours,
   sameFill,
+  withMid,
   type LinearGradient,
   type RadialGradient,
   type Style,
@@ -125,5 +128,61 @@ describe("radial gradients in the model (spec M16 §2)", () => {
   it("mapStyle maps all three radial points, skew included", () => {
     const s: Style = { ...DEFAULT_STYLE, fill: rad([0, 0], [10, 0], [0, 10]) };
     expect(mapStyle(s, [1, 0, 0.5, 1, 0, 0]).fill).toEqual(rad([0, 0], [10, 0], [5, 10]));
+  });
+});
+
+describe("midpoint model (spec M17 §2–§3)", () => {
+  const red = { color: "#ff0000", opacity: 1 };
+  const blue = { color: "#0000ff", opacity: 1 };
+  const g = {
+    kind: "linear" as const,
+    from: { x: 0, y: 0 },
+    to: { x: 10, y: 0 },
+    start: red,
+    end: blue,
+  };
+
+  it("midOf defaults to 0.5; withMid deletes the key at 0.5 and undefined", () => {
+    expect(midOf(g)).toBe(0.5);
+    expect(midOf(withMid(g, 0.3))).toBe(0.3);
+    expect("mid" in withMid({ ...g, mid: 0.3 }, 0.5)).toBe(false);
+    expect("mid" in withMid({ ...g, mid: 0.3 }, undefined)).toBe(false);
+  });
+
+  it("midStop mixes opaque colours channel by channel", () => {
+    expect(midStop(red, blue)).toEqual({ color: "#800080", opacity: 1 });
+    expect(midStop({ color: "#000000", opacity: 1 }, { color: "#ffffff", opacity: 1 })).toEqual({
+      color: "#808080",
+      opacity: 1,
+    });
+  });
+
+  it("midStop is premultiplied: a fade to transparent keeps its colour (Review Focus 1)", () => {
+    expect(midStop(red, { color: "#000000", opacity: 0 })).toEqual({
+      color: "#ff0000",
+      opacity: 0.5,
+    });
+    expect(
+      midStop({ color: "#ff0000", opacity: 0.75 }, { color: "#0000ff", opacity: 0.25 }),
+    ).toEqual({ color: "#bf0040", opacity: 0.5 });
+  });
+
+  it("midStop falls back to the plain average when both ends are transparent", () => {
+    expect(midStop({ color: "#ff0000", opacity: 0 }, { color: "#0000ff", opacity: 0 })).toEqual({
+      color: "#800080",
+      opacity: 0,
+    });
+  });
+
+  it("sameFill compares the midpoint (absent = 0.5); sameColours ignores it", () => {
+    expect(sameFill(g, { ...g, mid: 0.3 })).toBe(false);
+    expect(sameFill(g, withMid(g, 0.5))).toBe(true);
+    expect(sameColours(g, { ...g, mid: 0.3 })).toBe(true);
+  });
+
+  it("mapStyle keeps the midpoint through a bake (Review Focus 4)", () => {
+    const s = { ...DEFAULT_STYLE, fill: { ...g, mid: 0.3 } };
+    const out = mapStyle(s, [2, 0, 0, 2, 5, 5]);
+    expect(midOf(out.fill as typeof g)).toBe(0.3);
   });
 });

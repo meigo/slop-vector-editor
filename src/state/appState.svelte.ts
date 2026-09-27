@@ -56,6 +56,7 @@ import {
 import {
   convertGradients,
   gradientsToRemember,
+  setGradientMid as applyGradientMid,
   setGradientStop as applyGradientStop,
   setPaintKind,
   type GradientKind,
@@ -221,6 +222,9 @@ class AppState {
   /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
    *  `nodeSel`: not saved, not undoable, cleared with the selection. */
   gradientStop = $state.raw<{ id: string; stop: StopEnd; which: PaintSlot } | null>(null);
+  /** A cursor named by a tool's `hover` for whatever is under the pointer (spec M17 §6), shown in
+   *  place of the tool's static cursor; null restores it. Not saved, not undoable. */
+  hoverCursor = $state<string | null>(null);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -580,6 +584,11 @@ export function setTool(id: ToolId): void {
   finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
+  app.hoverCursor = null;
+}
+
+export function setHoverCursor(c: string | null): void {
+  if (app.hoverCursor !== c) app.hoverCursor = c;
 }
 
 export function setOverlay(o: Overlay): void {
@@ -764,6 +773,14 @@ export function setSelectionGradientStop(which: PaintSlot, stop: StopEnd, paint:
   cancelActiveGesture();
   if (app.selection.length === 0) return;
   commitDoc(applyGradientStop(app.doc, app.selection, which, stop, paint));
+}
+
+/** Spec M17 §5: the Midpoint row. Its slider brackets a drag in `beginDocGesture`/`endDocGesture`
+ *  (invariant 42), so the per-`input` commits here collapse into one undo step. */
+export function setSelectionGradientMid(which: PaintSlot, mid: number): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(applyGradientMid(app.doc, app.selection, which, mid));
 }
 
 export function applyGeometry(field: GeometryField, value: number): void {

@@ -215,3 +215,79 @@ describe("gradient import (spec M15 §4)", () => {
     expect(r.dropped).toContain("background gradients");
   });
 });
+
+describe("midpoint round trip (spec M17 §3–§4)", () => {
+  const withFill = (fill: LinearGradient | RadialGradient): Doc => {
+    const d0 = createDoc(200, 100);
+    return {
+      ...d0,
+      layers: [
+        {
+          ...d0.layers[0],
+          children: [
+            {
+              kind: "rect",
+              // Matches the id a native reload assigns this shape (the layer element consumes
+              // "n1" for itself first), so the byte-identical checks below don't trip on
+              // renumbering that has nothing to do with the midpoint.
+              id: "n2",
+              transform: [1, 0, 0, 1, 0, 0],
+              style: { ...DEFAULT_STYLE, fill },
+              x: 0,
+              y: 0,
+              w: 100,
+              h: 50,
+              rx: 0,
+            },
+          ],
+        },
+      ],
+    };
+  };
+  const lin: LinearGradient = {
+    kind: "linear",
+    from: { x: 0, y: 0 },
+    to: { x: 100, y: 0 },
+    start: { color: "#ff0000", opacity: 1 },
+    end: { color: "#000000", opacity: 0 },
+  };
+  const rad: RadialGradient = {
+    kind: "radial",
+    center: { x: 50, y: 25 },
+    a: { x: 90, y: 25 },
+    b: { x: 50, y: 40 },
+    start: { color: "#ff0000", opacity: 1 },
+    end: { color: "#0000ff", opacity: 1 },
+  };
+
+  it("writes three stops only when there is a midpoint", () => {
+    expect(serializeDoc(withFill(lin)).match(/<stop /g)).toHaveLength(2);
+    const text = serializeDoc(withFill({ ...lin, mid: 0.3 }));
+    expect(text.match(/<stop /g)).toHaveLength(3);
+    expect(text).toContain('offset="0.3" stop-color="#ff0000" stop-opacity="0.5"');
+  });
+
+  it("round-trips the midpoint for both kinds, native, nothing dropped", () => {
+    for (const g of [
+      { ...lin, mid: 0.3 },
+      { ...rad, mid: 0.72 },
+    ]) {
+      const r = parseSvg(serializeDoc(withFill(g)));
+      expect(r.dropped).toEqual([]);
+      expect(r.native).toBe(true);
+      const f = shapesOf(r.doc)[0].style.fill;
+      if (!isGradient(f)) throw new Error("gradient expected");
+      expect(f.mid).toBe(g.mid);
+      expect(serializeDoc(r.doc)).toBe(serializeDoc(withFill(g)));
+    }
+  });
+
+  it("round-trips a radial ellipse with a midpoint under gradientTransform", () => {
+    const g = { ...rad, b: { x: 60, y: 45 }, mid: 0.2 };
+    const text = serializeDoc(withFill(g));
+    expect(text).toContain("gradientTransform");
+    const f = shapesOf(parseSvg(text).doc)[0].style.fill;
+    if (!isRadial(f)) throw new Error("radial expected");
+    expect(f.mid).toBe(0.2);
+  });
+});

@@ -92,8 +92,13 @@ What works today:
   current. A linear gradient has a knob at each end and the line between; a radial one has a
   centre knob and two rim knobs — drag the centre or a line to move the whole gradient, one rim to
   stretch the circle into an ellipse, the other to rotate and scale it (Shift snaps that one to
-  45°, or keeps the stretch perpendicular). Linear and radial gradients from other apps' SVGs are
-  kept when they have two stops.
+  45°, or keeps the stretch perpendicular). Knobs are shaped by what they do — a circle for the
+  start or centre, a square for the end or the stretching rim, a ring for the rim that rotates
+  and scales. A small diamond on the line is the **midpoint**, where the two colours mix 50/50:
+  drag it, or use the Midpoint slider under the gradient's Start row, to push the blend toward one
+  end. Three-stop gradients from other apps whose middle stop is that mix are read as a midpoint.
+  Linear and radial gradients from other apps' SVGs are kept when they have two stops, or three
+  where the middle stop is the 50/50 mix.
 
 ## Keyboard
 
@@ -132,7 +137,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 900 unit tests
+npm test          # 936 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

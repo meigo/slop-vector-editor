@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   createDoc,
   DEFAULT_STYLE,
+  midOf,
   type Doc,
+  type Fill,
+  type Gradient,
   type LinearGradient,
   type Node,
   type RadialGradient,
@@ -13,6 +16,7 @@ import {
   drawGradientLine,
   gradientsToRemember,
   setGradientGeometry,
+  setGradientMid,
   setGradientStop,
   setPaintKind,
   toLinear,
@@ -392,5 +396,80 @@ describe("converting kind remembers the gradient given up (fix M16)", () => {
     expect(fill(setPaintKind(linear, ["a"], "fill", "radial"), "a")).toEqual(
       rad0([50, 25], [100, 25], [50, 75]),
     );
+  });
+});
+
+describe("midpoint edits (spec M17 §2)", () => {
+  const red = { color: "#ff0000", opacity: 1 };
+  const blue = { color: "#0000ff", opacity: 1 };
+  const lin: LinearGradient = {
+    kind: "linear",
+    from: { x: 0, y: 5 },
+    to: { x: 10, y: 5 },
+    start: red,
+    end: blue,
+  };
+  const docWith = (fill: Fill): Doc => {
+    const d = createDoc(100, 100);
+    const r: Node = {
+      kind: "rect",
+      id: "a",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill },
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      rx: 0,
+    };
+    return { ...d, layers: [{ ...d.layers[0], id: "L0", children: [r] }] };
+  };
+  const fillA = (d: Doc) => (findNode(d, "a")!.node as Shape).style.fill as Gradient;
+
+  it("setGradientMid sets it, deletes it at 0.5, and returns the same doc for a no-op", () => {
+    const d0 = docWith(lin);
+    const d1 = setGradientMid(d0, ["a"], "fill", 0.3);
+    expect(fillA(d1).mid).toBe(0.3);
+    const d2 = setGradientMid(d1, ["a"], "fill", 0.5);
+    expect("mid" in fillA(d2)).toBe(false);
+    expect(setGradientMid(d0, ["a"], "fill", 0.5)).toBe(d0);
+    expect(setGradientMid(d1, ["a"], "fill", 0.3)).toBe(d1);
+  });
+
+  it("setGradientMid leaves flat paints alone", () => {
+    const d0 = docWith(red);
+    expect(setGradientMid(d0, ["a"], "fill", 0.3)).toBe(d0);
+  });
+
+  it("toRadial / toLinear carry the midpoint", () => {
+    expect(toRadial({ ...lin, mid: 0.3 }).mid).toBe(0.3);
+    expect(toLinear(toRadial({ ...lin, mid: 0.3 })).mid).toBe(0.3);
+    expect("mid" in toRadial(lin)).toBe(false);
+  });
+
+  it("drawGradientLine and setGradientGeometry keep the current midpoint (Review Focus 4)", () => {
+    const d0 = docWith({ ...lin, mid: 0.3 });
+    const drawn = drawGradientLine(d0, ["a"], "fill", { x: 0, y: 0 }, { x: 10, y: 10 });
+    expect(fillA(drawn).mid).toBe(0.3);
+    const radial = drawGradientLine(d0, ["a"], "fill", { x: 5, y: 5 }, { x: 9, y: 5 }, "radial");
+    expect(fillA(radial).mid).toBe(0.3);
+    const moved = setGradientGeometry(d0, "a", "fill", { ...lin, to: { x: 8, y: 5 } });
+    expect(fillA(moved).mid).toBe(0.3);
+  });
+
+  it("a Type round trip through the memory keeps the CURRENT midpoint", () => {
+    const d0 = docWith({ ...lin, mid: 0.3 });
+    const remembered = { g: { ...lin, mid: 0.3 } as Gradient, box: { x: 0, y: 0, w: 10, h: 10 } };
+    const asRadial = convertGradients(d0, ["a"], "fill", "radial");
+    const edited = setGradientMid(asRadial, ["a"], "fill", 0.7);
+    const back = convertGradients(edited, ["a"], "fill", "linear", () => remembered);
+    expect(midOf(fillA(back))).toBe(0.7);
+  });
+
+  it("Flat → gradient restores the remembered midpoint", () => {
+    const d0 = docWith(red);
+    const remembered = { g: { ...lin, mid: 0.3 } as Gradient, box: { x: 0, y: 0, w: 10, h: 10 } };
+    const back = setPaintKind(d0, ["a"], "fill", "linear", () => remembered);
+    expect(midOf(fillA(back))).toBe(0.3);
   });
 });

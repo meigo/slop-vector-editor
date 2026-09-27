@@ -34,6 +34,8 @@ export type FakeState = {
   /** Calls to `forgetGradients` (fix M16 review finding 1), recorded rather than acted on — the
    *  fake has no `gradientMemory` of its own; the tool tests only check who got called with what. */
   forgotten: { ids: readonly string[]; which: PaintSlot }[];
+  /** Set by `setHoverCursor` (spec M17 §6). */
+  hoverCursor: string | null;
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -62,6 +64,7 @@ export function fakeContext(
     gradientType: "linear",
     gradientStop: null,
     forgotten: [],
+    hoverCursor: null,
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -128,6 +131,9 @@ export function fakeContext(
     },
     forgetGradients: (ids, which) => {
       state.forgotten.push({ ids, which });
+    },
+    setHoverCursor: (c) => {
+      state.hoverCursor = c;
     },
   };
   return { ctx, state };

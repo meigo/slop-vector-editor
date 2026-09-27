@@ -3,6 +3,7 @@ import {
   isGradient,
   isHidden,
   isLocked,
+  midStop,
   radialMatrix,
   type Fill,
   type Group,
@@ -43,7 +44,7 @@ export type GradientDef = {
   stops: Attrs[];
 };
 
-function stopAttrs(offset: "0" | "1", p: Paint): Attrs {
+function stopAttrs(offset: string, p: Paint): Attrs {
   const a: Attrs = { offset, "stop-color": p.color };
   if (p.opacity !== 1) a["stop-opacity"] = fmt(p.opacity);
   return a;
@@ -75,7 +76,16 @@ export function gradientDefs(s: Shape): GradientDef[] {
     const f = s.style[which];
     if (!isGradient(f)) continue;
     const id = gradientId(s.id, which);
-    const stops = [stopAttrs("0", f.start), stopAttrs("1", f.end)];
+    // Spec M17 §3: a midpoint is a third stop carrying the 50/50 mix; none, and the output is
+    // exactly the two stops written before M17.
+    const stops =
+      f.mid === undefined
+        ? [stopAttrs("0", f.start), stopAttrs("1", f.end)]
+        : [
+            stopAttrs("0", f.start),
+            stopAttrs(fmt(f.mid), midStop(f.start, f.end)),
+            stopAttrs("1", f.end),
+          ];
     if (f.kind === "linear") {
       out.push({
         id,
