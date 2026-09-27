@@ -2243,8 +2243,8 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   on `change`, `blur` and destruction — the `PaintRow` colour-swatch pattern, invariant 42,
   deliberately duplicated in `MidpointRow` rather than shared). `setSelectionGradientMid` (store)
   and `GradientSummary.mid` (`src/state/properties.ts`) wire it to the selection.
-- **The Gradient tool** (`src/tools/gradient-handles.ts`, `gradient-tool.ts`): a fourth
-  `HandlePart`, `"mid"` — a small diamond at `lerp(from, to, midOf(f))` for a linear gradient, on
+- **The Gradient tool** (`src/tools/gradient-handles.ts`, `gradient-tool.ts`): a new `HandlePart`,
+  `"mid"` — a small diamond at `lerp(from, to, midOf(f))` for a linear gradient, on
   the centre→rim-A line for a radial (rim B carries no diamond: the midpoint is one number for the
   whole ellipse, spec §8 ruling 4). `pickHandle` now scans knobs, then diamonds, then lines, each
   pass front to back; when a gradient is short enough that its diamond overlaps an end knob the
@@ -2295,4 +2295,4 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   round-trip tests, not exercised end to end in the browser).
 - Plan: `docs/superpowers/plans/2026-09-27-m17-gradient-midpoint.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m17-gradient-midpoint-design.md`.
-- 935 tests in 63 files.
+- 936 tests in 63 files.

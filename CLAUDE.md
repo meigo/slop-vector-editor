@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 935 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 936 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -769,9 +769,10 @@ Parked, not tied to a milestone: a path inside a group contributes no snap targe
 
 Parked as a group, for a milestone of its own (spec M5 §1 "Out"): accessibility and keyboard work
 — Space not activating a focused button, the Modal focus trap, File-menu keyboard navigation,
-`aria-current`/`aria-selected` on layer rows, the PaintField opacity label, `.ui-mixed`'s
-contrast; and performance — the id index for `findNode`, layer-row measurement caching,
-`collectTargets` recomputing every bounds per pointer-down, `nearestOnSubpath`'s cost.
+`aria-current`/`aria-selected` on layer rows, the PaintField opacity label, the Midpoint % field
+label, `.ui-mixed`'s contrast; and performance — the id index for `findNode`, layer-row
+measurement caching, `collectTargets` recomputing every bounds per pointer-down,
+`nearestOnSubpath`'s cost.
 
 ## Verification debt
 

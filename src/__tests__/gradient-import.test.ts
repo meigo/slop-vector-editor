@@ -490,6 +490,18 @@ describe("midpoint import (spec M17 §4)", () => {
     expect(foldLinear(linear(three("1", "#800080")), box, view, 1).kind).toBe("drop");
   });
 
+  it("drops a near-0/near-1 midpoint that would round to an outer offset on save (Review Focus 1)", () => {
+    expect(foldLinear(linear(three("0.0000001", "#800080")), box, view, 1)).toEqual({
+      kind: "drop",
+      label: "gradients with more than two stops",
+    });
+    expect(foldLinear(linear(three("0.9999999", "#800080")), box, view, 1)).toEqual({
+      kind: "drop",
+      label: "gradients with more than two stops",
+    });
+    expect(foldOk(linear(three("0.000002", "#800080"))).mid).toBeCloseTo(0.000002, 12);
+  });
+
   it("reads a radial midpoint relative to its last stop", () => {
     const defs =
       `<radialGradient id="g" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="40">` +

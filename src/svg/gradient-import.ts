@@ -238,6 +238,11 @@ function outerStops(raw: readonly RawStop[], stops: readonly Paint[]): Outer | {
   if (!(o0 < om && om < o1)) return more;
   if (!isMidStop(stops[1], midStop(stops[0], stops[2]))) return more;
   const t = (om - o0) / (o1 - o0);
+  // The writer rounds `mid` to 6 decimals (attrs.ts's `fmt`), so a `t` that rounds to 0 or 1 would
+  // save as a middle stop sharing an outer offset — reject it here rather than write a file the
+  // importer itself would then drop as more than two stops (spec M17 §4).
+  const rounded = Math.round(t * 1e6);
+  if (rounded <= 0 || rounded >= 1e6) return more;
   return { o0, o1, start: stops[0], end: stops[2], mid: Math.abs(t - 0.5) < 1e-6 ? undefined : t };
 }
 
