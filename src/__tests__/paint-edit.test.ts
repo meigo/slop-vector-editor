@@ -3,6 +3,7 @@ import {
   createDoc,
   DEFAULT_STYLE,
   midOf,
+  midPaintOf,
   type Doc,
   type Fill,
   type Gradient,
@@ -17,6 +18,7 @@ import {
   gradientsToRemember,
   setGradientGeometry,
   setGradientMid,
+  setGradientMidAuto,
   setGradientStop,
   setPaintKind,
   toLinear,
@@ -471,5 +473,96 @@ describe("midpoint edits (spec M17 §2)", () => {
     const remembered = { g: { ...lin, mid: 0.3 } as Gradient, box: { x: 0, y: 0, w: 10, h: 10 } };
     const back = setPaintKind(d0, ["a"], "fill", "linear", () => remembered);
     expect(midOf(fillA(back))).toBe(0.3);
+  });
+});
+
+describe("custom midpoint colour edits (spec M18 §2)", () => {
+  const red = { color: "#ff0000", opacity: 1 };
+  const blue = { color: "#0000ff", opacity: 1 };
+  const black = { color: "#000000", opacity: 1 };
+  const lin: LinearGradient = {
+    kind: "linear",
+    from: { x: 0, y: 5 },
+    to: { x: 10, y: 5 },
+    start: red,
+    end: blue,
+  };
+  const docWith = (fill: Fill): Doc => {
+    const d = createDoc(100, 100);
+    const r: Node = {
+      kind: "rect",
+      id: "a",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill },
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      rx: 0,
+    };
+    return { ...d, layers: [{ ...d.layers[0], id: "L0", children: [r] }] };
+  };
+  const fillA = (d: Doc) => (findNode(d, "a")!.node as Shape).style.fill as Gradient;
+
+  it("setGradientStop 'mid' stores a custom colour; same doc when unchanged", () => {
+    const d0 = docWith(lin);
+    const d1 = setGradientStop(d0, ["a"], "fill", "mid", black);
+    expect(fillA(d1).midPaint).toEqual(black);
+    expect(setGradientStop(d1, ["a"], "fill", "mid", { ...black })).toBe(d1);
+  });
+
+  it("Auto follows a Start edit; a custom colour stays put (Review Focus 2)", () => {
+    const auto = setGradientStop(docWith(lin), ["a"], "fill", "start", {
+      color: "#ffffff",
+      opacity: 1,
+    });
+    expect(midPaintOf(fillA(auto))).toEqual({ color: "#8080ff", opacity: 1 });
+    const custom = setGradientStop(docWith({ ...lin, midPaint: black }), ["a"], "fill", "start", {
+      color: "#ffffff",
+      opacity: 1,
+    });
+    expect(midPaintOf(fillA(custom))).toEqual(black);
+  });
+
+  it("setGradientMidAuto(false) seeds the mix; (true) drops it; no-ops keep the doc (Review Focus 4)", () => {
+    const d0 = docWith(lin);
+    const off = setGradientMidAuto(d0, ["a"], "fill", false);
+    expect(fillA(off).midPaint).toEqual({ color: "#800080", opacity: 1 });
+    expect(setGradientMidAuto(off, ["a"], "fill", false)).toBe(off);
+    const custom = docWith({ ...lin, midPaint: black });
+    expect(setGradientMidAuto(custom, ["a"], "fill", false)).toBe(custom);
+    const on = setGradientMidAuto(custom, ["a"], "fill", true);
+    expect("midPaint" in fillA(on)).toBe(false);
+    expect(setGradientMidAuto(d0, ["a"], "fill", true)).toBe(d0);
+    const flat = docWith(red);
+    expect(setGradientMidAuto(flat, ["a"], "fill", false)).toBe(flat);
+  });
+
+  it("conversions, redraw and geometry keep midPaint", () => {
+    const g = { ...lin, midPaint: black, mid: 0.7 };
+    expect(toRadial(g).midPaint).toEqual(black);
+    expect(toLinear(toRadial(g)).midPaint).toEqual(black);
+    expect(toLinear(toRadial(g)).mid).toBe(0.7);
+    const d0 = docWith(g);
+    expect(
+      fillA(drawGradientLine(d0, ["a"], "fill", { x: 0, y: 0 }, { x: 9, y: 9 })).midPaint,
+    ).toEqual(black);
+    expect(
+      fillA(setGradientGeometry(d0, "a", "fill", { ...lin, to: { x: 8, y: 5 } })).midPaint,
+    ).toEqual(black);
+  });
+
+  it("a kind restore keeps the CURRENT midPaint; Flat → gradient restores the remembered one", () => {
+    const white = { color: "#ffffff", opacity: 1 };
+    const remembered = {
+      g: { ...lin, midPaint: white } as Gradient,
+      box: { x: 0, y: 0, w: 10, h: 10 },
+    };
+    const asRadial = convertGradients(docWith(lin), ["a"], "fill", "radial");
+    const edited = setGradientStop(asRadial, ["a"], "fill", "mid", black);
+    const back = convertGradients(edited, ["a"], "fill", "linear", () => remembered);
+    expect(fillA(back).midPaint).toEqual(black);
+    const fromFlat = setPaintKind(docWith(red), ["a"], "fill", "linear", () => remembered);
+    expect(fillA(fromFlat).midPaint).toEqual(white);
   });
 });

@@ -15,7 +15,8 @@ export type Paint = { color: string /* #rrggbb, lowercase */; opacity: number };
 /** Spec M15 §2: two stops, always at offsets 0 and 1. `from`/`to` are in the shape's OWN space —
  *  the space its geometry lives in, under its `transform` — so move and rotate carry the gradient
  *  for free and every geometry bake must map it (`mapStyle`).
- *  `mid` (spec M17 §2): the offset where the colour is `midStop(start, end)`; absent = 0.5. */
+ *  `mid` (spec M17 §2): the offset where the colour is `midStop(start, end)`; absent = 0.5.
+ *  `midPaint` (spec M18 §2): a custom middle-stop colour; absent = Auto, the mix. */
 export type LinearGradient = {
   kind: "linear";
   from: Vec;
@@ -23,6 +24,7 @@ export type LinearGradient = {
   start: Paint;
   end: Paint;
   mid?: number;
+  midPaint?: Paint;
 };
 /** Spec M16 §2: the unit circle carried by the affine map whose columns are `a − center` and
  *  `b − center`. Perpendicular and equal is a circle; anything else is an ellipse — and because it
@@ -35,6 +37,7 @@ export type RadialGradient = {
   start: Paint;
   end: Paint;
   mid?: number;
+  midPaint?: Paint;
 };
 export type Gradient = LinearGradient | RadialGradient;
 export type Fill = Paint | Gradient;
@@ -84,6 +87,18 @@ export function withMid<G extends Gradient>(g: G, mid: number | undefined): G {
   return out;
 }
 
+/** Spec M18 §2: the colour the middle stop actually has — the custom one, or the mix (Auto). */
+export const midPaintOf = (g: Gradient): Paint => g.midPaint ?? midStop(g.start, g.end);
+
+/** `g` with a custom middle colour, or Auto again for `undefined` (the key is deleted, as
+ *  `withMid` deletes a 50% midpoint — one representation per state, invariants 1 and 39). */
+export function withMidPaint<G extends Gradient>(g: G, p: Paint | undefined): G {
+  const out = { ...g };
+  delete out.midPaint;
+  if (p !== undefined) out.midPaint = p;
+  return out;
+}
+
 const channel = (c: string, i: number) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
 const hex2 = (n: number) => n.toString(16).padStart(2, "0");
 
@@ -103,6 +118,11 @@ export function midStop(a: Paint, b: Paint): Paint {
 
 const sameVec = (a: Vec, b: Vec) => a.x === b.x && a.y === b.y;
 
+/** Spec M18 §2: the raw field — absent must not match present, even at the same colour, so an
+ *  edit that turns Auto into a custom colour equal to the mix still registers as a change. */
+const sameMidPaint = (a: Paint | undefined, b: Paint | undefined) =>
+  a === undefined || b === undefined ? a === b : samePaint(a, b);
+
 /** Exact: what an edit compares to decide it changed nothing (invariant 1). Kinds must match — a
  *  linear and a radial with identical stops are still different fills (spec M16 §2). */
 export function sameFill(a: Fill | null, b: Fill | null): boolean {
@@ -116,7 +136,11 @@ export function sameFill(a: Fill | null, b: Fill | null): boolean {
           ? sameVec(a.center, b.center) && sameVec(a.a, b.a) && sameVec(a.b, b.b)
           : false;
     return (
-      pointsMatch && samePaint(a.start, b.start) && samePaint(a.end, b.end) && midOf(a) === midOf(b)
+      pointsMatch &&
+      samePaint(a.start, b.start) &&
+      samePaint(a.end, b.end) &&
+      midOf(a) === midOf(b) &&
+      sameMidPaint(a.midPaint, b.midPaint)
     );
   }
   return samePaint(a as Paint, b as Paint);
@@ -126,13 +150,19 @@ export function sameFill(a: Fill | null, b: Fill | null): boolean {
  *  gradients' points are in two different shapes' own spaces, so comparing them means nothing.
  *  Kinds must still match — a flat paint never matches a gradient, and (spec M16 §2) a linear
  *  never matches a radial. The midpoint is ignored too (spec M17 §2): it is how the colours are
- *  spread, not which. */
+ *  spread, not which.
+ *  Spec M18 §2: the middle stop compares by its EFFECTIVE colour (`midPaintOf`) — what the user
+ *  sees. */
 export function sameColours(a: Fill | null, b: Fill | null): boolean {
   if (a === null || b === null) return a === b;
   if (isGradient(a) !== isGradient(b)) return false;
   if (isGradient(a) && isGradient(b)) {
     if (a.kind !== b.kind) return false;
-    return samePaint(a.start, b.start) && samePaint(a.end, b.end);
+    return (
+      samePaint(a.start, b.start) &&
+      samePaint(a.end, b.end) &&
+      samePaint(midPaintOf(a), midPaintOf(b))
+    );
   }
   return samePaint(a as Paint, b as Paint);
 }

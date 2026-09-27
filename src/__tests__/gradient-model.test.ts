@@ -7,11 +7,13 @@ import {
   isRadial,
   mapStyle,
   midOf,
+  midPaintOf,
   midStop,
   radialMatrix,
   sameColours,
   sameFill,
   withMid,
+  withMidPaint,
   type LinearGradient,
   type RadialGradient,
   type Style,
@@ -184,5 +186,45 @@ describe("midpoint model (spec M17 §2–§3)", () => {
     const s = { ...DEFAULT_STYLE, fill: { ...g, mid: 0.3 } };
     const out = mapStyle(s, [2, 0, 0, 2, 5, 5]);
     expect(midOf(out.fill as typeof g)).toBe(0.3);
+  });
+});
+
+describe("custom midpoint colour model (spec M18 §2)", () => {
+  const red = { color: "#ff0000", opacity: 1 };
+  const blue = { color: "#0000ff", opacity: 1 };
+  const black = { color: "#000000", opacity: 1 };
+  // Typed explicitly (unlike the M17 describe above) so `withMidPaint`'s generic return type
+  // carries the optional `midPaint` field the direct `.midPaint` assertions below read.
+  const g: LinearGradient = {
+    kind: "linear",
+    from: { x: 0, y: 0 },
+    to: { x: 10, y: 0 },
+    start: red,
+    end: blue,
+  };
+
+  it("midPaintOf is the mix when absent and the custom paint when present", () => {
+    expect(midPaintOf(g)).toEqual({ color: "#800080", opacity: 1 });
+    expect(midPaintOf({ ...g, midPaint: black })).toEqual(black);
+  });
+
+  it("withMidPaint sets it and deletes the key for undefined", () => {
+    expect(withMidPaint(g, black).midPaint).toEqual(black);
+    expect("midPaint" in withMidPaint({ ...g, midPaint: black }, undefined)).toBe(false);
+  });
+
+  it("sameFill compares the raw field; sameColours the effective colour", () => {
+    const mix = { color: "#800080", opacity: 1 };
+    expect(sameFill(g, { ...g, midPaint: black })).toBe(false);
+    expect(sameFill({ ...g, midPaint: black }, { ...g, midPaint: { ...black } })).toBe(true);
+    expect(sameFill(g, { ...g, midPaint: mix })).toBe(false);
+    expect(sameColours(g, { ...g, midPaint: mix })).toBe(true);
+    expect(sameColours(g, { ...g, midPaint: black })).toBe(false);
+  });
+
+  it("mapStyle keeps midPaint through a bake", () => {
+    const s = { ...DEFAULT_STYLE, fill: { ...g, midPaint: black } };
+    const out = mapStyle(s, [2, 0, 0, 2, 5, 5]);
+    expect((out.fill as typeof g & { midPaint?: unknown }).midPaint).toEqual(black);
   });
 });
