@@ -6,7 +6,8 @@
   import PaintRow from "./PaintRow.svelte";
   import ToggleButton from "./ToggleButton.svelte";
 
-  const STOPS: readonly StopEnd[] = ["start", "end"];
+  // "mid" is handled by MidpointRow's own Mid colour row (Task 3), not this loop.
+  const STOPS: readonly Exclude<StopEnd, "mid">[] = ["start", "end"];
 
   let {
     label,
