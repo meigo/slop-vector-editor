@@ -1954,3 +1954,28 @@ where a member's grip is exactly under its group's chevron; here it sat 2px left
 level indented 16px while the grip slot plus its gap is 18px. A level now indents 18px
 (`rowPad`, `8 + 18 * depth`): at depth n the grip starts at 8 + 18n px, which is where the chevron
 of a row at depth n − 1 starts. Measured in Chrome at :5198 on the same test document as above.
+
+## 2026-09-27 — Node type buttons change the curve
+
+No spec: reported as "changing a node's type — corner, smooth, symmetric — nothing happens".
+`retype` (`doc/path-edit.ts`) only moved handles a node already had two of, so Smooth and
+Symmetric on a node between straight segments changed only the label, and Corner never touched
+the handles at all — the curve looked the same until the next handle drag.
+
+- **Corner retracts both handles** (Illustrator's convert-to-corner), so the node turns sharp at
+  once. The old handles are lost, bar undo; that includes a corner whose handles had been bent
+  apart with Alt, if Corner is pressed on it again.
+- **Smooth and Symmetric grow what is missing**: a lone handle is mirrored (a third of that side's
+  chord for smooth, the same length for symmetric); a node with none gets handles parallel to the
+  line between its neighbours, a third of each chord, equalised to their mean for symmetric. A
+  handle is grown only on a side that has a neighbour — an open end gets one. A closed subpath
+  wraps round for its first and last node's neighbours. Neighbours that give no direction (a
+  closed two-node subpath) leave only the label changed, as before.
+- The node tool's double-tap cycle goes through the same edit, so cycling past Corner now retracts
+  the handles and the next Smooth grows fresh ones.
+- **Desktop-verified** (Chrome, :5198, driven through the Properties buttons): a straight peak
+  turned Smooth grows level handles and draws round; a smooth curve node turned Corner loses both
+  handles, and undo restores them. Screenshot-checked.
+- **Not verified:** the context-menu entries and the double-tap cycle in the browser (same store
+  action / same pure edit), and iPad.
+- 765 tests in 56 files.
