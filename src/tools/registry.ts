@@ -10,6 +10,7 @@ import {
   createRectTool,
 } from "./shape-tools";
 import { createTextTool } from "./text-tool";
+import { createWarpTool } from "./warp-tool";
 import type { Tool } from "./tool";
 import type { ToolId } from "./types";
 
@@ -25,4 +26,5 @@ export const TOOLS: Readonly<Record<ToolId, Tool>> = {
   node: createNodeTool(),
   hand: createHandTool(),
   gradient: createGradientTool(),
+  warp: createWarpTool(),
 };

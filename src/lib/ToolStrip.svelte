@@ -2,6 +2,7 @@
   import {
     Blend,
     Circle,
+    Grid2x2,
     Hand,
     MousePointer2,
     Pentagon,
@@ -24,6 +25,7 @@
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "text", label: "Text", key: "T", icon: Type },
     { id: "gradient", label: "Gradient", key: "G", icon: Blend },
+    { id: "warp", label: "Warp", key: "W", icon: Grid2x2 },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];
 </script>

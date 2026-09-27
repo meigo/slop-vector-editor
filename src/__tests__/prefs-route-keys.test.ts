@@ -215,6 +215,7 @@ describe("editActionForKey", () => {
     expect(k("h")).toEqual({ kind: "tool", tool: "hand" });
     expect(k("n")).toEqual({ kind: "tool", tool: "node" });
     expect(k("g")).toEqual({ kind: "tool", tool: "gradient" });
+    expect(k("w")).toEqual({ kind: "tool", tool: "warp" });
     expect(k("v", { shiftKey: true })).toBeNull();
     expect(k("x")).toBeNull();
   });

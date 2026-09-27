@@ -2,12 +2,14 @@
 
 <script lang="ts">
   import { findNode } from "../doc/tree";
-  import { flattenSubpath } from "../geom/bezier";
+  import { cubicPoint, flattenSubpath } from "../geom/bezier";
   import { applyMat, multiply } from "../geom/mat";
   import type { Vec } from "../geom/vec";
+  import { edgeCubic } from "../geom/warp";
   import { app } from "../state/appState.svelte";
   import { docToScreen } from "../state/viewport";
   import { selectionFrame } from "../tools/frame";
+  import { handleCorner } from "../tools/cage-handles";
   import { activeHandles, frameOutline, handlePositions, handleSize } from "../tools/gizmo";
   import { gradientHandles } from "../tools/gradient-handles";
 
@@ -145,6 +147,26 @@
         picked,
       };
     });
+  });
+
+  /** Spec M14 §5: the warp cage in screen space — four boundary curves sampled at 32 points, a
+   *  leader from each handle to the corner it hangs from, the eight handles and the four corners. */
+  const cage = $derived(app.overlay?.kind === "cage" ? app.overlay.cage : null);
+  const cageView = $derived.by(() => {
+    if (!cage) return null;
+    const toScreen = (p: Vec) => docToScreen(view, p);
+    const quad = [0, 1, 2, 3] as const;
+    const edges = quad.map((i) => {
+      const c = edgeCubic(cage, i);
+      return Array.from({ length: 32 }, (_, k) => toScreen(cubicPoint(c, k / 31)));
+    });
+    const handles = quad.flatMap((i) =>
+      ([0, 1] as const).map((j) => ({
+        a: toScreen(handleCorner(cage, i, j)),
+        b: toScreen(cage.edges[i][j]),
+      })),
+    );
+    return { edges, handles, corners: cage.corners.map(toScreen) };
   });
 
   const pen = $derived(app.overlay?.kind === "pen" ? app.overlay : null);
@@ -357,6 +379,33 @@
       />
     {/if}
   {/each}
+
+  {#if cageView}
+    {#each cageView.edges as poly, i (i)}
+      {@render lineHalo({ t: "poly", pts: poly, closed: false })}
+      <polyline points={points(poly)} style={LINE} stroke-width="1" />
+    {/each}
+    {#each cageView.handles as h, i (i)}
+      {@render lineHalo({ t: "line", a: h.a, b: h.b })}
+      <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
+    {/each}
+    {#each cageView.handles as h, i (i)}
+      {@render knobHalo({ t: "circle", c: h.b, r: knobSize / 2 - 1 })}
+      <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />
+    {/each}
+    <!-- Corners last: they draw on top, as `pickCage` ranks them first. -->
+    {#each cageView.corners as c, i (i)}
+      {@render knobHalo({ t: "rect", c, half: knobSize / 2 })}
+      <rect
+        x={c.x - knobSize / 2}
+        y={c.y - knobSize / 2}
+        width={knobSize}
+        height={knobSize}
+        style={SELECTED_KNOB}
+        stroke-width="1"
+      />
+    {/each}
+  {/if}
 
   {#if penView}
     {#each penView.outline as poly, i (i)}
