@@ -7,6 +7,7 @@ import {
   flatIfDegenerate,
   isGradient,
   sameFill,
+  withMid,
   type Doc,
   type Fill,
   type Gradient,
@@ -67,20 +68,23 @@ const fadeOf = (p: Paint, from: Vec, to: Vec): LinearGradient => ({
 export function toRadial(g: Gradient): RadialGradient {
   if (g.kind === "radial") return g;
   const rim = perp({ x: g.to.x - g.from.x, y: g.to.y - g.from.y });
-  return {
-    kind: "radial",
-    center: g.from,
-    a: g.to,
-    b: { x: g.from.x + rim.x, y: g.from.y + rim.y },
-    start: g.start,
-    end: g.end,
-  };
+  return withMid(
+    {
+      kind: "radial",
+      center: g.from,
+      a: g.to,
+      b: { x: g.from.x + rim.x, y: g.from.y + rim.y },
+      start: g.start,
+      end: g.end,
+    },
+    g.mid,
+  );
 }
 
 export function toLinear(g: Gradient): LinearGradient {
   return g.kind === "linear"
     ? g
-    : { kind: "linear", from: g.center, to: g.a, start: g.start, end: g.end };
+    : withMid({ kind: "linear", from: g.center, to: g.a, start: g.start, end: g.end }, g.mid);
 }
 
 const convertKind = (g: Gradient, kind: GradientKind): Gradient =>
@@ -113,12 +117,14 @@ export function gradientsToRemember(
  *  `start` is the flat colour the paint has now, so a colour picked while flat is kept; `end`
  *  defaults to the remembered gradient's own end stop (Flat→Linear/Radial has no other end to
  *  offer) but a kind-to-kind restore passes the CURRENT gradient's end too, so a stop edited after
- *  the earlier conversion survives (fix M16, "switching Type back restores the gradient"). */
+ *  the earlier conversion survives (fix M16, "switching Type back restores the gradient") — and,
+ *  likewise, the CURRENT midpoint (spec M17 §2: it is a stop property). */
 function restored(
   r: RememberedGradient,
   box: Box | null,
   start: Paint,
   end: Paint = r.g.end,
+  mid: number | undefined = r.g.mid,
 ): Fill {
   const a = r.box;
   const axis = (v: number, a0: number, aw: number, b0: number, bw: number) =>
@@ -126,15 +132,10 @@ function restored(
   const map = (p: Vec): Vec =>
     !a || !box ? p : { x: axis(p.x, a.x, a.w, box.x, box.w), y: axis(p.y, a.y, a.h, box.y, box.h) };
   return r.g.kind === "linear"
-    ? flatIfDegenerate({ ...r.g, from: map(r.g.from), to: map(r.g.to), start, end })
-    : flatIfDegenerate({
-        ...r.g,
-        center: map(r.g.center),
-        a: map(r.g.a),
-        b: map(r.g.b),
-        start,
-        end,
-      });
+    ? flatIfDegenerate(withMid({ ...r.g, from: map(r.g.from), to: map(r.g.to), start, end }, mid))
+    : flatIfDegenerate(
+        withMid({ ...r.g, center: map(r.g.center), a: map(r.g.a), b: map(r.g.b), start, end }, mid),
+      );
 }
 
 /** Converts `f` (a gradient already known to be of some OTHER kind than `kind`) to `kind`: a
@@ -149,7 +150,7 @@ function convertOrRestore(
   box: Box | null,
   r: RememberedGradient | undefined,
 ): Fill {
-  return r && r.g.kind === kind ? restored(r, box, f.start, f.end) : convertKind(f, kind);
+  return r && r.g.kind === kind ? restored(r, box, f.start, f.end, f.mid) : convertKind(f, kind);
 }
 
 /** `remembered` answers the gradient (either kind) a shape's paint had before it went flat, if
@@ -234,16 +235,20 @@ export function convertGradients(
   });
 }
 
-/** Replaces a gradient's geometry in the shape's own space, keeping its CURRENT stops — `next`'s
- *  own stops are ignored. Only applies when the current paint is already a gradient of `next`'s
- *  kind; a rim collapsed onto the centre (or a linear collapsed to a point) stores the end stop
- *  flat, as everywhere else (spec M16 §6, the tool's drags). */
+/** Replaces a gradient's geometry in the shape's own space, keeping its CURRENT stops and midpoint
+ *  — `next`'s own stops are ignored. Only applies when the current paint is already a gradient of
+ *  `next`'s kind; a rim collapsed onto the centre (or a linear collapsed to a point) stores the end
+ *  stop flat, as everywhere else (spec M16 §6, the tool's drags). */
 export function setGradientGeometry(doc: Doc, id: string, which: PaintSlot, next: Gradient): Doc {
   return mapNodes(doc, [id], (n) => {
     if (n.kind === "group") return n;
     const f = n.style[which];
     if (!isGradient(f) || f.kind !== next.kind) return n;
-    return withFill(n, which, flatIfDegenerate({ ...next, start: f.start, end: f.end }));
+    return withFill(
+      n,
+      which,
+      flatIfDegenerate(withMid({ ...next, start: f.start, end: f.end }, f.mid)),
+    );
   });
 }
 
@@ -260,9 +265,24 @@ export function setGradientStop(
   });
 }
 
+/** Spec M17 §2: sets every selected gradient's midpoint on `which`; 0.5 deletes the key. Flat
+ *  paints are untouched, and an unchanged gradient keeps its reference (`withFill`/`sameFill`). */
+export function setGradientMid(
+  doc: Doc,
+  ids: readonly string[],
+  which: PaintSlot,
+  mid: number,
+): Doc {
+  return mapShapesWorld(doc, ids, (s) => {
+    const f = s.style[which];
+    return isGradient(f) ? withFill(s, which, withMid(f, mid)) : s;
+  });
+}
+
 /** One document-space line (or, for a radial, circle) mapped into every shape under `ids`, so a
  *  drag across several shapes reads as one continuous gradient (spec M15 §7, M16 §6). An existing
- *  gradient of EITHER kind keeps its stops; a flat or null paint gets the fade stops as today. */
+ *  gradient of EITHER kind keeps its stops and midpoint; a flat or null paint gets the fade stops
+ *  as today. */
 export function drawGradientLine(
   doc: Doc,
   ids: readonly string[],
@@ -277,6 +297,7 @@ export function drawGradientLine(
     const f = s.style[which];
     const start = isGradient(f) ? f.start : (f ?? (DEFAULT_STYLE[which] as Paint));
     const end = isGradient(f) ? f.end : { ...start, opacity: 0 };
+    const mid = isGradient(f) ? f.mid : undefined;
     let next: Gradient;
     if (kind === "linear") {
       next = { kind: "linear", from: applyMat(inv, from), to: applyMat(inv, to), start, end };
@@ -292,6 +313,6 @@ export function drawGradientLine(
         end,
       };
     }
-    return withFill(s, which, flatIfDegenerate(next));
+    return withFill(s, which, flatIfDegenerate(withMid(next, mid)));
   });
 }
