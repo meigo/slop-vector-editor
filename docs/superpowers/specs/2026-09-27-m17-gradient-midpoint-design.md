@@ -103,14 +103,16 @@ the same bytes) and in other editors'.
 
 ## 5. The Properties panel
 
-A **Midpoint** row in the Gradient section, between the Start and End rows, shown only for Linear
-and Radial (a flat paint has no midpoint):
+A **Midpoint** row in each paint's gradient rows (`PaintField`, the Fill and Stroke blocks), between
+its Start and End rows, shown only when every selected paint is Linear or Radial (a flat paint has no
+midpoint) — corrected while planning: the Start/End rows live there, not in the tool's Gradient
+section:
 
 - A range slider (`<input type="range">`, 1–99, step 1) and a numeric `%` field beside it
   (`NumberField`, min 1, max 99, suffix `%`). It is the app's first range input: it gets the raised
   field look, `var(--ctl-h)` height (invariant 23) and `touch-action: none` so iPadOS reads a drag
-  on it as a drag, not a scroll. Both sit in the one `.field-grid` row (label | slider + field),
-  keeping the grid's two-item parity.
+  on it as a drag, not a scroll. `PaintField` is a flex column, not the `.field-grid`, so the row
+  mirrors the Start/End rows (a short label, then the controls) in a new `MidpointRow.svelte`.
 - The slider updates the artwork on `input` and the drag is **one undo step**, bracketed in
   `beginDocGesture`/`endDocGesture`, closed on `change`, `blur` and component destruction — the
   `PaintField` colour-swatch pattern (invariant 42). The numeric field commits on Enter/blur like
@@ -146,8 +148,10 @@ the knob wins; the panel is then the route to the midpoint. New `HandlePart`: `"
 
 **Dragging the diamond** projects the pointer onto the from→to (or centre→A) line in document
 space, converts to the offset `t`, rounds to a whole percent and clamps to 1–99, and commits as one
-undo step through the tool's existing gesture path (cancel rolls back; `forgetGradients` runs on
-commit as for any knob drag). No snapping; Shift does nothing.
+undo step through the tool's existing gesture path (cancel rolls back). Unlike a knob drag it does
+**not** call `forgetGradients` — corrected while planning: the memory guards geometry, which a
+midpoint drag leaves alone, and a kind restore keeps the current midpoint anyway (§2), so forgetting
+would only throw away the other kind's remembered shape. No snapping; Shift does nothing.
 
 **Cursors (desktop only):** the tool's `hover` already runs on every pointer move with no gesture;
 it now sets a hover cursor through `ToolContext`, and `Canvas.svelte` shows it in place of the
