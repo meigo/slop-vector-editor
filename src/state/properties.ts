@@ -1,12 +1,15 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
 import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import {
+  isGradient,
   sameColours,
+  samePaint,
   type Doc,
   type Fill,
   type LineCap,
   type LineJoin,
   type NodeType,
+  type Paint,
   type PolygonShape,
   type RectShape,
   type Style,
@@ -61,6 +64,37 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
     join: merge(styles.map((s) => s.join)),
     opacity: merge(styles.map((s) => s.opacity)),
   };
+}
+
+export type GradientSummary = {
+  kind: Field<"flat" | "linear">;
+  stops: { start: Field<Paint>; end: Field<Paint> } | null;
+};
+
+/** Spec M15 §6: which kind each non-null paint is, and — when every one is linear — each stop
+ *  merged across them. Null when no selected shape has this paint. */
+export function summarizeGradient(
+  styles: readonly Style[],
+  which: "fill" | "stroke",
+): GradientSummary | null {
+  const fills = styles.map((s) => s[which]).filter((f): f is Fill => f !== null);
+  if (fills.length === 0) return null;
+  const kind = merge(fills.map((f) => (isGradient(f) ? "linear" : "flat") as "flat" | "linear"));
+  const grads = fills.filter(isGradient);
+  const stops =
+    grads.length === fills.length
+      ? {
+          start: merge(
+            grads.map((g) => g.start),
+            samePaint,
+          ),
+          end: merge(
+            grads.map((g) => g.end),
+            samePaint,
+          ),
+        }
+      : null;
+  return { kind, stops };
 }
 
 export type SelectionActions = {

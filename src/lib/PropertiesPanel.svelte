@@ -8,7 +8,9 @@
     moveSelectedNodes,
     setPolygonPrefs,
     setSelectedNodeType,
+    setSelectionGradientStop,
     setSelectionOpacity,
+    setSelectionPaintKind,
     setSelectionPolygon,
     setSelectionRectRadius,
     setSelectionStyle,
@@ -18,6 +20,7 @@
     selectionGeometry,
     selectionOpacity,
     selectionStyles,
+    summarizeGradient,
     summarizePolygons,
     summarizeRects,
     summarizeStyles,
@@ -60,6 +63,12 @@
   });
   const summary = $derived(
     summarizeStyles(hasSelection ? selectionStyles(app.doc, app.selection) : [app.prefs.style]),
+  );
+  const fillGrad = $derived(
+    hasSelection ? summarizeGradient(selectionStyles(app.doc, app.selection), "fill") : null,
+  );
+  const strokeGrad = $derived(
+    hasSelection ? summarizeGradient(selectionStyles(app.doc, app.selection), "stroke") : null,
   );
   const geometry = $derived(hasSelection ? selectionGeometry(app.doc, app.selection) : null);
   const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
@@ -106,7 +115,16 @@
             field={summary.fill}
             present={summary.fillOn}
             fallback={app.prefs.style.fill ?? FILL_FALLBACK}
+            kind={fillGrad?.kind ?? null}
+            stops={fillGrad?.stops ?? null}
+            picked={app.gradientTarget === "fill" &&
+            app.gradientStop &&
+            app.selection.includes(app.gradientStop.id)
+              ? app.gradientStop.stop
+              : null}
             onchange={(p) => setSelectionStyle({ fill: p })}
+            onkind={(k) => setSelectionPaintKind("fill", k)}
+            onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />
@@ -117,7 +135,16 @@
             field={summary.stroke}
             present={summary.strokeOn}
             fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
+            kind={strokeGrad?.kind ?? null}
+            stops={strokeGrad?.stops ?? null}
+            picked={app.gradientTarget === "stroke" &&
+            app.gradientStop &&
+            app.selection.includes(app.gradientStop.id)
+              ? app.gradientStop.stop
+              : null}
             onchange={(p) => setSelectionStyle({ stroke: p })}
+            onkind={(k) => setSelectionPaintKind("stroke", k)}
+            onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />

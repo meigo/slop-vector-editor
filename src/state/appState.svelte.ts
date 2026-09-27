@@ -7,6 +7,7 @@ import {
   type Doc,
   type FlatStyle,
   type NodeType,
+  type Paint,
   type PathShape,
   type Style,
   type TextMeta,
@@ -51,6 +52,12 @@ import {
   setNodeType,
   type NodeRef,
 } from "../doc/path-edit";
+import {
+  setGradientStop as applyGradientStop,
+  setPaintKind,
+  type PaintSlot,
+  type StopEnd,
+} from "../doc/paint-edit";
 import {
   combine,
   breakApart,
@@ -195,6 +202,12 @@ class AppState {
   charQuads = $state.raw<Vec[][]>([]);
   /** String index of each quad. The quad list skips newlines, so slot and index disagree. */
   charAt = $state.raw<number[]>([]);
+  /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
+   *  session. */
+  gradientTarget = $state<PaintSlot>("fill");
+  /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
+   *  `nodeSel`: not saved, not undoable, cleared with the selection. */
+  gradientStop = $state.raw<{ id: string; stop: StopEnd } | null>(null);
   /** Last pointer type on the canvas; handle sizes follow it. */
   lastPointerType = $state("mouse");
   /** Tooltip text of whatever the mouse is over, shown in the status bar (spec M2e §4). */
@@ -252,9 +265,11 @@ function discardToolDraft(): void {
  *  which would throw away a collapse the user had just asked for. */
 let pendingWasEmpty: boolean | null = null;
 
-/** A character selection belongs to one title; any change of selection ends it. */
-function clearCharSel(): void {
+/** A character selection belongs to one title, and a picked gradient stop to one selection; any
+ *  change of selection ends both. */
+function clearSubSelections(): void {
   if (app.charSel !== null) app.charSel = null;
+  if (app.gradientStop !== null) app.gradientStop = null;
 }
 
 function syncPropsOverride(wasEmpty: boolean): void {
@@ -500,7 +515,7 @@ export function setSelection(ids: readonly string[]): void {
   const wasEmpty = app.selection.length === 0;
   const before = app.selection;
   app.selection = pruneSelection(app.doc, ids);
-  if (app.selection !== before) clearCharSel();
+  if (app.selection !== before) clearSubSelections();
   syncPropsOverride(wasEmpty);
   // The layer of the last selected object becomes current (spec M3a §2).
   const last = app.selection[app.selection.length - 1];
@@ -632,6 +647,26 @@ export function setSelectionStyle(patch: Partial<Style>): void {
     return;
   }
   commitDoc(setStyle(app.doc, app.selection, patch));
+}
+
+export function setGradientTarget(which: PaintSlot): void {
+  app.gradientTarget = which;
+}
+
+export function setGradientStop(pick: { id: string; stop: StopEnd } | null): void {
+  app.gradientStop = pick;
+}
+
+export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | "linear"): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(setPaintKind(app.doc, app.selection, which, kind));
+}
+
+export function setSelectionGradientStop(which: PaintSlot, stop: StopEnd, paint: Paint): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(applyGradientStop(app.doc, app.selection, which, stop, paint));
 }
 
 export function applyGeometry(field: GeometryField, value: number): void {
@@ -1146,6 +1181,10 @@ export function clearOrLeaveGroup(): void {
   // (the same walk invariant 31 describes for node selection).
   if (app.charSel !== null) {
     app.charSel = null;
+    return;
+  }
+  if (app.gradientStop !== null) {
+    app.gradientStop = null;
     return;
   }
   if (app.toolId === "node" && app.nodeSel.length > 0) {
