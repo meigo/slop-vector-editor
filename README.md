@@ -86,10 +86,14 @@ What works today:
   scale multiplier with a live pixel readout, and a transparent-background toggle (on by default
   for a selection, off for the artboard). Edit ▸ Copy as PNG puts the artboard on the clipboard at
   1× for pasting straight into another app.
-- **Gradients**: linear gradients on fill and stroke (two stops, colour + opacity each). Pick
-  Flat/Linear in the Properties panel, or use the Gradient tool (G): drag across the selection to
-  draw one, drag a knob or the line to adjust, Shift for 45°. Linear gradients from other apps' SVGs
-  are kept when they have two stops.
+- **Gradients**: linear and radial gradients on fill and stroke (two stops, colour + opacity
+  each). Pick Flat/Linear/Radial in the Properties panel — a Type row shows which the selection
+  has — or use the Gradient tool (G): drag across the selection to draw one, in whichever type is
+  current. A linear gradient has a knob at each end and the line between; a radial one has a
+  centre knob and two rim knobs — drag the centre or a line to move the whole gradient, one rim to
+  stretch the circle into an ellipse, the other to rotate and scale it (Shift snaps that one to
+  45°, or keeps the stretch perpendicular). Linear and radial gradients from other apps' SVGs are
+  kept when they have two stops.
 
 ## Keyboard
 
@@ -119,7 +123,7 @@ What works today:
 
 ## Roadmap
 
-Unplanned: radial gradients / more stops; a freehand pencil/brush tool; grid and smart guides;
+Unplanned: more gradient stops, focal points; a freehand pencil/brush tool; grid and smart guides;
 masks/clipping; align & distribute; system-clipboard image paste.
 
 ## Development
@@ -128,7 +132,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 843 unit tests
+npm test          # 887 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

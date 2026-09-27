@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 843 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 887 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -31,10 +31,12 @@ every user-visible change.
 
 ## Architecture map
 
-- `src/doc/` — `document.ts` (types, incl. `Fill`, `LinearGradient`, `mapStyle`; `createDoc`),
-  `paint-edit.ts` (`setPaintKind`, `setGradientStop`, `setGradientPoints`, `drawGradientLine` — the
-  gradient edits behind the panel and the Gradient tool), `edits.ts` (pure `(doc, args) => doc`, incl.
-  `insertNodes` for paste), `tree.ts` (`findNode`, `mapNodes`, `ancestorIds` — node lookup and
+- `src/doc/` — `document.ts` (types, incl. `Fill`, `Gradient`, `LinearGradient`, `RadialGradient`,
+  `isLinear`/`isRadial`, `radialMatrix`, `mapStyle`; `createDoc`), `paint-edit.ts` (`setPaintKind`,
+  `GradientKind`, `toRadial`/`toLinear`, `convertGradients`, `setGradientStop`,
+  `setGradientGeometry`, `drawGradientLine` — the gradient edits behind the panel and the Gradient
+  tool), `edits.ts` (pure `(doc, args) => doc`, incl. `insertNodes` for paste), `tree.ts`
+  (`findNode`, `mapNodes`, `ancestorIds` — node lookup and
   editing at any depth, with parent matrices — plus THE reach rule: `enteredReach`,
   `topLevelReach`, `reachableNodes`, `selectableIds`, `blocked`), `group.ts` (group/ungroup),
   `layers.ts` (layer, naming and z-order edits; moves nodes between layers and groups;
@@ -58,24 +60,30 @@ every user-visible change.
   paper, loaded on first use; the loader and the two-way conversion between subpaths and Paper's
   path model), `boolean.ts` (`booleanOf`, a caller of `paper.ts`) and `simplify.ts` (`simplifyOf`,
   the other caller — Paper's `simplify(tolerance)` through the same conversion).
-- `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`, `transform.ts`,
-  `attrs.ts` (model → attributes, shared by canvas and export; also writes polygons as paths via
-  `polygonD`, and a shape's gradient `<linearGradient>` elements via `gradientDefs`),
-  `gradient-import.ts` (paint-server collection, `href`/`xlink:href` chain resolution and
-  `foldLinear`'s exact affine fold of any unit/transform/offset into our two-point model),
-  `serialize.ts` (`serializeDoc` takes an optional second argument overriding the
-  root's `width`/`height`/`viewBox`, for PNG export's region; absent, output is byte-identical to
-  today), `parse.ts` (reads polygons back via `parsePolygonAttr`; resolves `url()` paint references
-  per painted shape via `gradient-import.ts`).
+- `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`,
+  `transform.ts`, `attrs.ts` (model → attributes, shared by canvas and export; also
+  writes polygons as paths via `polygonD`, and a shape's gradient
+  `<linearGradient>`/`<radialGradient>` elements via `gradientDefs` — a radial circle as
+  `cx cy r`, anything else as the unit circle under `gradientTransform`),
+  `gradient-import.ts` (paint-server collection, `href`/`xlink:href` chain resolution,
+  and `foldLinear`/`foldRadial`'s exact affine fold of any unit/transform/offset into
+  our two-point/three-point model), `serialize.ts` (`serializeDoc` takes an optional
+  second argument overriding the root's `width`/`height`/`viewBox`, for PNG export's
+  region; absent, output is byte-identical to today), `parse.ts` (reads polygons back
+  via `parsePolygonAttr`; resolves `url()` paint references per painted shape via
+  `gradient-import.ts`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext`, `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
   move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and
   handles, insert/delete, retype, close), `pen.ts` (the pen tool: draws a path node by node,
   keeping its own draft; resumes an open path from either end), `gradient-tool.ts` (the Gradient
-  tool: draws a new gradient line across the selection, drags a knob or the line, Shift for 45°),
-  `gradient-handles.ts` (pure `gradientHandles`/`pickHandle` — handle geometry in document order
-  back to front, shared by the tool's hit-testing and the Overlay's drawing), `registry.ts`
+  tool: draws a new gradient line or circle across the selection, in whichever kind
+  `ToolContext.gradientType()` names; drags a knob or the line — a radial's centre or a line moves
+  the whole gradient, one rim stretches the circle into an ellipse, the other rotates and scales it
+  (Shift 45°, or keeps the stretch perpendicular)), `gradient-handles.ts` (pure
+  `gradientHandles`/`pickHandle` — handle geometry for both kinds, in document order back to front,
+  shared by the tool's hit-testing and the Overlay's drawing), `registry.ts`
   (`TOOLS`, one instance per id), `context.ts` (`storeContext`, the real `ToolContext` wired to
   `app`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
@@ -620,70 +628,102 @@ every user-visible change.
     whose button supplies a fresh tap.
 
 46. **A gradient lives in its shape's own space, so every geometry bake calls `mapStyle`**
-    (`document.ts`) — `resize.ts`'s `bakeShape` (all four kinds), `edits.ts`'s `flattenTransform`,
-    `path-ops.ts`'s `combine` and `boolean-edit.ts`'s `booleanShapes` today; a new bake site must
-    too, exactly as it must use `withBakedSubpaths` for titles (invariant 40). `mapStyle` maps each
-    gradient's two own-space points through the same matrix the branch applies to the geometry — a
-    title's uniform resize bakes only the scale into its outlines (invariant 44), so its gradient is
-    mapped by the scale only, never the full resize matrix, or the translation that already went
-    onto `transform` would be double-counted. **The polygon branch's vertical flip of an odd
-    polygon** composes an extra half-turn into `transform` (invariant 22), because the corner set
-    is only left-right symmetric; the style must then be mapped by `multiply(half, L)`, not `L`
-    alone — the half-turn is its own inverse, so the node's transform (which now carries it) undoes
-    it again, leaving the RENDERED gradient equal to `L` applied to the original. Mapping by `L`
-    alone left the rendered gradient turned an extra 180° (a red→blue gradient came back
-    blue→red — caught in the M15 final review). It returns the **same** style object when neither
-    paint is a gradient, so a document with no gradients keeps every reference it keeps today.
-    **Degenerate gradients collapse to the end stop's flat paint** (`flatIfDegenerate`), judged on
-    the two points **as written** (`fmt`'s rounding), because that is what the file holds and what a
-    reload would see. **Stops are always at 0 and 1** — there is no offset field — so a foreign
-    gradient's offsets fold into `from`/`to` on import, keeping one gradient to one representation.
-    `sameFill` compares kind, stops and both points exactly (what an edit uses to return the same
-    reference); `sameColours` drops the points (what Select Same and the panel's summaries use,
-    since two gradients with the same colours on different shapes read as "the same fill" and the
-    points aren't comparable across shapes anyway). **Export writes one `<linearGradient>` per
-    paint, never shared**, id `sv-grad-<node id>-<fill|stroke>`, `gradientUnits="userSpaceOnUse"`,
-    in one `<defs>` that `serializeDoc` writes as the root's leading child and omits entirely when
-    the document has no gradients — so a gradient-free document still serializes byte-identically.
-    **Import resolves `url()` per painted shape, never per declaring element**: a paint reference is
-    carried through inheritance unresolved (`colors.ts`'s `{ kind: "url" }`) because an
-    `objectBoundingBox` gradient depends on the painted shape's own box and a `userSpaceOnUse` one
-    on its own coordinate space, and only then is it folded — exactly, via an affine change of
-    variable, for any invertible units/`gradientTransform` composition — into a 2-point linear
-    gradient. Every 2-stop, pad-spread, non-degenerate linear gradient is kept exactly, whatever its
-    units, transform or offsets. **0 stops → no paint (`null`) and 1 stop → that stop as a flat
-    `Paint`, neither reported** — SVG paints them exactly that way too, so nothing was dropped.
-    3+ stops, equal-offset stops, non-`pad` spread, a `radialGradient`, a `pattern`, coordinates
-    that overflow or exceed `MAX_COORD` ("invalid gradient coordinates" — a length is bounded at
-    `len`, and the folded result is bounded again, since a fold can blow a bounded input up), an
-    `href` cycle or a chain cut at `MAX_CHAIN` ("broken gradient references"), or a missing
-    reference each drop with their own label, same as any other unsupported content (invariant 4).
+    (`document.ts`) — `resize.ts`'s `bakeShape` (all four kinds), `edits.ts`'s
+    `flattenTransform`, `path-ops.ts`'s `combine` and `boolean-edit.ts`'s `booleanShapes` today;
+    a new bake site must too, exactly as it must use `withBakedSubpaths` for titles (invariant
+    40). `mapStyle` maps each gradient's own-space points — two for a linear, three (`center`,
+    `a`, `b`) for a radial, spec M16 §2 — through the same matrix the branch applies to the
+    geometry, so a radial's ellipse (and its rotation and skew) survive any bake exactly, the
+    same guarantee M15 gave a linear's angle and length. A title's uniform resize bakes only the
+    scale into its outlines (invariant 44), so its gradient is mapped by the scale only, never
+    the full resize matrix, or the translation that already went onto `transform` would be
+    double-counted. **The polygon branch's vertical flip of an odd polygon** composes an extra
+    half-turn into `transform` (invariant 22), because the corner set is only left-right
+    symmetric; the style must then be mapped by `multiply(half, L)`, not `L` alone — the
+    half-turn is its own inverse, so the node's transform (which now carries it) undoes it again,
+    leaving the RENDERED gradient equal to `L` applied to the original. Mapping by `L` alone left
+    the rendered gradient turned an extra 180° (a red→blue gradient came back blue→red — caught
+    in the M15 final review). It returns the **same** style object when neither paint is a
+    gradient, so a document with no gradients keeps every reference it keeps today. **Degenerate
+    gradients collapse to the end stop's flat paint** (`flatIfDegenerate`), judged on the points
+    **as written** (`fmt`'s rounding), because that is what the file holds and what a reload
+    would see — a linear whose `from`/`to` coincide, or a radial whose `a`/`b` (relative to
+    `center`) are collinear, i.e. the parallelogram they span has zero area, so the rim has
+    collapsed to a line or a point. **Stops are always at 0 and 1** — there is no offset field —
+    so a foreign gradient's offsets fold into `from`/`to` (or, for a radial, into the two points
+    its rim is measured between) on import, keeping one gradient to one representation.
+    `sameFill` compares kind, stops and every point exactly (two for a linear, three for a
+    radial) — what an edit uses to return the same reference; `sameColours` drops the points
+    (what Select Same and the panel's summaries use, since two gradients with the same colours on
+    different shapes read as "the same fill" and the points aren't comparable across shapes
+    anyway, and a linear never matches a radial there either). **Export writes one
+    `<linearGradient>` or `<radialGradient>` per paint, never shared**, id
+    `sv-grad-<node id>-<fill|stroke>`, `gradientUnits="userSpaceOnUse"` — a radial circle
+    (`a`/`b` perpendicular and equal, spec M16 ruling 1) as `cx cy r`, anything else (an ellipse,
+    or a circle under rotation or skew) as the unit circle under `gradientTransform` — in one `<defs>` that
+    `serializeDoc` writes as the root's leading child and omits entirely when the document has no
+    gradients — so a gradient-free document still serializes byte-identically. **Import resolves
+    `url()` per painted shape, never per declaring element**: a paint reference is carried
+    through inheritance unresolved (`colors.ts`'s `{ kind: "url" }`) because an
+    `objectBoundingBox` gradient depends on the painted shape's own box and a `userSpaceOnUse`
+    one on its own coordinate space, and only then is it folded — exactly, via an affine change
+    of variable, for any invertible units/`gradientTransform` composition — into a 2-point linear
+    gradient (`foldLinear`) or a 3-point radial one (`foldRadial`), dispatched on the source
+    element's own name. Every 2-stop, pad-spread, non-degenerate linear gradient is kept exactly,
+    whatever its units, transform or offsets; a radial is kept exactly on the same terms, and two
+    more of its own: no focal point (`fx`/`fy` resolve to the centre and `fr` to 0, whether
+    written or defaulted — spec M16 §4) and its first stop at offset 0 (a first stop above 0
+    would paint a solid disc inside the rim, which the centre-plus-two-rims model can't
+    represent). **0 stops → no paint (`null`) and 1 stop → that stop as a flat `Paint`, neither
+    reported** — SVG paints them exactly that way too, so nothing was dropped. 3+ stops,
+    equal-offset stops, non-`pad` spread, a `pattern`, a radial with a focal point ("radial
+    gradients with a focal point") or an inner first stop ("radial gradients with an inner
+    stop"), coordinates that overflow or exceed `MAX_COORD` ("invalid gradient coordinates" — a
+    length is bounded at `len`, and the folded result is bounded again, since a fold can blow a
+    bounded input up), an `href` cycle or a chain cut at `MAX_CHAIN` ("broken gradient
+    references"), or a missing reference each drop with their own label, same as any other
+    unsupported content (invariant 4). **Linear ↔ radial conversion reads centre = start point,
+    rim = end point** (`toRadial`/`toLinear`, spec M16 ruling 3): a rectangle's worth of
+    information — the radial's second rim — has nowhere to come from, so `toRadial` invents it
+    perpendicular to the line, the same length, which is what makes a freshly converted radial a
+    circle; converting back drops it, so the round trip is lossy exactly where the shapes are (a
+    linear has no second rim to lose). Both are a no-op on a gradient already of the target kind.
+    **The Gradient section's Type row mirrors the selection's gradient kind and falls back to
+    `app.gradientType`** (the kind a drag draws, spec M16 ruling 4) — mixed when the selection
+    holds both kinds, and pressing it converts every target-paint gradient in the selection to
+    that kind (`convertGradients`), remembering what each gave up — keyed by shape and slot, in
+    `app.gradientMemory` — so switching back restores it exactly (stops included) rather than
+    reconverting through the lossy round trip above; the memory covers a kind change exactly as
+    it already covered Flat, so a radial converted to linear and back stays the same ellipse
+    rather than coming back a circle.
 
 ## Current state
 
-Milestone 15 (linear gradients: two-stop gradients on fill and stroke, a Gradient tool (G) that
-draws and drags the line on the canvas, Flat/Linear in the Properties panel, exact save/reload and
-exact import of every 2-stop pad-spread foreign gradient) — see CHANGELOG. It was taken ahead of
-M14, which stays specced and is next: **M14 — envelope warp**
+Milestone 16 (radial gradients: the Gradient tool also draws and drags a circle or ellipse,
+Flat/Linear/Radial in the Properties panel with a Type row, exact save/reload and exact import of
+every 2-stop pad-spread foreign radial with no focal point and no inner first stop) — see
+CHANGELOG. It was taken ahead of M14, which stays specced and is next: **M14 — envelope warp**
 (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`). Verification is outstanding for
-M15's iPad/touch/Pencil behaviour (knob reach, the coarse-pointer control height) and Safari's
-rendering of `userSpaceOnUse` under a transform — see CHANGELOG. Beyond M14, the post-v1 list
-(project design §10) now holds radial gradients / more stops, a freehand tool, grid and smart
-guides, masks, align and distribute, and image paste — **linear gradients have left the list**
-(M15). **A light theme is no longer planned** (2026-09-19), and **multiple artboards are no longer
-planned** (2026-09-20) — the design doc still lists both, as a dated document that later decisions
-supersede rather than rewrite. **Text is done** (M10a-M10d), so it has left the list, and so has
-**PNG export** (M12) and **Save to Files** (M13). The accessibility group and the performance group
-(both parked below) remain the two obvious milestones after M14.
+M15/M16's iPad/touch/Pencil behaviour (knob reach — a radial's three knobs sit close together on a
+small shape) and Safari's rendering of a gradient under `gradientTransform` — see CHANGELOG. Beyond
+M14, the post-v1 list (project design §10) now holds more gradient stops and focal points, a
+freehand tool, grid and smart guides, masks, align and distribute, and image paste — **gradients
+have left the list** (M15, M16). **A light theme is no longer planned** (2026-09-19), and
+**multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
+dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d), so
+it has left the list, and so has **PNG export** (M12) and **Save to Files** (M13). The
+accessibility group and the performance group (both parked below) remain the two obvious milestones
+after M14.
 
 ## Roadmap
 
 M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 3a/3b. M5 (iPad
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
-resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad) and M15
-(linear gradients, taken ahead of M14) are complete — see CHANGELOG. **M14 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is specced and is the next step.
+resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad), M15
+(linear gradients, taken ahead of M14) and M16 (radial gradients) are complete — see CHANGELOG.
+**M14 — envelope warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is
+specced and is the next step.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
