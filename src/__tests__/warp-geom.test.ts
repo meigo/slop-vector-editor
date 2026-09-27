@@ -186,46 +186,33 @@ describe("warp geometry (spec M14 §2, §4)", () => {
     expect(out.nodes[1].p.x).toBeCloseTo(90, 9);
   });
 
-  // Note (departs from the brief's literal assertion): the brief's version of this test expects a
-  // subdivision-introduced junction to come back "smooth" or "symmetric". Verified independently
-  // (outside warp.ts, by hand-rolled arithmetic replaying `fit`/`cubicThrough4`/the collinearity
-  // formula at every depth 1..6): two INDEPENDENTLY fitted neighbouring pieces generally keep a
-  // real tangent kink at their shared point — for this cage/segment the cross-product collinearity
-  // ratio is ~0.15-0.3 at depth 1 and only ~0.025 even at the depth-6 cap (it shrinks roughly by
-  // half per extra level, nowhere near the exact formula's 1e-6-relative threshold, which is tight
-  // enough to certify only numerically-exact collinearity, e.g. a degree-elevated straight line).
-  // So under the verbatim formulas and the depth-6 cap, a junction born from a genuinely curved
-  // warp is expected to come back "corner", not "smooth" — asserting otherwise would not hold for
-  // any correct implementation of those formulas. What IS true, and is what this test asserts
-  // instead: the type was actually RECOMPUTED from the fit's own output handles (per spec §4's
-  // formula, replicated independently below), not inherited from the input node (constructed
-  // "corner" above) or left at some default.
-  it("recomputes node types from the fit's own output handles (not carried over)", () => {
-    const typeFromHandles = (
-      p: { x: number; y: number },
-      inH: { x: number; y: number },
-      outH: { x: number; y: number },
-    ) => {
-      const toOut = { x: outH.x - p.x, y: outH.y - p.y };
-      const toIn = { x: p.x - inH.x, y: p.y - inH.y };
-      const lenOut = Math.hypot(toOut.x, toOut.y);
-      const lenIn = Math.hypot(toIn.x, toIn.y);
-      const cross = toOut.x * toIn.y - toOut.y * toIn.x;
-      const dot = toOut.x * toIn.x + toOut.y * toIn.y;
-      if (lenOut === 0 || lenIn === 0 || Math.abs(cross) > 1e-6 * lenOut * lenIn || dot <= 0)
-        return "corner";
-      return Math.abs(lenOut - lenIn) <= 1e-6 * Math.max(lenOut, lenIn) ? "symmetric" : "smooth";
-    };
-    // Diagonal, not axis-parallel — see the note above the tolerance test for why an axis-parallel
-    // segment here can never subdivide (so there would be no junction to inspect).
+  // Note (controller ruling, superseding the earlier version of this test): a subdivision junction
+  // is where the true warped curve is C1, so spec §4's intent is that it comes back editable —
+  // `smooth`, with genuinely collinear handles — rather than being left to the generic 1e-6
+  // collinearity check on two independently-fitted pieces (which, verified independently by
+  // hand-rolled arithmetic, keeps a real tangent kink — cross ratio ~0.15-0.3 at depth 1, still
+  // ~0.025 at the depth-6 cap — nowhere near that threshold). `warpSubpaths` now special-cases
+  // these nodes: forced `smooth`, with both handles rotated onto their mean direction.
+  //
+  // A line at v = 0.5 (the ruling's suggested example) does NOT actually subdivide against this
+  // `bowed()` cage: only the Top edge is curved, so for ANY fixed v (0, 0.5, 1, ...) the patch
+  // reduces to a single cubic in u (see the note above the tolerance test) — verified this holds at
+  // v = 0.5 too. A diagonal segment is used instead, consistent with that test.
+  it("a subdivision junction is smooth, with genuinely collinear handles", () => {
     const sp: Subpath = { closed: false, nodes: [node(0, 0), node(100, 50)] };
     const [out] = warpSubpaths([sp], IDENTITY, bowed(), box);
     const inner = out.nodes.slice(1, -1);
     expect(inner.length).toBeGreaterThan(0);
     for (const n of inner) {
+      expect(n.type).toBe("smooth");
       expect(n.in).not.toBeNull();
       expect(n.out).not.toBeNull();
-      expect(n.type).toBe(typeFromHandles(n.p, n.in!, n.out!));
+      const toOut = { x: n.out!.x - n.p.x, y: n.out!.y - n.p.y };
+      const toIn = { x: n.p.x - n.in!.x, y: n.p.y - n.in!.y };
+      const cross = toOut.x * toIn.y - toOut.y * toIn.x;
+      const dot = toOut.x * toIn.x + toOut.y * toIn.y;
+      expect(Math.abs(cross)).toBeLessThan(1e-9);
+      expect(dot).toBeGreaterThan(0);
     }
   });
 });

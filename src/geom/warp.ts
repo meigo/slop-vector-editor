@@ -179,32 +179,75 @@ function segmentWorldCubic(a: Vec, aOut: Vec | null, bIn: Vec | null, b: Vec, wo
   return local.map((p) => applyMat(world, p)) as unknown as Cubic;
 }
 
-/** Appends one segment's fitted `pieces` (world space) onto `outNodes` (local space, via
- *  `toLocal`): the previous node's `out` becomes the piece's `outH` and a new node is pushed at the
- *  piece's `p`, carrying `inH` as its `in` (spec M14 §4 assembly rule). Both endpoints' types are
- *  recomputed from the handles now known. */
+/** A node under construction: `junction` marks a node introduced BETWEEN two fitted pieces of the
+ *  same original segment (a subdivision boundary), as opposed to a node that corresponds to one of
+ *  the input path's own nodes (a segment's start or end). The distinction decides how the node's
+ *  final type and handles are settled — see `finalizeNode`. */
+type Built = { p: Vec; in: Vec | null; out: Vec | null; junction: boolean };
+
+/** Controller ruling (M14 review, spec §4 intent): a subdivision junction is where the true warped
+ *  curve is C1, so it is forced smooth rather than left to the generic 1e-6 collinearity check —
+ *  both handle vectors are rotated onto their mean direction (the normalised sum of their unit
+ *  vectors), each keeping its own length. Returns null (leave the node to the ordinary recompute
+ *  rule instead) when a handle is missing, zero-length, or the two point in exactly opposite
+ *  directions, so the bisector is undefined. */
+function forceSmoothHandles(
+  p: Vec,
+  inH: Vec | null,
+  outH: Vec | null,
+): { in: Vec; out: Vec } | null {
+  if (!inH || !outH) return null;
+  const toOut = vsub(outH, p);
+  const toIn = vsub(p, inH);
+  const lenOut = vlen(toOut);
+  const lenIn = vlen(toIn);
+  if (lenOut === 0 || lenIn === 0) return null;
+  const unitOut = { x: toOut.x / lenOut, y: toOut.y / lenOut };
+  const unitIn = { x: toIn.x / lenIn, y: toIn.y / lenIn };
+  const sum = { x: unitOut.x + unitIn.x, y: unitOut.y + unitIn.y };
+  const sumLen = vlen(sum);
+  if (sumLen === 0) return null; // exactly opposite directions: no well-defined bisector
+  const dir = { x: sum.x / sumLen, y: sum.y / sumLen };
+  return {
+    out: { x: p.x + dir.x * lenOut, y: p.y + dir.y * lenOut },
+    in: { x: p.x - dir.x * lenIn, y: p.y - dir.y * lenIn },
+  };
+}
+
+/** Settles a `Built` node into its final `PathNode`: a subdivision junction is forced `smooth` with
+ *  collinear handles (falling back to the ordinary rule when that is not well-defined); every other
+ *  node — the input path's own nodes — keeps the ordinary handle-based recompute (spec M14 §4). */
+function finalizeNode(b: Built): PathNode {
+  if (b.junction) {
+    const forced = forceSmoothHandles(b.p, b.in, b.out);
+    if (forced) return { p: b.p, in: forced.in, out: forced.out, type: "smooth" };
+  }
+  return { p: b.p, in: b.in, out: b.out, type: typeFromHandles(b.p, b.in, b.out) };
+}
+
+/** Appends one segment's fitted `pieces` (world space) onto `built` (local space, via `toLocal`):
+ *  the previous node's `out` becomes a piece's `outH` and a new node is pushed at the piece's `p`,
+ *  carrying `inH` as its `in` (spec M14 §4 assembly rule). Every piece but the last introduces a
+ *  genuine subdivision junction; the last piece's node is `lastIsEndpoint ? one of the input
+ *  path's own nodes (junction: false) : also a junction` — see the closed-subpath wrap fold below,
+ *  which passes `false` because it excludes the piece that really lands on an existing node. */
 function appendPieces(
-  outNodes: PathNode[],
+  built: Built[],
   pieces: readonly Piece[],
   toLocal: (p: Vec) => Vec,
+  lastIsEndpoint = true,
 ): void {
-  for (const piece of pieces) {
-    const prev = outNodes[outNodes.length - 1];
-    const outLocal = piece.outH ? toLocal(piece.outH) : null;
-    const inLocal = piece.inH ? toLocal(piece.inH) : null;
-    const pLocal = toLocal(piece.p);
-    outNodes[outNodes.length - 1] = {
-      ...prev,
-      out: outLocal,
-      type: typeFromHandles(prev.p, prev.in, outLocal),
-    };
-    outNodes.push({
-      p: pLocal,
-      in: inLocal,
+  const n = pieces.length;
+  pieces.forEach((piece, i) => {
+    const prev = built[built.length - 1];
+    prev.out = piece.outH ? toLocal(piece.outH) : null;
+    built.push({
+      p: toLocal(piece.p),
+      in: piece.inH ? toLocal(piece.inH) : null,
       out: null,
-      type: typeFromHandles(pLocal, inLocal, null),
+      junction: i < n - 1 || !lastIsEndpoint,
     });
-  }
+  });
 }
 
 /** Spec M14 §3–§4: warps `subpaths` (in a node's local space) through the world matrix `world`,
@@ -231,35 +274,29 @@ export function warpSubpaths(
     const n = sp.nodes;
     if (n.length < 2) return sp;
 
-    const outNodes: PathNode[] = [
+    const built: Built[] = [
       {
         p: toLocal(warpPoint(cage, box, applyMat(world, n[0].p))),
         in: null,
         out: null,
-        type: n[0].type,
+        junction: false,
       },
     ];
-    for (let i = 1; i < n.length; i++) appendPieces(outNodes, fitSegment(n[i - 1], n[i]), toLocal);
+    for (let i = 1; i < n.length; i++) appendPieces(built, fitSegment(n[i - 1], n[i]), toLocal);
 
     if (sp.closed) {
       // The wrap segment (last node → node 0): its final piece ends back at node 0, so fold that
       // piece's handles onto the existing endpoints instead of appending a duplicate node
       // (spec M14 §4 — invariant 30 forbids a closed subpath's last node repeating its first).
+      // Every OTHER piece of this same wrap segment is a genuine junction, hence `false` below.
       const wrapPieces = fitSegment(n[n.length - 1], n[0]);
-      appendPieces(outNodes, wrapPieces.slice(0, -1), toLocal);
+      appendPieces(built, wrapPieces.slice(0, -1), toLocal, false);
       const last = wrapPieces[wrapPieces.length - 1];
-      const prev = outNodes[outNodes.length - 1];
-      const outLocal = last.outH ? toLocal(last.outH) : null;
-      const inLocal = last.inH ? toLocal(last.inH) : null;
-      outNodes[outNodes.length - 1] = {
-        ...prev,
-        out: outLocal,
-        type: typeFromHandles(prev.p, prev.in, outLocal),
-      };
-      const first = outNodes[0];
-      outNodes[0] = { ...first, in: inLocal, type: typeFromHandles(first.p, inLocal, first.out) };
+      const prev = built[built.length - 1];
+      prev.out = last.outH ? toLocal(last.outH) : null;
+      built[0].in = last.inH ? toLocal(last.inH) : null;
     }
 
-    return { closed: sp.closed, nodes: outNodes };
+    return { closed: sp.closed, nodes: built.map(finalizeNode) };
   });
 }
