@@ -59,10 +59,10 @@ function similarityB(c: Vec, a0: Vec, a1: Vec, b0: Vec): Vec | null {
   return add(c, { x: kr * w.x - ki * w.y, y: kr * w.y + ki * w.x });
 }
 
-/** A tap's part maps onto the stop it picks (spec M16 §6): the centre is the start of a linear
- *  drag too, and both rims read like a linear drag's end. */
-function stopFor(part: Exclude<HandlePart, "line" | "mid">): StopEnd {
-  return part === "center" || part === "start" ? "start" : "end";
+/** A tap's part maps onto the stop it picks (spec M16 §6, M18 §5): the centre is the start of a
+ *  linear drag too, both rims read like a linear drag's end, and the diamond is the middle stop. */
+function stopFor(part: Exclude<HandlePart, "line">): StopEnd {
+  return part === "mid" ? "mid" : part === "center" || part === "start" ? "start" : "end";
 }
 
 /** Spec M17 §6: what a press here would do. CSS has no rotate cursor, so rim B (rotate and scale)
@@ -235,7 +235,7 @@ export function createGradientTool(): Tool {
       if (!m) return;
       if (m.kind === "pending") {
         // A click: a knob picks its stop; anything else selects what is under the press.
-        if (m.pick && m.pick.part !== "line" && m.pick.part !== "mid") {
+        if (m.pick && m.pick.part !== "line") {
           ctx.setGradientStop({
             id: m.pick.h.id,
             stop: stopFor(m.pick.part),

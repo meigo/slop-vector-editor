@@ -4,6 +4,7 @@ import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import {
   isGradient,
   midOf,
+  midPaintOf,
   sameColours,
   samePaint,
   type Doc,
@@ -73,6 +74,9 @@ export type GradientSummary = {
   stops: { start: Field<Paint>; end: Field<Paint> } | null;
   /** Spec M17 §5: null exactly when `stops` is. */
   mid: Field<number> | null;
+  /** Spec M18 §4: whether the middle stop is Auto, and its effective colour; null with `stops`. */
+  midAuto: Field<boolean> | null;
+  midPaint: Field<Paint> | null;
 };
 
 /** Spec M15 §6, M16 §5: which kind each non-null paint is (its own kind for a gradient), and —
@@ -102,7 +106,11 @@ export function summarizeGradient(
         }
       : null;
   const mid = stops ? merge(grads.map(midOf)) : null;
-  return { kind, stops, mid };
+  // `g.midPaint === undefined` is a presence check on the raw field, permitted for the Auto flag
+  // itself (controller ruling) — the effective colour still goes through `midPaintOf`.
+  const midAuto = stops ? merge(grads.map((g) => g.midPaint === undefined)) : null;
+  const midPaint = stops ? merge(grads.map(midPaintOf), samePaint) : null;
+  return { kind, stops, mid, midAuto, midPaint };
 }
 
 /** Spec M16 §5: the Type row's value — the kind of the selection's gradients on `which`, or

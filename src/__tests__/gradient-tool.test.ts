@@ -518,7 +518,7 @@ describe("midpoint diamond (spec M17 §6)", () => {
     expect((fillOf(ctx.doc(), "a") as LinearGradient).from.x).toBe(900);
   });
 
-  it("a cancelled diamond drag restores the document; a click on it picks no stop", () => {
+  it("a cancelled diamond drag restores the document; a click on it picks the middle stop (spec M18 §5)", () => {
     const d0 = doc([rect("a", 0, lin)]);
     const { ctx, state } = fakeContext(d0);
     state.selection = ["a"];
@@ -529,7 +529,7 @@ describe("midpoint diamond (spec M17 §6)", () => {
     expect(ctx.doc()).toBe(d0);
     tool.down(ctx, ev(50, 25));
     tool.up(ctx, ev(50, 25));
-    expect(ctx.gradientStop()).toBeNull();
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "mid", which: "fill" });
     expect(state.selection).toEqual(["a"]);
   });
 
@@ -592,5 +592,41 @@ describe("hover cursors (spec M17 §6)", () => {
     tool.hover!(ctx, ev(50, 25));
     tool.down(ctx, ev(300, 300));
     expect(state.hoverCursor).toBeNull();
+  });
+});
+
+describe("middle stop on the canvas (spec M18 §5)", () => {
+  it("the handle carries the effective middle colour", () => {
+    const black = { color: "#000000", opacity: 1 };
+    const [auto] = gradientHandles(doc([rect("a", 0, lin)]), ["a"], "fill");
+    expect(auto.midPaint).toEqual({ color: "#800080", opacity: 1 });
+    const [custom] = gradientHandles(
+      doc([rect("a", 0, { ...lin, midPaint: black })]),
+      ["a"],
+      "fill",
+    );
+    expect(custom.midPaint).toEqual(black);
+  });
+
+  it("a click on the diamond picks the middle stop and leaves Auto alone (Review Focus 5)", () => {
+    const d0 = doc([rect("a", 0, lin)]);
+    const { ctx, state } = fakeContext(d0);
+    state.selection = ["a"];
+    const tool = createGradientTool();
+    tool.down(ctx, ev(50, 25));
+    tool.up(ctx, ev(50, 25));
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "mid", which: "fill" });
+    expect(ctx.doc()).toBe(d0);
+  });
+
+  it("a drag on the diamond still moves it rather than picking", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    state.selection = ["a"];
+    drag(createGradientTool(), ctx, [
+      [50, 25],
+      [30, 25],
+    ]);
+    expect((fillOf(ctx.doc(), "a") as LinearGradient).mid).toBe(0.3);
+    expect(ctx.gradientStop()).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import {
   isGradient,
   midStop,
   withMid,
+  withMidPaint,
   type Fill,
   type Paint,
 } from "../doc/document";
@@ -144,7 +145,9 @@ function readStops(el: XmlElement): RawStop[] {
       last = offset;
       const col = parseColor(stopProp(c, "stop-color") ?? "#000000");
       const color = col && col.kind === "color" ? col.color : "#000000";
-      const alpha = col && col.kind === "color" ? col.alpha : 1;
+      // `transparent`/`none` parses to `{ kind: "none" }`: SVG/CSS define that as black at zero
+      // opacity, not opaque black — any other unparseable value keeps the opaque-black fallback.
+      const alpha = col && col.kind === "color" ? col.alpha : col && col.kind === "none" ? 0 : 1;
       const so = Number(stopProp(c, "stop-opacity") ?? "1");
       const opacity = (Number.isFinite(so) ? Math.min(1, Math.max(0, so)) : 1) * alpha;
       return { offset, color, opacity };
@@ -213,7 +216,14 @@ function coordsOk(fill: Fill): boolean {
   );
 }
 
-type Outer = { o0: number; o1: number; start: Paint; end: Paint; mid: number | undefined };
+type Outer = {
+  o0: number;
+  o1: number;
+  start: Paint;
+  end: Paint;
+  mid: number | undefined;
+  midPaint: Paint | undefined;
+};
 
 const hexChannel = (c: string, i: number) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
 
@@ -225,31 +235,48 @@ function isMidStop(p: Paint, want: Paint): boolean {
   );
 }
 
-/** The two stops the model keeps, with their offsets — plus a midpoint when a third, middle stop
- *  is exactly their mix (spec M17 §4). Anything else is more than the model can hold. */
+/** The two stops the model keeps, with their offsets — plus a third, middle stop kept as either a
+ *  midpoint (spec M17 §4, when it is exactly the outer two's mix) or a custom middle colour (spec
+ *  M18 §3, any other valid middle stop). Four or more stops are more than the model can hold. */
 function outerStops(raw: readonly RawStop[], stops: readonly Paint[]): Outer | { drop: string } {
   const more = { drop: "gradients with more than two stops" };
   if (raw.length === 2) {
     if (raw[1].offset <= raw[0].offset) return more;
-    return { o0: raw[0].offset, o1: raw[1].offset, start: stops[0], end: stops[1], mid: undefined };
+    return {
+      o0: raw[0].offset,
+      o1: raw[1].offset,
+      start: stops[0],
+      end: stops[1],
+      mid: undefined,
+      midPaint: undefined,
+    };
   }
+  if (raw.length > 3) return { drop: "gradients with more than three stops" };
   if (raw.length !== 3) return more;
   const [o0, om, o1] = raw.map((s) => s.offset);
   if (!(o0 < om && om < o1)) return more;
-  if (!isMidStop(stops[1], midStop(stops[0], stops[2]))) return more;
   const t = (om - o0) / (o1 - o0);
   // The writer rounds `mid` to 6 decimals (attrs.ts's `fmt`), so a `t` that rounds to 0 or 1 would
   // save as a middle stop sharing an outer offset — reject it here rather than write a file the
   // importer itself would then drop as more than two stops (spec M17 §4).
   const rounded = Math.round(t * 1e6);
   if (rounded <= 0 || rounded >= 1e6) return more;
-  return { o0, o1, start: stops[0], end: stops[2], mid: Math.abs(t - 0.5) < 1e-6 ? undefined : t };
+  const auto = isMidStop(stops[1], midStop(stops[0], stops[2]));
+  return {
+    o0,
+    o1,
+    start: stops[0],
+    end: stops[2],
+    mid: Math.abs(t - 0.5) < 1e-6 ? undefined : t,
+    midPaint: auto ? undefined : stops[1],
+  };
 }
 
 /** Spec M15 §4's fold: the source's parameter `s(q)` is affine in own-space `q`, so the stops'
  *  offsets are reached at two points along its gradient `g = A⁻ᵀd/(d·d)` — exact for any
  *  invertible `A`, skew included (which is why `g` is never `A·d`).
- *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint. */
+ *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint; any
+ *  other middle stop is kept as `midPaint` (spec M18 §3). */
 export function foldLinear(
   g: RawLinear,
   box: Box | null,
@@ -291,15 +318,18 @@ export function foldLinear(
   const q0 = applyMat(A, p1);
   const at = (o: number) => ({ x: q0.x + (gx * o) / gg, y: q0.y + (gy * o) / gg });
   const fill = flatIfDegenerate(
-    withMid(
-      {
-        kind: "linear",
-        from: at(outer.o0),
-        to: at(outer.o1),
-        start: outer.start,
-        end: outer.end,
-      },
-      outer.mid,
+    withMidPaint(
+      withMid(
+        {
+          kind: "linear",
+          from: at(outer.o0),
+          to: at(outer.o1),
+          start: outer.start,
+          end: outer.end,
+        },
+        outer.mid,
+      ),
+      outer.midPaint,
     ),
   );
   if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };
@@ -309,7 +339,8 @@ export function foldLinear(
 /** Spec M16 §4: a radial with no focal offset is the unit circle under `A · [r, 0, 0, r, cx, cy]`
  *  — exact for any invertible `A`. A first stop above 0 would paint a solid disc the model cannot
  *  draw; a last stop below 1 simply shrinks the rim.
- *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint. */
+ *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint; any
+ *  other middle stop is kept as `midPaint` (spec M18 §3). */
 export function foldRadial(
   g: RawRadial,
   box: Box | null,
@@ -355,16 +386,19 @@ export function foldRadial(
   if (!invert(A)) return { kind: "drop", label: "gradients with an invalid transform" };
   const o1 = outer.o1;
   const fill = flatIfDegenerate(
-    withMid(
-      {
-        kind: "radial",
-        center: applyMat(A, { x: cx, y: cy }),
-        a: applyMat(A, { x: cx + r * o1, y: cy }),
-        b: applyMat(A, { x: cx, y: cy + r * o1 }),
-        start: outer.start,
-        end: outer.end,
-      },
-      outer.mid,
+    withMidPaint(
+      withMid(
+        {
+          kind: "radial",
+          center: applyMat(A, { x: cx, y: cy }),
+          a: applyMat(A, { x: cx + r * o1, y: cy }),
+          b: applyMat(A, { x: cx, y: cy + r * o1 }),
+          start: outer.start,
+          end: outer.end,
+        },
+        outer.mid,
+      ),
+      outer.midPaint,
     ),
   );
   if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };

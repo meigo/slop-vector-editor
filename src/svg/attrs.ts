@@ -3,7 +3,8 @@ import {
   isGradient,
   isHidden,
   isLocked,
-  midStop,
+  midOf,
+  midPaintOf,
   radialMatrix,
   type Fill,
   type Group,
@@ -76,16 +77,12 @@ export function gradientDefs(s: Shape): GradientDef[] {
     const f = s.style[which];
     if (!isGradient(f)) continue;
     const id = gradientId(s.id, which);
-    // Spec M17 §3: a midpoint is a third stop carrying the 50/50 mix; none, and the output is
-    // exactly the two stops written before M17.
+    // Spec M17 §3, M18 §3: a midpoint or a custom middle colour is a third stop; neither, and
+    // the output is exactly the two stops written before M17.
     const stops =
-      f.mid === undefined
+      f.mid === undefined && f.midPaint === undefined
         ? [stopAttrs("0", f.start), stopAttrs("1", f.end)]
-        : [
-            stopAttrs("0", f.start),
-            stopAttrs(fmt(f.mid), midStop(f.start, f.end)),
-            stopAttrs("1", f.end),
-          ];
+        : [stopAttrs("0", f.start), stopAttrs(fmt(midOf(f)), midPaintOf(f)), stopAttrs("1", f.end)];
     if (f.kind === "linear") {
       out.push({
         id,

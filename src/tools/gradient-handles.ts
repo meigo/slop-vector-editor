@@ -1,4 +1,4 @@
-import { isLinear, isRadial, midOf, type Doc, type Paint } from "../doc/document";
+import { isLinear, isRadial, midOf, midPaintOf, type Doc, type Paint } from "../doc/document";
 import type { PaintSlot } from "../doc/paint-edit";
 import { ancestorIds, findNode, isAfter, paintKey, shapesWithWorld } from "../doc/tree";
 import { applyMat, type Mat } from "../geom/mat";
@@ -20,6 +20,8 @@ export type GradientHandle =
       /** Spec M17 §6: the midpoint diamond, in document space — affine maps keep ratios along a
        *  line, so document-space `t` equals own-space `t`. */
       mid: Vec;
+      /** Spec M18 §5: the diamond's colour — custom, or the mix. */
+      midPaint: Paint;
       start: Paint;
       end: Paint;
       world: Mat;
@@ -31,6 +33,7 @@ export type GradientHandle =
       a: Vec;
       b: Vec;
       mid: Vec;
+      midPaint: Paint;
       start: Paint;
       end: Paint;
       world: Mat;
@@ -67,6 +70,7 @@ export function gradientHandles(
           from,
           to,
           mid: lerp(from, to, midOf(f)),
+          midPaint: midPaintOf(f),
           start: f.start,
           end: f.end,
           world,
@@ -81,6 +85,7 @@ export function gradientHandles(
           a,
           b: applyMat(world, f.b),
           mid: lerp(center, a, midOf(f)),
+          midPaint: midPaintOf(f),
           start: f.start,
           end: f.end,
           world,

@@ -6,8 +6,10 @@ import {
   DEFAULT_STYLE,
   flatIfDegenerate,
   isGradient,
+  midStop,
   sameFill,
   withMid,
+  withMidPaint,
   type Doc,
   type Fill,
   type Gradient,
@@ -19,11 +21,12 @@ import {
 } from "./document";
 import { mapNodes } from "./tree";
 
-/** Spec M15 §6–§7, M16 §5–§6: the gradient edits. Each maps shape by shape, so no shape is ever
- *  handed another shape's coordinates. */
+/** Spec M15 §6–§7, M16 §5–§6, M18 §2: the gradient edits. Each maps shape by shape, so no shape
+ *  is ever handed another shape's coordinates. */
 
 export type PaintSlot = "fill" | "stroke";
-export type StopEnd = "start" | "end";
+/** Spec M18 §2: "mid" is the middle stop (its colour is `midPaint`). */
+export type StopEnd = "start" | "mid" | "end";
 export type GradientKind = "linear" | "radial";
 
 /** Rotates a vector 90°: `to − from` becomes the radial's other rim direction (spec M16 §5). */
@@ -68,7 +71,7 @@ const fadeOf = (p: Paint, from: Vec, to: Vec): LinearGradient => ({
 export function toRadial(g: Gradient): RadialGradient {
   if (g.kind === "radial") return g;
   const rim = perp({ x: g.to.x - g.from.x, y: g.to.y - g.from.y });
-  return withMid(
+  return carry(
     {
       kind: "radial",
       center: g.from,
@@ -77,18 +80,24 @@ export function toRadial(g: Gradient): RadialGradient {
       start: g.start,
       end: g.end,
     },
-    g.mid,
+    g,
   );
 }
 
 export function toLinear(g: Gradient): LinearGradient {
   return g.kind === "linear"
     ? g
-    : withMid({ kind: "linear", from: g.center, to: g.a, start: g.start, end: g.end }, g.mid);
+    : carry({ kind: "linear", from: g.center, to: g.a, start: g.start, end: g.end }, g);
 }
 
 const convertKind = (g: Gradient, kind: GradientKind): Gradient =>
   kind === "radial" ? toRadial(g) : toLinear(g);
+
+/** The stop properties that ride along whenever a gradient is rebuilt from its geometry: the
+ *  midpoint (M17) and the middle colour (M18). */
+type StopProps = { mid?: number; midPaint?: Paint };
+const carry = <G extends Gradient>(g: G, src: StopProps): G =>
+  withMidPaint(withMid(g, src.mid), src.midPaint);
 
 /** A gradient set aside when its paint went flat, with the shape's own-space box at the time, so
  *  switching back can restore it — and stretch it if the shape was resized in between. */
@@ -118,13 +127,13 @@ export function gradientsToRemember(
  *  defaults to the remembered gradient's own end stop (Flat→Linear/Radial has no other end to
  *  offer) but a kind-to-kind restore passes the CURRENT gradient's end too, so a stop edited after
  *  the earlier conversion survives (fix M16, "switching Type back restores the gradient") — and,
- *  likewise, the CURRENT midpoint (spec M17 §2: it is a stop property). */
+ *  likewise, the CURRENT midpoint and middle colour (spec M17 §2, M18 §2: stop properties). */
 function restored(
   r: RememberedGradient,
   box: Box | null,
   start: Paint,
   end: Paint = r.g.end,
-  mid: number | undefined = r.g.mid,
+  props: StopProps = r.g,
 ): Fill {
   const a = r.box;
   const axis = (v: number, a0: number, aw: number, b0: number, bw: number) =>
@@ -132,9 +141,9 @@ function restored(
   const map = (p: Vec): Vec =>
     !a || !box ? p : { x: axis(p.x, a.x, a.w, box.x, box.w), y: axis(p.y, a.y, a.h, box.y, box.h) };
   return r.g.kind === "linear"
-    ? flatIfDegenerate(withMid({ ...r.g, from: map(r.g.from), to: map(r.g.to), start, end }, mid))
+    ? flatIfDegenerate(carry({ ...r.g, from: map(r.g.from), to: map(r.g.to), start, end }, props))
     : flatIfDegenerate(
-        withMid({ ...r.g, center: map(r.g.center), a: map(r.g.a), b: map(r.g.b), start, end }, mid),
+        carry({ ...r.g, center: map(r.g.center), a: map(r.g.a), b: map(r.g.b), start, end }, props),
       );
 }
 
@@ -150,7 +159,7 @@ function convertOrRestore(
   box: Box | null,
   r: RememberedGradient | undefined,
 ): Fill {
-  return r && r.g.kind === kind ? restored(r, box, f.start, f.end, f.mid) : convertKind(f, kind);
+  return r && r.g.kind === kind ? restored(r, box, f.start, f.end, f) : convertKind(f, kind);
 }
 
 /** `remembered` answers the gradient (either kind) a shape's paint had before it went flat, if
@@ -244,11 +253,7 @@ export function setGradientGeometry(doc: Doc, id: string, which: PaintSlot, next
     if (n.kind === "group") return n;
     const f = n.style[which];
     if (!isGradient(f) || f.kind !== next.kind) return n;
-    return withFill(
-      n,
-      which,
-      flatIfDegenerate(withMid({ ...next, start: f.start, end: f.end }, f.mid)),
-    );
+    return withFill(n, which, flatIfDegenerate(carry({ ...next, start: f.start, end: f.end }, f)));
   });
 }
 
@@ -261,7 +266,9 @@ export function setGradientStop(
 ): Doc {
   return mapShapesWorld(doc, ids, (s) => {
     const f = s.style[which];
-    return isGradient(f) ? withFill(s, which, { ...f, [stop]: paint }) : s;
+    if (!isGradient(f)) return s;
+    // Spec M18 §2: the middle stop's colour lives in `midPaint`.
+    return withFill(s, which, stop === "mid" ? withMidPaint(f, paint) : { ...f, [stop]: paint });
   });
 }
 
@@ -276,6 +283,22 @@ export function setGradientMid(
   return mapShapesWorld(doc, ids, (s) => {
     const f = s.style[which];
     return isGradient(f) ? withFill(s, which, withMid(f, mid)) : s;
+  });
+}
+
+/** Spec M18 §2: Auto on drops every selected gradient's custom middle colour; Auto off gives the
+ *  ones without one their current mix, so turning it off changes nothing visible. */
+export function setGradientMidAuto(
+  doc: Doc,
+  ids: readonly string[],
+  which: PaintSlot,
+  auto: boolean,
+): Doc {
+  return mapShapesWorld(doc, ids, (s) => {
+    const f = s.style[which];
+    if (!isGradient(f)) return s;
+    if (auto) return withFill(s, which, withMidPaint(f, undefined));
+    return f.midPaint ? s : withFill(s, which, withMidPaint(f, midStop(f.start, f.end)));
   });
 }
 
@@ -297,7 +320,7 @@ export function drawGradientLine(
     const f = s.style[which];
     const start = isGradient(f) ? f.start : (f ?? (DEFAULT_STYLE[which] as Paint));
     const end = isGradient(f) ? f.end : { ...start, opacity: 0 };
-    const mid = isGradient(f) ? f.mid : undefined;
+    const props: StopProps = isGradient(f) ? f : {};
     let next: Gradient;
     if (kind === "linear") {
       next = { kind: "linear", from: applyMat(inv, from), to: applyMat(inv, to), start, end };
@@ -313,6 +336,6 @@ export function drawGradientLine(
         end,
       };
     }
-    return withFill(s, which, flatIfDegenerate(withMid(next, mid)));
+    return withFill(s, which, flatIfDegenerate(carry(next, props)));
   });
 }

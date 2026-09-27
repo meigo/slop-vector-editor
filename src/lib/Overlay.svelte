@@ -1,7 +1,6 @@
 <svelte:options namespace="svg" />
 
 <script lang="ts">
-  import { midStop } from "../doc/document";
   import { findNode } from "../doc/tree";
   import { flattenSubpath } from "../geom/bezier";
   import { applyMat, multiply } from "../geom/mat";
@@ -103,7 +102,7 @@
           a: docToScreen(view, h.from),
           b: docToScreen(view, h.to),
           mid: docToScreen(view, h.mid),
-          midColor: midStop(h.start, h.end).color,
+          midColor: h.midPaint.color,
           start: h.start.color,
           end: h.end.color,
           picked,
@@ -128,7 +127,7 @@
         a: docToScreen(view, h.a),
         b: docToScreen(view, h.b),
         mid: docToScreen(view, h.mid),
-        midColor: midStop(h.start, h.end).color,
+        midColor: h.midPaint.color,
         rim,
         start: h.start.color,
         end: h.end.color,
@@ -224,8 +223,9 @@
       <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
       <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
     {/if}
-    <!-- Spec M17 §6: the midpoint diamond, filled with the 50/50 mix it stands for. Below the
-         knobs, as `pickHandle` ranks it below them. -->
+    <!-- Spec M17 §6: the midpoint diamond, filled with the effective middle colour it stands for
+         (custom, or the 50/50 mix when Auto). Below the knobs, as `pickHandle` ranks it below
+         them. -->
     <polygon
       points={points([
         { x: g.mid.x, y: g.mid.y - dm },
@@ -234,7 +234,7 @@
         { x: g.mid.x - dm, y: g.mid.y },
       ])}
       style="stroke: var(--color-accent); fill: {g.midColor}"
-      stroke-width="1.5"
+      stroke-width={w(g.picked === "mid")}
     />
     {#if g.kind === "linear"}
       <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so

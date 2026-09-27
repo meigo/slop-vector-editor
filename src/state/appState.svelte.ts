@@ -57,6 +57,7 @@ import {
   convertGradients,
   gradientsToRemember,
   setGradientMid as applyGradientMid,
+  setGradientMidAuto as applyGradientMidAuto,
   setGradientStop as applyGradientStop,
   setPaintKind,
   type GradientKind,
@@ -781,6 +782,14 @@ export function setSelectionGradientMid(which: PaintSlot, mid: number): void {
   cancelActiveGesture();
   if (app.selection.length === 0) return;
   commitDoc(applyGradientMid(app.doc, app.selection, which, mid));
+}
+
+/** Spec M18 §4: the Midpoint row's Auto toggle. Off seeds the current mix, so nothing visibly
+ *  changes; on drops the custom colours. One commit, one undo step. */
+export function setSelectionGradientMidAuto(which: PaintSlot, auto: boolean): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(applyGradientMidAuto(app.doc, app.selection, which, auto));
 }
 
 export function applyGeometry(field: GeometryField, value: number): void {

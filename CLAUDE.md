@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 936 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 963 tests in 63 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -33,10 +33,12 @@ every user-visible change.
 
 - `src/doc/` — `document.ts` (types, incl. `Fill`, `Gradient`, `LinearGradient`, `RadialGradient`,
   `isLinear`/`isRadial`, `radialMatrix`, `mapStyle`, `midOf`/`withMid`/`midStop` — the gradient
-  midpoint; `createDoc`), `paint-edit.ts` (`setPaintKind`,
+  midpoint — and `midPaintOf`/`withMidPaint` — its custom colour; `createDoc`), `paint-edit.ts`
+  (`setPaintKind`,
   `GradientKind`, `toRadial`/`toLinear`, `convertGradients`, `setGradientStop`,
-  `setGradientGeometry`, `setGradientMid`, `drawGradientLine` — the gradient edits behind the panel
-  and the Gradient tool), `edits.ts` (pure `(doc, args) => doc`, incl. `insertNodes` for paste),
+  `setGradientGeometry`, `setGradientMid`, `setGradientMidAuto`, `drawGradientLine` — the gradient
+  edits behind the panel and the Gradient tool), `edits.ts` (pure `(doc, args) => doc`, incl.
+  `insertNodes` for paste),
   `tree.ts` (`findNode`, `mapNodes`, `ancestorIds` — node lookup and
   editing at any depth, with parent matrices — plus THE reach rule: `enteredReach`,
   `topLevelReach`, `reachableNodes`, `selectableIds`, `blocked`), `group.ts` (group/ungroup),
@@ -123,8 +125,9 @@ every user-visible change.
   helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField` (Flat/
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
-  flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field between
-  a gradient's Start and End rows — the app's first range input), `ToggleButton` (with
+  flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the
+  Auto toggle for the middle stop's colour, between a gradient's Start and End rows — the app's
+  first range input), `ToggleButton` (with
   `toggle.ts`, the pure state helper), `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a
   fresh tap at Save to Files when `deliverFile` didn't attempt a direct share, or the attempt needs
   a fresh tap), `Notices`.
@@ -680,7 +683,8 @@ every user-visible change.
     written or defaulted — spec M16 §4) and its first stop at offset 0 (a first stop above 0
     would paint a solid disc inside the rim, which the centre-plus-two-rims model can't
     represent). **0 stops → no paint (`null`) and 1 stop → that stop as a flat `Paint`, neither
-    reported** — SVG paints them exactly that way too, so nothing was dropped. 3+ stops,
+    reported** — SVG paints them exactly that way too, so nothing was dropped. Four or more stops
+    ("gradients with more than three stops"), a middle stop on or rounding onto an outer offset,
     equal-offset stops, non-`pad` spread, a `pattern`, a radial with a focal point ("radial
     gradients with a focal point") or an inner first stop ("radial gradients with an inner
     stop"), coordinates that overflow or exceed `MAX_COORD` ("invalid gradient coordinates" — a
@@ -714,24 +718,34 @@ every user-visible change.
     deletes the key, as turning `hidden` off does (invariant 39); read it only through `midOf`. It
     is written as a third stop at `offset=mid` carrying `midStop(start, end)`, the **premultiplied**
     50/50 mix (so a fade to transparent has no dark band), and read back from any 3-stop gradient
-    whose middle stop matches that mix within ±1/255 per channel and 0.005 opacity — anything else
-    with three or more stops still drops. It is a stop property, not geometry: bakes leave it
+    whose middle stop matches that mix within ±1/255 per channel and 0.005 opacity — a middle stop
+    on or rounding onto an outer offset still drops, and any other middle stop is kept as a custom
+    middle colour (M18 below). It is a stop property, not geometry: bakes leave it
     alone, conversions and redraws keep it, a kind restore keeps the CURRENT one, and a diamond
     drag does not call `forgetGradients`.
+    **A custom middle colour is `midPaint?: Paint` (spec M18)** — absent is Auto (`midStop`), read
+    through `midPaintOf`, set through `withMidPaint` (deletes on `undefined`). Independent of
+    `mid`. A stop property like the ends: Auto follows Start/End edits, a custom colour does not;
+    conversions, redraws and kind restores keep the current one. `sameFill` compares the raw
+    field, `sameColours` the effective colour. Export writes three stops when either `mid` or
+    `midPaint` is set; import keeps every 3-stop gradient with its middle strictly inside, reading
+    the mix within tolerance as Auto; four or more stops drop as "gradients with more than three
+    stops". `StopEnd` includes `"mid"`, so the diamond's click picks the middle stop.
 
 ## Current state
 
-Milestone 17 (gradient midpoint and distinct handles: a `mid` offset on linear and radial
-gradients, saved as a derived third stop and read through `midOf`/`setGradientMid`; a Midpoint
-slider + field in each paint's gradient rows; a draggable midpoint diamond, per-role knob shapes
-and per-part hover cursors on the Gradient tool) — see CHANGELOG. It was taken ahead of M14, which
-stays specced and is next: **M14 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`). Verification is outstanding for
-M15/M16/M17's iPad/touch/Pencil behaviour (knob reach — a radial's three knobs sit close together
-on a small shape; M17's Midpoint slider touch drag and diamond reach) and Safari's rendering of a
-gradient under `gradientTransform` — see CHANGELOG. Beyond M14, the post-v1 list (project design
-§10) now holds more gradient stops and focal points, a freehand tool, grid and smart guides, masks,
-align and distribute, and image paste — **gradients have left the list** (M15, M16, M17). **A
+Milestone 18 (custom gradient midpoint colour: `midPaint?: Paint` on both gradient kinds, absent
+meaning Auto — the 50/50 mix — read through `midPaintOf` and set through `withMidPaint`/
+`setGradientMidAuto`; a Mid colour row and Auto toggle in each paint's gradient rows; the tool's
+diamond now shows and picks the middle stop; every valid three-stop gradient imports instead of
+dropping) — see CHANGELOG. It was taken ahead of M14, which stays specced and is next: **M14 —
+envelope warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`). Verification is
+outstanding for M15-M18's iPad/touch/Pencil behaviour (knob reach — a radial's three knobs sit
+close together on a small shape; M17's Midpoint slider touch drag and diamond reach; M18's
+mixed-selection Auto toggle state, visually) and Safari's rendering of a gradient under
+`gradientTransform` — see CHANGELOG. Beyond M14, the post-v1 list (project design §10) now holds
+more gradient stops and focal points, a freehand tool, grid and smart guides, masks, align and
+distribute, and image paste — **gradients have left the list** (M15, M16, M17, M18). **A
 light theme is no longer planned** (2026-09-19), and
 **multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
 dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d), so
@@ -745,8 +759,8 @@ M4 was split into 4a (node editing) and 4b (the pen tool), as M3 was split into 
 polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the sidebar split), M9
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
 resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad), M15
-(linear gradients, taken ahead of M14), M16 (radial gradients) and M17 (gradient midpoint and
-distinct handles) are complete — see CHANGELOG.
+(linear gradients, taken ahead of M14), M16 (radial gradients), M17 (gradient midpoint and
+distinct handles) and M18 (custom gradient midpoint colour) are complete — see CHANGELOG.
 **M14 — envelope warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is
 specced and is the next step.
 
