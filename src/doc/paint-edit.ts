@@ -110,22 +110,54 @@ export function gradientsToRemember(
 
 /** The remembered line (or, for a radial, the three points — spec M16) carried from the box it was
  *  set aside in to the shape's box now, axis by axis; an axis that had no extent then only moves.
- *  The start stop is the flat colour the paint has now, so a colour picked while flat is kept. */
-function restored(r: RememberedGradient, box: Box | null, start: Paint): Fill {
+ *  `start` is the flat colour the paint has now, so a colour picked while flat is kept; `end`
+ *  defaults to the remembered gradient's own end stop (Flat→Linear/Radial has no other end to
+ *  offer) but a kind-to-kind restore passes the CURRENT gradient's end too, so a stop edited after
+ *  the earlier conversion survives (fix M16, "switching Type back restores the gradient"). */
+function restored(
+  r: RememberedGradient,
+  box: Box | null,
+  start: Paint,
+  end: Paint = r.g.end,
+): Fill {
   const a = r.box;
   const axis = (v: number, a0: number, aw: number, b0: number, bw: number) =>
     aw > 0 ? b0 + ((v - a0) * bw) / aw : v + (b0 - a0);
   const map = (p: Vec): Vec =>
     !a || !box ? p : { x: axis(p.x, a.x, a.w, box.x, box.w), y: axis(p.y, a.y, a.h, box.y, box.h) };
   return r.g.kind === "linear"
-    ? flatIfDegenerate({ ...r.g, from: map(r.g.from), to: map(r.g.to), start })
-    : flatIfDegenerate({ ...r.g, center: map(r.g.center), a: map(r.g.a), b: map(r.g.b), start });
+    ? flatIfDegenerate({ ...r.g, from: map(r.g.from), to: map(r.g.to), start, end })
+    : flatIfDegenerate({
+        ...r.g,
+        center: map(r.g.center),
+        a: map(r.g.a),
+        b: map(r.g.b),
+        start,
+        end,
+      });
+}
+
+/** Converts `f` (a gradient already known to be of some OTHER kind than `kind`) to `kind`: a
+ *  remembered gradient of that kind, if one exists, is restored into the shape's current
+ *  own-space box (`restored()`'s carry-with-the-box logic) with `f`'s CURRENT stops, so a colour
+ *  edited after the earlier conversion survives; otherwise the ordinary point-based conversion —
+ *  which loses whatever the other kind's geometry has no matching point for (a radial's rim B has
+ *  no linear equivalent) — same as before nothing was remembered (fix M16). */
+function convertOrRestore(
+  f: Gradient,
+  kind: GradientKind,
+  box: Box | null,
+  r: RememberedGradient | undefined,
+): Fill {
+  return r && r.g.kind === kind ? restored(r, box, f.start, f.end) : convertKind(f, kind);
 }
 
 /** `remembered` answers the gradient (either kind) a shape's paint had before it went flat, if
  *  the session still knows it; Flat→Linear/Radial restores that, converted to the requested kind,
  *  instead of the default. A gradient already of the requested kind is left alone; one of the
- *  other kind is converted rather than replaced (spec M16 §5). */
+ *  other kind is converted — restoring a remembered gradient of the requested kind, carried to the
+ *  current box, when the session has one; the ordinary point-based conversion otherwise (spec M16
+ *  §5; the memory case is the fix for "Radial→Linear→Radial turns an ellipse into a circle"). */
 export function setPaintKind(
   doc: Doc,
   ids: readonly string[],
@@ -137,7 +169,11 @@ export function setPaintKind(
     const f = s.style[which];
     if (f === null) return s;
     if (kind === "flat") return isGradient(f) ? withFill(s, which, f.start) : s;
-    if (isGradient(f)) return f.kind === kind ? s : withFill(s, which, convertKind(f, kind));
+    if (isGradient(f)) {
+      return f.kind === kind
+        ? s
+        : withFill(s, which, convertOrRestore(f, kind, ownBox(s), remembered(s.id)));
+    }
     const box = ownBox(s);
     const r = remembered(s.id);
     if (r) {
@@ -180,16 +216,21 @@ export function setPaintKind(
 }
 
 /** Converts every gradient (of either kind) under `ids` to `kind`; flat paints are untouched
- *  (spec M16 §5, the Gradient section's Type row). */
+ *  (spec M16 §5, the Gradient section's Type row). `remembered` restores a gradient of `kind` the
+ *  session set aside when the selection last left it, so a Radial→Linear→Radial round trip through
+ *  the Type row gets its ellipse back rather than a fresh circle (fix M16). */
 export function convertGradients(
   doc: Doc,
   ids: readonly string[],
   which: PaintSlot,
   kind: GradientKind,
+  remembered: (id: string) => RememberedGradient | undefined = () => undefined,
 ): Doc {
   return mapShapesWorld(doc, ids, (s) => {
     const f = s.style[which];
-    return isGradient(f) && f.kind !== kind ? withFill(s, which, convertKind(f, kind)) : s;
+    return isGradient(f) && f.kind !== kind
+      ? withFill(s, which, convertOrRestore(f, kind, ownBox(s), remembered(s.id)))
+      : s;
   });
 }
 

@@ -353,3 +353,44 @@ describe("radial edits (spec M16 §5–§6)", () => {
     });
   });
 });
+
+describe("converting kind remembers the gradient given up (fix M16)", () => {
+  it("convertGradients: restores an ellipse exactly with the lookup, keeps a stop edited while linear, and defaults to a circle without one", () => {
+    const ellipse = rad0([50, 25], [100, 25], [50, 40]);
+    const d = doc([rect("a", 0, ellipse)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const recall = (id: string) => memory.get(id);
+    const linear = convertGradients(d, ["a"], "fill", "linear");
+    expect(fill(linear, "a")).toEqual(toLinear(ellipse));
+
+    // Without a lookup, converting back builds a fresh circle (today's default).
+    expect(fill(convertGradients(linear, ["a"], "fill", "radial"), "a")).toEqual(
+      rad0([50, 25], [100, 25], [50, 75]),
+    );
+
+    // With the lookup, the ellipse comes back exactly.
+    expect(fill(convertGradients(linear, ["a"], "fill", "radial", recall), "a")).toEqual(ellipse);
+
+    // An end stop edited while linear survives the round trip.
+    const green = { color: "#00ff00", opacity: 0.5 };
+    const linearEdited = doc([
+      rect("a", 0, { ...(fill(linear, "a") as LinearGradient), end: green }),
+    ]);
+    expect(fill(convertGradients(linearEdited, ["a"], "fill", "radial", recall), "a")).toEqual({
+      ...ellipse,
+      end: green,
+    });
+  });
+
+  it("setPaintKind's gradient-to-other-kind branch restores the same way", () => {
+    const ellipse = rad0([50, 25], [100, 25], [50, 40]);
+    const d = doc([rect("a", 0, ellipse)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const recall = (id: string) => memory.get(id);
+    const linear = setPaintKind(d, ["a"], "fill", "linear");
+    expect(fill(setPaintKind(linear, ["a"], "fill", "radial", recall), "a")).toEqual(ellipse);
+    expect(fill(setPaintKind(linear, ["a"], "fill", "radial"), "a")).toEqual(
+      rad0([50, 25], [100, 25], [50, 75]),
+    );
+  });
+});

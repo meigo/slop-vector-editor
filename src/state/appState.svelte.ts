@@ -183,9 +183,10 @@ class AppState {
   shareReady = $state.raw<ShareReadyRequest | null>(null);
   /** Where Save writes without asking. Not reactive: nothing renders from it. */
   fileHandle: FileSystemFileHandle | null = null;
-  /** Gradients set aside when their paint went Flat, keyed `id:fill` / `id:stroke`, so Linear
-   *  brings them back. Session memory: not saved, not undoable, not reactive — nothing renders
-   *  from it — and cleared by `replaceDocument`, whose ids mean other shapes. */
+  /** Gradients set aside when their paint went Flat, or changed kind (Linear ↔ Radial), keyed
+   *  `id:fill` / `id:stroke`, so switching back brings them back (fix M16). Session memory: not
+   *  saved, not undoable, not reactive — nothing renders from it — and cleared by
+   *  `replaceDocument`, whose ids mean other shapes. */
   gradientMemory = new Map<string, RememberedGradient>();
 
   /** Top-level node ids; not part of undo history. */
@@ -668,12 +669,22 @@ export function setGradientTarget(which: PaintSlot): void {
 /** Sets the kind the Gradient tool draws next and, with a selection, converts the target paint's
  *  gradients of the other kind to it — one undo step (spec M16 §5, the Type row). Converting is a
  *  no-op edit when the selection has nothing to convert, so `commitDoc` records no history then
- *  (invariant 1). */
+ *  (invariant 1). The conversion consults `gradientMemory` (a gradient stashed by an EARLIER call,
+ *  restoring it instead of rebuilding a fresh default) before this call's own gradients are
+ *  stashed — stashing first would overwrite the very memory this call needs to read, which is what
+ *  turned a Radial→Linear→Radial round trip's ellipse into a circle (fix M16). */
 export function setGradientType(kind: GradientKind): void {
   cancelActiveGesture();
   app.gradientType = kind;
   if (app.selection.length > 0) {
-    commitDoc(convertGradients(app.doc, app.selection, app.gradientTarget, kind));
+    const toStash = gradientsToRemember(app.doc, app.selection, app.gradientTarget);
+    const next = convertGradients(app.doc, app.selection, app.gradientTarget, kind, (id) =>
+      app.gradientMemory.get(`${id}:${app.gradientTarget}`),
+    );
+    for (const [id, r] of toStash) {
+      if (r.g.kind !== kind) app.gradientMemory.set(`${id}:${app.gradientTarget}`, r);
+    }
+    commitDoc(next);
   }
 }
 
@@ -683,19 +694,22 @@ export function setGradientStop(
   app.gradientStop = pick;
 }
 
+/** Every gradient about to be discarded — Flat drops any kind, Linear/Radial drops the other kind
+ *  — is stashed for a LATER call to restore, but only after this call's own conversion has read
+ *  whatever an earlier call left there (fix M16; see `setGradientType`'s comment — the two must
+ *  not be interleaved, or a round trip in one call would overwrite the memory it needs). A
+ *  gradient already of the requested kind is left out, so it can't overwrite a better memory. */
 export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | GradientKind): void {
   cancelActiveGesture();
   if (app.selection.length === 0) return;
-  if (kind === "flat") {
-    for (const [id, r] of gradientsToRemember(app.doc, app.selection, which)) {
-      app.gradientMemory.set(`${id}:${which}`, r);
-    }
-  }
-  commitDoc(
-    setPaintKind(app.doc, app.selection, which, kind, (id) =>
-      app.gradientMemory.get(`${id}:${which}`),
-    ),
+  const toStash = gradientsToRemember(app.doc, app.selection, which);
+  const next = setPaintKind(app.doc, app.selection, which, kind, (id) =>
+    app.gradientMemory.get(`${id}:${which}`),
   );
+  for (const [id, r] of toStash) {
+    if (kind === "flat" || r.g.kind !== kind) app.gradientMemory.set(`${id}:${which}`, r);
+  }
+  commitDoc(next);
 }
 
 export function setSelectionGradientStop(which: PaintSlot, stop: StopEnd, paint: Paint): void {

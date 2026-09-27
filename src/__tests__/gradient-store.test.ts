@@ -56,6 +56,37 @@ function makeDoc(): Doc {
   };
 }
 
+/** One rect "a" whose fill is already a radial ELLIPSE (rim B closer than the circle a Flat/Linear
+ *  default would build), so a round trip that lost it would come back as a circle instead
+ *  (fix M16). */
+function ellipseDoc(): Doc {
+  const a: Node = {
+    kind: "rect",
+    id: "a",
+    transform: IDENTITY,
+    style: {
+      ...DEFAULT_STYLE,
+      fill: {
+        kind: "radial",
+        center: { x: 5, y: 5 },
+        a: { x: 15, y: 5 },
+        b: { x: 5, y: 8 },
+        start: { color: "#ff0000", opacity: 1 },
+        end: { color: "#0000ff", opacity: 1 },
+      },
+    },
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    rx: 0,
+  };
+  return {
+    ...createDoc(100, 100),
+    layers: [{ id: "L0", name: "L0", visible: true, locked: false, children: [a] }],
+  };
+}
+
 function styleOf(id: string): Shape["style"] {
   return (findNode(app.doc, id)!.node as Shape).style;
 }
@@ -148,5 +179,28 @@ describe("Flat and back to Linear (session memory)", () => {
     setSelection(["a"]);
     setSelectionPaintKind("fill", "linear");
     expect((styleOf("a").fill as LinearGradient).end).toEqual({ color: "#ff0000", opacity: 0 });
+  });
+});
+
+describe("switching Type back restores the gradient (fix M16)", () => {
+  it("via setGradientType, Radial→Linear→Radial gets the ellipse back, not a fresh circle", () => {
+    replaceDocument(ellipseDoc(), "Untitled.svg", null, true);
+    setSelection(["a"]);
+    const before = styleOf("a").fill;
+    expect(isRadial(before)).toBe(true);
+    setGradientType("linear");
+    expect(isLinear(styleOf("a").fill)).toBe(true);
+    setGradientType("radial");
+    expect(styleOf("a").fill).toEqual(before);
+  });
+
+  it("via setSelectionPaintKind, the same round trip restores the ellipse", () => {
+    replaceDocument(ellipseDoc(), "Untitled.svg", null, true);
+    setSelection(["a"]);
+    const before = styleOf("a").fill;
+    setSelectionPaintKind("fill", "linear");
+    expect(isLinear(styleOf("a").fill)).toBe(true);
+    setSelectionPaintKind("fill", "radial");
+    expect(styleOf("a").fill).toEqual(before);
   });
 });
