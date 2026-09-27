@@ -1,11 +1,12 @@
-import { flatIfDegenerate, isLinear, type Fill } from "../doc/document";
+import { flatIfDegenerate, isGradient, type Fill } from "../doc/document";
 import type { Box } from "../geom/box";
-import { applyMat, invert, multiply, type Mat } from "../geom/mat";
+import { applyMat, IDENTITY, invert, multiply, type Mat } from "../geom/mat";
 import { parseColor } from "./colors";
 import { parseTransformOrNull } from "./transform";
 import type { XmlElement } from "./xml";
 
-/** Spec M15 §4: foreign paint servers, resolved into our two-point model exactly or not at all. */
+/** Spec M15 §4 (linear) and M16 §4 (radial): foreign paint servers, resolved into our two- or
+ *  three-point model exactly or not at all. */
 
 /** Mirrors parse.ts's MAX_COORD; kept as a local copy because parse.ts imports foldLinear and
  *  resolveServer, so importing from parse.ts here would be a circular import (invariant 8). */
@@ -24,8 +25,25 @@ export type RawLinear = {
   spread: string;
   stops: RawStop[];
 };
+export type RawRadial = {
+  units: "user" | "bbox";
+  cx: Len;
+  cy: Len;
+  r: Len;
+  /** null = absent (defaults: cx, cy, 0), as opposed to present and equal to it. */
+  fx: Len | null;
+  fy: Len | null;
+  fr: Len | null;
+  /** null when the list could not be read in full: the gradient is dropped, never guessed. */
+  transform: Mat | null;
+  spread: string;
+  stops: RawStop[];
+};
 export type Resolved =
-  { kind: "linear"; g: RawLinear } | { kind: "drop"; label: string } | { kind: "missing" };
+  | { kind: "linear"; g: RawLinear }
+  | { kind: "radial"; g: RawRadial }
+  | { kind: "drop"; label: string }
+  | { kind: "missing" };
 export type Folded = { kind: "fill"; fill: Fill | null } | { kind: "drop"; label: string };
 
 const MAX_CHAIN = 16;
@@ -119,25 +137,61 @@ export function resolveServer(servers: Map<string, XmlElement>, id: string): Res
   if (!el) return { kind: "missing" };
   const name = local(el.name);
   if (name === "pattern") return { kind: "drop", label: "patterns" };
-  if (name === "radialGradient") return { kind: "drop", label: "radial gradients" };
   const all = chain(servers, el);
   if (chainBroken(servers, all)) return { kind: "drop", label: "broken gradient references" };
   const attr = (k: string) => all.find((e) => e.attrs[k] !== undefined)?.attrs[k];
   const withStops = all.find((e) => e.children.some((c) => local(c.name) === "stop"));
   const tr = attr("gradientTransform");
+  const units = attr("gradientUnits") === "userSpaceOnUse" ? "user" : "bbox";
+  const transform = tr === undefined ? IDENTITY : parseTransformOrNull(tr);
+  const spread = (attr("spreadMethod") ?? "pad").trim();
+  const stops = withStops ? readStops(withStops) : [];
+  if (name === "radialGradient") {
+    return {
+      kind: "radial",
+      g: {
+        units,
+        cx: len(attr("cx"), { v: 50, pct: true }),
+        cy: len(attr("cy"), { v: 50, pct: true }),
+        r: len(attr("r"), { v: 50, pct: true }),
+        fx: attr("fx") === undefined ? null : len(attr("fx"), { v: 50, pct: true }),
+        fy: attr("fy") === undefined ? null : len(attr("fy"), { v: 50, pct: true }),
+        fr: attr("fr") === undefined ? null : len(attr("fr"), { v: 0, pct: false }),
+        transform,
+        spread,
+        stops,
+      },
+    };
+  }
   return {
     kind: "linear",
     g: {
-      units: attr("gradientUnits") === "userSpaceOnUse" ? "user" : "bbox",
+      units,
       x1: len(attr("x1"), { v: 0, pct: true }),
       y1: len(attr("y1"), { v: 0, pct: true }),
       x2: len(attr("x2"), { v: 100, pct: true }),
       y2: len(attr("y2"), { v: 0, pct: true }),
-      transform: tr === undefined ? [1, 0, 0, 1, 0, 0] : parseTransformOrNull(tr),
-      spread: (attr("spreadMethod") ?? "pad").trim(),
-      stops: withStops ? readStops(withStops) : [],
+      transform,
+      spread,
+      stops,
     },
   };
+}
+
+/** Invariant 8, shared by both folds: a coordinate is rejected the same way whether it comes from
+ *  the file directly or from folding it through a transform — an absurd length, or a transform
+ *  that blows the points up, must not silently reach the document as NaN or a coordinate `fmt`
+ *  would overflow. */
+function coordsOk(fill: Fill): boolean {
+  if (!isGradient(fill)) return true;
+  const pts = fill.kind === "linear" ? [fill.from, fill.to] : [fill.center, fill.a, fill.b];
+  return pts.every(
+    (p) =>
+      Number.isFinite(p.x) &&
+      Number.isFinite(p.y) &&
+      Math.abs(p.x) <= MAX_COORD &&
+      Math.abs(p.y) <= MAX_COORD,
+  );
 }
 
 /** Spec M15 §4's fold: the source's parameter `s(q)` is affine in own-space `q`, so the stops'
@@ -191,15 +245,66 @@ export function foldLinear(
     start: stops[0],
     end: stops[1],
   });
-  // Invariant 8: a coordinate is rejected the same way whether it comes from the file directly or
-  // from folding it — an absurd `x2`, or a transform that blows the points up, must not silently
-  // reach the document as NaN or a coordinate `fmt` would overflow. Only linear is produced here yet
-  // (`resolveServer` above drops radials), so `isLinear` reads the same points `isGradient` used to.
-  if (isLinear(fill)) {
-    const nums = [fill.from.x, fill.from.y, fill.to.x, fill.to.y];
-    if (nums.some((n) => !Number.isFinite(n) || Math.abs(n) > MAX_COORD)) {
-      return { kind: "drop", label: "invalid gradient coordinates" };
-    }
+  if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };
+  return { kind: "fill", fill };
+}
+
+/** Spec M16 §4: a radial with no focal offset is the unit circle under `A · [r, 0, 0, r, cx, cy]`
+ *  — exact for any invertible `A`. A first stop above 0 would paint a solid disc the model cannot
+ *  draw; a last stop below 1 simply shrinks the rim. */
+export function foldRadial(
+  g: RawRadial,
+  box: Box | null,
+  viewport: { w: number; h: number },
+  opacity: number,
+): Folded {
+  const stops = g.stops.map((s) => ({ color: s.color, opacity: s.opacity * opacity }));
+  if (g.stops.length === 0) return { kind: "fill", fill: null };
+  if (g.stops.length === 1) return { kind: "fill", fill: stops[0] };
+  if (g.stops.length > 2 || g.stops[1].offset <= g.stops[0].offset) {
+    return { kind: "drop", label: "gradients with more than two stops" };
   }
+  if (g.stops[0].offset > 0) return { kind: "drop", label: "radial gradients with an inner stop" };
+  if (g.spread !== "pad") return { kind: "drop", label: "repeating gradients" };
+  if (!g.transform) return { kind: "drop", label: "gradients with an invalid transform" };
+
+  let unit: Mat = IDENTITY;
+  let x: (l: Len) => number;
+  let y: (l: Len) => number;
+  let len: (l: Len) => number;
+  if (g.units === "bbox") {
+    if (!box || box.w <= 0 || box.h <= 0)
+      return { kind: "drop", label: "gradients on zero-size shapes" };
+    unit = [box.w, 0, 0, box.h, box.x, box.y];
+    x = y = len = (l) => (l.pct ? l.v / 100 : l.v);
+  } else {
+    const diag = Math.sqrt((viewport.w ** 2 + viewport.h ** 2) / 2);
+    x = (l) => (l.pct ? (l.v / 100) * viewport.w : l.v);
+    y = (l) => (l.pct ? (l.v / 100) * viewport.h : l.v);
+    len = (l) => (l.pct ? (l.v / 100) * diag : l.v);
+  }
+  const cx = x(g.cx);
+  const cy = y(g.cy);
+  const r = len(g.r);
+  const fx = g.fx ? x(g.fx) : cx;
+  const fy = g.fy ? y(g.fy) : cy;
+  const fr = g.fr ? len(g.fr) : 0;
+  if (fx !== cx || fy !== cy || fr !== 0) {
+    return { kind: "drop", label: "radial gradients with a focal point" };
+  }
+  if (r < 0) return { kind: "drop", label: "invalid gradient coordinates" };
+  if (r === 0) return { kind: "fill", fill: stops[1] };
+  const A = multiply(unit, g.transform);
+  if (!invert(A)) return { kind: "drop", label: "gradients with an invalid transform" };
+  const o1 = g.stops[1].offset;
+  const fill = flatIfDegenerate({
+    kind: "radial",
+    center: applyMat(A, { x: cx, y: cy }),
+    a: applyMat(A, { x: cx + r * o1, y: cy }),
+    b: applyMat(A, { x: cx, y: cy + r * o1 }),
+    start: stops[0],
+    end: stops[1],
+  });
+  if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };
   return { kind: "fill", fill };
 }

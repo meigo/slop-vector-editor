@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { isLinear, type LinearGradient } from "../doc/document";
+import { isLinear, isRadial, type LinearGradient, type RadialGradient } from "../doc/document";
 import { applyMat, invert, type Mat } from "../geom/mat";
-import { collectServers, foldLinear, resolveServer, type RawLinear } from "../svg/gradient-import";
+import {
+  collectServers,
+  foldLinear,
+  foldRadial,
+  resolveServer,
+  type RawLinear,
+  type RawRadial,
+} from "../svg/gradient-import";
 import { parseXml } from "../svg/xml";
 
 const svg = (defs: string) =>
@@ -77,11 +84,8 @@ describe("collectServers / resolveServer", () => {
     ]);
   });
 
-  it("reports radial gradients, patterns, missing ids and href cycles", () => {
-    expect(resolve(`<radialGradient id="g">${stops2}</radialGradient>`)).toEqual({
-      kind: "drop",
-      label: "radial gradients",
-    });
+  it("reports patterns, missing ids and href cycles, and resolves a radial gradient", () => {
+    expect(resolve(`<radialGradient id="g">${stops2}</radialGradient>`).kind).toBe("radial");
     expect(resolve(`<pattern id="g"/>`)).toEqual({ kind: "drop", label: "patterns" });
     expect(resolve(`<linearGradient id="h"/>`)).toEqual({ kind: "missing" });
     expect(resolve(`<rect id="g"/>`)).toEqual({ kind: "missing" });
@@ -298,5 +302,131 @@ describe("bounded coordinates (review finding 2)", () => {
       kind: "drop",
       label: "invalid gradient coordinates",
     });
+  });
+});
+
+const radial = (defs: string, id = "g"): RawRadial => {
+  const r = resolve(defs, id);
+  if (r.kind !== "radial") throw new Error(`not radial: ${JSON.stringify(r)}`);
+  return r.g;
+};
+const radOk = (g: RawRadial, b = box, o = 1): RadialGradient => {
+  const f = foldRadial(g, b, view, o);
+  if (f.kind !== "fill" || !isRadial(f.fill)) throw new Error(JSON.stringify(f));
+  return f.fill;
+};
+const userR = (attrs: string, stops = stops2) =>
+  radial(
+    `<radialGradient id="g" gradientUnits="userSpaceOnUse" ${attrs}>${stops}</radialGradient>`,
+  );
+
+describe("foldRadial (spec M16 §4)", () => {
+  it("keeps a userSpaceOnUse circle as centre and two rim points", () => {
+    const f = radOk(userR('cx="50" cy="40" r="30"'));
+    close(f.center, 50, 40);
+    close(f.a, 80, 40);
+    close(f.b, 50, 70);
+    expect(f.end).toEqual({ color: "#0000ff", opacity: 0.5 });
+  });
+
+  it("keeps an ellipse given as the unit circle under a matrix", () => {
+    const f = radOk(userR('cx="0" cy="0" r="1" gradientTransform="matrix(30 0 0 10 50 40)"'));
+    close(f.center, 50, 40);
+    close(f.a, 80, 40);
+    close(f.b, 50, 50);
+  });
+
+  it("maps objectBoundingBox defaults through a non-square box into an ellipse, exactly", () => {
+    const f = radOk(radial(`<radialGradient id="g">${stops2}</radialGradient>`), {
+      x: 0,
+      y: 0,
+      w: 200,
+      h: 100,
+    });
+    close(f.center, 100, 50);
+    close(f.a, 200, 50);
+    close(f.b, 100, 100);
+    // Sampled against the source: s(q) = |((q − box.xy)/(w, h)) − (.5, .5)| / .5.
+    const M = [f.a.x - f.center.x, f.a.y - f.center.y, f.b.x - f.center.x, f.b.y - f.center.y];
+    const det = M[0] * M[3] - M[1] * M[2];
+    const model = (q: { x: number; y: number }) => {
+      const x = q.x - f.center.x,
+        y = q.y - f.center.y;
+      return Math.hypot((M[3] * x - M[2] * y) / det, (-M[1] * x + M[0] * y) / det);
+    };
+    for (const q of [
+      { x: 30, y: 20 },
+      { x: 170, y: 90 },
+      { x: 100, y: 5 },
+    ]) {
+      expect(model(q)).toBeCloseTo(Math.hypot(q.x / 200 - 0.5, q.y / 100 - 0.5) / 0.5, 9);
+    }
+  });
+
+  it("reads a userSpaceOnUse % radius against the viewport's normalised diagonal", () => {
+    const f = radOk(userR('cx="0" cy="0" r="10%"'));
+    close(f.a, Math.sqrt((400 * 400 + 300 * 300) / 2) / 10, 0);
+  });
+
+  it("folds a last stop below 1 into the rim", () => {
+    const f = radOk(
+      userR(
+        'cx="50" cy="40" r="30"',
+        '<stop offset="0" stop-color="#ff0000"/><stop offset="0.5" stop-color="#0000ff"/>',
+      ),
+    );
+    close(f.a, 65, 40);
+    close(f.b, 50, 55);
+  });
+
+  it("drops what the model cannot draw exactly", () => {
+    const d = (attrs: string, stops = stops2) => foldRadial(userR(attrs, stops), box, view, 1);
+    expect(d('cx="50" cy="40" r="30" fx="60"')).toEqual({
+      kind: "drop",
+      label: "radial gradients with a focal point",
+    });
+    expect(d('cx="50" cy="40" r="30" fr="5"')).toEqual({
+      kind: "drop",
+      label: "radial gradients with a focal point",
+    });
+    expect(d('cx="50" cy="40" r="30"', '<stop offset="0.2"/><stop offset="1"/>')).toEqual({
+      kind: "drop",
+      label: "radial gradients with an inner stop",
+    });
+    expect(
+      d('cx="50" cy="40" r="30"', '<stop offset="0"/><stop offset="0.5"/><stop offset="1"/>'),
+    ).toEqual({ kind: "drop", label: "gradients with more than two stops" });
+    expect(d('cx="50" cy="40" r="30" spreadMethod="repeat"')).toEqual({
+      kind: "drop",
+      label: "repeating gradients",
+    });
+    expect(d('cx="0" cy="0" r="100" gradientTransform="scale(1e8)"')).toEqual({
+      kind: "drop",
+      label: "invalid gradient coordinates",
+    });
+    expect(d('cx="0" cy="0" r="1" gradientTransform="scale(0)"')).toEqual({
+      kind: "drop",
+      label: "gradients with an invalid transform",
+    });
+  });
+
+  it("an explicit fx/fy equal to the centre is not a focal point", () => {
+    const f = foldRadial(userR('cx="50" cy="40" r="30" fx="50" fy="40"'), box, view, 1);
+    expect(f.kind === "fill" && isRadial(f.fill)).toBe(true);
+  });
+
+  it("paints r = 0 as the last stop, flat", () => {
+    expect(foldRadial(userR('cx="50" cy="40" r="0"'), box, view, 1)).toEqual({
+      kind: "fill",
+      fill: { color: "#0000ff", opacity: 0.5 },
+    });
+  });
+
+  it("follows an href from a radial to a linear holding the stops", () => {
+    const g = radial(
+      `<linearGradient id="s">${stops2}</linearGradient><radialGradient id="g" href="#s" gradientUnits="userSpaceOnUse" cx="10" cy="10" r="5"/>`,
+    );
+    expect(g.stops).toHaveLength(2);
+    close(radOk(g).a, 15, 10);
   });
 });

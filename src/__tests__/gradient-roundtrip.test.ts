@@ -4,8 +4,10 @@ import {
   DEFAULT_STYLE,
   isGradient,
   isLinear,
+  isRadial,
   type Doc,
   type LinearGradient,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
 import { parseSvg } from "../svg/parse";
@@ -58,6 +60,50 @@ describe("gradient import (spec M15 §4)", () => {
     expect(stripIds(r.doc).layers[0].children[0]).toEqual(stripIds(d).layers[0].children[0]);
   });
 
+  it("round-trips a radial gradient exactly, circle and skewed ellipse alike", () => {
+    const fill: RadialGradient = {
+      kind: "radial",
+      center: { x: 50, y: 40 },
+      a: { x: 80, y: 40 },
+      b: { x: 50, y: 70 },
+      start: { color: "#ff3366", opacity: 1 },
+      end: { color: "#00ff00", opacity: 0.4 },
+    };
+    const stroke: RadialGradient = {
+      kind: "radial",
+      center: { x: 50, y: 40 },
+      a: { x: 80, y: 43 },
+      b: { x: 47, y: 52 },
+      start: { color: "#3366ff", opacity: 0.8 },
+      end: { color: "#ffff00", opacity: 1 },
+    };
+    const d0 = createDoc(200, 100);
+    const d: Doc = {
+      ...d0,
+      layers: [
+        {
+          ...d0.layers[0],
+          children: [
+            {
+              kind: "ellipse",
+              id: "n5",
+              transform: [0.8, 0.6, -0.6, 0.8, 10, 20],
+              style: { ...DEFAULT_STYLE, fill, stroke },
+              cx: 50,
+              cy: 40,
+              rx: 30,
+              ry: 20,
+            },
+          ],
+        },
+      ],
+    };
+    const r = parseSvg(serializeDoc(d));
+    expect(r.dropped).toEqual([]);
+    expect(r.native).toBe(true);
+    expect(stripIds(r.doc).layers[0].children[0]).toEqual(stripIds(d).layers[0].children[0]);
+  });
+
   it("resolves a group's inherited url per child, in each child's own box", () => {
     const r = parseSvg(
       wrap(
@@ -81,7 +127,7 @@ describe("gradient import (spec M15 §4)", () => {
     expect(r2.dropped).toContain("missing paint references");
   });
 
-  it("drops radial gradients and patterns by name, leaving no paint", () => {
+  it("imports a radial gradient fill and still drops a pattern stroke by name", () => {
     const r = parseSvg(
       wrap(
         `<radialGradient id="r">${stops}</radialGradient><pattern id="p"/>` +
@@ -89,9 +135,9 @@ describe("gradient import (spec M15 §4)", () => {
       ),
     );
     const s = shapesOf(r.doc)[0];
-    expect(s.style.fill).toBeNull();
+    expect(isRadial(s.style.fill)).toBe(true);
     expect(s.style.stroke).toBeNull();
-    expect(r.dropped).toEqual(expect.arrayContaining(["radial gradients", "patterns"]));
+    expect(r.dropped).toEqual(["patterns"]);
   });
 
   it("multiplies fill-opacity into the stops", () => {

@@ -25,7 +25,7 @@ import type { PolygonGeometry } from "../geom/shapes";
 import { MAX_TEXT_LENGTH, parseOverrides, parseTextOpts } from "../text/attrs";
 import { parseColor } from "./colors";
 import { fmt } from "./fmt";
-import { collectServers, foldLinear, resolveServer } from "./gradient-import";
+import { collectServers, foldLinear, foldRadial, resolveServer } from "./gradient-import";
 import { applyNodeTypes, parsePathData } from "./pathdata";
 import { parseTransform } from "./transform";
 import { parseXml, type XmlElement } from "./xml";
@@ -81,7 +81,8 @@ const PROPS = [
 ] as const;
 
 // Paint servers are not content: one outside `<defs>` is skipped silently, like `<defs>` itself.
-// A referenced radial gradient or pattern is still reported, by name, where it is referenced.
+// A referenced pattern, or a gradient the model can't draw exactly, is still reported, by name,
+// where it is referenced.
 const SILENT = new Set([
   "defs",
   "title",
@@ -321,7 +322,10 @@ export function parseSvg(src: string): ParseResult {
     // The geometric box in the shape's own space: `nodeBounds` applies the node's own transform,
     // so hand it the shape with an identity one.
     const box = nodeBounds({ ...shape, transform: IDENTITY }, IDENTITY);
-    const folded = foldLinear(res.g, box, { w, h }, r.o);
+    const folded =
+      res.kind === "radial"
+        ? foldRadial(res.g, box, { w, h }, r.o)
+        : foldLinear(res.g, box, { w, h }, r.o);
     if (folded.kind === "drop") {
       drop(folded.label);
       return null;

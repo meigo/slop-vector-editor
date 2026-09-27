@@ -23,7 +23,8 @@ import { serializeDoc } from "../svg/serialize";
 import { XmlError } from "../svg/xml";
 import { stripIds } from "./helpers";
 
-/** The importer never produces a gradient (Task 2 adds that); every fixture's fill here is flat. */
+/** Asserts a fill is flat; used only where the input has no gradient (the figma fixture below has
+ *  a radial one, which Task 2 now resolves instead of dropping). */
 function flatFill(f: Fill | null): Paint {
   if (f === null || isGradient(f)) throw new Error("expected a flat paint");
   return f;
@@ -179,13 +180,20 @@ describe("parseSvg — foreign files", () => {
     expect(dropped).toEqual(["<text>"]);
   });
 
-  it("reads a flat Figma export with gradients dropped", () => {
+  it("reads a flat Figma export, resolving its radial gradient fill", () => {
     const { doc, dropped, native } = parseSvg(figma);
     expect(native).toBe(false);
     expect(doc.layers).toHaveLength(1);
     const [rect, line, poly] = doc.layers[0].children as Shape[];
     expect(rect).toMatchObject({ kind: "rect", x: 4, y: 4, w: 56, h: 56, rx: 12 });
-    expect(rect.style.fill).toBeNull();
+    expect(rect.style.fill).toEqual({
+      kind: "radial",
+      center: { x: 32, y: 32 },
+      a: { x: 60, y: 32 },
+      b: { x: 32, y: 60 },
+      start: { color: "#5b8cff", opacity: 1 },
+      end: { color: "#7aa3ff", opacity: 1 },
+    });
     expect(line.style.stroke).toEqual({ color: "#ffffff", opacity: 1 });
     expect(line.style.fill).toBeNull(); // inherited fill="none" from <svg>
     expect(line.style.cap).toBe("round");
@@ -193,7 +201,7 @@ describe("parseSvg — foreign files", () => {
     expect((poly as PathShape).subpaths[0].nodes).toHaveLength(3);
     expect((poly as PathShape).subpaths[0].closed).toBe(true);
     expect(poly.style.fill).toEqual({ color: "#ffcc00", opacity: 1 });
-    expect(dropped).toEqual(["radial gradients"]);
+    expect(dropped).toEqual([]);
   });
 
   it("offsets a viewBox origin, converts unequal radii and reports classes", () => {
