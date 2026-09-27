@@ -1,6 +1,6 @@
 import type { Doc } from "../doc/document";
 import { resolveLayerId } from "../doc/layers";
-import type { PaintSlot, StopEnd } from "../doc/paint-edit";
+import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
@@ -29,6 +29,7 @@ export type FakeState = {
   notices: string[];
   view: View;
   gradientTarget: PaintSlot;
+  gradientType: GradientKind;
   gradientStop: { id: string; stop: StopEnd; which: PaintSlot } | null;
 };
 
@@ -55,6 +56,7 @@ export function fakeContext(
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
     gradientTarget: "fill",
+    gradientType: "linear",
     gradientStop: null,
   };
   const ctx: ToolContext = {
@@ -115,6 +117,7 @@ export function fakeContext(
       state.overlay = o;
     },
     gradientTarget: () => state.gradientTarget,
+    gradientType: () => state.gradientType,
     gradientStop: () => state.gradientStop,
     setGradientStop: (pick) => {
       state.gradientStop = pick;

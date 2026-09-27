@@ -13,7 +13,6 @@ import {
   drawGradientLine,
   gradientsToRemember,
   setGradientGeometry,
-  setGradientPoints,
   setGradientStop,
   setPaintKind,
   toLinear,
@@ -138,18 +137,30 @@ describe("setGradientStop", () => {
   });
 });
 
-describe("setGradientPoints", () => {
+describe("setGradientGeometry", () => {
   it("sets the points in own space, and collapses coincident ones to the end stop", () => {
     const d = doc([rect("a", 0, lin(0, 10))]);
-    expect(fill(setGradientPoints(d, "a", "fill", { x: 1, y: 2 }, { x: 3, y: 4 }), "a")).toEqual({
-      ...lin(0, 10),
-      from: { x: 1, y: 2 },
-      to: { x: 3, y: 4 },
-    });
-    expect(fill(setGradientPoints(d, "a", "fill", { x: 5, y: 5 }, { x: 5, y: 5 }), "a")).toEqual(
-      blue,
-    );
-    expect(setGradientPoints(d, "a", "fill", { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(d);
+    expect(
+      fill(
+        setGradientGeometry(d, "a", "fill", {
+          ...lin(0, 10),
+          from: { x: 1, y: 2 },
+          to: { x: 3, y: 4 },
+        }),
+        "a",
+      ),
+    ).toEqual({ ...lin(0, 10), from: { x: 1, y: 2 }, to: { x: 3, y: 4 } });
+    expect(
+      fill(
+        setGradientGeometry(d, "a", "fill", {
+          ...lin(0, 10),
+          from: { x: 5, y: 5 },
+          to: { x: 5, y: 5 },
+        }),
+        "a",
+      ),
+    ).toEqual(blue);
+    expect(setGradientGeometry(d, "a", "fill", lin(0, 10))).toBe(d);
   });
 });
 

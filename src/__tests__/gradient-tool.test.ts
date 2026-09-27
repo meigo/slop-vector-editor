@@ -7,6 +7,7 @@ import {
   type Group,
   type LinearGradient,
   type Node,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
 import { findNode } from "../doc/tree";
@@ -56,8 +57,10 @@ describe("gradientHandles / pickHandle", () => {
   it("returns document-space points through the world matrix and picks knobs before the line", () => {
     const hs = gradientHandles(doc([rect("a", 0, lin, translate(10, 10))]), ["a"], "fill");
     expect(hs).toHaveLength(1);
-    expect(hs[0].from).toEqual({ x: 10, y: 35 });
-    expect(hs[0].to).toEqual({ x: 110, y: 35 });
+    const h = hs[0];
+    if (h.kind !== "linear") throw new Error("linear expected");
+    expect(h.from).toEqual({ x: 10, y: 35 });
+    expect(h.to).toEqual({ x: 110, y: 35 });
     expect(pickHandle(hs, { x: 12, y: 36 }, 6)?.part).toBe("start");
     expect(pickHandle(hs, { x: 60, y: 37 }, 6)?.part).toBe("line");
     expect(pickHandle(hs, { x: 60, y: 60 }, 6)).toBeNull();
@@ -233,6 +236,152 @@ describe("the Gradient tool (spec M15 §7)", () => {
       [0, 25],
       [50, 25],
       [100, 25],
+    ]);
+    expect(fillOf(ctx.doc(), "a")).toEqual(blue);
+  });
+});
+
+const circleFill: RadialGradient = {
+  kind: "radial",
+  center: { x: 50, y: 25 },
+  a: { x: 100, y: 25 },
+  b: { x: 50, y: 75 },
+  start: red,
+  end: blue,
+};
+const radialCtx = (fillValue: Shape["style"]["fill"] = circleFill) => {
+  const f = fakeContext(doc([rect("a", 0, fillValue)]));
+  f.ctx.setSelection(["a"]);
+  f.state.gradientType = "radial";
+  return f;
+};
+const rOf = (ctx: ReturnType<typeof fakeContext>["ctx"]) =>
+  fillOf(ctx.doc(), "a") as RadialGradient;
+const near = (p: { x: number; y: number }, x: number, y: number) => {
+  expect(p.x).toBeCloseTo(x, 9);
+  expect(p.y).toBeCloseTo(y, 9);
+};
+
+describe("radial handles and drags (spec M16 §6)", () => {
+  it("picks the centre, both rims and the lines", () => {
+    const hs = gradientHandles(doc([rect("a", 0, circleFill)]), ["a"], "fill");
+    expect(pickHandle(hs, { x: 50, y: 25 }, 6)?.part).toBe("center");
+    expect(pickHandle(hs, { x: 100, y: 25 }, 6)?.part).toBe("rimA");
+    expect(pickHandle(hs, { x: 50, y: 75 }, 6)?.part).toBe("rimB");
+    expect(pickHandle(hs, { x: 75, y: 26 }, 6)?.part).toBe("line");
+  });
+
+  it("draws a document-space circle with Type = Radial", () => {
+    const { ctx } = radialCtx(red);
+    drag(createGradientTool(), ctx, [
+      [50, 25],
+      [65, 25],
+      [80, 25],
+    ]);
+    expect(rOf(ctx)).toEqual({
+      kind: "radial",
+      center: { x: 50, y: 25 },
+      a: { x: 80, y: 25 },
+      b: { x: 50, y: 55 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("dragging the centre moves all three points", () => {
+    const { ctx } = radialCtx();
+    drag(createGradientTool(), ctx, [
+      [50, 25],
+      [60, 35],
+    ]);
+    near(rOf(ctx).center, 60, 35);
+    near(rOf(ctx).a, 110, 35);
+    near(rOf(ctx).b, 60, 85);
+  });
+
+  it("rim A rotates and scales the whole ellipse about the centre", () => {
+    const { ctx } = radialCtx();
+    drag(createGradientTool(), ctx, [
+      [100, 25],
+      [70, 60],
+      [50, 75],
+    ]);
+    near(rOf(ctx).a, 50, 75);
+    near(rOf(ctx).b, 0, 25); // +90°, scale 1
+  });
+
+  it("rim A with Shift snaps to 45° and scales B with it", () => {
+    const { ctx } = radialCtx();
+    drag(
+      createGradientTool(),
+      ctx,
+      [
+        [100, 25],
+        [95, 30],
+      ],
+      { shift: true },
+    );
+    const s = Math.hypot(45, 5) / 50;
+    near(rOf(ctx).a, 50 + 50 * s, 25);
+    near(rOf(ctx).b, 50, 25 + 50 * s);
+  });
+
+  it("rim B moves alone, or stays perpendicular to A with Shift", () => {
+    const free = radialCtx();
+    drag(createGradientTool(), free.ctx, [
+      [50, 75],
+      [70, 70],
+    ]);
+    near(rOf(free.ctx).b, 70, 70);
+    near(rOf(free.ctx).a, 100, 25);
+    const snapped = radialCtx();
+    drag(
+      createGradientTool(),
+      snapped.ctx,
+      [
+        [50, 75],
+        [70, 70],
+      ],
+      { shift: true },
+    );
+    near(rOf(snapped.ctx).b, 50, 70);
+  });
+
+  it("rim A keeps the ellipse's on-screen shape on a skewed shape (computed in document space)", () => {
+    const f = fakeContext(doc([rect("a", 0, circleFill, [1, 0, 0.5, 1, 0, 0])]));
+    f.ctx.setSelection(["a"]);
+    const h = gradientHandles(f.ctx.doc(), ["a"], "fill")[0];
+    if (h.kind !== "radial") throw new Error("radial expected");
+    const tool = createGradientTool();
+    drag(tool, f.ctx, [
+      [h.a.x, h.a.y],
+      [h.center.x, h.center.y + 50],
+    ]);
+    const after = gradientHandles(f.ctx.doc(), ["a"], "fill")[0];
+    if (after.kind !== "radial") throw new Error("radial expected");
+    // On screen: A went from c+(50,0) to c+(0,50) — a +90° rotation at scale 1 — so B's on-screen
+    // offset rotates by +90° as well.
+    const before = { x: h.b.x - h.center.x, y: h.b.y - h.center.y };
+    near({ x: after.b.x - after.center.x, y: after.b.y - after.center.y }, -before.y, before.x);
+  });
+
+  it("taps pick the start stop on the centre and the end stop on a rim", () => {
+    const { ctx } = radialCtx();
+    const tool = createGradientTool();
+    tool.down(ctx, ev(50, 25));
+    tool.up(ctx, ev(50, 25));
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "start", which: "fill" });
+    tool.down(ctx, ev(50, 75));
+    tool.up(ctx, ev(50, 75));
+    expect(ctx.gradientStop()).toEqual({ id: "a", stop: "end", which: "fill" });
+  });
+
+  it("a rim dragged onto the centre collapses to the end colour", () => {
+    const { ctx } = radialCtx();
+    drag(createGradientTool(), ctx, [
+      [100, 25],
+      [70, 25],
+      [50, 25],
     ]);
     expect(fillOf(ctx.doc(), "a")).toEqual(blue);
   });

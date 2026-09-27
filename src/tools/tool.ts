@@ -1,5 +1,5 @@
 import type { Doc } from "../doc/document";
-import type { PaintSlot, StopEnd } from "../doc/paint-edit";
+import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
@@ -67,6 +67,8 @@ export interface ToolContext {
   setOverlay(o: Overlay): void;
   /** Which paint the Gradient tool edits (spec M15 §6). */
   gradientTarget(): PaintSlot;
+  /** The kind a drawn gradient is drawn as (spec M16 §5). */
+  gradientType(): GradientKind;
   /** The stop picked on the canvas, or null (spec M15 §7). `which` is the paint slot it was
    *  picked on — recorded so switching `gradientTarget` afterwards can't relabel it (review
    *  finding 7). */

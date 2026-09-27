@@ -6,7 +6,6 @@ import {
   DEFAULT_STYLE,
   flatIfDegenerate,
   isGradient,
-  isLinear,
   sameFill,
   type Doc,
   type Fill,
@@ -217,16 +216,6 @@ export function setGradientStop(
   return mapShapesWorld(doc, ids, (s) => {
     const f = s.style[which];
     return isGradient(f) ? withFill(s, which, { ...f, [stop]: paint }) : s;
-  });
-}
-
-/** `from`/`to` in the shape's own space; used by the tool's knob and line drags. Linear only — a
- *  radial's own handles arrive later (task 5). */
-export function setGradientPoints(doc: Doc, id: string, which: PaintSlot, from: Vec, to: Vec): Doc {
-  return mapNodes(doc, [id], (n) => {
-    if (n.kind === "group") return n;
-    const f = n.style[which];
-    return isLinear(f) ? withFill(n, which, flatIfDegenerate({ ...f, from, to })) : n;
   });
 }
 

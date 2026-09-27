@@ -52,6 +52,7 @@ export const storeContext: ToolContext = {
   notify,
   setOverlay,
   gradientTarget: () => app.gradientTarget,
+  gradientType: () => app.gradientType,
   gradientStop: () => app.gradientStop,
   setGradientStop,
 };
