@@ -30,6 +30,7 @@ import {
   setHoverCursor,
   setSelection,
   setSelectionGradientMid,
+  setSelectionGradientMidAuto,
   setSelectionGradientStop,
   setSelectionPaintKind,
   setTool,
@@ -357,6 +358,33 @@ describe("setSelectionGradientMid (spec M17 §5)", () => {
     expect((styleOf("a").fill as { mid?: number }).mid).toBe(0.25);
     undo();
     expect("mid" in (styleOf("a").fill as object)).toBe(false);
+  });
+});
+
+describe("middle colour actions (spec M18 §4)", () => {
+  beforeEach(() => {
+    replaceDocument(makeDoc(), "t.svg", null, true);
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+  });
+
+  it("Auto off seeds the mix in one undo step; Auto on drops it (Review Focus 4)", () => {
+    const before = styleOf("a").fill;
+    setSelectionGradientMidAuto("fill", false);
+    expect((styleOf("a").fill as { midPaint?: unknown }).midPaint).toBeDefined();
+    undo();
+    expect(styleOf("a").fill).toBe(before);
+    setSelectionGradientMidAuto("fill", false);
+    setSelectionGradientMidAuto("fill", true);
+    expect("midPaint" in (styleOf("a").fill as object)).toBe(false);
+  });
+
+  it("editing the mid stop stores a custom colour", () => {
+    setSelectionGradientStop("fill", "mid", { color: "#000000", opacity: 1 });
+    expect((styleOf("a").fill as { midPaint?: unknown }).midPaint).toEqual({
+      color: "#000000",
+      opacity: 1,
+    });
   });
 });
 

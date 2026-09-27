@@ -18,10 +18,13 @@
     stops,
     picked,
     mid = null,
+    midAuto = null,
+    midPaint = null,
     onchange,
     onkind,
     onstop,
     onmid,
+    onmidauto,
     onlivestart,
     onliveend,
   }: {
@@ -37,10 +40,14 @@
     picked: StopEnd | null;
     /** Spec M17 §5: null when not every paint is a gradient (then there are no stop rows either). */
     mid?: Field<number> | null;
+    /** Spec M18 §4: null exactly when `mid` is. */
+    midAuto?: Field<boolean> | null;
+    midPaint?: Field<Paint> | null;
     onchange: (p: Paint | null) => void;
     onkind: (k: "flat" | "linear" | "radial") => void;
     onstop: (stop: StopEnd, p: Paint) => void;
     onmid?: (mid: number) => void;
+    onmidauto?: (auto: boolean) => void;
     /** Brackets a live drag of the swatch so the whole drag is one undo step. The caller owns the
      *  document gesture; this component stays presentational and never touches the store. */
     onlivestart?: () => void;
@@ -95,8 +102,31 @@
   {:else if stops}
     {#each STOPS as stop (stop)}
       {@const f = stops[stop]}
-      {#if stop === "end" && mid && onmid}
-        <MidpointRow {label} {mid} {onmid} {onlivestart} {onliveend} />
+      {#if stop === "end" && mid && onmid && midAuto && onmidauto}
+        <MidpointRow
+          {label}
+          {mid}
+          {onmid}
+          auto={midAuto}
+          onauto={onmidauto}
+          {onlivestart}
+          {onliveend}
+        />
+        {#if midPaint && !midPaint.mixed}
+          <!-- Spec M18 §4: the middle stop's EFFECTIVE colour, like the Start/End rows. Editing it
+               stores a custom colour, which turns Auto off by itself. -->
+          <div class="flex items-center gap-2">
+            <span class="w-9 shrink-0"></span>
+            <PaintRow
+              label={`${label} middle`}
+              paint={midPaint.value}
+              selected={picked === "mid"}
+              onchange={(p) => onstop("mid", p)}
+              {onlivestart}
+              {onliveend}
+            />
+          </div>
+        {/if}
       {/if}
       {#if !f.mixed}
         <div class="flex items-center gap-2">

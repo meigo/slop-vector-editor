@@ -1,11 +1,14 @@
 <script lang="ts">
   import type { Field } from "../state/properties";
   import NumberField from "./NumberField.svelte";
+  import ToggleButton from "./ToggleButton.svelte";
 
   let {
     label,
     mid,
     onmid,
+    auto,
+    onauto,
     onlivestart,
     onliveend,
   }: {
@@ -13,6 +16,9 @@
     label: string;
     mid: Field<number>;
     onmid: (mid: number) => void;
+    /** Spec M18 §4: whether the middle stop is the computed mix. */
+    auto: Field<boolean>;
+    onauto: (auto: boolean) => void;
     /** Brackets a slider drag so the whole drag is one undo step (invariant 42). The caller owns
      *  the document gesture; this component never touches the store. */
     onlivestart?: () => void;
@@ -44,7 +50,7 @@
      `--ctl-h` high like every other control (invariant 23), and the raised field look
      (`rounded border border-line bg-raised`, as `PaintRow`'s `type="color"` input composes it —
      a range input has no `.field` styling of its own to fall back on). -->
-<div class="flex items-center gap-2" title="Midpoint — where the two colours mix 50/50">
+<div class="flex items-center gap-2" title="Midpoint — where the middle stop sits">
   <span class="w-9 shrink-0 text-muted">Mid</span>
   <input
     type="range"
@@ -64,7 +70,7 @@
   />
   <!-- `NumberField`'s root is `display: contents`; this wrapper is the flex item it sizes
        against, as in PaintRow. -->
-  <div class="w-16 shrink-0">
+  <div class="w-12 shrink-0">
     <NumberField
       label=""
       value={pct}
@@ -74,4 +80,13 @@
       onchange={(v) => onmid(Math.round(v) / 100)}
     />
   </div>
+  <!-- Spec M18 §4: Auto = the middle stop is the computed mix. Pressing it on drops any custom
+       colour; off seeds the mix, so the artwork doesn't change until a colour is picked. -->
+  <ToggleButton
+    label="Auto"
+    ariaLabel="{label} middle colour automatic"
+    title="Middle colour — Auto mixes Start and End; off keeps a colour of its own"
+    value={auto.mixed ? "mixed" : auto.value}
+    onchange={() => onauto(auto.mixed ? true : !auto.value)}
+  />
 </div>

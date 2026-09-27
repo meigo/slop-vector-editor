@@ -13,6 +13,7 @@
     setPolygonPrefs,
     setSelectedNodeType,
     setSelectionGradientMid,
+    setSelectionGradientMidAuto,
     setSelectionGradientStop,
     setSelectionOpacity,
     setSelectionPaintKind,
@@ -189,10 +190,13 @@
             stops={fillGrad?.stops ?? null}
             picked={pickedStop("fill")}
             mid={fillGrad?.mid ?? null}
+            midAuto={fillGrad?.midAuto ?? null}
+            midPaint={fillGrad?.midPaint ?? null}
             onchange={(p) => setSelectionStyle({ fill: p })}
             onkind={(k) => setSelectionPaintKind("fill", k)}
             onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
             onmid={(m) => setSelectionGradientMid("fill", m)}
+            onmidauto={(a) => setSelectionGradientMidAuto("fill", a)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />
@@ -207,10 +211,13 @@
             stops={strokeGrad?.stops ?? null}
             picked={pickedStop("stroke")}
             mid={strokeGrad?.mid ?? null}
+            midAuto={strokeGrad?.midAuto ?? null}
+            midPaint={strokeGrad?.midPaint ?? null}
             onchange={(p) => setSelectionStyle({ stroke: p })}
             onkind={(k) => setSelectionPaintKind("stroke", k)}
             onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}
             onmid={(m) => setSelectionGradientMid("stroke", m)}
+            onmidauto={(a) => setSelectionGradientMidAuto("stroke", a)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />
