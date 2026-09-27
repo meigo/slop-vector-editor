@@ -17,15 +17,18 @@ import { findNode } from "../doc/tree";
 import { IDENTITY } from "../geom/mat";
 import {
   app,
+  beginDocGesture,
   clearOrLeaveGroup,
   commitDoc,
   deleteSelection,
+  endDocGesture,
   forgetGradients,
   replaceDocument,
   setGradientStop,
   setGradientTarget,
   setGradientType,
   setSelection,
+  setSelectionGradientMid,
   setSelectionGradientStop,
   setSelectionPaintKind,
   undo,
@@ -328,5 +331,29 @@ describe("gradientMemory is pruned once its shape is gone (fix M16 review findin
     expect(app.gradientMemory.has("a:fill")).toBe(true);
     deleteSelection();
     expect(app.gradientMemory.has("a:fill")).toBe(false);
+  });
+});
+
+describe("setSelectionGradientMid (spec M17 §5)", () => {
+  beforeEach(() => {
+    replaceDocument(makeDoc(), "t.svg", null, true);
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+  });
+
+  it("sets the midpoint on the selection and deletes it at 50%", () => {
+    setSelectionGradientMid("fill", 0.3);
+    expect((styleOf("a").fill as { mid?: number }).mid).toBe(0.3);
+    setSelectionGradientMid("fill", 0.5);
+    expect("mid" in (styleOf("a").fill as object)).toBe(false);
+  });
+
+  it("a live slider drag inside a doc gesture is one undo step (Review Focus 3)", () => {
+    beginDocGesture();
+    for (const m of [0.4, 0.35, 0.3, 0.25]) setSelectionGradientMid("fill", m);
+    endDocGesture();
+    expect((styleOf("a").fill as { mid?: number }).mid).toBe(0.25);
+    undo();
+    expect("mid" in (styleOf("a").fill as object)).toBe(false);
   });
 });

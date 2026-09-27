@@ -3,6 +3,7 @@ import type { GradientKind, PaintSlot } from "../doc/paint-edit";
 import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import {
   isGradient,
+  midOf,
   sameColours,
   samePaint,
   type Doc,
@@ -70,6 +71,8 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
 export type GradientSummary = {
   kind: Field<"flat" | "linear" | "radial">;
   stops: { start: Field<Paint>; end: Field<Paint> } | null;
+  /** Spec M17 §5: null exactly when `stops` is. */
+  mid: Field<number> | null;
 };
 
 /** Spec M15 §6, M16 §5: which kind each non-null paint is (its own kind for a gradient), and —
@@ -98,7 +101,8 @@ export function summarizeGradient(
           ),
         }
       : null;
-  return { kind, stops };
+  const mid = stops ? merge(grads.map(midOf)) : null;
+  return { kind, stops, mid };
 }
 
 /** Spec M16 §5: the Type row's value — the kind of the selection's gradients on `which`, or

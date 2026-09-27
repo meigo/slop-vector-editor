@@ -2,6 +2,7 @@
   import { isGradient, type Fill, type Paint } from "../doc/document";
   import type { StopEnd } from "../doc/paint-edit";
   import type { Field } from "../state/properties";
+  import MidpointRow from "./MidpointRow.svelte";
   import PaintRow from "./PaintRow.svelte";
   import ToggleButton from "./ToggleButton.svelte";
 
@@ -15,9 +16,11 @@
     kind,
     stops,
     picked,
+    mid = null,
     onchange,
     onkind,
     onstop,
+    onmid,
     onlivestart,
     onliveend,
   }: {
@@ -31,9 +34,12 @@
     stops: { start: Field<Paint>; end: Field<Paint> } | null;
     /** The stop picked on the canvas (spec M15 §7). */
     picked: StopEnd | null;
+    /** Spec M17 §5: null when not every paint is a gradient (then there are no stop rows either). */
+    mid?: Field<number> | null;
     onchange: (p: Paint | null) => void;
     onkind: (k: "flat" | "linear" | "radial") => void;
     onstop: (stop: StopEnd, p: Paint) => void;
+    onmid?: (mid: number) => void;
     /** Brackets a live drag of the swatch so the whole drag is one undo step. The caller owns the
      *  document gesture; this component stays presentational and never touches the store. */
     onlivestart?: () => void;
@@ -88,6 +94,9 @@
   {:else if stops}
     {#each STOPS as stop (stop)}
       {@const f = stops[stop]}
+      {#if stop === "end" && mid && onmid}
+        <MidpointRow {label} {mid} {onmid} {onlivestart} {onliveend} />
+      {/if}
       {#if !f.mixed}
         <div class="flex items-center gap-2">
           <span class="w-9 shrink-0 text-muted">{stop === "start" ? "Start" : "End"}</span>

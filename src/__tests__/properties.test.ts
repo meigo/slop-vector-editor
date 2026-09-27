@@ -363,10 +363,12 @@ describe("summarizeGradient", () => {
     expect(summarizeGradient([s(g), s({ ...g, from: { x: 5, y: 5 } })], "fill")).toEqual({
       kind: { mixed: false, value: "linear" },
       stops: { start: { mixed: false, value: g.start }, end: { mixed: false, value: g.end } },
+      mid: { mixed: false, value: 0.5 },
     });
     expect(summarizeGradient([s(g), s(g.start)], "fill")).toEqual({
       kind: { mixed: true },
       stops: null,
+      mid: null,
     });
     expect(summarizeGradient([s(null)], "fill")).toBeNull();
   });
@@ -398,5 +400,22 @@ describe("summarizeGradient", () => {
       value: "radial",
     });
     expect(summarizeGradient([s(rad)], "fill")?.kind).toEqual({ mixed: false, value: "radial" });
+  });
+
+  it("merges the midpoint (spec M17 §5)", () => {
+    const g = {
+      kind: "linear" as const,
+      from: { x: 0, y: 0 },
+      to: { x: 1, y: 0 },
+      start: { color: "#ff0000", opacity: 1 },
+      end: { color: "#0000ff", opacity: 1 },
+    };
+    const s = (fill: Style["fill"]): Style => ({ ...DEFAULT_STYLE, fill });
+    expect(summarizeGradient([s({ ...g, mid: 0.3 }), s({ ...g, mid: 0.3 })], "fill")?.mid).toEqual({
+      mixed: false,
+      value: 0.3,
+    });
+    expect(summarizeGradient([s({ ...g, mid: 0.3 }), s(g)], "fill")?.mid).toEqual({ mixed: true });
+    expect(summarizeGradient([s(g), s(g.start)], "fill")?.mid).toBeNull();
   });
 });
