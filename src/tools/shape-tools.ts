@@ -39,6 +39,16 @@ export function snapLineEnd(a: Vec, b: Vec): Vec {
   return { x: a.x + len * Math.cos(angle), y: a.y + len * Math.sin(angle) };
 }
 
+/** Rotates `p` about `pivot` to the nearest 45°, keeping its distance — the Shift constraint
+ *  shared by the Gradient and Warp tools (plan ruling 6). */
+export function constrain45(pivot: Vec, p: Vec): Vec {
+  const dx = p.x - pivot.x;
+  const dy = p.y - pivot.y;
+  const r = Math.hypot(dx, dy);
+  const a = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
+  return { x: pivot.x + r * Math.cos(a), y: pivot.y + r * Math.sin(a) };
+}
+
 /** A line is only its stroke: no fill, and a black stroke if the default style has none. */
 export function lineStyle(style: Style): Style {
   return { ...style, fill: null, stroke: style.stroke ?? { color: "#000000", opacity: 1 } };

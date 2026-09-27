@@ -9,8 +9,10 @@ import {
   pickCharacter,
   placeTitle,
   forgetGradients,
+  registerToolActivate,
   registerToolDiscard,
   registerToolFinish,
+  registerToolSettle,
   setEnteredGroup,
   setGradientStop,
   setHoverCursor,
@@ -71,4 +73,15 @@ registerToolFinish(() => {
 // new one (spec M4b §2).
 registerToolDiscard(() => {
   TOOLS[app.toolId].discard?.(storeContext);
+});
+
+// The tool becomes active and may want to reset its own state (spec M14 §5, plan ruling 1).
+registerToolActivate(() => {
+  TOOLS[app.toolId].activate?.(storeContext);
+});
+
+// Something outside the tool is about to edit the document or change the selection: settle
+// commits whatever session it holds (spec M14 §5, plan ruling 1).
+registerToolSettle(() => {
+  TOOLS[app.toolId].settle?.(storeContext);
 });
