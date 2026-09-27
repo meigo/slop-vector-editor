@@ -1,4 +1,11 @@
-import { flatIfDegenerate, isGradient, type Fill } from "../doc/document";
+import {
+  flatIfDegenerate,
+  isGradient,
+  midStop,
+  withMid,
+  type Fill,
+  type Paint,
+} from "../doc/document";
 import type { Box } from "../geom/box";
 import { applyMat, IDENTITY, invert, multiply, type Mat } from "../geom/mat";
 import { parseColor } from "./colors";
@@ -206,9 +213,38 @@ function coordsOk(fill: Fill): boolean {
   );
 }
 
+type Outer = { o0: number; o1: number; start: Paint; end: Paint; mid: number | undefined };
+
+const hexChannel = (c: string, i: number) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
+
+/** Spec M17 §4: within rounding of the mix our own writer (and other editors) put there. */
+function isMidStop(p: Paint, want: Paint): boolean {
+  return (
+    Math.abs(p.opacity - want.opacity) <= 0.005 &&
+    [0, 1, 2].every((i) => Math.abs(hexChannel(p.color, i) - hexChannel(want.color, i)) <= 1)
+  );
+}
+
+/** The two stops the model keeps, with their offsets — plus a midpoint when a third, middle stop
+ *  is exactly their mix (spec M17 §4). Anything else is more than the model can hold. */
+function outerStops(raw: readonly RawStop[], stops: readonly Paint[]): Outer | { drop: string } {
+  const more = { drop: "gradients with more than two stops" };
+  if (raw.length === 2) {
+    if (raw[1].offset <= raw[0].offset) return more;
+    return { o0: raw[0].offset, o1: raw[1].offset, start: stops[0], end: stops[1], mid: undefined };
+  }
+  if (raw.length !== 3) return more;
+  const [o0, om, o1] = raw.map((s) => s.offset);
+  if (!(o0 < om && om < o1)) return more;
+  if (!isMidStop(stops[1], midStop(stops[0], stops[2]))) return more;
+  const t = (om - o0) / (o1 - o0);
+  return { o0, o1, start: stops[0], end: stops[2], mid: Math.abs(t - 0.5) < 1e-6 ? undefined : t };
+}
+
 /** Spec M15 §4's fold: the source's parameter `s(q)` is affine in own-space `q`, so the stops'
  *  offsets are reached at two points along its gradient `g = A⁻ᵀd/(d·d)` — exact for any
- *  invertible `A`, skew included (which is why `g` is never `A·d`). */
+ *  invertible `A`, skew included (which is why `g` is never `A·d`).
+ *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint. */
 export function foldLinear(
   g: RawLinear,
   box: Box | null,
@@ -218,9 +254,8 @@ export function foldLinear(
   const stops = g.stops.map((s) => ({ color: s.color, opacity: s.opacity * opacity }));
   if (g.stops.length === 0) return { kind: "fill", fill: null };
   if (g.stops.length === 1) return { kind: "fill", fill: stops[0] };
-  if (g.stops.length > 2 || g.stops[1].offset <= g.stops[0].offset) {
-    return { kind: "drop", label: "gradients with more than two stops" };
-  }
+  const outer = outerStops(g.stops, stops);
+  if ("drop" in outer) return { kind: "drop", label: outer.drop };
   if (g.spread !== "pad") return { kind: "drop", label: "repeating gradients" };
   if (!g.transform) return { kind: "drop", label: "gradients with an invalid transform" };
 
@@ -243,27 +278,33 @@ export function foldLinear(
   const d = { x: p2.x - p1.x, y: p2.y - p1.y };
   const dd = d.x * d.x + d.y * d.y;
   // SVG: coincident points paint the last stop's colour.
-  if (dd === 0) return { kind: "fill", fill: stops[1] };
+  if (dd === 0) return { kind: "fill", fill: outer.end };
   const [ai, bi, ci, di] = inv;
   const gx = (ai * d.x + bi * d.y) / dd;
   const gy = (ci * d.x + di * d.y) / dd;
   const gg = gx * gx + gy * gy;
   const q0 = applyMat(A, p1);
   const at = (o: number) => ({ x: q0.x + (gx * o) / gg, y: q0.y + (gy * o) / gg });
-  const fill = flatIfDegenerate({
-    kind: "linear",
-    from: at(g.stops[0].offset),
-    to: at(g.stops[1].offset),
-    start: stops[0],
-    end: stops[1],
-  });
+  const fill = flatIfDegenerate(
+    withMid(
+      {
+        kind: "linear",
+        from: at(outer.o0),
+        to: at(outer.o1),
+        start: outer.start,
+        end: outer.end,
+      },
+      outer.mid,
+    ),
+  );
   if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };
   return { kind: "fill", fill };
 }
 
 /** Spec M16 §4: a radial with no focal offset is the unit circle under `A · [r, 0, 0, r, cx, cy]`
  *  — exact for any invertible `A`. A first stop above 0 would paint a solid disc the model cannot
- *  draw; a last stop below 1 simply shrinks the rim. */
+ *  draw; a last stop below 1 simply shrinks the rim.
+ *  Spec M17 §4: a third, middle stop equal to the outer two's mix is read as a midpoint. */
 export function foldRadial(
   g: RawRadial,
   box: Box | null,
@@ -273,10 +314,9 @@ export function foldRadial(
   const stops = g.stops.map((s) => ({ color: s.color, opacity: s.opacity * opacity }));
   if (g.stops.length === 0) return { kind: "fill", fill: null };
   if (g.stops.length === 1) return { kind: "fill", fill: stops[0] };
-  if (g.stops.length > 2 || g.stops[1].offset <= g.stops[0].offset) {
-    return { kind: "drop", label: "gradients with more than two stops" };
-  }
-  if (g.stops[0].offset > 0) return { kind: "drop", label: "radial gradients with an inner stop" };
+  const outer = outerStops(g.stops, stops);
+  if ("drop" in outer) return { kind: "drop", label: outer.drop };
+  if (outer.o0 > 0) return { kind: "drop", label: "radial gradients with an inner stop" };
   if (g.spread !== "pad") return { kind: "drop", label: "repeating gradients" };
   if (!g.transform) return { kind: "drop", label: "gradients with an invalid transform" };
 
@@ -305,18 +345,23 @@ export function foldRadial(
     return { kind: "drop", label: "radial gradients with a focal point" };
   }
   if (r < 0) return { kind: "drop", label: "invalid gradient coordinates" };
-  if (r === 0) return { kind: "fill", fill: stops[1] };
+  if (r === 0) return { kind: "fill", fill: outer.end };
   const A = multiply(unit, g.transform);
   if (!invert(A)) return { kind: "drop", label: "gradients with an invalid transform" };
-  const o1 = g.stops[1].offset;
-  const fill = flatIfDegenerate({
-    kind: "radial",
-    center: applyMat(A, { x: cx, y: cy }),
-    a: applyMat(A, { x: cx + r * o1, y: cy }),
-    b: applyMat(A, { x: cx, y: cy + r * o1 }),
-    start: stops[0],
-    end: stops[1],
-  });
+  const o1 = outer.o1;
+  const fill = flatIfDegenerate(
+    withMid(
+      {
+        kind: "radial",
+        center: applyMat(A, { x: cx, y: cy }),
+        a: applyMat(A, { x: cx + r * o1, y: cy }),
+        b: applyMat(A, { x: cx, y: cy + r * o1 }),
+        start: outer.start,
+        end: outer.end,
+      },
+      outer.mid,
+    ),
+  );
   if (!coordsOk(fill)) return { kind: "drop", label: "invalid gradient coordinates" };
   return { kind: "fill", fill };
 }

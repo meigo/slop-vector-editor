@@ -223,7 +223,11 @@ describe("foldLinear (spec M15 §4)", () => {
   });
 
   it("drops what the model cannot draw exactly", () => {
-    const three = '<stop offset="0"/><stop offset="0.5"/><stop offset="1"/>';
+    // Spec M17 §4: a true 3-colour gradient (the middle stop is not the outer two's mix) still
+    // drops — three identical stops would instead fold as a plain two-stop gradient.
+    const three =
+      '<stop offset="0" stop-color="#ff0000"/><stop offset="0.5" stop-color="#00ff00"/>' +
+      '<stop offset="1" stop-color="#0000ff"/>';
     expect(foldLinear(user('x2="10"', three), box, view, 1)).toEqual({
       kind: "drop",
       label: "gradients with more than two stops",
@@ -393,8 +397,14 @@ describe("foldRadial (spec M16 §4)", () => {
       kind: "drop",
       label: "radial gradients with an inner stop",
     });
+    // Spec M17 §4: a true 3-colour gradient (the middle stop is not the outer two's mix) still
+    // drops — three identical stops would instead fold as a plain two-stop gradient.
     expect(
-      d('cx="50" cy="40" r="30"', '<stop offset="0"/><stop offset="0.5"/><stop offset="1"/>'),
+      d(
+        'cx="50" cy="40" r="30"',
+        '<stop offset="0" stop-color="#ff0000"/><stop offset="0.5" stop-color="#00ff00"/>' +
+          '<stop offset="1" stop-color="#0000ff"/>',
+      ),
     ).toEqual({ kind: "drop", label: "gradients with more than two stops" });
     expect(d('cx="50" cy="40" r="30" spreadMethod="repeat"')).toEqual({
       kind: "drop",
@@ -433,5 +443,69 @@ describe("foldRadial (spec M16 §4)", () => {
     );
     expect(g.stops).toHaveLength(2);
     close(radOk(g).a, 15, 10);
+  });
+});
+
+describe("midpoint import (spec M17 §4)", () => {
+  const three = (mid: string, midColour: string, midOpacity = "1", o0 = "0", o1 = "1") =>
+    `<linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">` +
+    `<stop offset="${o0}" stop-color="#ff0000"/>` +
+    `<stop offset="${mid}" stop-color="${midColour}" stop-opacity="${midOpacity}"/>` +
+    `<stop offset="${o1}" stop-color="#0000ff"/></linearGradient>`;
+
+  it("reads a middle stop that is the mix of the outer two as a midpoint", () => {
+    const f = foldOk(linear(three("0.3", "#800080")));
+    expect(f.mid).toBeCloseTo(0.3, 12);
+    expect(f.start.color).toBe("#ff0000");
+    expect(f.end.color).toBe("#0000ff");
+  });
+
+  it("accepts ±1 per channel and 0.004 opacity; refuses ±2 and 0.01", () => {
+    expect(foldOk(linear(three("0.3", "#7f0081"))).mid).toBeCloseTo(0.3, 12);
+    expect(foldOk(linear(three("0.3", "#800080", "0.996"))).mid).toBeCloseTo(0.3, 12);
+    expect(foldLinear(linear(three("0.3", "#820080")), box, view, 1)).toEqual({
+      kind: "drop",
+      label: "gradients with more than two stops",
+    });
+    expect(foldLinear(linear(three("0.3", "#800080", "0.99")), box, view, 1).kind).toBe("drop");
+  });
+
+  it("still drops a real three-colour gradient (Review Focus 2)", () => {
+    expect(foldLinear(linear(three("0.5", "#ffffff")), box, view, 1)).toEqual({
+      kind: "drop",
+      label: "gradients with more than two stops",
+    });
+  });
+
+  it("folds foreign outer offsets: mid is relative to them", () => {
+    const f = foldOk(linear(three("0.4", "#800080", "1", "0.2", "0.8")));
+    expect(f.from.x).toBeCloseTo(20, 9);
+    expect(f.to.x).toBeCloseTo(80, 9);
+    expect(f.mid).toBeCloseTo(1 / 3, 12);
+  });
+
+  it("stores a midpoint at 0.5 as absent, and drops a middle stop on an outer offset", () => {
+    expect("mid" in foldOk(linear(three("0.5", "#800080")))).toBe(false);
+    expect(foldLinear(linear(three("0", "#800080")), box, view, 1).kind).toBe("drop");
+    expect(foldLinear(linear(three("1", "#800080")), box, view, 1).kind).toBe("drop");
+  });
+
+  it("reads a radial midpoint relative to its last stop", () => {
+    const defs =
+      `<radialGradient id="g" gradientUnits="userSpaceOnUse" cx="50" cy="50" r="40">` +
+      `<stop offset="0" stop-color="#ff0000"/><stop offset="0.2" stop-color="#800080"/>` +
+      `<stop offset="0.8" stop-color="#0000ff"/></radialGradient>`;
+    const f = foldRadial(radial(defs), box, view, 1);
+    if (f.kind !== "fill" || !isRadial(f.fill)) throw new Error(JSON.stringify(f));
+    expect(f.fill.mid).toBeCloseTo(0.25, 12);
+    expect(f.fill.a.x).toBeCloseTo(50 + 40 * 0.8, 9);
+  });
+
+  it("still refuses four stops", () => {
+    const defs =
+      `<linearGradient id="g"><stop offset="0" stop-color="#ff0000"/>` +
+      `<stop offset="0.3" stop-color="#800080"/><stop offset="0.6" stop-color="#800080"/>` +
+      `<stop offset="1" stop-color="#0000ff"/></linearGradient>`;
+    expect(foldLinear(linear(defs), box, view, 1).kind).toBe("drop");
   });
 });
