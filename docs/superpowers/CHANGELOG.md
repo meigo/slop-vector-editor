@@ -2203,3 +2203,96 @@ clear on replace); not browser-checked. 843 tests in 63 files.
      real, higher count after M16's own fixes) — both now say 900, the real `npm test` count as of
      this round.
   - 900 tests in 63 files.
+
+## 2026-09-27 — M17: gradient midpoint and distinct handles
+
+- **The model** (`src/doc/document.ts`): `mid?: number` on both `LinearGradient` and
+  `RadialGradient` — the offset, strictly between 0 and 1, along `from`→`to` or `center`→rim `a`
+  at which the colour is `midStop(start, end)`. `midOf(g) = g.mid ?? 0.5` is the only reader;
+  `withMid` deletes the key at 0.5 or `undefined`, the same single-representation rule as `hidden`
+  (invariant 39), so a gradient with no midpoint has exactly one shape and every pre-M17 document
+  serializes byte-identically. `midStop` mixes the two stops **premultiplied** (opaque · opaque
+  averages channels directly; either end transparent weights by alpha, so a fade to transparent has
+  no dark band; both transparent falls back to a plain average). `sameFill` now also compares
+  `midOf`; `sameColours` ignores it (spec §8 ruling 3) — two gradients with the same colours but
+  different midpoints still read as "the same fill" for Select Same and the panel's summaries.
+  `mapFill`'s spread already carried `mid` through every bake with no change needed.
+- **File format** (`src/svg/attrs.ts`, `src/svg/gradient-import.ts`): a midpoint writes as a third
+  `<stop>` at `offset=fmt(mid)` carrying `midStop(start, end)`, between the unchanged 0 and 1 outer
+  stops; no midpoint writes exactly two stops, as before M17. Import's `outerStops` (shared by
+  `foldLinear`/`foldRadial`) accepts either 2 raw stops or 3 whose middle matches the outer mix
+  within **±1/255 per channel and 0.005 opacity** (`isMidStop`) — folded to `mid`, and a result
+  within 1e-6 of 0.5 stores as absent, same as a same-session edit. Anything else with three or
+  more stops still drops as "gradients with more than two stops." Two pre-existing 3-stop import
+  test fixtures (`gradient-import.test.ts`) had all-black stops at every offset, which trivially
+  satisfies the new midpoint mix (black mixed with black is black) — now legitimately read as a
+  plain two-stop gradient rather than dropping; both were given three genuinely distinct colours so
+  they keep testing an unrepresentable 3-colour gradient.
+- **Paint edits** (`src/doc/paint-edit.ts`): new `setGradientMid(doc, ids, which, mid)`, mapped
+  over the selection like `setGradientStop`; a midpoint is a stop property, not geometry, so
+  `toRadial`/`toLinear`, `setGradientGeometry` and `drawGradientLine` all carry the current `mid`
+  through unchanged, and a kind restore (the Type row's memory) keeps the CURRENT midpoint rather
+  than a remembered one.
+- **The Properties panel** (`src/lib/MidpointRow.svelte`, new — the app's first range input):
+  a Midpoint row between each paint's Start and End rows (`PaintField`, corrected while planning
+  from the original plan to put it in the tool's Gradient section — spec §5), shown only when
+  every selected paint in that slot is a gradient. A `<input type="range">` (1–99, step 1, raised
+  field look, `var(--ctl-h)` high, `touch-action: none`) plus a `%` `NumberField` (1–99); mixed
+  midpoints across a multi-selection show an empty field and the slider at 50. The slider updates
+  live on `input` and brackets the drag in one undo step (`beginDocGesture`/`endDocGesture`, closed
+  on `change`, `blur` and destruction — the `PaintRow` colour-swatch pattern, invariant 42,
+  deliberately duplicated in `MidpointRow` rather than shared). `setSelectionGradientMid` (store)
+  and `GradientSummary.mid` (`src/state/properties.ts`) wire it to the selection.
+- **The Gradient tool** (`src/tools/gradient-handles.ts`, `gradient-tool.ts`): a fourth
+  `HandlePart`, `"mid"` — a small diamond at `lerp(from, to, midOf(f))` for a linear gradient, on
+  the centre→rim-A line for a radial (rim B carries no diamond: the midpoint is one number for the
+  whole ellipse, spec §8 ruling 4). `pickHandle` now scans knobs, then diamonds, then lines, each
+  pass front to back; when a gradient is short enough that its diamond overlaps an end knob the
+  knob wins, and the panel is then the route to the midpoint. Dragging the diamond projects the
+  pointer onto the line in document space, converts to a whole percent, clamps to 1–99 and commits
+  as one undo step through the tool's existing gesture path; cancel rolls back. **Unlike a knob or
+  line drag it does not call `forgetGradients`** — corrected while planning (spec §6): the memory
+  guards remembered geometry, which a midpoint drag never touches, and a kind restore keeps the
+  current midpoint regardless (§2), so forgetting here would only discard the OTHER kind's
+  remembered shape for no reason. Four pre-existing tests pressed a line at its exact geometric
+  middle, which the diamond now claims first; each press point moved to 25% along the same line,
+  with no assertion changed.
+- **Knob shapes and cursors** (`Overlay.svelte`, `tools/tool.ts`, `context.ts`,
+  `appState.svelte.ts`, `Canvas.svelte`): every knob keeps its stop-colour fill and accent outline,
+  but its shape now says what dragging it does — circle for a linear start or a radial centre,
+  square for a linear end or radial rim A, ring (hollow, end-colour stroke over the accent) for
+  radial rim B, small diamond (filled with the 50/50 mix colour) for the midpoint. A new hover-
+  cursor slot, `ToolContext.setHoverCursor` / `app.hoverCursor`, is set from the Gradient tool's
+  existing per-move `hover` call (invariant 34) and shown by `Canvas.svelte` in place of the tool's
+  static cursor; cleared on a tool change and at the top of every pointer-down, so a drag or a tool
+  switch can't leave a stale cursor behind. Cursors: `move` over a circle, square or line; `grab`
+  over the ring (CSS has no rotate cursor — spec §8 ruling 1); `ew-resize` over the diamond; the
+  tool's own `crosshair` over empty canvas. Desktop only — touch and Pencil have no hover, so the
+  shapes alone are the cue.
+- **Rulings** (spec §8, decided without asking, plus two more decided while planning, recorded so
+  they can be challenged):
+  1. The ring's cursor is `grab`; no custom rotate cursor.
+  2. The midpoint has no reset gesture and is not snapped; typing 50 in the field resets it.
+  3. `sameColours` ignores `mid`.
+  4. The radial's diamond lives on the centre→rim-A line only; rim B has none.
+  5. (while planning, §5) The Midpoint row lives in each paint's own gradient rows (`PaintField`),
+     not the tool's Gradient section.
+  6. (while planning, §6) A diamond drag does not call `forgetGradients`.
+- **Browser-verified** (desktop Chrome, dev server on :5198, real mouse input, 2026-09-27, after
+  8ea54b4): knob shapes render per role on a linear (circle start, square end, diamond at 30%) and
+  a radial (circle centre, square rim A, ring rim B, diamond on centre→A), all four distinguishable
+  at 171% zoom; a real drag of the linear's diamond set mid 0.3 → 0.75 in one undo step (projection
+  ignores the perpendicular offset); hover cursors on the canvas checked both in `app.hoverCursor`
+  and the element's own style (diamond → `ew-resize`, rim B → `grab`); the Midpoint row appears
+  between Start and End for a single linear selection (showed 75%) and goes empty on a mixed
+  two-shape selection; a real slider-thumb drag was one undo step (history 1 → 2, gesture closed
+  afterwards) with correct undo (→ 0.75 → 0.3) and redo (→ 0.06); `serializeDoc` wrote three stops
+  (offset 0.06, `#800080`) for the midpoint gradient and exactly two for the gradient without one;
+  no console errors.
+- **Owed an iPad pass** (unverified): Safari; touch/Pencil (the Midpoint slider's touch drag, the
+  diamond's reach on a small gradient — three parts now sit close together on a radial); rim B's
+  picked-state emphasis, visually; save to disk and reopen through the UI (covered by the unit
+  round-trip tests, not exercised end to end in the browser).
+- Plan: `docs/superpowers/plans/2026-09-27-m17-gradient-midpoint.md`. Spec:
+  `docs/superpowers/specs/2026-09-27-m17-gradient-midpoint-design.md`.
+- 935 tests in 63 files.
