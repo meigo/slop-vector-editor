@@ -84,22 +84,51 @@
 
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 
-  /** Spec M15 §7: the gradient lines, from the same function the tool hit-tests against. Each knob
-   *  is filled with its stop's colour so start and end are told apart at a glance. */
+  /** Spec M15 §7, M16 §6: the gradient lines, from the same function the tool hit-tests against.
+   *  Each knob is filled with its stop's colour so start and end are told apart at a glance. */
   const gradientView = $derived.by(() => {
     if (app.toolId !== "gradient") return [];
-    return gradientHandles(app.doc, app.selection, app.gradientTarget).map((h) => ({
-      a: docToScreen(view, h.from),
-      b: docToScreen(view, h.to),
-      start: h.start.color,
-      end: h.end.color,
+    return gradientHandles(app.doc, app.selection, app.gradientTarget).map((h) => {
       // review finding 7: `which` ties the pick to the paint it was made on, so switching
       // Fill/Stroke afterwards doesn't relabel it onto the wrong knob.
-      picked:
+      const picked =
         app.gradientStop?.id === h.id && app.gradientStop.which === app.gradientTarget
           ? app.gradientStop.stop
-          : null,
-    }));
+          : null;
+      if (h.kind === "linear") {
+        return {
+          kind: "linear" as const,
+          a: docToScreen(view, h.from),
+          b: docToScreen(view, h.to),
+          start: h.start.color,
+          end: h.end.color,
+          picked,
+        };
+      }
+      // The end-stop ellipse's outline, sampled in document space (spec M16 §6).
+      const rim: Vec[] = [];
+      for (let i = 0; i < 64; i++) {
+        const t = (i / 64) * Math.PI * 2;
+        const ct = Math.cos(t),
+          st = Math.sin(t);
+        rim.push(
+          docToScreen(view, {
+            x: h.center.x + ct * (h.a.x - h.center.x) + st * (h.b.x - h.center.x),
+            y: h.center.y + ct * (h.a.y - h.center.y) + st * (h.b.y - h.center.y),
+          }),
+        );
+      }
+      return {
+        kind: "radial" as const,
+        center: docToScreen(view, h.center),
+        a: docToScreen(view, h.a),
+        b: docToScreen(view, h.b),
+        rim,
+        start: h.start.color,
+        end: h.end.color,
+        picked,
+      };
+    });
   });
 
   const pen = $derived(app.overlay?.kind === "pen" ? app.overlay : null);
@@ -179,21 +208,52 @@
   {/if}
 
   {#each gradientView as g, i (i)}
-    <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
-    <circle
-      cx={g.a.x}
-      cy={g.a.y}
-      r={knobSize / 2 + 1}
-      style="stroke: var(--color-accent); fill: {g.start}"
-      stroke-width={g.picked === "start" ? 3 : 1.5}
-    />
-    <circle
-      cx={g.b.x}
-      cy={g.b.y}
-      r={knobSize / 2 + 1}
-      style="stroke: var(--color-accent); fill: {g.end}"
-      stroke-width={g.picked === "end" ? 3 : 1.5}
-    />
+    {#if g.kind === "linear"}
+      <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
+      <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
+           drawing in reverse puts the tie's winner, start, on top. -->
+      <circle
+        cx={g.b.x}
+        cy={g.b.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.end}"
+        stroke-width={g.picked === "end" ? 3 : 1.5}
+      />
+      <circle
+        cx={g.a.x}
+        cy={g.a.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.start}"
+        stroke-width={g.picked === "start" ? 3 : 1.5}
+      />
+    {:else}
+      <line x1={g.center.x} y1={g.center.y} x2={g.a.x} y2={g.a.y} style={LINE} stroke-width="1" />
+      <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
+      <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
+      <!-- Drawn B, then A, then centre (review finding 2): `pickHandle`'s tie order is centre, A,
+           B, so drawing in reverse puts the tie's winner, centre, on top. -->
+      <circle
+        cx={g.b.x}
+        cy={g.b.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.end}"
+        stroke-width={g.picked === "end" ? 3 : 1.5}
+      />
+      <circle
+        cx={g.a.x}
+        cy={g.a.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.end}"
+        stroke-width={g.picked === "end" ? 3 : 1.5}
+      />
+      <circle
+        cx={g.center.x}
+        cy={g.center.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.start}"
+        stroke-width={g.picked === "start" ? 3 : 1.5}
+      />
+    {/if}
   {/each}
 
   {#if penView}

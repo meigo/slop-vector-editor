@@ -6,6 +6,7 @@ import {
   isLocked,
   type Doc,
   type FlatStyle,
+  type Node,
   type NodeType,
   type Paint,
   type PathShape,
@@ -53,9 +54,11 @@ import {
   type NodeRef,
 } from "../doc/path-edit";
 import {
+  convertGradients,
   gradientsToRemember,
   setGradientStop as applyGradientStop,
   setPaintKind,
+  type GradientKind,
   type PaintSlot,
   type RememberedGradient,
   type StopEnd,
@@ -71,7 +74,7 @@ import {
 import { simplifyShapes, type SimplifyOutcome } from "../doc/simplify-edit";
 import { allIds, invertIds, sameIds, type MatchField } from "../doc/select-match";
 import { filterToSelection } from "../doc/subset";
-import { ancestorIds, blocked, findNode, mapNodes, pruneSelection } from "../doc/tree";
+import { ancestorIds, blocked, findNode, mapNodes, pruneSelection, shapesOf } from "../doc/tree";
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
@@ -181,9 +184,10 @@ class AppState {
   shareReady = $state.raw<ShareReadyRequest | null>(null);
   /** Where Save writes without asking. Not reactive: nothing renders from it. */
   fileHandle: FileSystemFileHandle | null = null;
-  /** Gradients set aside when their paint went Flat, keyed `id:fill` / `id:stroke`, so Linear
-   *  brings them back. Session memory: not saved, not undoable, not reactive — nothing renders
-   *  from it — and cleared by `replaceDocument`, whose ids mean other shapes. */
+  /** Gradients set aside when their paint went Flat, or changed kind (Linear ↔ Radial), keyed
+   *  `id:fill` / `id:stroke`, so switching back brings them back (fix M16). Session memory: not
+   *  saved, not undoable, not reactive — nothing renders from it — and cleared by
+   *  `replaceDocument`, whose ids mean other shapes. */
   gradientMemory = new Map<string, RememberedGradient>();
 
   /** Top-level node ids; not part of undo history. */
@@ -211,6 +215,9 @@ class AppState {
   /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
    *  session. */
   gradientTarget = $state<PaintSlot>("fill");
+  /** Kind of gradient the tool draws next, and the Type row's default when nothing selected has
+   *  one (spec M16 §5). Not saved, not undoable; kept for the session. */
+  gradientType = $state<GradientKind>("linear");
   /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
    *  `nodeSel`: not saved, not undoable, cleared with the selection. */
   gradientStop = $state.raw<{ id: string; stop: StopEnd; which: PaintSlot } | null>(null);
@@ -289,11 +296,37 @@ function syncPropsOverride(wasEmpty: boolean): void {
   });
 }
 
+/** Every id anywhere in the document, at any depth — one walk, so `setSession`'s prune (below) can
+ *  test membership in a Set instead of running `findNode` (itself an O(depth) search) once per
+ *  memory key on every session change, including every pointermove commit of a drag (fix M16 final
+ *  review finding 2). */
+function allNodeIds(doc: Doc): Set<string> {
+  const out = new Set<string>();
+  const walk = (nodes: readonly Node[]) => {
+    for (const n of nodes) {
+      out.add(n.id);
+      if (n.kind === "group") walk(n.children);
+    }
+  };
+  for (const l of doc.layers) walk(l.children);
+  return out;
+}
+
 /** Every session change goes through here, so the selection never names a node that is gone,
  *  hidden or locked. */
 function setSession(s: Session): void {
   const wasEmpty = app.selection.length === 0;
   app.session = s;
+  // Fix M16 review finding 1c: a memory entry outlives the shape it was stashed for, keyed by an
+  // id `idFor` can hand a LATER shape once undo goes past the original's creation and the counter
+  // is reused — pruning here, wherever the id is actually gone, is what keeps that new shape from
+  // inheriting a dead one's memory. Cheap only when there is something to prune.
+  if (app.gradientMemory.size > 0) {
+    const ids = allNodeIds(s.doc);
+    for (const key of app.gradientMemory.keys()) {
+      if (!ids.has(key.slice(0, key.indexOf(":")))) app.gradientMemory.delete(key);
+    }
+  }
   const pruned = pruneSelection(s.doc, app.selection);
   if (pruned !== app.selection) app.selection = pruned;
   syncPropsOverride(wasEmpty);
@@ -660,25 +693,71 @@ export function setGradientTarget(which: PaintSlot): void {
   app.gradientTarget = which;
 }
 
+/** Sets the kind the Gradient tool draws next and, with a selection, converts the target paint's
+ *  gradients of the other kind to it — one undo step (spec M16 §5, the Type row). Converting is a
+ *  no-op edit when the selection has nothing to convert, so `commitDoc` records no history then
+ *  (invariant 1). The conversion consults `gradientMemory` (a gradient stashed by an EARLIER call,
+ *  restoring it instead of rebuilding a fresh default) before this call's own gradients are
+ *  stashed — stashing first would overwrite the very memory this call needs to read, which is what
+ *  turned a Radial→Linear→Radial round trip's ellipse into a circle (fix M16). */
+export function setGradientType(kind: GradientKind): void {
+  cancelActiveGesture();
+  app.gradientType = kind;
+  if (app.selection.length > 0) {
+    const toStash = gradientsToRemember(app.doc, app.selection, app.gradientTarget);
+    const next = convertGradients(app.doc, app.selection, app.gradientTarget, kind, (id) =>
+      app.gradientMemory.get(`${id}:${app.gradientTarget}`),
+    );
+    for (const [id, r] of toStash) {
+      if (r.g.kind !== kind) app.gradientMemory.set(`${id}:${app.gradientTarget}`, r);
+    }
+    commitDoc(next);
+  }
+}
+
 export function setGradientStop(
   pick: { id: string; stop: StopEnd; which: PaintSlot } | null,
 ): void {
   app.gradientStop = pick;
 }
 
-export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | "linear"): void {
-  cancelActiveGesture();
-  if (app.selection.length === 0) return;
-  if (kind === "flat") {
-    for (const [id, r] of gradientsToRemember(app.doc, app.selection, which)) {
-      app.gradientMemory.set(`${id}:${which}`, r);
+/** Drops the memory entries a committed Gradient-tool draw or knob/line drag makes stale (fix M16
+ *  review finding 1a): once a NEWER gradient is on a shape, the older one its paint gave up on an
+ *  EARLIER Flat/Type conversion must not outlive it in `gradientMemory`, or switching Type back
+ *  later would resurrect that older gradient instead of the one just drawn. Forgetting a key with
+ *  no entry is harmless, so callers need not check first.
+ *
+ *  Memory is keyed by LEAF shape id — `gradientsToRemember`/`convertGradients` descend into groups
+ *  via `mapShapesWorld`, and stash under each leaf's own id, never the group's — so an id here that
+ *  names a GROUP must be expanded to the shapes it repainted, or forgetting the group's own key is
+ *  a no-op and every leaf's stale memory survives (fix M16 final review finding 1). `shapesOf`
+ *  (`doc/tree.ts`) is the same expansion `mapShapesWorld` itself is built on. */
+export function forgetGradients(ids: readonly string[], which: PaintSlot): void {
+  for (const id of ids) {
+    app.gradientMemory.delete(`${id}:${which}`);
+    const found = findNode(app.doc, id);
+    if (found) {
+      for (const s of shapesOf(found.node)) app.gradientMemory.delete(`${s.id}:${which}`);
     }
   }
-  commitDoc(
-    setPaintKind(app.doc, app.selection, which, kind, (id) =>
-      app.gradientMemory.get(`${id}:${which}`),
-    ),
+}
+
+/** Every gradient about to be discarded — Flat drops any kind, Linear/Radial drops the other kind
+ *  — is stashed for a LATER call to restore, but only after this call's own conversion has read
+ *  whatever an earlier call left there (fix M16; see `setGradientType`'s comment — the two must
+ *  not be interleaved, or a round trip in one call would overwrite the memory it needs). A
+ *  gradient already of the requested kind is left out, so it can't overwrite a better memory. */
+export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | GradientKind): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  const toStash = gradientsToRemember(app.doc, app.selection, which);
+  const next = setPaintKind(app.doc, app.selection, which, kind, (id) =>
+    app.gradientMemory.get(`${id}:${which}`),
   );
+  for (const [id, r] of toStash) {
+    if (kind === "flat" || r.g.kind !== kind) app.gradientMemory.set(`${id}:${which}`, r);
+  }
+  commitDoc(next);
 }
 
 export function setSelectionGradientStop(which: PaintSlot, stop: StopEnd, paint: Paint): void {

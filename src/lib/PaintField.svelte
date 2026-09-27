@@ -25,13 +25,14 @@
     field: Field<Fill | null>;
     present: Field<boolean>;
     fallback: Paint;
-    /** null = nothing selected — the Linear toggle is a no-op, and says why (invariant 24). */
-    kind: Field<"flat" | "linear"> | null;
+    /** null = nothing selected — the Linear/Radial toggles are a no-op, and say why
+     *  (invariant 24). */
+    kind: Field<"flat" | "linear" | "radial"> | null;
     stops: { start: Field<Paint>; end: Field<Paint> } | null;
     /** The stop picked on the canvas (spec M15 §7). */
     picked: StopEnd | null;
     onchange: (p: Paint | null) => void;
-    onkind: (k: "flat" | "linear") => void;
+    onkind: (k: "flat" | "linear" | "radial") => void;
     onstop: (stop: StopEnd, p: Paint) => void;
     /** Brackets a live drag of the swatch so the whole drag is one undo step. The caller owns the
      *  document gesture; this component stays presentational and never touches the store. */
@@ -61,8 +62,9 @@
         value={kind === null ? true : kind.mixed ? "mixed" : kind.value === "flat"}
         onchange={() => onkind("flat")}
       />
-      <!-- Spec M15 §6: with nothing selected the panel edits the defaults for new shapes, which
-           stay flat — so Linear says why it does nothing instead of disappearing (invariant 24). -->
+      <!-- Spec M15 §6, M16 §5: with nothing selected the panel edits the defaults for new shapes,
+           which stay flat — so Linear/Radial say why they do nothing instead of disappearing
+           (invariant 24). -->
       <ToggleButton
         label="Linear"
         ariaLabel={`${label} linear gradient`}
@@ -70,6 +72,14 @@
         disabled={kind === null}
         title={kind === null ? "Linear gradient — select an object first" : "Linear gradient"}
         onchange={() => kind !== null && onkind("linear")}
+      />
+      <ToggleButton
+        label="Radial"
+        ariaLabel={`${label} radial gradient`}
+        value={kind === null ? false : kind.mixed ? "mixed" : kind.value === "radial"}
+        disabled={kind === null}
+        title={kind === null ? "Radial gradient — select an object first" : "Radial gradient"}
+        onchange={() => kind !== null && onkind("radial")}
       />
     </div>
   {/if}

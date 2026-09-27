@@ -5,14 +5,18 @@ import {
   type Doc,
   type LinearGradient,
   type Node,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
 import {
+  convertGradients,
   drawGradientLine,
   gradientsToRemember,
-  setGradientPoints,
+  setGradientGeometry,
   setGradientStop,
   setPaintKind,
+  toLinear,
+  toRadial,
   type RememberedGradient,
 } from "../doc/paint-edit";
 import { findNode } from "../doc/tree";
@@ -133,18 +137,30 @@ describe("setGradientStop", () => {
   });
 });
 
-describe("setGradientPoints", () => {
+describe("setGradientGeometry", () => {
   it("sets the points in own space, and collapses coincident ones to the end stop", () => {
     const d = doc([rect("a", 0, lin(0, 10))]);
-    expect(fill(setGradientPoints(d, "a", "fill", { x: 1, y: 2 }, { x: 3, y: 4 }), "a")).toEqual({
-      ...lin(0, 10),
-      from: { x: 1, y: 2 },
-      to: { x: 3, y: 4 },
-    });
-    expect(fill(setGradientPoints(d, "a", "fill", { x: 5, y: 5 }, { x: 5, y: 5 }), "a")).toEqual(
-      blue,
-    );
-    expect(setGradientPoints(d, "a", "fill", { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(d);
+    expect(
+      fill(
+        setGradientGeometry(d, "a", "fill", {
+          ...lin(0, 10),
+          from: { x: 1, y: 2 },
+          to: { x: 3, y: 4 },
+        }),
+        "a",
+      ),
+    ).toEqual({ ...lin(0, 10), from: { x: 1, y: 2 }, to: { x: 3, y: 4 } });
+    expect(
+      fill(
+        setGradientGeometry(d, "a", "fill", {
+          ...lin(0, 10),
+          from: { x: 5, y: 5 },
+          to: { x: 5, y: 5 },
+        }),
+        "a",
+      ),
+    ).toEqual(blue);
+    expect(setGradientGeometry(d, "a", "fill", lin(0, 10))).toBe(d);
   });
 });
 
@@ -237,5 +253,144 @@ describe("remembering a gradient across Flat and back", () => {
         "a",
       ),
     ).toEqual(fill(setPaintKind(d, ["a"], "fill", "linear"), "a"));
+  });
+});
+
+const rad0 = (c: [number, number], a: [number, number], b: [number, number]): RadialGradient => ({
+  kind: "radial",
+  center: { x: c[0], y: c[1] },
+  a: { x: a[0], y: a[1] },
+  b: { x: b[0], y: b[1] },
+  start: red,
+  end: blue,
+});
+
+describe("radial edits (spec M16 §5–§6)", () => {
+  it("Flat→Radial draws a circle centred on the box, radius half its larger side", () => {
+    expect(fill(setPaintKind(doc([rect("a", 0, red)]), ["a"], "fill", "radial"), "a")).toEqual({
+      kind: "radial",
+      center: { x: 50, y: 25 },
+      a: { x: 100, y: 25 },
+      b: { x: 50, y: 75 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("converts linear ↔ radial keeping the stops", () => {
+    expect(toRadial(lin(0, 10))).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+    expect(toLinear(rad0([0, 0], [10, 0], [0, 10]))).toEqual(lin(0, 10));
+    const d = doc([rect("a", 0, lin(0, 10)), rect("b", 0, red)]);
+    const out = convertGradients(d, ["a", "b"], "fill", "radial");
+    expect(fill(out, "a")).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+    expect(findNode(out, "b")!.node).toBe(findNode(d, "b")!.node);
+    expect(convertGradients(out, ["a"], "fill", "radial")).toBe(out);
+  });
+
+  it("Linear→Radial through setPaintKind converts instead of starting over", () => {
+    expect(
+      fill(setPaintKind(doc([rect("a", 0, lin(0, 10))]), ["a"], "fill", "radial"), "a"),
+    ).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+  });
+
+  it("setGradientGeometry keeps the current stops and collapses a singular radial", () => {
+    const d = doc([rect("a", 0, rad0([0, 0], [10, 0], [0, 10]))]);
+    const moved = setGradientGeometry(d, "a", "fill", {
+      ...rad0([5, 5], [15, 5], [5, 15]),
+      start: blue,
+      end: red,
+    });
+    expect(fill(moved, "a")).toEqual(rad0([5, 5], [15, 5], [5, 15]));
+    expect(fill(setGradientGeometry(d, "a", "fill", rad0([0, 0], [0, 0], [0, 10])), "a")).toEqual(
+      blue,
+    );
+    expect(setGradientGeometry(d, "a", "fill", rad0([0, 0], [10, 0], [0, 10]))).toBe(d);
+  });
+
+  it("drawGradientLine with kind radial draws a document-space circle into each shape", () => {
+    const group: Node = {
+      kind: "group",
+      id: "g",
+      transform: translate(0, 100),
+      opacity: 1,
+      children: [rect("b", 0, red)],
+    };
+    const out = drawGradientLine(
+      doc([rect("a", 0, lin(0, 10)), group]),
+      ["a", "g"],
+      "fill",
+      { x: 0, y: 110 },
+      { x: 10, y: 110 },
+      "radial",
+    );
+    expect(fill(out, "a")).toEqual(rad0([0, 110], [10, 110], [0, 120]));
+    expect(fill(out, "b")).toEqual({
+      kind: "radial",
+      center: { x: 0, y: 10 },
+      a: { x: 10, y: 10 },
+      b: { x: 0, y: 20 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("remembers a radial across Flat and restores it, converting when Linear is asked for", () => {
+    const r = rad0([50, 25], [100, 25], [50, 75]);
+    const d = doc([rect("a", 0, r)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const flat = setPaintKind(d, ["a"], "fill", "flat");
+    const recall = (id: string) => memory.get(id);
+    expect(fill(setPaintKind(flat, ["a"], "fill", "radial", recall), "a")).toEqual({
+      ...r,
+      end: blue,
+    });
+    expect(fill(setPaintKind(flat, ["a"], "fill", "linear", recall), "a")).toEqual({
+      kind: "linear",
+      from: r.center,
+      to: r.a,
+      start: red,
+      end: blue,
+    });
+  });
+});
+
+describe("converting kind remembers the gradient given up (fix M16)", () => {
+  it("convertGradients: restores an ellipse exactly with the lookup, keeps a stop edited while linear, and defaults to a circle without one", () => {
+    const ellipse = rad0([50, 25], [100, 25], [50, 40]);
+    const d = doc([rect("a", 0, ellipse)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const recall = (id: string) => memory.get(id);
+    const linear = convertGradients(d, ["a"], "fill", "linear");
+    expect(fill(linear, "a")).toEqual(toLinear(ellipse));
+
+    // Without a lookup, converting back builds a fresh circle (today's default).
+    expect(fill(convertGradients(linear, ["a"], "fill", "radial"), "a")).toEqual(
+      rad0([50, 25], [100, 25], [50, 75]),
+    );
+
+    // With the lookup, the ellipse comes back exactly.
+    expect(fill(convertGradients(linear, ["a"], "fill", "radial", recall), "a")).toEqual(ellipse);
+
+    // An end stop edited while linear survives the round trip.
+    const green = { color: "#00ff00", opacity: 0.5 };
+    const linearEdited = doc([
+      rect("a", 0, { ...(fill(linear, "a") as LinearGradient), end: green }),
+    ]);
+    expect(fill(convertGradients(linearEdited, ["a"], "fill", "radial", recall), "a")).toEqual({
+      ...ellipse,
+      end: green,
+    });
+  });
+
+  it("setPaintKind's gradient-to-other-kind branch restores the same way", () => {
+    const ellipse = rad0([50, 25], [100, 25], [50, 40]);
+    const d = doc([rect("a", 0, ellipse)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const recall = (id: string) => memory.get(id);
+    const linear = setPaintKind(d, ["a"], "fill", "linear");
+    expect(fill(setPaintKind(linear, ["a"], "fill", "radial", recall), "a")).toEqual(ellipse);
+    expect(fill(setPaintKind(linear, ["a"], "fill", "radial"), "a")).toEqual(
+      rad0([50, 25], [100, 25], [50, 75]),
+    );
   });
 });

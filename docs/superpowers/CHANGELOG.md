@@ -2090,3 +2090,116 @@ line is carried from the old own-space box to the new one, axis by axis. With no
 a new session, another file — Linear gives the default fade as before; undo restores a gradient in
 any case. Unit-tested (pure round trip, changed colour, resize, fallback; store round trip and the
 clear on replace); not browser-checked. 843 tests in 63 files.
+
+## 2026-09-27 — M16: radial gradients
+
+- **The model** (`src/doc/document.ts`): `RadialGradient` (`center`, `a`, `b: Vec`, plus `start`/
+  `end: Paint`) is the unit circle carried by the affine map whose columns are `a − center` and
+  `b − center` — perpendicular and equal is a circle, anything else an ellipse — so every bake
+  stays exact by mapping the three points (`mapStyle`, invariant 46). `Gradient = LinearGradient |
+  RadialGradient`; `isLinear`/`isRadial` narrow it; `radialMatrix` returns `[a−c, b−c, c]` in SVG
+  `matrix()` order. `flatIfDegenerate` now takes a `Gradient` and, for a radial, collapses to the
+  end stop's flat paint when the parallelogram `a−center`/`b−center` span has zero area (the rim
+  collapsed to a line or a point), judged on the written numbers as the linear case already was.
+  `sameFill` and `sameColours` both require matching kinds — a linear and a radial with identical
+  stops are different fills. `mapStyle` maps two points for a linear, three for a radial.
+- **Export** (`src/svg/attrs.ts`): a shape's radial paint writes as `<radialGradient>` — a circle
+  (rim perpendicular and equal) as plain `cx cy r`, anything else (an ellipse, or a circle under
+  rotation or skew) as the unit circle under `gradientTransform`; `fx`/`fy`/`fr` are never written.
+  `GradientDef` gained a `tag`.
+- **Import** (`src/svg/gradient-import.ts`, `foldRadial`): a radial with no focal offset (`fx`/
+  `fy`/`fr` resolving to the centre and 0, whether written or defaulted) and a first stop at 0
+  folds exactly into the three-point model, whatever its units, transform, offsets or spread — pad
+  spread required as for linear. A focal point or an inner first stop drops with its own label
+  ("radial gradients with a focal point", "radial gradients with an inner stop"); the old blanket
+  "radial gradients" drop label is retired.
+- **Paint edits** (`src/doc/paint-edit.ts`): `GradientKind`, `toRadial`/`toLinear` (linear ↔
+  radial conversion reads centre = start point, rim = end point — ruling 3 below — inventing the
+  second rim perpendicular to the line, the same length, so a fresh conversion is a circle; the
+  round trip is lossy exactly there, since a linear has no second rim to lose), `convertGradients`
+  (the Type row's edit), `setGradientGeometry` (replacing `setGradientPoints`, and only rewriting a
+  gradient already of the incoming geometry's own kind), `drawGradientLine` gained a `kind`
+  parameter. Flat → Radial with nothing remembered defaults to a circle at the shape's own-space
+  box centre, radius half the larger side (mirroring Flat → Linear's default fade).
+- **Store and panel**: `app.gradientType` (session, default `"linear"`) is the kind the tool draws
+  next; `setGradientType` converts the selection's target-paint gradients to it, one undo step (a
+  no-op conversion costs no history entry, invariant 1). The paint fields gained a third toggle,
+  Radial, next to Flat/Linear; the Gradient section's Type row shows the selection's gradient kind
+  (mixed when both are present) or falls back to the draw kind (ruling 4 below).
+- **The tool** (`src/tools/gradient-tool.ts`, `gradient-handles.ts`): a radial's handles are a
+  centre knob (the start stop's colour) and two rim knobs A/B (the end stop's colour), with a
+  dashed outline and lines from the centre to each rim. The centre or either line moves all three
+  points together; rim A moves by a similarity about the centre (Shift snaps rotation to 45°) and
+  carries B through the same rotation and scale; rim B moves alone, or (Shift) stays perpendicular
+  to A. A tap on the centre picks the start stop, a tap on either rim picks the end stop. Drags are
+  computed in document space (ruling 5 below) and mapped back into the handle's own space through
+  its inverse world matrix, exactly as linear already did. `ToolContext.gradientType()` tells the
+  tool which kind a plain drag draws.
+- **`app.gradientMemory` now also covers a kind change**, not just Flat: switching Linear → Radial
+  → Linear, or the reverse, restores the exact gradient (an ellipse's proportions and rotation
+  included) instead of rebuilding a fresh default. Added after a browser check found a converted
+  ellipse coming back a circle, traced to stashing a call's own gradient before reading the memory
+  an earlier call had left there — the two are now sequenced so a call reads first, then stashes.
+- **Rulings** (spec §9, decided without asking, recorded so they can be challenged):
+  1. A circle is written as `cx cy r`, everything else as the unit circle under a matrix.
+  2. A first stop above offset 0 is dropped rather than approximated.
+  3. Linear ↔ radial conversion: centre = start point, rim = end point.
+  4. The Type row mirrors the selection's gradient kind and falls back to the draw kind.
+  5. Radial drags are computed in document space.
+- **Browser-verified** (desktop Chrome, a separate dev server on :5198, real mouse input where
+  noted): pressing Radial then dragging across a selected rect drew a radial circle — dashed
+  end-stop outline, a centre knob and two rim knobs; dragging rim B stretched the circle into an
+  ellipse, and rim A rotated and scaled the whole ellipse with B following. Type Linear then Radial
+  converted the selection's gradients both ways; after the memory fix above, an imported
+  skewed-ellipse radial came back exactly through Type Radial→Linear→Radial, the paint field's
+  Linear→Radial, and Flat→Radial. A save/reload round trip (serialize → parse → serialize) came
+  back byte-identical, nothing dropped. W from the geometry field stretched the radial with the
+  rect, non-uniformly and exactly. A pixel comparison of the browser's own rendering of a
+  Figma-style SVG (a radial with translate·rotate·non-uniform-scale, a last stop at 0.8,
+  `fill-opacity` 0.9, `objectBoundingBox` inherited from a `<g>` by a rect and an ellipse) against
+  our re-export, at 400×300, came back with nothing dropped and a maximum channel difference of
+  4/255 — 12 693 of 480 000 channels differing by 3–4, read as radial-ramp quantization and not
+  visible.
+- **Owed an iPad pass** (unverified): the tool by touch and Pencil — three knobs sit close together
+  on a small shape, reach is 14px; Safari's rendering of a radial under `gradientTransform`; the
+  Shift behaviours by a physical key (unit-tested); taps picking stops by a real click
+  (unit-tested); PNG export and clipboard of a radial gradient end to end (same serializer as the
+  pixel comparison, but not exercised as a full export/copy round trip).
+- Plan: `docs/superpowers/plans/2026-09-27-m16-radial-gradients.md`. Spec:
+  `docs/superpowers/specs/2026-09-27-m16-radial-gradients-design.md`.
+- 887 tests in 63 files.
+- **Final review** (2026-09-27), fixed in one follow-up commit:
+  1. Stale session memory could restore an old gradient: `app.gradientMemory` was cleared only by
+     `replaceDocument` and overwritten only by the next stash, so drawing a newer gradient and then
+     switching Type away and back resurrected whatever an earlier conversion had stashed instead.
+     `ToolContext.forgetGradients(ids, which)` now drops the affected memory once per gesture, right
+     after the Gradient tool commits a draw or a knob/line drag — never on a cancelled one — and
+     `setSession` prunes any entry whose id is no longer in the document, so a shape deleted (or an
+     id reused after undo) can't leave or inherit stale memory.
+  2. On a small radial, `pickHandle` took the first knob within tolerance in a fixed order (centre,
+     A, B), so with a screen radius under the tolerance the far rim could be unreachable while the
+     Overlay drew a different knob on top. It now picks the NEAREST knob within tolerance (ties keep
+     that order; linear: start, end), and the Overlay draws each handle's knobs in the reverse of
+     that order so the tie's winner is the one drawn on top.
+  3. `flatIfDegenerate` collapsed a radial only when the written determinant was exactly `0`, but
+     the importer's own `invert` (`geom/mat.ts`) already refuses anything under `1e-12` — a radial
+     whose determinant was a few `1e-17` of float noise short of zero saved as a matrix and was then
+     dropped on reload as "gradients with an invalid transform". It now collapses at the same
+     `1e-12` threshold `invert` uses.
+  5. A present but unparseable `fx`/`fy`/`fr` (e.g. `fx="abc"`) fell back to a literal default
+     (50%/0) and could wrongly drop the gradient as having a focal point; a browser ignores a bad
+     value outright. `gradient-import.ts` now treats an unparseable value as absent, so it defaults
+     to the centre/0 like a missing attribute does.
+- **Final review, round 2** (2026-09-27), fixed in one follow-up commit:
+  1. Finding 1 had a gap: memory is keyed by LEAF shape id (`gradientsToRemember`/
+     `convertGradients` descend into groups via `mapShapesWorld`), but `forgetGradients` only
+     deleted the exact id it was given — forgetting a selected GROUP left every leaf's stale memory
+     in place. It now expands each id through `findNode` + `shapesOf` and deletes every leaf's key
+     too (and the id's own, unchanged).
+  2. `setSession`'s prune ran one `findNode` per memory key on every session change, including every
+     pointermove commit of a drag. It now walks the document once into a `Set` of every id and tests
+     membership in that instead.
+  3. Test counts in README.md and CLAUDE.md's Commands line had drifted from actual (887 vs. the
+     real, higher count after M16's own fixes) — both now say 900, the real `npm test` count as of
+     this round.
+  - 900 tests in 63 files.

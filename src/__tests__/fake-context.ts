@@ -1,6 +1,6 @@
 import type { Doc } from "../doc/document";
 import { resolveLayerId } from "../doc/layers";
-import type { PaintSlot, StopEnd } from "../doc/paint-edit";
+import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
@@ -29,7 +29,11 @@ export type FakeState = {
   notices: string[];
   view: View;
   gradientTarget: PaintSlot;
+  gradientType: GradientKind;
   gradientStop: { id: string; stop: StopEnd; which: PaintSlot } | null;
+  /** Calls to `forgetGradients` (fix M16 review finding 1), recorded rather than acted on — the
+   *  fake has no `gradientMemory` of its own; the tool tests only check who got called with what. */
+  forgotten: { ids: readonly string[]; which: PaintSlot }[];
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -55,7 +59,9 @@ export function fakeContext(
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
     gradientTarget: "fill",
+    gradientType: "linear",
     gradientStop: null,
+    forgotten: [],
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -115,9 +121,13 @@ export function fakeContext(
       state.overlay = o;
     },
     gradientTarget: () => state.gradientTarget,
+    gradientType: () => state.gradientType,
     gradientStop: () => state.gradientStop,
     setGradientStop: (pick) => {
       state.gradientStop = pick;
+    },
+    forgetGradients: (ids, which) => {
+      state.forgotten.push({ ids, which });
     },
   };
   return { ctx, state };

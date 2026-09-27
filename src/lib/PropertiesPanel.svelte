@@ -9,6 +9,7 @@
     applyGeometry,
     moveSelectedNodes,
     setGradientTarget,
+    setGradientType,
     setPolygonPrefs,
     setSelectedNodeType,
     setSelectionGradientStop,
@@ -19,6 +20,7 @@
     setSelectionStyle,
   } from "../state/appState.svelte";
   import {
+    gradientTypeShown,
     selectedNodeSummary,
     selectionGeometry,
     selectionOpacity,
@@ -72,6 +74,15 @@
   );
   const strokeGrad = $derived(
     hasSelection ? summarizeGradient(selectionStyles(app.doc, app.selection), "stroke") : null,
+  );
+  /** Spec M16 §5: the Type row's value — the selection's gradient kind on the edited paint,
+   *  falling back to the kind the tool draws next when nothing selected has a gradient. */
+  const gradientType = $derived(
+    gradientTypeShown(
+      hasSelection ? selectionStyles(app.doc, app.selection) : [],
+      app.gradientTarget,
+      app.gradientType,
+    ),
   );
   const geometry = $derived(hasSelection ? selectionGeometry(app.doc, app.selection) : null);
   const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
@@ -136,6 +147,24 @@
                 label="Stroke"
                 value={app.gradientTarget === "stroke"}
                 onchange={() => setGradientTarget("stroke")}
+              />
+            </div>
+          </div>
+          <div
+            class="field-row"
+            title="Kind of gradient the tool draws — converts the selection's gradients"
+          >
+            <span class="text-muted">Type</span>
+            <div class="flex gap-1">
+              <ToggleButton
+                label="Linear"
+                value={gradientType.mixed ? "mixed" : gradientType.value === "linear"}
+                onchange={() => setGradientType("linear")}
+              />
+              <ToggleButton
+                label="Radial"
+                value={gradientType.mixed ? "mixed" : gradientType.value === "radial"}
+                onchange={() => setGradientType("radial")}
               />
             </div>
           </div>

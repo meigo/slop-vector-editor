@@ -8,6 +8,7 @@ import {
   notify,
   pickCharacter,
   placeTitle,
+  forgetGradients,
   registerToolDiscard,
   registerToolFinish,
   setEnteredGroup,
@@ -52,8 +53,10 @@ export const storeContext: ToolContext = {
   notify,
   setOverlay,
   gradientTarget: () => app.gradientTarget,
+  gradientType: () => app.gradientType,
   gradientStop: () => app.gradientStop,
   setGradientStop,
+  forgetGradients,
 };
 
 // A tool that still holds a draft finishes when the user picks another tool (spec M4b §3).

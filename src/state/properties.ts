@@ -1,4 +1,5 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
+import type { GradientKind, PaintSlot } from "../doc/paint-edit";
 import { pathOpRefusals, type PathOp } from "../doc/path-ops";
 import {
   isGradient,
@@ -67,19 +68,22 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
 }
 
 export type GradientSummary = {
-  kind: Field<"flat" | "linear">;
+  kind: Field<"flat" | "linear" | "radial">;
   stops: { start: Field<Paint>; end: Field<Paint> } | null;
 };
 
-/** Spec M15 §6: which kind each non-null paint is, and — when every one is linear — each stop
- *  merged across them. Null when no selected shape has this paint. */
+/** Spec M15 §6, M16 §5: which kind each non-null paint is (its own kind for a gradient), and —
+ *  when every one is a gradient — each stop merged across them. Null when no selected shape has
+ *  this paint. */
 export function summarizeGradient(
   styles: readonly Style[],
   which: "fill" | "stroke",
 ): GradientSummary | null {
   const fills = styles.map((s) => s[which]).filter((f): f is Fill => f !== null);
   if (fills.length === 0) return null;
-  const kind = merge(fills.map((f) => (isGradient(f) ? "linear" : "flat") as "flat" | "linear"));
+  const kind = merge(
+    fills.map((f) => (isGradient(f) ? f.kind : "flat") as "flat" | "linear" | "radial"),
+  );
   const grads = fills.filter(isGradient);
   const stops =
     grads.length === fills.length
@@ -95,6 +99,18 @@ export function summarizeGradient(
         }
       : null;
   return { kind, stops };
+}
+
+/** Spec M16 §5: the Type row's value — the kind of the selection's gradients on `which`, or
+ *  `fallback` (the kind the tool draws) when none of them is one. Flat paints don't count towards
+ *  the merge, so a mix of one gradient and one flat paint still reads as that gradient's kind. */
+export function gradientTypeShown(
+  styles: readonly Style[],
+  which: PaintSlot,
+  fallback: GradientKind,
+): Field<GradientKind> {
+  const grads = styles.map((s) => s[which]).filter(isGradient);
+  return grads.length === 0 ? { mixed: false, value: fallback } : merge(grads.map((g) => g.kind));
 }
 
 export type SelectionActions = {
