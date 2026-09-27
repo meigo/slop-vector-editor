@@ -4,6 +4,7 @@ import {
   DEFAULT_STYLE,
   isGradient,
   type Doc,
+  type Group,
   type LinearGradient,
   type Node,
   type Shape,
@@ -69,6 +70,29 @@ describe("gradientHandles / pickHandle", () => {
     ]);
     expect(gradientHandles(d, ["a", "b"], "fill")).toEqual([]);
     expect(gradientHandles(d, ["a", "b"], "stroke").map((h) => h.id)).toEqual(["b"]);
+  });
+
+  it("orders handles back to front regardless of selection order, so a coincident pick goes to the frontmost shape (controller fix round 1)", () => {
+    // "a" is painted first (back), "b" second (front); both carry the same gradient, so their
+    // knobs land exactly on top of each other.
+    const d = doc([rect("a", 0, lin), rect("b", 0, lin)]);
+    const front = pickHandle(gradientHandles(d, ["a", "b"], "fill"), { x: 100, y: 25 }, 6);
+    const frontReversed = pickHandle(gradientHandles(d, ["b", "a"], "fill"), { x: 100, y: 25 }, 6);
+    expect(front?.h.id).toBe("b");
+    expect(frontReversed?.h.id).toBe("b");
+  });
+
+  it("counts a selected group's own selected child only once (controller fix round 1)", () => {
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("c", 0, lin)],
+    };
+    const d = doc([g]);
+    expect(gradientHandles(d, ["g", "c"], "fill").map((h) => h.id)).toEqual(["c"]);
+    expect(gradientHandles(d, ["c", "g"], "fill").map((h) => h.id)).toEqual(["c"]);
   });
 });
 
