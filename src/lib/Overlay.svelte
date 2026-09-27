@@ -1,7 +1,6 @@
 <svelte:options namespace="svg" />
 
 <script lang="ts">
-  import { midStop } from "../doc/document";
   import { findNode } from "../doc/tree";
   import { flattenSubpath } from "../geom/bezier";
   import { applyMat, multiply } from "../geom/mat";
@@ -103,7 +102,7 @@
           a: docToScreen(view, h.from),
           b: docToScreen(view, h.to),
           mid: docToScreen(view, h.mid),
-          midColor: midStop(h.start, h.end).color,
+          midColor: h.midPaint.color,
           start: h.start.color,
           end: h.end.color,
           picked,
@@ -128,7 +127,7 @@
         a: docToScreen(view, h.a),
         b: docToScreen(view, h.b),
         mid: docToScreen(view, h.mid),
-        midColor: midStop(h.start, h.end).color,
+        midColor: h.midPaint.color,
         rim,
         start: h.start.color,
         end: h.end.color,
@@ -234,7 +233,7 @@
         { x: g.mid.x - dm, y: g.mid.y },
       ])}
       style="stroke: var(--color-accent); fill: {g.midColor}"
-      stroke-width="1.5"
+      stroke-width={w(g.picked === "mid")}
     />
     {#if g.kind === "linear"}
       <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
