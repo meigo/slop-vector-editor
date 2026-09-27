@@ -1,5 +1,5 @@
-import type { Doc, Node } from "../doc/document";
-import { groupAttrs, layerAttrs, shapeAttrs, styleAttrs, type Attrs } from "./attrs";
+import type { Doc, Node, Shape } from "../doc/document";
+import { gradientDefs, groupAttrs, layerAttrs, shapeAttrs, styleAttrs, type Attrs } from "./attrs";
 import { fmt } from "./fmt";
 
 const escapeAttr = (v: string) =>
@@ -41,6 +41,26 @@ function node(n: Node, depth: number): string {
   return element(tag, attrs, [], depth);
 }
 
+function shapesIn(n: Node): Shape[] {
+  return n.kind === "group" ? n.children.flatMap(shapesIn) : [n];
+}
+
+/** Spec M15 §3: every shape's gradients, in document order, in one leading `<defs>`; nothing at
+ *  all when there are none, so a document without gradients serializes exactly as before. */
+function defsElement(doc: Doc): string | null {
+  const defs = doc.layers.flatMap((l) => l.children.flatMap(shapesIn)).flatMap(gradientDefs);
+  if (defs.length === 0) return null;
+  const items = defs.map((g) =>
+    element(
+      "linearGradient",
+      g.attrs,
+      g.stops.map((s) => element("stop", s, [], 3)),
+      2,
+    ),
+  );
+  return element("defs", {}, items, 1);
+}
+
 /** The box the root element aims at. Absent means the artboard's own, which is what a save writes;
  *  an export passes the region it is rendering (spec M12 §3). Named `ViewBox`, not `View`, because
  *  `src/state/viewport.ts` already exports a `View` (the pan/zoom viewport) — same name, unrelated
@@ -50,15 +70,20 @@ export type ViewBox = { x: number; y: number; w: number; h: number };
 export function serializeDoc(doc: Doc, view?: ViewBox): string {
   const { w, h, background } = doc.artboard;
   const body: string[] = [];
+  const defs = defsElement(doc);
+  if (defs) body.push(defs);
   if (background) {
-    const fill = styleAttrs({
-      fill: background,
-      stroke: null,
-      strokeWidth: 0,
-      cap: "butt",
-      join: "miter",
-      opacity: 1,
-    });
+    const fill = styleAttrs(
+      {
+        fill: background,
+        stroke: null,
+        strokeWidth: 0,
+        cap: "butt",
+        join: "miter",
+        opacity: 1,
+      },
+      "background",
+    );
     body.push(
       element(
         "rect",

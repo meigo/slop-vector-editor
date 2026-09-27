@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isHidden, isLocked, type Shape } from "../doc/document";
+import { isGradient, isHidden, isLocked, type Shape } from "../doc/document";
 import { setNodeHidden, setNodeLocked } from "../doc/edits";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
@@ -19,7 +19,8 @@ describe("hidden and locked content survives an import", () => {
     </svg>`);
     expect(nodes).toHaveLength(4);
     expect(nodes.map((n) => isHidden(n))).toEqual([false, true, true, true]);
-    expect((nodes[0] as Shape).style.fill?.color).toBe("#ff0000");
+    const fill = (nodes[0] as Shape).style.fill;
+    expect(!isGradient(fill) && fill?.color).toBe("#ff0000");
     expect(r.dropped).toEqual([]);
   });
 

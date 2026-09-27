@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createDoc, DEFAULT_STYLE, type Doc, type Node, type Style } from "../doc/document";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  isGradient,
+  type Doc,
+  type Node,
+  type Style,
+} from "../doc/document";
 import { booleanShapes } from "../doc/boolean-edit";
 import { IDENTITY, translate } from "../geom/mat";
 import { findNode } from "../doc/tree";
@@ -11,7 +18,7 @@ const rect = (
   y: number,
   w: number,
   h: number,
-  style = DEFAULT_STYLE,
+  style: Style = DEFAULT_STYLE,
   t = IDENTITY,
 ): Node => ({
   kind: "rect",
@@ -44,7 +51,9 @@ describe("booleanShapes", () => {
     // The frontmost input keeps its id, place, name and style.
     expect(kids[0].id).toBe("b");
     expect(kids[0].name).toBe("Logo");
-    expect(kids[0].kind === "path" && kids[0].style.fill?.color).toBe("#222222");
+    expect(
+      kids[0].kind === "path" && !isGradient(kids[0].style.fill) && kids[0].style.fill?.color,
+    ).toBe("#222222");
   });
 
   it("leaves an unnamed result unnamed rather than writing an empty name", async () => {
@@ -66,7 +75,7 @@ describe("booleanShapes", () => {
     const p = out.doc.layers[0].children[0];
     // A hole: the outer ring plus the cut-out.
     expect(p.kind === "path" && p.subpaths).toHaveLength(2);
-    expect(p.kind === "path" && p.style.fill?.color).toBe("#aaaaaa");
+    expect(p.kind === "path" && !isGradient(p.style.fill) && p.style.fill?.color).toBe("#aaaaaa");
   });
 
   it("names the result after the shape whose area survived", async () => {

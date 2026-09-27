@@ -1,15 +1,15 @@
 import { clampSidebarWidth, DEFAULT_SIDEBAR_PX } from "../lib/panel-layout";
 import {
   DEFAULT_STYLE,
+  type FlatStyle,
   type LineCap,
   type LineJoin,
   type Paint,
-  type Style,
 } from "../doc/document";
 
 export type PolygonPrefs = { sides: number; star: boolean; innerRatio: number };
 export type Prefs = {
-  style: Style;
+  style: FlatStyle;
   polygon: PolygonPrefs;
   snap: boolean;
   /** The modifier dock's Shift and Alt latches. `null` means nobody has decided yet, so the dock
@@ -39,6 +39,7 @@ export const SECTION_IDS = [
   "randomise",
   "shape",
   "newPolygons",
+  "gradient",
   "node",
   "geometry",
 ] as const;

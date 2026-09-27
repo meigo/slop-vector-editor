@@ -1,5 +1,14 @@
 export type ToolId =
-  "select" | "rect" | "ellipse" | "line" | "polygon" | "pen" | "text" | "node" | "hand";
+  | "select"
+  | "rect"
+  | "ellipse"
+  | "line"
+  | "polygon"
+  | "pen"
+  | "text"
+  | "node"
+  | "hand"
+  | "gradient";
 
 /** Modifier state for tools: physical keys combined with the on-screen modifier dock.
  *

@@ -86,6 +86,10 @@ What works today:
   scale multiplier with a live pixel readout, and a transparent-background toggle (on by default
   for a selection, off for the artboard). Edit ▸ Copy as PNG puts the artboard on the clipboard at
   1× for pasting straight into another app.
+- **Gradients**: linear gradients on fill and stroke (two stops, colour + opacity each). Pick
+  Flat/Linear in the Properties panel, or use the Gradient tool (G): drag across the selection to
+  draw one, drag a knob or the line to adjust, Shift for 45°. Linear gradients from other apps' SVGs
+  are kept when they have two stops.
 
 ## Keyboard
 
@@ -110,12 +114,13 @@ What works today:
 | Edit nodes                                      | N                                     |
 | Pen                                             | P                                     |
 | Text                                            | T                                     |
+| Gradient tool                                   | G                                     |
 | Finish a path                                   | Enter                                 |
 
 ## Roadmap
 
-Unplanned: gradients; a freehand pencil/brush tool; grid and smart guides; masks/clipping;
-align & distribute; system-clipboard image paste.
+Unplanned: radial gradients / more stops; a freehand pencil/brush tool; grid and smart guides;
+masks/clipping; align & distribute; system-clipboard image paste.
 
 ## Development
 
@@ -123,7 +128,7 @@ align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 734 unit tests
+npm test          # 836 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

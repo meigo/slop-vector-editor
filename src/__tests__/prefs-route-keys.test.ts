@@ -214,6 +214,7 @@ describe("editActionForKey", () => {
     expect(k("p")).toEqual({ kind: "tool", tool: "pen" });
     expect(k("h")).toEqual({ kind: "tool", tool: "hand" });
     expect(k("n")).toEqual({ kind: "tool", tool: "node" });
+    expect(k("g")).toEqual({ kind: "tool", tool: "gradient" });
     expect(k("v", { shiftKey: true })).toBeNull();
     expect(k("x")).toBeNull();
   });
@@ -258,7 +259,8 @@ describe("editActionForKey", () => {
     expect(k("g", { metaKey: true })).toEqual({ kind: "group" });
     expect(k("g", { metaKey: true, shiftKey: true })).toEqual({ kind: "ungroup" });
     expect(k("g", { ctrlKey: true })).toEqual({ kind: "group" });
-    expect(k("g")).toBeNull();
+    // A bare "g" with no modifier is the Gradient tool key, not the group shortcut.
+    expect(k("g")).toEqual({ kind: "tool", tool: "gradient" });
   });
 
   it("maps Enter to commit", () => {

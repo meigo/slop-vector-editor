@@ -251,7 +251,10 @@ start and end are told apart at a glance; the picked stop's knob gets a ring.
 - Each drag is **one undo step**: `beginGesture` at down, commits computed from the base document
   taken at down (invariant 15), `endGesture` at up/cancel — the node tool's pattern. A result that is
   degenerate collapses to flat (§2); that is only reachable by dragging one knob onto the other.
-- Knobs of several shapes may overlap; the first hit in document order wins, as `hitTest` does.
+- Knobs of several shapes may overlap; the **frontmost** shape's knob wins, as `hitTest`'s does
+  (it scans the reach in reverse). Handles are listed back to front, so the Overlay draws the
+  winner on top. (Corrected 2026-09-27 during implementation: this line first said "first in
+  document order", which contradicted the `hitTest` it cited.)
 - Hit-testing the canvas for "the shape under the press" uses `hitTest` with the entered group, as
   the select tool does, so reach rules are the usual ones (invariant 36).
 

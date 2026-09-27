@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyMat, IDENTITY } from "../geom/mat";
 import { parseColor } from "../svg/colors";
-import { parseTransform } from "../svg/transform";
+import { parseTransform, parseTransformOrNull } from "../svg/transform";
 
 describe("parseColor", () => {
   it("parses hex forms", () => {
@@ -25,8 +25,14 @@ describe("parseColor", () => {
     expect(parseColor("none")).toEqual({ kind: "none" });
     expect(parseColor("transparent")).toEqual({ kind: "none" });
     expect(parseColor("currentColor")).toEqual({ kind: "color", color: "#000000", alpha: 1 });
-    expect(parseColor("url(#grad)")).toEqual({ kind: "unsupported" });
-    expect(parseColor("url(#grad) red")).toEqual({ kind: "unsupported" });
+    // Spec M15 §4: a same-document url() now carries its id and fallback (see the describe block
+    // below); only an external reference is still unsupported.
+    expect(parseColor("url(#grad)")).toEqual({ kind: "url", id: "grad", fallback: null });
+    expect(parseColor("url(#grad) red")).toEqual({
+      kind: "url",
+      id: "grad",
+      fallback: { kind: "color", color: "#ff0000", alpha: 1 },
+    });
   });
 
   it("returns null for unknown values", () => {
@@ -70,5 +76,29 @@ describe("parseTransform", () => {
 
   it("returns identity when the composed matrix overflows the coordinate maximum", () => {
     expect(parseTransform("scale(1e300) scale(1e300)")).toEqual(IDENTITY);
+  });
+});
+
+describe("url() paints and strict transforms (spec M15 §4)", () => {
+  it("parses url references with and without a fallback", () => {
+    expect(parseColor("url(#g1)")).toEqual({ kind: "url", id: "g1", fallback: null });
+    expect(parseColor("url('#g1') #ff0000")).toEqual({
+      kind: "url",
+      id: "g1",
+      fallback: { kind: "color", color: "#ff0000", alpha: 1 },
+    });
+    expect(parseColor('url("#a b") none')).toEqual({
+      kind: "url",
+      id: "a b",
+      fallback: { kind: "none" },
+    });
+    expect(parseColor("url(other.svg#g)")).toEqual({ kind: "unsupported" });
+  });
+
+  it("tells an unreadable transform list from identity", () => {
+    expect(parseTransformOrNull("")).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(parseTransformOrNull("translate(3 4)")).toEqual([1, 0, 0, 1, 3, 4]);
+    expect(parseTransformOrNull("translate(3 4) wobble(2)")).toBeNull();
+    expect(parseTransformOrNull("scale(a)")).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { booleanOf, type BoolOp } from "../geom/boolean";
 import { invert, multiply, IDENTITY } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import type { Doc, Node, PathShape, Subpath } from "./document";
+import { mapStyle, type Doc, type Node, type PathShape, type Subpath } from "./document";
 import { deleteNodes } from "./edits";
 import { findNode, isAfter, mapNodes, paintKey } from "./tree";
 
@@ -72,7 +72,12 @@ export async function booleanShapes(
     kind: "path",
     id: front.path.id,
     transform: IDENTITY,
-    style: styleFrom.path.style,
+    // Spec M15 §5: the surviving style's gradient is in its own space; map it through that shape's
+    // world matrix and then into the result's space (the frontmost input's parent space).
+    style: mapStyle(
+      styleFrom.path.style,
+      multiply(toParent, multiply(styleFrom.found.parent, styleFrom.path.transform)),
+    ),
     subpaths: transformSubpaths(result, toParent),
   };
   // The name follows the style, not the place: it is a label on the shape whose area survived, and

@@ -1,3 +1,4 @@
+import { createGradientTool } from "./gradient-tool";
 import { createNodeTool } from "./node-tool";
 import { createPenTool } from "./pen";
 import { createSelectTool } from "./select";
@@ -23,4 +24,5 @@ export const TOOLS: Readonly<Record<ToolId, Tool>> = {
   text: createTextTool(),
   node: createNodeTool(),
   hand: createHandTool(),
+  gradient: createGradientTool(),
 };

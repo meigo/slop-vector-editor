@@ -1,4 +1,4 @@
-import type { Mat } from "../geom/mat";
+import { applyMat, isIdentity, type Mat } from "../geom/mat";
 import type { Vec } from "../geom/vec";
 
 /** The document is plain, immutable data: every edit returns a new object and never mutates its
@@ -12,17 +12,84 @@ export const MIN_INNER = 0.1;
 export const MAX_INNER = 0.95;
 
 export type Paint = { color: string /* #rrggbb, lowercase */; opacity: number };
+/** Spec M15 §2: two stops, always at offsets 0 and 1. `from`/`to` are in the shape's OWN space —
+ *  the space its geometry lives in, under its `transform` — so move and rotate carry the gradient
+ *  for free and every geometry bake must map it (`mapStyle`). */
+export type LinearGradient = { kind: "linear"; from: Vec; to: Vec; start: Paint; end: Paint };
+export type Fill = Paint | LinearGradient;
 export type LineCap = "butt" | "round" | "square";
 export type LineJoin = "miter" | "round" | "bevel";
 
 export type Style = {
-  fill: Paint | null;
-  stroke: Paint | null;
+  fill: Fill | null;
+  stroke: Fill | null;
   strokeWidth: number;
   cap: LineCap;
   join: LineJoin;
   opacity: number;
 };
+/** The defaults for new shapes, and the artboard's world: flat paints only (spec M15 §2). */
+export type FlatStyle = Omit<Style, "fill" | "stroke"> & {
+  fill: Paint | null;
+  stroke: Paint | null;
+};
+
+export function isGradient(f: Fill | null | undefined): f is LinearGradient {
+  return f !== null && f !== undefined && "kind" in f;
+}
+
+export const samePaint = (a: Paint, b: Paint): boolean =>
+  a.color === b.color && a.opacity === b.opacity;
+
+const sameVec = (a: Vec, b: Vec) => a.x === b.x && a.y === b.y;
+
+/** Exact: what an edit compares to decide it changed nothing (invariant 1). */
+export function sameFill(a: Fill | null, b: Fill | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (isGradient(a) !== isGradient(b)) return false;
+  if (isGradient(a) && isGradient(b)) {
+    return (
+      sameVec(a.from, b.from) &&
+      sameVec(a.to, b.to) &&
+      samePaint(a.start, b.start) &&
+      samePaint(a.end, b.end)
+    );
+  }
+  return samePaint(a as Paint, b as Paint);
+}
+
+/** The colours only (spec M15 §2): what Select Same and the panel's summaries compare. Two
+ *  gradients' points are in two different shapes' own spaces, so comparing them means nothing. */
+export function sameColours(a: Fill | null, b: Fill | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (isGradient(a) !== isGradient(b)) return false;
+  if (isGradient(a) && isGradient(b)) return samePaint(a.start, b.start) && samePaint(a.end, b.end);
+  return samePaint(a as Paint, b as Paint);
+}
+
+/** The 6-decimal rounding `svg/fmt.ts` writes with. Inlined rather than imported because nothing
+ *  under `doc/` depends on `svg/`. */
+const written = (v: number) => Math.round(v * 1e6) / 1e6;
+
+/** SVG paints a gradient whose points coincide as its last stop's colour, so that is what we
+ *  store (spec M15 §2). Judged on the WRITTEN numbers: a gradient 1e-7 long would otherwise save
+ *  as one and reload as flat. */
+export function flatIfDegenerate(g: LinearGradient): Fill {
+  return written(g.from.x) === written(g.to.x) && written(g.from.y) === written(g.to.y) ? g.end : g;
+}
+
+function mapFill(f: Fill | null, m: Mat): Fill | null {
+  if (!isGradient(f)) return f;
+  return flatIfDegenerate({ ...f, from: applyMat(m, f.from), to: applyMat(m, f.to) });
+}
+
+/** Spec M15 §5: every site that bakes a matrix into a shape's geometry maps the gradient points
+ *  through the same matrix, here. Returns the SAME style when there is nothing to map, so
+ *  documents without gradients keep every reference they kept before. */
+export function mapStyle(s: Style, m: Mat): Style {
+  if ((!isGradient(s.fill) && !isGradient(s.stroke)) || isIdentity(m)) return s;
+  return { ...s, fill: mapFill(s.fill, m), stroke: mapFill(s.stroke, m) };
+}
 
 export type NodeType = "corner" | "smooth" | "symmetric";
 
@@ -153,7 +220,7 @@ export type Doc = {
   nextId: number;
 };
 
-export const DEFAULT_STYLE: Style = {
+export const DEFAULT_STYLE: FlatStyle = {
   fill: { color: "#d9d9d9", opacity: 1 },
   stroke: { color: "#000000", opacity: 1 },
   strokeWidth: 1,

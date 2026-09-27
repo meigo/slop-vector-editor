@@ -62,6 +62,7 @@ const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   t: "text",
   n: "node",
   h: "hand",
+  g: "gradient",
 };
 
 /** Editing keys. Checked after `commandForKey`, and never while a text field has focus. */

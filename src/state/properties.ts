@@ -1,14 +1,18 @@
 import { booleanRefusal, type BoolRefusal } from "../doc/boolean-edit";
 import { pathOpRefusals, type PathOp } from "../doc/path-ops";
-import type {
-  Doc,
-  LineCap,
-  LineJoin,
-  NodeType,
-  Paint,
-  PolygonShape,
-  RectShape,
-  Style,
+import {
+  isGradient,
+  sameColours,
+  samePaint,
+  type Doc,
+  type Fill,
+  type LineCap,
+  type LineJoin,
+  type NodeType,
+  type Paint,
+  type PolygonShape,
+  type RectShape,
+  type Style,
 } from "../doc/document";
 import { rotateNodes, translateNodes } from "../doc/edits";
 import type { NodeRef } from "../doc/path-edit";
@@ -22,8 +26,8 @@ import { normalizeAngle } from "../tools/gizmo";
 export type Field<T> = { mixed: true } | { mixed: false; value: T };
 
 export type StyleSummary = {
-  fill: Field<Paint | null>;
-  stroke: Field<Paint | null>;
+  fill: Field<Fill | null>;
+  stroke: Field<Fill | null>;
   fillOn: Field<boolean>;
   strokeOn: Field<boolean>;
   strokeWidth: Field<number>;
@@ -37,11 +41,6 @@ export type GeometryField = keyof Geometry;
 
 const EPS = 1e-9;
 
-function samePaint(a: Paint | null, b: Paint | null): boolean {
-  if (a === null || b === null) return a === b;
-  return a.color === b.color && a.opacity === b.opacity;
-}
-
 function merge<T>(values: readonly T[], eq: (a: T, b: T) => boolean = (a, b) => a === b): Field<T> {
   const first = values[0];
   return values.every((v) => eq(v, first)) ? { mixed: false, value: first } : { mixed: true };
@@ -52,11 +51,11 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
   return {
     fill: merge(
       styles.map((s) => s.fill),
-      samePaint,
+      sameColours,
     ),
     stroke: merge(
       styles.map((s) => s.stroke),
-      samePaint,
+      sameColours,
     ),
     fillOn: merge(styles.map((s) => s.fill !== null)),
     strokeOn: merge(styles.map((s) => s.stroke !== null)),
@@ -65,6 +64,37 @@ export function summarizeStyles(styles: readonly Style[]): StyleSummary | null {
     join: merge(styles.map((s) => s.join)),
     opacity: merge(styles.map((s) => s.opacity)),
   };
+}
+
+export type GradientSummary = {
+  kind: Field<"flat" | "linear">;
+  stops: { start: Field<Paint>; end: Field<Paint> } | null;
+};
+
+/** Spec M15 §6: which kind each non-null paint is, and — when every one is linear — each stop
+ *  merged across them. Null when no selected shape has this paint. */
+export function summarizeGradient(
+  styles: readonly Style[],
+  which: "fill" | "stroke",
+): GradientSummary | null {
+  const fills = styles.map((s) => s[which]).filter((f): f is Fill => f !== null);
+  if (fills.length === 0) return null;
+  const kind = merge(fills.map((f) => (isGradient(f) ? "linear" : "flat") as "flat" | "linear"));
+  const grads = fills.filter(isGradient);
+  const stops =
+    grads.length === fills.length
+      ? {
+          start: merge(
+            grads.map((g) => g.start),
+            samePaint,
+          ),
+          end: merge(
+            grads.map((g) => g.end),
+            samePaint,
+          ),
+        }
+      : null;
+  return { kind, stops };
 }
 
 export type SelectionActions = {

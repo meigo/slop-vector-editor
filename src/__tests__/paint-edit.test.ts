@@ -1,0 +1,189 @@
+import { describe, expect, it } from "vitest";
+import {
+  createDoc,
+  DEFAULT_STYLE,
+  type Doc,
+  type LinearGradient,
+  type Node,
+  type Shape,
+} from "../doc/document";
+import {
+  drawGradientLine,
+  setGradientPoints,
+  setGradientStop,
+  setPaintKind,
+} from "../doc/paint-edit";
+import { findNode } from "../doc/tree";
+import { IDENTITY, translate, type Mat } from "../geom/mat";
+import { deepFreeze } from "./helpers";
+
+const red = { color: "#ff0000", opacity: 1 };
+const blue = { color: "#0000ff", opacity: 1 };
+const lin = (fx: number, tx: number): LinearGradient => ({
+  kind: "linear",
+  from: { x: fx, y: 0 },
+  to: { x: tx, y: 0 },
+  start: red,
+  end: blue,
+});
+const rect = (id: string, x: number, fill: Shape["style"]["fill"], t: Mat = IDENTITY): Node => ({
+  kind: "rect",
+  id,
+  transform: t,
+  style: { ...DEFAULT_STYLE, fill },
+  x,
+  y: 0,
+  w: 100,
+  h: 50,
+  rx: 0,
+});
+const doc = (children: Node[]): Doc => {
+  const d = createDoc(400, 400);
+  return deepFreeze({ ...d, layers: [{ ...d.layers[0], id: "L0", children }] });
+};
+const fill = (d: Doc, id: string) => (findNode(d, id)!.node as Shape).style.fill;
+
+describe("setPaintKind (spec M15 §6)", () => {
+  it("Flat→Linear fades the colour across each shape's own box at mid-height", () => {
+    const d = doc([rect("a", 0, red), rect("b", 200, blue, translate(0, 100))]);
+    const out = setPaintKind(d, ["a", "b"], "fill", "linear");
+    expect(fill(out, "a")).toEqual({
+      kind: "linear",
+      from: { x: 0, y: 25 },
+      to: { x: 100, y: 25 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+    expect(fill(out, "b")).toEqual({
+      kind: "linear",
+      from: { x: 200, y: 25 },
+      to: { x: 300, y: 25 },
+      start: blue,
+      end: { ...blue, opacity: 0 },
+    });
+  });
+
+  it("Linear→Flat keeps the start stop; null and already-matching paints are left alone", () => {
+    const d = doc([rect("a", 0, lin(0, 10)), rect("b", 0, null), rect("c", 0, red)]);
+    const out = setPaintKind(d, ["a", "b", "c"], "fill", "flat");
+    expect(fill(out, "a")).toEqual(red);
+    expect(fill(out, "b")).toBeNull();
+    expect(findNode(out, "c")!.node).toBe(findNode(d, "c")!.node);
+    expect(setPaintKind(d, ["c"], "fill", "flat")).toBe(d);
+  });
+
+  it("Flat→Linear on a zero-width shape (a vertical line) lays the default line vertically (review finding 3)", () => {
+    const verticalLine: Node = {
+      kind: "path",
+      id: "v",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: red },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 5, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 5, y: 40 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const d = doc([verticalLine]);
+    const out = setPaintKind(d, ["v"], "fill", "linear");
+    expect(fill(out, "v")).toEqual({
+      kind: "linear",
+      from: { x: 5, y: 0 },
+      to: { x: 5, y: 40 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("leaves a shape with zero width AND zero height alone", () => {
+    const point: Node = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: red },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 5, y: 5 }, in: null, out: null, type: "corner" },
+            { p: { x: 5, y: 5 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    const d = doc([point]);
+    expect(setPaintKind(d, ["p"], "fill", "linear")).toBe(d);
+  });
+});
+
+describe("setGradientStop", () => {
+  it("replaces one stop on every linear paint and leaves flat ones alone", () => {
+    const d = doc([rect("a", 0, lin(0, 10)), rect("b", 0, red)]);
+    const green = { color: "#00ff00", opacity: 0.5 };
+    const out = setGradientStop(d, ["a", "b"], "fill", "end", green);
+    expect(fill(out, "a")).toEqual({ ...lin(0, 10), end: green });
+    expect(findNode(out, "b")!.node).toBe(findNode(d, "b")!.node);
+    expect(setGradientStop(out, ["a"], "fill", "end", green)).toBe(out);
+  });
+});
+
+describe("setGradientPoints", () => {
+  it("sets the points in own space, and collapses coincident ones to the end stop", () => {
+    const d = doc([rect("a", 0, lin(0, 10))]);
+    expect(fill(setGradientPoints(d, "a", "fill", { x: 1, y: 2 }, { x: 3, y: 4 }), "a")).toEqual({
+      ...lin(0, 10),
+      from: { x: 1, y: 2 },
+      to: { x: 3, y: 4 },
+    });
+    expect(fill(setGradientPoints(d, "a", "fill", { x: 5, y: 5 }, { x: 5, y: 5 }), "a")).toEqual(
+      blue,
+    );
+    expect(setGradientPoints(d, "a", "fill", { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(d);
+  });
+});
+
+describe("drawGradientLine (spec M15 §7)", () => {
+  it("maps one document-space line into every shape's own space, through groups", () => {
+    const group: Node = {
+      kind: "group",
+      id: "g",
+      transform: translate(0, 100),
+      opacity: 1,
+      children: [rect("b", 0, red, translate(10, 0))],
+    };
+    const d = doc([rect("a", 0, lin(0, 10)), group]);
+    const out = drawGradientLine(d, ["a", "g"], "fill", { x: 0, y: 110 }, { x: 50, y: 110 });
+    expect(fill(out, "a")).toEqual({
+      ...lin(0, 10),
+      from: { x: 0, y: 110 },
+      to: { x: 50, y: 110 },
+    });
+    // b's world = translate(0,100)·translate(10,0): own = doc − (10, 100).
+    expect(fill(out, "b")).toEqual({
+      kind: "linear",
+      from: { x: -10, y: 10 },
+      to: { x: 40, y: 10 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("starts a null paint from the default paint for that slot", () => {
+    const d = doc([rect("a", 0, null)]);
+    const f = fill(
+      drawGradientLine(d, ["a"], "fill", { x: 0, y: 0 }, { x: 10, y: 0 }),
+      "a",
+    ) as LinearGradient;
+    expect(f.start).toEqual(DEFAULT_STYLE.fill);
+    expect(f.end).toEqual({ ...DEFAULT_STYLE.fill!, opacity: 0 });
+  });
+
+  it("skips a shape whose world matrix is singular", () => {
+    const d = doc([rect("a", 0, red, [0, 0, 0, 1, 0, 0])]);
+    expect(drawGradientLine(d, ["a"], "fill", { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(d);
+  });
+});

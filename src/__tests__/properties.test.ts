@@ -20,6 +20,7 @@ import {
   selectionGeometry,
   selectionOpacity,
   selectionStyles,
+  summarizeGradient,
   summarizePolygons,
   summarizeRects,
   summarizeStyles,
@@ -345,5 +346,27 @@ describe("selectionActions.pathReason", () => {
       expect(a.pathReason[op]).toBe(pathOpRefusal(doc, [], op));
       expect(typeof a.pathReason[op]).toBe("string");
     }
+  });
+});
+
+describe("summarizeGradient", () => {
+  it("summarizes gradient kind and stops (spec M15 §6)", () => {
+    const g = {
+      kind: "linear" as const,
+      from: { x: 0, y: 0 },
+      to: { x: 1, y: 0 },
+      start: { color: "#ff0000", opacity: 1 },
+      end: { color: "#0000ff", opacity: 1 },
+    };
+    const s = (fill: Style["fill"]): Style => ({ ...DEFAULT_STYLE, fill });
+    expect(summarizeGradient([s(g), s({ ...g, from: { x: 5, y: 5 } })], "fill")).toEqual({
+      kind: { mixed: false, value: "linear" },
+      stops: { start: { mixed: false, value: g.start }, end: { mixed: false, value: g.end } },
+    });
+    expect(summarizeGradient([s(g), s(g.start)], "fill")).toEqual({
+      kind: { mixed: true },
+      stops: null,
+    });
+    expect(summarizeGradient([s(null)], "fill")).toBeNull();
   });
 });

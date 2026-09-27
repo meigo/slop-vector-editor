@@ -1,6 +1,6 @@
 import { IDENTITY, invert, multiply } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import { idFor, type Doc, type Node, type PathShape, type Subpath } from "./document";
+import { idFor, mapStyle, type Doc, type Node, type PathShape, type Subpath } from "./document";
 import { deleteNodes } from "./edits";
 import { reversePath, subdividePath } from "./path-edit";
 import { findNode, isAfter, mapNodes, paintKey, replaceNode, type Found } from "./tree";
@@ -167,7 +167,9 @@ export function combine(doc: Doc, ids: readonly string[]): { doc: Doc; id: strin
     kind: "path",
     id: front.path.id,
     transform: IDENTITY,
-    style: front.path.style,
+    // Spec M15 §5: the result has identity transform in the front shape's parent space, which is
+    // exactly what `front.path.transform` maps its own-space gradient into.
+    style: mapStyle(front.path.style, front.path.transform),
     subpaths,
   };
   if (front.path.name !== undefined) shape.name = front.path.name;

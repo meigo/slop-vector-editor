@@ -9,6 +9,7 @@
   import { docToScreen } from "../state/viewport";
   import { selectionFrame } from "../tools/frame";
   import { activeHandles, frameOutline, handlePositions, handleSize } from "../tools/gizmo";
+  import { gradientHandles } from "../tools/gradient-handles";
 
   const LINE = "stroke: var(--color-accent); fill: none";
   const KNOB = "stroke: var(--color-accent); fill: var(--color-text)";
@@ -82,6 +83,24 @@
   const knobSize = $derived(handleSize(app.lastPointerType) - 1);
 
   const points = (ps: Vec[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
+
+  /** Spec M15 §7: the gradient lines, from the same function the tool hit-tests against. Each knob
+   *  is filled with its stop's colour so start and end are told apart at a glance. */
+  const gradientView = $derived.by(() => {
+    if (app.toolId !== "gradient") return [];
+    return gradientHandles(app.doc, app.selection, app.gradientTarget).map((h) => ({
+      a: docToScreen(view, h.from),
+      b: docToScreen(view, h.to),
+      start: h.start.color,
+      end: h.end.color,
+      // review finding 7: `which` ties the pick to the paint it was made on, so switching
+      // Fill/Stroke afterwards doesn't relabel it onto the wrong knob.
+      picked:
+        app.gradientStop?.id === h.id && app.gradientStop.which === app.gradientTarget
+          ? app.gradientStop.stop
+          : null,
+    }));
+  });
 
   const pen = $derived(app.overlay?.kind === "pen" ? app.overlay : null);
   const penView = $derived.by(() => {
@@ -158,6 +177,24 @@
       />
     {/each}
   {/if}
+
+  {#each gradientView as g, i (i)}
+    <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
+    <circle
+      cx={g.a.x}
+      cy={g.a.y}
+      r={knobSize / 2 + 1}
+      style="stroke: var(--color-accent); fill: {g.start}"
+      stroke-width={g.picked === "start" ? 3 : 1.5}
+    />
+    <circle
+      cx={g.b.x}
+      cy={g.b.y}
+      r={knobSize / 2 + 1}
+      style="stroke: var(--color-accent); fill: {g.end}"
+      stroke-width={g.picked === "end" ? 3 : 1.5}
+    />
+  {/each}
 
   {#if penView}
     {#each penView.outline as poly, i (i)}

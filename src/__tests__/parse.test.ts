@@ -5,7 +5,10 @@ import inkscape from "../../fixtures/inkscape-layers.svg?raw";
 import {
   createDoc,
   DEFAULT_STYLE,
+  isGradient,
   type Doc,
+  type Fill,
+  type Paint,
   type PathShape,
   type PolygonShape,
   type Shape,
@@ -19,6 +22,12 @@ import { parsePathData } from "../svg/pathdata";
 import { serializeDoc } from "../svg/serialize";
 import { XmlError } from "../svg/xml";
 import { stripIds } from "./helpers";
+
+/** The importer never produces a gradient (Task 2 adds that); every fixture's fill here is flat. */
+function flatFill(f: Fill | null): Paint {
+  if (f === null || isGradient(f)) throw new Error("expected a flat paint");
+  return f;
+}
 
 describe("rectPath", () => {
   it("makes 4 corners without radius and 8 nodes with one", () => {
@@ -184,7 +193,7 @@ describe("parseSvg — foreign files", () => {
     expect((poly as PathShape).subpaths[0].nodes).toHaveLength(3);
     expect((poly as PathShape).subpaths[0].closed).toBe(true);
     expect(poly.style.fill).toEqual({ color: "#ffcc00", opacity: 1 });
-    expect(dropped).toEqual(["gradients/patterns"]);
+    expect(dropped).toEqual(["radial gradients"]);
   });
 
   it("offsets a viewBox origin, converts unequal radii and reports classes", () => {
@@ -216,11 +225,19 @@ describe("parseSvg — foreign files", () => {
     const { doc } = parseSvg(
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:red !important"/></svg>`,
     );
-    expect((doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#ff0000");
+    expect(flatFill((doc.layers[0].children[0] as Shape).style.fill).color).toBe("#ff0000");
     const kept = parseSvg(
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:not-a-color"/></svg>`,
     );
-    expect((kept.doc.layers[0].children[0] as Shape).style.fill!.color).toBe("#0000ff");
+    expect(flatFill((kept.doc.layers[0].children[0] as Shape).style.fill).color).toBe("#0000ff");
+  });
+
+  it("reports an external paint reference by its own label (review finding 10)", () => {
+    const { doc, dropped } = parseSvg(
+      `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="url(other.svg#g)"/></svg>`,
+    );
+    expect((doc.layers[0].children[0] as Shape).style.fill).toBeNull();
+    expect(dropped).toEqual(["external paint references"]);
   });
 
   it("reports a style visibility override and not one under display:none", () => {
@@ -239,8 +256,8 @@ describe("parseSvg — foreign files", () => {
       `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="blue" style="fill:#ff000080" fill-opacity="0.5"/></svg>`,
     );
     const [rect] = doc.layers[0].children as Shape[];
-    expect(rect.style.fill!.color).toBe("#ff0000");
-    expect(rect.style.fill!.opacity).toBeCloseTo(0.25, 2);
+    expect(flatFill(rect.style.fill).color).toBe("#ff0000");
+    expect(flatFill(rect.style.fill).opacity).toBeCloseTo(0.25, 2);
   });
 
   it("skips empty and zero-size content, but KEEPS hidden content (spec M9 §1)", () => {

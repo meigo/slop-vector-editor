@@ -1,10 +1,13 @@
 import { formatOverrides, formatTextOpts } from "../text/attrs";
 import {
+  isGradient,
   isHidden,
   isLocked,
+  type Fill,
   type Group,
   type Layer,
   type Node,
+  type Paint,
   type Shape,
   type Style,
   type TextMeta,
@@ -27,13 +30,54 @@ function nameAttr(name: string | undefined): Attrs {
   return name ? { "data-sv-name": name } : {};
 }
 
-export function styleAttrs(s: Style): Attrs {
-  const a: Attrs = { fill: s.fill ? s.fill.color : "none" };
-  if (s.fill && s.fill.opacity !== 1) a["fill-opacity"] = fmt(s.fill.opacity);
-  if (s.stroke) {
-    a.stroke = s.stroke.color;
-    if (s.stroke.opacity !== 1) a["stroke-opacity"] = fmt(s.stroke.opacity);
+/** Spec M15 §3: one `<linearGradient>` per gradient paint, never shared, named after its node. */
+export const gradientId = (nodeId: string, which: "fill" | "stroke") =>
+  `sv-grad-${nodeId}-${which}`;
+
+export type GradientDef = { id: string; attrs: Attrs; stops: Attrs[] };
+
+function stopAttrs(offset: "0" | "1", p: Paint): Attrs {
+  const a: Attrs = { offset, "stop-color": p.color };
+  if (p.opacity !== 1) a["stop-opacity"] = fmt(p.opacity);
+  return a;
+}
+
+/** The gradient elements a shape's paints need, in fill-then-stroke order. `userSpaceOnUse` is
+ *  the element's own coordinate system including its `transform` — exactly where the model keeps
+ *  the points — so they are written as stored. */
+export function gradientDefs(s: Shape): GradientDef[] {
+  const out: GradientDef[] = [];
+  for (const which of ["fill", "stroke"] as const) {
+    const f = s.style[which];
+    if (!isGradient(f)) continue;
+    const id = gradientId(s.id, which);
+    out.push({
+      id,
+      attrs: {
+        id,
+        gradientUnits: "userSpaceOnUse",
+        x1: fmt(f.from.x),
+        y1: fmt(f.from.y),
+        x2: fmt(f.to.x),
+        y2: fmt(f.to.y),
+      },
+      stops: [stopAttrs("0", f.start), stopAttrs("1", f.end)],
+    });
   }
+  return out;
+}
+
+function paintAttrs(which: "fill" | "stroke", f: Fill | null, id: string): Attrs {
+  if (f === null) return which === "fill" ? { fill: "none" } : {};
+  if (isGradient(f)) return { [which]: `url(#${gradientId(id, which)})` };
+  const a: Attrs = { [which]: f.color };
+  if (f.opacity !== 1) a[`${which}-opacity`] = fmt(f.opacity);
+  return a;
+}
+
+/** `id` names the node, so a gradient paint can point at its own `<linearGradient>`. */
+export function styleAttrs(s: Style, id: string): Attrs {
+  const a: Attrs = { ...paintAttrs("fill", s.fill, id), ...paintAttrs("stroke", s.stroke, id) };
   a["stroke-width"] = fmt(s.strokeWidth);
   if (s.cap !== "butt") a["stroke-linecap"] = s.cap;
   if (s.join !== "miter") a["stroke-linejoin"] = s.join;
@@ -91,7 +135,7 @@ export function shapeAttrs(s: Shape): { tag: "rect" | "ellipse" | "path"; attrs:
     ...transformAttr(s.transform),
     ...nameAttr(s.name),
     ...flagAttrs(s),
-    ...styleAttrs(s.style),
+    ...styleAttrs(s.style, s.id),
   };
   switch (s.kind) {
     case "rect":

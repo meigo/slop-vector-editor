@@ -1,14 +1,19 @@
 <script lang="ts">
   import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
+  import type { PaintSlot } from "../doc/paint-edit";
+  import { gradientHandles } from "../tools/gradient-handles";
   import {
     app,
     beginDocGesture,
     endDocGesture,
     applyGeometry,
     moveSelectedNodes,
+    setGradientTarget,
     setPolygonPrefs,
     setSelectedNodeType,
+    setSelectionGradientStop,
     setSelectionOpacity,
+    setSelectionPaintKind,
     setSelectionPolygon,
     setSelectionRectRadius,
     setSelectionStyle,
@@ -18,6 +23,7 @@
     selectionGeometry,
     selectionOpacity,
     selectionStyles,
+    summarizeGradient,
     summarizePolygons,
     summarizeRects,
     summarizeStyles,
@@ -61,12 +67,30 @@
   const summary = $derived(
     summarizeStyles(hasSelection ? selectionStyles(app.doc, app.selection) : [app.prefs.style]),
   );
+  const fillGrad = $derived(
+    hasSelection ? summarizeGradient(selectionStyles(app.doc, app.selection), "fill") : null,
+  );
+  const strokeGrad = $derived(
+    hasSelection ? summarizeGradient(selectionStyles(app.doc, app.selection), "stroke") : null,
+  );
   const geometry = $derived(hasSelection ? selectionGeometry(app.doc, app.selection) : null);
   const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
   const polygons = $derived(hasSelection ? summarizePolygons(app.doc, app.selection) : null);
   const poly = $derived(app.prefs.polygon);
   /** Spec M10 §6: the Text section appears for a single selected title. */
   const title = $derived(selectedTitle());
+  /** Review finding 7: which stop's row is highlighted, for the given paint slot only — gated on
+   *  `which` (recorded when the pick was made), not the currently active Edit target, so switching
+   *  Fill/Stroke afterwards doesn't relabel the pick onto the other row. Reachability is checked
+   *  against `gradientHandles`, not raw `app.selection`, so a stop picked on a shape reached
+   *  through a selected group still highlights its row. */
+  const pickedStop = (which: PaintSlot) => {
+    const gs = app.gradientStop;
+    if (!gs || gs.which !== which) return null;
+    return gradientHandles(app.doc, app.selection, which).some((h) => h.id === gs.id)
+      ? gs.stop
+      : null;
+  };
   const value = <T,>(f: Field<T>): T | null => (f.mixed ? null : f.value);
 
   let { expanded, ontoggle, flex }: { expanded: boolean; ontoggle: () => void; flex: string } =
@@ -93,6 +117,31 @@
         {hasSelection ? "Selection" : "Defaults for new shapes"}
       </h2>
 
+      {#if app.toolId === "gradient"}
+        <!-- Spec M15 §6: first, not last — picking the Gradient tool switches this panel's job to
+             choosing which paint it edits, and the panel scrolls. Below the Fill/Stroke/Shape/Node
+             sections, this switch could sit off-screen exactly when the tool just became active
+             (the controller's browser check after Task 6 caught it there). As the Node section
+             appears only for the node tool, this appears only for the Gradient tool. -->
+        <FieldSection id="gradient" title="Gradient">
+          <div class="field-row">
+            <span class="text-muted">Edit</span>
+            <div class="flex gap-1">
+              <ToggleButton
+                label="Fill"
+                value={app.gradientTarget === "fill"}
+                onchange={() => setGradientTarget("fill")}
+              />
+              <ToggleButton
+                label="Stroke"
+                value={app.gradientTarget === "stroke"}
+                onchange={() => setGradientTarget("stroke")}
+              />
+            </div>
+          </div>
+        </FieldSection>
+      {/if}
+
       <!-- Spec M10 §6: first, not last. Placing a title is immediately followed by typing it, and
            this panel scrolls — below the paint and geometry sections it sat under the fold. -->
       {#if title}
@@ -106,7 +155,12 @@
             field={summary.fill}
             present={summary.fillOn}
             fallback={app.prefs.style.fill ?? FILL_FALLBACK}
+            kind={fillGrad?.kind ?? null}
+            stops={fillGrad?.stops ?? null}
+            picked={pickedStop("fill")}
             onchange={(p) => setSelectionStyle({ fill: p })}
+            onkind={(k) => setSelectionPaintKind("fill", k)}
+            onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />
@@ -117,7 +171,12 @@
             field={summary.stroke}
             present={summary.strokeOn}
             fallback={app.prefs.style.stroke ?? STROKE_FALLBACK}
+            kind={strokeGrad?.kind ?? null}
+            stops={strokeGrad?.stops ?? null}
+            picked={pickedStop("stroke")}
             onchange={(p) => setSelectionStyle({ stroke: p })}
+            onkind={(k) => setSelectionPaintKind("stroke", k)}
+            onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}
             onlivestart={beginDocGesture}
             onliveend={endDocGesture}
           />

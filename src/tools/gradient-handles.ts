@@ -1,0 +1,80 @@
+import { isGradient, type Doc, type Paint } from "../doc/document";
+import type { PaintSlot } from "../doc/paint-edit";
+import { ancestorIds, findNode, isAfter, paintKey, shapesWithWorld } from "../doc/tree";
+import { applyMat, type Mat } from "../geom/mat";
+import type { Vec } from "../geom/vec";
+
+/** Spec M15 §7: the one function the Overlay draws from and the tool hit-tests against, so the
+ *  two can never disagree (the gizmo's rule, invariant 14). Points are in document space. */
+export type GradientHandle = {
+  id: string;
+  from: Vec;
+  to: Vec;
+  start: Paint;
+  end: Paint;
+  world: Mat;
+};
+
+/** Document order (back to front), regardless of the order `ids` lists them in — `pickHandle`
+ *  scans from the end, so this is what makes the frontmost shape's knob win a coincident pick
+ *  (invariant 14: it must agree with `hitTest`, which scans the reach in reverse). An id whose
+ *  ancestor is also selected is dropped: the ancestor's own expansion into `shapesWithWorld`
+ *  already reaches it, and keeping both would double its handle. */
+export function gradientHandles(
+  doc: Doc,
+  ids: readonly string[],
+  which: PaintSlot,
+): GradientHandle[] {
+  const idSet = new Set(ids);
+  const founds = [...idSet]
+    .filter((id) => !ancestorIds(doc, id).some((a) => idSet.has(a)))
+    .map((id) => findNode(doc, id))
+    .filter((f): f is NonNullable<typeof f> => f !== null)
+    .map((f) => ({ found: f, key: paintKey(f.layerIndex, f.path) }));
+  founds.sort((a, b) => (isAfter(a.key, b.key) ? 1 : isAfter(b.key, a.key) ? -1 : 0));
+
+  const out: GradientHandle[] = [];
+  for (const { found } of founds) {
+    for (const { shape, world } of shapesWithWorld(found.node, found.parent)) {
+      const f = shape.style[which];
+      if (!isGradient(f)) continue;
+      out.push({
+        id: shape.id,
+        from: applyMat(world, f.from),
+        to: applyMat(world, f.to),
+        start: f.start,
+        end: f.end,
+        world,
+      });
+    }
+  }
+  return out;
+}
+
+export type HandlePick = { h: GradientHandle; part: "start" | "end" | "line" } | null;
+
+const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+
+function toSegment(p: Vec, a: Vec, b: Vec): number {
+  const v = { x: b.x - a.x, y: b.y - a.y };
+  const vv = v.x * v.x + v.y * v.y;
+  const t = vv === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * v.x + (p.y - a.y) * v.y) / vv));
+  return dist(p, { x: a.x + v.x * t, y: a.y + v.y * t });
+}
+
+/** Knobs first, across every handle, then lines — a knob sits on its own line. Both passes scan
+ *  from the end, so a coincident pick goes to the FRONTMOST shape, matching `hitTest` (which scans
+ *  the reach in reverse) and the Overlay (which draws `handles` in the same back-to-front order,
+ *  so the frontmost knob is also the one drawn on top — invariant 14). */
+export function pickHandle(handles: readonly GradientHandle[], p: Vec, tol: number): HandlePick {
+  for (let i = handles.length - 1; i >= 0; i--) {
+    const h = handles[i];
+    if (dist(h.from, p) <= tol) return { h, part: "start" };
+    if (dist(h.to, p) <= tol) return { h, part: "end" };
+  }
+  for (let i = handles.length - 1; i >= 0; i--) {
+    const h = handles[i];
+    if (toSegment(p, h.from, h.to) <= tol) return { h, part: "line" };
+  }
+  return null;
+}
