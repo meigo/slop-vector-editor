@@ -62,7 +62,7 @@ describe("gradientHandles / pickHandle", () => {
     expect(h.from).toEqual({ x: 10, y: 35 });
     expect(h.to).toEqual({ x: 110, y: 35 });
     expect(pickHandle(hs, { x: 12, y: 36 }, 6)?.part).toBe("start");
-    expect(pickHandle(hs, { x: 60, y: 37 }, 6)?.part).toBe("line");
+    expect(pickHandle(hs, { x: 35, y: 37 }, 6)?.part).toBe("line");
     expect(pickHandle(hs, { x: 60, y: 60 }, 6)).toBeNull();
   });
 
@@ -136,8 +136,8 @@ describe("the Gradient tool (spec M15 §7)", () => {
     const { ctx } = fakeContext(doc([rect("a", 0, lin)]));
     ctx.setSelection(["a"]);
     drag(createGradientTool(), ctx, [
-      [50, 25],
-      [60, 35],
+      [25, 25],
+      [35, 35],
     ]);
     expect(fillOf(ctx.doc(), "a")).toEqual({
       ...lin,
@@ -281,8 +281,8 @@ describe("the Gradient tool (spec M15 §7)", () => {
     const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
     ctx.setSelection(["a"]);
     drag(createGradientTool(), ctx, [
-      [50, 25],
-      [60, 35],
+      [25, 25],
+      [35, 35],
     ]);
     expect(state.forgotten).toEqual([{ ids: ["a"], which: "fill" }]);
   });
@@ -325,7 +325,7 @@ describe("radial handles and drags (spec M16 §6)", () => {
     expect(pickHandle(hs, { x: 50, y: 25 }, 6)?.part).toBe("center");
     expect(pickHandle(hs, { x: 100, y: 25 }, 6)?.part).toBe("rimA");
     expect(pickHandle(hs, { x: 50, y: 75 }, 6)?.part).toBe("rimB");
-    expect(pickHandle(hs, { x: 75, y: 26 }, 6)?.part).toBe("line");
+    expect(pickHandle(hs, { x: 62.5, y: 26 }, 6)?.part).toBe("line");
   });
 
   it("small radial: the nearest knob wins, and a tie goes to centre, then A, then B (review finding 2)", () => {
@@ -461,5 +461,95 @@ describe("radial handles and drags (spec M16 §6)", () => {
       [50, 25],
     ]);
     expect(fillOf(ctx.doc(), "a")).toEqual(blue);
+  });
+});
+
+describe("midpoint diamond (spec M17 §6)", () => {
+  it("sits at mid along the line (linear) or centre→A (radial), in document space", () => {
+    const d = doc([rect("a", 0, { ...lin, mid: 0.3 }, translate(10, 10))]);
+    const [h] = gradientHandles(d, ["a"], "fill");
+    expect(h.mid.x).toBeCloseTo(40, 9);
+    expect(h.mid.y).toBeCloseTo(35, 9);
+    const rad: RadialGradient = {
+      kind: "radial",
+      center: { x: 50, y: 25 },
+      a: { x: 90, y: 25 },
+      b: { x: 50, y: 45 },
+      start: red,
+      end: blue,
+    };
+    const [r] = gradientHandles(doc([rect("b", 0, rad)]), ["b"], "fill");
+    expect(r.mid).toEqual({ x: 70, y: 25 });
+  });
+
+  it("picks knob, then diamond, then line", () => {
+    const hs = gradientHandles(doc([rect("a", 0, lin)]), ["a"], "fill");
+    expect(pickHandle(hs, { x: 51, y: 26 }, 6)?.part).toBe("mid");
+    expect(pickHandle(hs, { x: 20, y: 26 }, 6)?.part).toBe("line");
+    expect(pickHandle(hs, { x: 2, y: 25 }, 6)?.part).toBe("start");
+  });
+
+  it("on a tiny gradient the knobs win over the diamond (Review Focus 5)", () => {
+    const tiny: LinearGradient = { ...lin, from: { x: 50, y: 25 }, to: { x: 54, y: 25 } };
+    const hs = gradientHandles(doc([rect("a", 0, tiny)]), ["a"], "fill");
+    expect(pickHandle(hs, { x: 52, y: 25 }, 6)?.part).toBe("start");
+  });
+
+  it("dragging the diamond sets a whole-percent midpoint, clamped to 1–99, one undo step", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    state.selection = ["a"];
+    const tool = createGradientTool();
+    drag(tool, ctx, [
+      [50, 25],
+      [40, 30],
+      [30.4, 40],
+    ]);
+    expect((fillOf(ctx.doc(), "a") as LinearGradient).mid).toBe(0.3);
+    drag(tool, ctx, [
+      [30, 25],
+      [-500, 25],
+    ]);
+    expect((fillOf(ctx.doc(), "a") as LinearGradient).mid).toBe(0.01);
+    drag(tool, ctx, [
+      [1.5, 25],
+      [900, 25],
+    ]);
+    // The press at x=1.5 is on the start knob, not the diamond: it moves the start instead.
+    expect((fillOf(ctx.doc(), "a") as LinearGradient).from.x).toBe(900);
+  });
+
+  it("a cancelled diamond drag restores the document; a click on it picks no stop", () => {
+    const d0 = doc([rect("a", 0, lin)]);
+    const { ctx, state } = fakeContext(d0);
+    state.selection = ["a"];
+    const tool = createGradientTool();
+    tool.down(ctx, ev(50, 25));
+    tool.move(ctx, ev(30, 25));
+    tool.cancel(ctx);
+    expect(ctx.doc()).toBe(d0);
+    tool.down(ctx, ev(50, 25));
+    tool.up(ctx, ev(50, 25));
+    expect(ctx.gradientStop()).toBeNull();
+    expect(state.selection).toEqual(["a"]);
+  });
+
+  it("a diamond drag does not forget the Type-row memory (the geometry did not change)", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    state.selection = ["a"];
+    drag(createGradientTool(), ctx, [
+      [50, 25],
+      [30, 25],
+    ]);
+    expect(state.forgotten).toEqual([]);
+  });
+
+  it("a knob drag keeps the midpoint (Review Focus 4)", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, { ...lin, mid: 0.3 })]));
+    state.selection = ["a"];
+    drag(createGradientTool(), ctx, [
+      [100, 25],
+      [80, 25],
+    ]);
+    expect((fillOf(ctx.doc(), "a") as LinearGradient).mid).toBe(0.3);
   });
 });

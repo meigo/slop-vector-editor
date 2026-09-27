@@ -1,19 +1,36 @@
-import { isLinear, isRadial, type Doc, type Paint } from "../doc/document";
+import { isLinear, isRadial, midOf, type Doc, type Paint } from "../doc/document";
 import type { PaintSlot } from "../doc/paint-edit";
 import { ancestorIds, findNode, isAfter, paintKey, shapesWithWorld } from "../doc/tree";
 import { applyMat, type Mat } from "../geom/mat";
 import type { Vec } from "../geom/vec";
 
+const lerp = (p: Vec, q: Vec, t: number): Vec => ({
+  x: p.x + (q.x - p.x) * t,
+  y: p.y + (q.y - p.y) * t,
+});
+
 /** Spec M15 §7, M16 §6: the one function the Overlay draws from and the tool hit-tests against, so
  *  the two can never disagree (the gizmo's rule, invariant 14). Points are in document space. */
 export type GradientHandle =
-  | { kind: "linear"; id: string; from: Vec; to: Vec; start: Paint; end: Paint; world: Mat }
+  | {
+      kind: "linear";
+      id: string;
+      from: Vec;
+      to: Vec;
+      /** Spec M17 §6: the midpoint diamond, in document space — affine maps keep ratios along a
+       *  line, so document-space `t` equals own-space `t`. */
+      mid: Vec;
+      start: Paint;
+      end: Paint;
+      world: Mat;
+    }
   | {
       kind: "radial";
       id: string;
       center: Vec;
       a: Vec;
       b: Vec;
+      mid: Vec;
       start: Paint;
       end: Paint;
       world: Mat;
@@ -42,22 +59,28 @@ export function gradientHandles(
     for (const { shape, world } of shapesWithWorld(found.node, found.parent)) {
       const f = shape.style[which];
       if (isLinear(f)) {
+        const from = applyMat(world, f.from);
+        const to = applyMat(world, f.to);
         out.push({
           kind: "linear",
           id: shape.id,
-          from: applyMat(world, f.from),
-          to: applyMat(world, f.to),
+          from,
+          to,
+          mid: lerp(from, to, midOf(f)),
           start: f.start,
           end: f.end,
           world,
         });
       } else if (isRadial(f)) {
+        const center = applyMat(world, f.center);
+        const a = applyMat(world, f.a);
         out.push({
           kind: "radial",
           id: shape.id,
-          center: applyMat(world, f.center),
-          a: applyMat(world, f.a),
+          center,
+          a,
           b: applyMat(world, f.b),
+          mid: lerp(center, a, midOf(f)),
           start: f.start,
           end: f.end,
           world,
@@ -68,7 +91,7 @@ export function gradientHandles(
   return out;
 }
 
-export type HandlePart = "start" | "end" | "line" | "center" | "rimA" | "rimB";
+export type HandlePart = "start" | "end" | "line" | "center" | "rimA" | "rimB" | "mid";
 export type HandlePick = { h: GradientHandle; part: HandlePart } | null;
 
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -90,7 +113,8 @@ function toSegment(p: Vec, a: Vec, b: Vec): number {
  *  radial all three knobs can sit within `tol` of each other, and always taking the first in
  *  declared order made the far side of a small ellipse unreachable. A tie (equal distance) keeps
  *  the declared order — centre, A, B; start, end — which is also why the Overlay draws each
- *  handle's knobs in the reverse of that order, so the knob a tie picks is the one drawn on top. */
+ *  handle's knobs in the reverse of that order, so the knob a tie picks is the one drawn on top.
+ *  Diamonds (spec M17 §6) are a pass of their own between the two. */
 export function pickHandle(handles: readonly GradientHandle[], p: Vec, tol: number): HandlePick {
   for (let i = handles.length - 1; i >= 0; i--) {
     const h = handles[i];
@@ -111,6 +135,11 @@ export function pickHandle(handles: readonly GradientHandle[], p: Vec, tol: numb
       if (d <= tol && (!best || d < best.d)) best = { part: k.part, d };
     }
     if (best) return { h, part: best.part };
+  }
+  // Spec M17 §6: diamonds after every knob (a short gradient's diamond sits under its knobs, and
+  // the knob must win — the panel is the route then) and before every line.
+  for (let i = handles.length - 1; i >= 0; i--) {
+    if (dist(handles[i].mid, p) <= tol) return { h: handles[i], part: "mid" };
   }
   for (let i = handles.length - 1; i >= 0; i--) {
     const h = handles[i];

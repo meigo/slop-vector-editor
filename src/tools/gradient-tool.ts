@@ -1,5 +1,10 @@
 import type { Doc, Gradient } from "../doc/document";
-import { drawGradientLine, setGradientGeometry, type StopEnd } from "../doc/paint-edit";
+import {
+  drawGradientLine,
+  setGradientGeometry,
+  setGradientMid,
+  type StopEnd,
+} from "../doc/paint-edit";
 import { hitTest } from "../geom/hit";
 import { applyMat, invert } from "../geom/mat";
 import type { Vec } from "../geom/vec";
@@ -18,6 +23,7 @@ type Mode =
   | { kind: "pending"; start: ToolEvent; pick: ReturnType<typeof pickHandle> }
   | { kind: "knob"; base: Doc; h: GradientHandle; part: HandlePart }
   | { kind: "line"; base: Doc; h: GradientHandle; start: Vec }
+  | { kind: "mid"; base: Doc; h: GradientHandle }
   | { kind: "draw"; base: Doc; ids: readonly string[]; start: Vec };
 
 const sub = (p: Vec, q: Vec) => ({ x: p.x - q.x, y: p.y - q.y });
@@ -55,7 +61,7 @@ function similarityB(c: Vec, a0: Vec, a1: Vec, b0: Vec): Vec | null {
 
 /** A tap's part maps onto the stop it picks (spec M16 §6): the centre is the start of a linear
  *  drag too, and both rims read like a linear drag's end. */
-function stopFor(part: Exclude<HandlePart, "line">): StopEnd {
+function stopFor(part: Exclude<HandlePart, "line" | "mid">): StopEnd {
   return part === "center" || part === "start" ? "start" : "end";
 }
 
@@ -88,6 +94,17 @@ function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolE
   if (m.kind === "draw") {
     const to = constrain(m.start, e.doc, e.mods.shift);
     ctx.commit(drawGradientLine(m.base, m.ids, which, m.start, to, ctx.gradientType()));
+    return true;
+  }
+  if (m.kind === "mid") {
+    // Spec M17 §6: project onto from→to (centre→A for a radial), whole percents, 1–99.
+    const [p0, p1] = m.h.kind === "linear" ? [m.h.from, m.h.to] : [m.h.center, m.h.a];
+    const d = sub(p1, p0);
+    const dd = dot(d, d);
+    if (dd === 0) return false;
+    const t = dot(sub(e.doc, p0), d) / dd;
+    const mid = Math.min(99, Math.max(1, Math.round(t * 100))) / 100;
+    ctx.commit(setGradientMid(m.base, [m.h.id], which, mid));
     return true;
   }
   const h = m.h;
@@ -154,7 +171,7 @@ export function createGradientTool(): Tool {
 
   return {
     id: "gradient",
-    hint: "Drag across the selection to draw a gradient · drag a knob or a line to adjust · Shift: 45°",
+    hint: "Drag across the selection to draw a gradient · drag a knob, the midpoint diamond or a line to adjust · Shift: 45°",
     cursor: "crosshair",
 
     down(ctx, e) {
@@ -171,9 +188,11 @@ export function createGradientTool(): Tool {
         if (pick) {
           ctx.beginGesture();
           mode =
-            pick.part === "line" || pick.part === "center"
-              ? { kind: "line", base: ctx.doc(), h: pick.h, start: start.doc }
-              : { kind: "knob", base: ctx.doc(), h: pick.h, part: pick.part };
+            pick.part === "mid"
+              ? { kind: "mid", base: ctx.doc(), h: pick.h }
+              : pick.part === "line" || pick.part === "center"
+                ? { kind: "line", base: ctx.doc(), h: pick.h, start: start.doc }
+                : { kind: "knob", base: ctx.doc(), h: pick.h, part: pick.part };
         } else {
           if (ctx.selection().length === 0) {
             const hit = hitTest(
@@ -201,7 +220,7 @@ export function createGradientTool(): Tool {
       if (!m) return;
       if (m.kind === "pending") {
         // A click: a knob picks its stop; anything else selects what is under the press.
-        if (m.pick && m.pick.part !== "line") {
+        if (m.pick && m.pick.part !== "line" && m.pick.part !== "mid") {
           ctx.setGradientStop({
             id: m.pick.h.id,
             stop: stopFor(m.pick.part),
@@ -222,8 +241,9 @@ export function createGradientTool(): Tool {
       const committed = apply(ctx, m, e);
       ctx.endGesture();
       // Once per gesture, and only when it actually committed — a cancelled drag restores the
-      // base document instead (fix M16 review finding 1) and must not touch the memory.
-      if (committed) {
+      // base document instead (fix M16 review finding 1) and never for a midpoint drag (spec M17
+      // §6), which changes no geometry.
+      if (committed && m.kind !== "mid") {
         ctx.forgetGradients(m.kind === "draw" ? m.ids : [m.h.id], ctx.gradientTarget());
       }
     },
