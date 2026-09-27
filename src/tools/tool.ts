@@ -1,4 +1,5 @@
 import type { Doc } from "../doc/document";
+import type { PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
@@ -64,6 +65,11 @@ export interface ToolContext {
   charSel(): number | null;
   notify(kind: "info" | "error", text: string): void;
   setOverlay(o: Overlay): void;
+  /** Which paint the Gradient tool edits (spec M15 §6). */
+  gradientTarget(): PaintSlot;
+  /** The stop picked on the canvas, or null (spec M15 §7). */
+  gradientStop(): { id: string; stop: StopEnd } | null;
+  setGradientStop(pick: { id: string; stop: StopEnd } | null): void;
 }
 
 export interface Tool {

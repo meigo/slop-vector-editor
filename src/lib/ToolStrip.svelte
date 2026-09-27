@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    Blend,
     Circle,
     Hand,
     MousePointer2,
@@ -22,6 +23,7 @@
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "text", label: "Text", key: "T", icon: Type },
+    { id: "gradient", label: "Gradient", key: "G", icon: Blend },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];
 </script>

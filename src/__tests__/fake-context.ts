@@ -1,5 +1,6 @@
 import type { Doc } from "../doc/document";
 import { resolveLayerId } from "../doc/layers";
+import type { PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import { pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
@@ -27,6 +28,8 @@ export type FakeState = {
   overlay: Overlay;
   notices: string[];
   view: View;
+  gradientTarget: PaintSlot;
+  gradientStop: { id: string; stop: StopEnd } | null;
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -51,6 +54,8 @@ export function fakeContext(
     overlay: null,
     notices: [],
     view: { x: 0, y: 0, zoom: 1 },
+    gradientTarget: "fill",
+    gradientStop: null,
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -75,6 +80,7 @@ export function fakeContext(
     },
     setSelection: (ids) => {
       state.selection = pruneSelection(state.session.doc, ids);
+      state.gradientStop = null;
     },
     commit: (d) => {
       state.session = commit(state.session, d);
@@ -107,6 +113,11 @@ export function fakeContext(
     },
     setOverlay: (o) => {
       state.overlay = o;
+    },
+    gradientTarget: () => state.gradientTarget,
+    gradientStop: () => state.gradientStop,
+    setGradientStop: (pick) => {
+      state.gradientStop = pick;
     },
   };
   return { ctx, state };

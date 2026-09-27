@@ -6,6 +6,7 @@
     endDocGesture,
     applyGeometry,
     moveSelectedNodes,
+    setGradientTarget,
     setPolygonPrefs,
     setSelectedNodeType,
     setSelectionGradientStop,
@@ -257,6 +258,28 @@
               onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
             />
           {/if}
+        </FieldSection>
+      {/if}
+
+      {#if app.toolId === "gradient"}
+        <!-- Spec M15 §6: which paint the Gradient tool edits, only while it is the active tool —
+             as the Node section appears only for the node tool. -->
+        <FieldSection id="gradient" title="Gradient">
+          <div class="field-row">
+            <span class="text-muted">Edit</span>
+            <div class="flex gap-1">
+              <ToggleButton
+                label="Fill"
+                value={app.gradientTarget === "fill"}
+                onchange={() => setGradientTarget("fill")}
+              />
+              <ToggleButton
+                label="Stroke"
+                value={app.gradientTarget === "stroke"}
+                onchange={() => setGradientTarget("stroke")}
+              />
+            </div>
+          </div>
         </FieldSection>
       {/if}
 

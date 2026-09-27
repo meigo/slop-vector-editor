@@ -39,6 +39,7 @@ export const SECTION_IDS = [
   "randomise",
   "shape",
   "newPolygons",
+  "gradient",
   "node",
   "geometry",
 ] as const;
