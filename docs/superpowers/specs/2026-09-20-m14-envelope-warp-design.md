@@ -13,6 +13,38 @@ Follows M10e (the panel density work, recorded in `CHANGELOG.md` rather than a s
 an argument for keeping a title an ordinary path so that "M11's warp" would need no special case.
 This is that warp.
 
+## 0. Amendments, 2026-09-28 (before implementation, after M11–M18 shipped)
+
+Approved in chat ("m14", then "Follows the warp" for gradients). Where these contradict a section
+below, these win.
+
+1. **Subdivide is out of this milestone.** M11 shipped `Path ▸ Subdivide` (`subdividePath`,
+   `subdivideSelection`). §1's last paragraph, §7's Subdivide bullet, §8's Subdivide tests and §9
+   no longer apply; §9's argument that subdividing before a warp makes it worse still stands.
+2. **Simplify exists** (M11, Paper's `simplify`). §10's Simplify/freehand bullet becomes: after a
+   heavy warp, `Path ▸ Simplify` sheds the added nodes; `cubicThrough4` stays in `geom/warp.ts`.
+3. **Gradients follow the warp** (new since this spec). A warp is the first bake that is not a
+   matrix, so invariant 46's "map the style by the same matrix" cannot apply. Instead each gradient's
+   own-space points — a linear's `from`/`to`, a radial's `center`/`a`/`b` — travel exactly as the
+   geometry does: `local —M→ world —S→ world′ —M⁻¹→ local′` (§3). The gradient stays a straight
+   linear or an elliptical radial (SVG cannot bend one), but it moves, turns and stretches with the
+   artwork. `mid` and `midPaint` (M17/M18) are offsets and colours and ride along unchanged. A
+   result that collapses goes through `flatIfDegenerate`, as every bake does. This lives in one new
+   function, `warpStyle(style, M, S)` in `doc/warp-edit.ts`, which returns the same style object
+   when neither paint is a gradient (so gradient-free documents keep every reference).
+4. **The cage draws with the overlay halo** (2026-09-28): corner squares and edge-handle circles use
+   `knobHalo`, the outline and leader lines `lineHalo`, so the cage reads on any artwork. The Warp
+   tool sets per-part hover cursors through M17's `ToolContext.setHoverCursor` (`move` on corners
+   and handles, `crosshair` elsewhere).
+5. **The 45° constraint now has three copies** — `pen.ts`'s `constrain45`, `select.ts`'s
+   `constrain`, `gradient-tool.ts`'s `constrain` — plus the node tool's. §5's consolidation stands:
+   one exported helper in `tools/shape-tools.ts` beside `SNAP_45`, and the Warp tool calls it; the
+   existing callers are switched over only where the signature matches without changing behaviour.
+6. **Every document-editing store action cancels a running tool gesture** (invariant 15), and the
+   Warp session holds a long-lived one — so a menu command during a warp commits against the warped
+   preview after cancelling it back to `base`. That is the existing `registerGestureCancel` path;
+   the tool's cancel hook must restore `base` and drop the cage.
+
 ## 1. What this is for
 
 Deforming a selection through a cage: bowing a title into a banner, throwing a logo into
