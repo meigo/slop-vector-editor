@@ -118,7 +118,7 @@ every user-visible change.
   downloaded decision table between a built file and the share sheet, with `share`/`canShare`/
   `download` injectable exactly as `system-clipboard.ts` injects its `ClipboardLike`).
 - `src/lib/` — `Canvas` (also shows the tool's hover cursor, `app.hoverCursor`, in place of its
-  static cursor when set), `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing), `TopBar`,
+  static cursor when set), `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing; every mark sits on a contrast halo — white under lines, a dark ring then a white one under knobs — so it reads on artwork of the accent's own hue), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure

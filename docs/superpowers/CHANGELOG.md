@@ -2386,3 +2386,27 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Plan: `docs/superpowers/plans/2026-09-27-m18-gradient-mid-colour.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m18-gradient-mid-colour-design.md`.
 - 963 tests in 63 files.
+
+## 2026-09-28 — Overlay contrast halo
+
+- **The problem** (user screenshot): on a shape painted close to the accent blue, the gradient line,
+  the diamond and the centre knob — filled with that same blue — all but disappeared. Every overlay
+  mark was drawn in the accent alone.
+- **The fix** (bounded change, approved in chat as "option 1 for all overlays"): `Overlay.svelte`
+  draws every mark over a halo — a 3px white line under each 1px line (dashed where the line is), and
+  a dark ring (black, 0.6) outside a white ring (0.9) under each knob, outside the knob's own
+  outline, so its fill covers the halo's inner half. One `mark` snippet renders a line, polyline,
+  polygon, square or circle in a given style; `lineHalo` and `knobHalo` call it. Applied to all of
+  it: selection outlines and the multi-selection frame, the rotate stalk and knob, resize handles,
+  the entered group's outline, node-tool outlines, handles and knobs, gradient lines, rims, knobs,
+  ring and diamond, the pen draft, rubber band, handles and knobs, the marquee, snap guides and the
+  picked character's outline. Drawing only — hit-testing, sizes and colours of the marks themselves
+  are unchanged. Options considered and declined: `mix-blend-mode: difference` (turns handles into
+  shifting colours and makes the stop-colour fills meaningless) and changing the accent (moves the
+  problem to artwork of the new colour).
+- **Browser-verified** (desktop Chrome, :5198): linear and radial gradient handles on a
+  `#667fff`-family fade, on white, on black and over the checkerboard, all readable; the blue-on-blue
+  centre knob now shows its dark/white ring; the select tool's frame, resize handles and rotate knob
+  on the blue shape at touch size (16px). `svelte-check` 0/0, 963 tests unchanged.
+- **Owed**: Safari and iPad rendering of the halo; performance with very many node-tool knobs (each
+  knob is now three elements).

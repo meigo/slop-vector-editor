@@ -14,6 +14,17 @@
   const LINE = "stroke: var(--color-accent); fill: none";
   const KNOB = "stroke: var(--color-accent); fill: var(--color-text)";
   const SELECTED_KNOB = "stroke: var(--color-accent); fill: var(--color-accent)";
+  /** A contrast halo under every overlay mark (2026-09-28): the accent alone vanished on artwork of
+   *  its own hue — a blue shape swallowed its gradient line, and a knob filled with that same blue
+   *  disappeared. White under lines; a dark ring then a white one under knobs, so every mark reads
+   *  on light, dark and accent-coloured artwork alike. Drawing only: hit-testing is unchanged. */
+  const HALO_LIGHT = "stroke: #ffffff; stroke-opacity: 0.9; fill: none";
+  const HALO_DARK = "stroke: #000000; stroke-opacity: 0.6; fill: none";
+  type Mark =
+    | { t: "line"; a: Vec; b: Vec }
+    | { t: "poly"; pts: Vec[]; closed: boolean }
+    | { t: "rect"; c: Vec; half: number }
+    | { t: "circle"; c: Vec; r: number };
 
   const view = $derived(app.view);
 
@@ -150,8 +161,50 @@
   });
 </script>
 
+{#snippet mark(m: Mark, style: string, width: number, dash?: string)}
+  {#if m.t === "line"}
+    <line
+      x1={m.a.x}
+      y1={m.a.y}
+      x2={m.b.x}
+      y2={m.b.y}
+      {style}
+      stroke-width={width}
+      stroke-dasharray={dash}
+    />
+  {:else if m.t === "poly" && m.closed}
+    <polygon points={points(m.pts)} {style} stroke-width={width} stroke-dasharray={dash} />
+  {:else if m.t === "poly"}
+    <polyline points={points(m.pts)} {style} stroke-width={width} stroke-dasharray={dash} />
+  {:else if m.t === "rect"}
+    <rect
+      x={m.c.x - m.half}
+      y={m.c.y - m.half}
+      width={m.half * 2}
+      height={m.half * 2}
+      {style}
+      stroke-width={width}
+    />
+  {:else}
+    <circle cx={m.c.x} cy={m.c.y} r={m.r} {style} stroke-width={width} />
+  {/if}
+{/snippet}
+
+<!-- A line's halo: white, 3px, under the 1px mark — dashed when the mark is. -->
+{#snippet lineHalo(m: Mark, dash?: string)}
+  {@render mark(m, HALO_LIGHT, 3, dash)}
+{/snippet}
+
+<!-- A knob's halo: a dark ring outside a white one, both outside the knob's own `width` outline.
+     Drawn before the knob, whose fill covers the halo's inner half. -->
+{#snippet knobHalo(m: Mark, width: number = 1)}
+  {@render mark(m, HALO_DARK, width + 4)}
+  {@render mark(m, HALO_LIGHT, width + 2)}
+{/snippet}
+
 <g pointer-events="none">
   {#if enteredOutline}
+    {@render lineHalo({ t: "poly", pts: enteredOutline, closed: true }, "4 3")}
     <polygon
       points={points(enteredOutline)}
       style="stroke: var(--color-line); fill: none"
@@ -160,11 +213,13 @@
     />
   {/if}
   {#each outlines as outline, i (i)}
+    {@render lineHalo({ t: "poly", pts: outline, closed: true })}
     <polygon points={points(outline)} style={LINE} stroke-width="1" />
   {/each}
 
   {#if frame && handles}
     {#if app.selection.length > 1}
+      {@render lineHalo({ t: "poly", pts: frameOutline(frame, view), closed: true }, "4 3")}
       <polygon
         points={points(frameOutline(frame, view))}
         style={LINE}
@@ -172,6 +227,7 @@
         stroke-dasharray="4 3"
       />
     {/if}
+    {@render lineHalo({ t: "line", a: handles.n, b: handles.rotate })}
     <line
       x1={handles.n.x}
       y1={handles.n.y}
@@ -180,8 +236,10 @@
       style={LINE}
       stroke-width="1"
     />
+    {@render knobHalo({ t: "circle", c: handles.rotate, r: size / 2 })}
     <circle cx={handles.rotate.x} cy={handles.rotate.y} r={size / 2} style={KNOB} />
     {#each activeHandles(frame) as h (h)}
+      {@render knobHalo({ t: "rect", c: handles[h], half: size / 2 })}
       <rect
         x={handles[h].x - size / 2}
         y={handles[h].y - size / 2}
@@ -194,13 +252,17 @@
 
   {#if nodeView}
     {#each nodeView.outlines as outline, i (i)}
+      {@render lineHalo({ t: "poly", pts: outline, closed: false })}
       <polyline points={points(outline)} style={LINE} stroke-width="1" />
     {/each}
     {#each nodeView.handles as h, i (i)}
+      {@render lineHalo({ t: "line", a: h.a, b: h.b })}
       <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
+      {@render knobHalo({ t: "circle", c: h.b, r: knobSize / 2 - 1 })}
       <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />
     {/each}
     {#each nodeView.knobs as k, i (i)}
+      {@render knobHalo({ t: "rect", c: k.p, half: knobSize / 2 })}
       <rect
         x={k.p.x - knobSize / 2}
         y={k.p.y - knobSize / 2}
@@ -216,9 +278,19 @@
     {@const r = knobSize / 2 + 1}
     {@const w = (on: boolean) => (on ? 3 : 1.5)}
     {@const dm = r * 0.85}
+    {@const diamond = [
+      { x: g.mid.x, y: g.mid.y - dm },
+      { x: g.mid.x + dm, y: g.mid.y },
+      { x: g.mid.x, y: g.mid.y + dm },
+      { x: g.mid.x - dm, y: g.mid.y },
+    ]}
     {#if g.kind === "linear"}
+      {@render lineHalo({ t: "line", a: g.a, b: g.b })}
       <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
     {:else}
+      {@render lineHalo({ t: "line", a: g.center, b: g.a })}
+      {@render lineHalo({ t: "line", a: g.center, b: g.b })}
+      {@render lineHalo({ t: "poly", pts: g.rim, closed: true }, "4 3")}
       <line x1={g.center.x} y1={g.center.y} x2={g.a.x} y2={g.a.y} style={LINE} stroke-width="1" />
       <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
       <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
@@ -226,13 +298,9 @@
     <!-- Spec M17 §6: the midpoint diamond, filled with the effective middle colour it stands for
          (custom, or the 50/50 mix when Auto). Below the knobs, as `pickHandle` ranks it below
          them. -->
+    {@render knobHalo({ t: "poly", pts: diamond, closed: true }, w(g.picked === "mid"))}
     <polygon
-      points={points([
-        { x: g.mid.x, y: g.mid.y - dm },
-        { x: g.mid.x + dm, y: g.mid.y },
-        { x: g.mid.x, y: g.mid.y + dm },
-        { x: g.mid.x - dm, y: g.mid.y },
-      ])}
+      points={points(diamond)}
       style="stroke: var(--color-accent); fill: {g.midColor}"
       stroke-width={w(g.picked === "mid")}
     />
@@ -240,6 +308,7 @@
       <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
            drawing in reverse puts the tie's winner, start, on top. Spec M17 §6: end is a square,
            start a circle. -->
+      {@render knobHalo({ t: "rect", c: g.b, half: r }, w(g.picked === "end"))}
       <rect
         x={g.b.x - r}
         y={g.b.y - r}
@@ -248,6 +317,7 @@
         style="stroke: var(--color-accent); fill: {g.end}"
         stroke-width={w(g.picked === "end")}
       />
+      {@render knobHalo({ t: "circle", c: g.a, r }, w(g.picked === "start"))}
       <circle
         cx={g.a.x}
         cy={g.a.y}
@@ -259,6 +329,7 @@
       <!-- Drawn B, then A, then centre (review finding 2): `pickHandle`'s tie order is centre, A,
            B. Spec M17 §6: B (rotate/scale) is a ring in the end colour over the accent, A
            (stretch) a square, the centre a circle. -->
+      {@render knobHalo({ t: "circle", c: g.b, r }, w(g.picked === "end") + 2.5)}
       <circle
         cx={g.b.x}
         cy={g.b.y}
@@ -267,6 +338,7 @@
         stroke-width={w(g.picked === "end") + 2.5}
       />
       <circle cx={g.b.x} cy={g.b.y} {r} style="stroke: {g.end}; fill: none" stroke-width="2" />
+      {@render knobHalo({ t: "rect", c: g.a, half: r }, w(g.picked === "end"))}
       <rect
         x={g.a.x - r}
         y={g.a.y - r}
@@ -275,6 +347,7 @@
         style="stroke: var(--color-accent); fill: {g.end}"
         stroke-width={w(g.picked === "end")}
       />
+      {@render knobHalo({ t: "circle", c: g.center, r }, w(g.picked === "start"))}
       <circle
         cx={g.center.x}
         cy={g.center.y}
@@ -287,9 +360,11 @@
 
   {#if penView}
     {#each penView.outline as poly, i (i)}
+      {@render lineHalo({ t: "poly", pts: poly, closed: false })}
       <polyline points={points(poly)} style={LINE} stroke-width="1" />
     {/each}
     {#if penView.rubber}
+      {@render lineHalo({ t: "line", a: penView.rubber.a, b: penView.rubber.b }, "4 3")}
       <line
         x1={penView.rubber.a.x}
         y1={penView.rubber.a.y}
@@ -301,10 +376,13 @@
       />
     {/if}
     {#each penView.handles as h, i (i)}
+      {@render lineHalo({ t: "line", a: h.a, b: h.b })}
       <line x1={h.a.x} y1={h.a.y} x2={h.b.x} y2={h.b.y} style={LINE} stroke-width="1" />
+      {@render knobHalo({ t: "circle", c: h.b, r: knobSize / 2 - 1 })}
       <circle cx={h.b.x} cy={h.b.y} r={knobSize / 2 - 1} style={KNOB} stroke-width="1" />
     {/each}
     {#each penView.knobs as k, i (i)}
+      {@render knobHalo({ t: "rect", c: k, half: knobSize / 2 })}
       <rect
         x={k.x - knobSize / 2}
         y={k.y - knobSize / 2}
@@ -317,11 +395,28 @@
   {/if}
 
   {#if marqueeA && marqueeB}
+    {@const x0 = Math.min(marqueeA.x, marqueeB.x)}
+    {@const y0 = Math.min(marqueeA.y, marqueeB.y)}
+    {@const x1 = Math.max(marqueeA.x, marqueeB.x)}
+    {@const y1 = Math.max(marqueeA.y, marqueeB.y)}
+    {@render lineHalo(
+      {
+        t: "poly",
+        pts: [
+          { x: x0, y: y0 },
+          { x: x1, y: y0 },
+          { x: x1, y: y1 },
+          { x: x0, y: y1 },
+        ],
+        closed: true,
+      },
+      "4 3",
+    )}
     <rect
-      x={Math.min(marqueeA.x, marqueeB.x)}
-      y={Math.min(marqueeA.y, marqueeB.y)}
-      width={Math.abs(marqueeB.x - marqueeA.x)}
-      height={Math.abs(marqueeB.y - marqueeA.y)}
+      x={x0}
+      y={y0}
+      width={x1 - x0}
+      height={y1 - y0}
       style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.08"
       stroke-dasharray="4 3"
     />
@@ -330,15 +425,18 @@
   {#if guides}
     {#each guides.xs as x, i (i)}
       {@const sx = docToScreen(view, { x, y: 0 }).x}
+      {@render lineHalo({ t: "line", a: { x: sx, y: 0 }, b: { x: sx, y: app.viewportSize.h } })}
       <line x1={sx} y1="0" x2={sx} y2={app.viewportSize.h} style={GUIDE} stroke-width="1" />
     {/each}
     {#each guides.ys as y, i (i)}
       {@const sy = docToScreen(view, { x: 0, y }).y}
+      {@render lineHalo({ t: "line", a: { x: 0, y: sy }, b: { x: app.viewportSize.w, y: sy } })}
       <line x1="0" y1={sy} x2={app.viewportSize.w} y2={sy} style={GUIDE} stroke-width="1" />
     {/each}
   {/if}
 
   {#if charOutline}
+    {@render lineHalo({ t: "poly", pts: charOutline, closed: true })}
     <polygon
       points={charOutline.map((p) => `${p.x},${p.y}`).join(" ")}
       style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.18"
