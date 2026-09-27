@@ -185,42 +185,15 @@ function segmentWorldCubic(a: Vec, aOut: Vec | null, bIn: Vec | null, b: Vec, wo
  *  final type and handles are settled — see `finalizeNode`. */
 type Built = { p: Vec; in: Vec | null; out: Vec | null; junction: boolean };
 
-/** Controller ruling (M14 review, spec §4 intent): a subdivision junction is where the true warped
- *  curve is C1, so it is forced smooth rather than left to the generic 1e-6 collinearity check —
- *  both handle vectors are rotated onto their mean direction (the normalised sum of their unit
- *  vectors), each keeping its own length. Returns null (leave the node to the ordinary recompute
- *  rule instead) when a handle is missing, zero-length, or the two point in exactly opposite
- *  directions, so the bisector is undefined. */
-function forceSmoothHandles(
-  p: Vec,
-  inH: Vec | null,
-  outH: Vec | null,
-): { in: Vec; out: Vec } | null {
-  if (!inH || !outH) return null;
-  const toOut = vsub(outH, p);
-  const toIn = vsub(p, inH);
-  const lenOut = vlen(toOut);
-  const lenIn = vlen(toIn);
-  if (lenOut === 0 || lenIn === 0) return null;
-  const unitOut = { x: toOut.x / lenOut, y: toOut.y / lenOut };
-  const unitIn = { x: toIn.x / lenIn, y: toIn.y / lenIn };
-  const sum = { x: unitOut.x + unitIn.x, y: unitOut.y + unitIn.y };
-  const sumLen = vlen(sum);
-  if (sumLen === 0) return null; // exactly opposite directions: no well-defined bisector
-  const dir = { x: sum.x / sumLen, y: sum.y / sumLen };
-  return {
-    out: { x: p.x + dir.x * lenOut, y: p.y + dir.y * lenOut },
-    in: { x: p.x - dir.x * lenIn, y: p.y - dir.y * lenIn },
-  };
-}
-
-/** Settles a `Built` node into its final `PathNode`: a subdivision junction is forced `smooth` with
- *  collinear handles (falling back to the ordinary rule when that is not well-defined); every other
- *  node — the input path's own nodes — keeps the ordinary handle-based recompute (spec M14 §4). */
+/** Controller ruling (M14 review, revised): a subdivision junction is where the true warped curve
+ *  is C1, so it is typed `"smooth"` outright rather than run through the generic 1e-6 collinearity
+ *  check — but its handles are left exactly as `fit` produced them, un-rotated (an earlier version
+ *  of this rule rotated them onto their bisector, which measurably pushed some outputs past
+ *  `WARP_TOL`, since the rotation happens after `fit`'s own error check). A junction with a missing
+ *  or zero-length handle still falls through to the ordinary recompute, which gives `"corner"`. */
 function finalizeNode(b: Built): PathNode {
-  if (b.junction) {
-    const forced = forceSmoothHandles(b.p, b.in, b.out);
-    if (forced) return { p: b.p, in: forced.in, out: forced.out, type: "smooth" };
+  if (b.junction && b.in && b.out && vlen(vsub(b.out, b.p)) > 0 && vlen(vsub(b.p, b.in)) > 0) {
+    return { p: b.p, in: b.in, out: b.out, type: "smooth" };
   }
   return { p: b.p, in: b.in, out: b.out, type: typeFromHandles(b.p, b.in, b.out) };
 }

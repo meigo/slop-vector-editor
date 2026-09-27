@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PathNode, Subpath } from "../doc/document";
-import { cubicPoint } from "../geom/bezier";
+import { cubicPoint, type Cubic } from "../geom/bezier";
 import { IDENTITY, translate } from "../geom/mat";
+import type { Vec } from "../geom/vec";
 import {
   cubicThrough4,
   identityCage,
@@ -29,7 +30,7 @@ function perspective(): Cage {
   const c = identityCage(box);
   const P10 = { x: 100, y: 10 };
   const P11 = { x: 100, y: 40 };
-  const third = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({
+  const third = (a: Vec, b: Vec, t: number) => ({
     x: a.x + (b.x - a.x) * t,
     y: a.y + (b.y - a.y) * t,
   });
@@ -44,7 +45,9 @@ function perspective(): Cage {
     ],
   };
 }
-/** A curved cage: the top edge bowed upwards. */
+/** A curved cage: the top edge bowed upwards. For a fixed v (any v, not just 0), the patch is a
+ *  single cubic in u — see `warpPoint` — so an axis-parallel segment never subdivides against this
+ *  cage; the tests below that need real subdivision use a diagonal segment instead. */
 function bowed(): Cage {
   const c = identityCage(box);
   return {
@@ -59,6 +62,80 @@ function bowed(): Cage {
       c.edges[3],
     ],
   };
+}
+/** A curved cage with TWO opposite-ish edges bowed (top and right), so neither a horizontal nor a
+ *  vertical segment reduces to a single cubic — used to check the refit against a less contrived
+ *  cage than `bowed()`. */
+function twoBowed(): Cage {
+  const c = identityCage(box);
+  return {
+    ...c,
+    edges: [
+      [
+        { x: 33, y: -30 },
+        { x: 67, y: -30 },
+      ],
+      [
+        { x: 130, y: 50 / 3 },
+        { x: 130, y: 100 / 3 },
+      ],
+      c.edges[2],
+      c.edges[3],
+    ],
+  };
+}
+
+/** Nearest distance from `p` to the parametric curve `truth` (`t` in [0, 1]): a coarse scan
+ *  followed by a ternary-search refine, exact to float precision for a well-behaved single arc. */
+function nearestDistOnCurve(truth: (t: number) => Vec, p: Vec): number {
+  const dist = (t: number) => Math.hypot(truth(t).x - p.x, truth(t).y - p.y);
+  const SAMPLES = 64;
+  let bestT = 0;
+  let bestD = Infinity;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = i / SAMPLES;
+    const d = dist(t);
+    if (d < bestD) {
+      bestD = d;
+      bestT = t;
+    }
+  }
+  let lo = Math.max(0, bestT - 1 / SAMPLES);
+  let hi = Math.min(1, bestT + 1 / SAMPLES);
+  for (let k = 0; k < 60; k++) {
+    const m1 = lo + (hi - lo) / 3;
+    const m2 = hi - (hi - lo) / 3;
+    if (dist(m1) <= dist(m2)) hi = m2;
+    else lo = m1;
+  }
+  return dist((lo + hi) / 2);
+}
+
+/** A point at `t` along the OUTPUT segment `a → b` (a real cubic when both handles are present,
+ *  otherwise the straight chord) — the same curve the app would actually draw. */
+function sampleOutputSegment(a: PathNode, b: PathNode, t: number): Vec {
+  if (a.out && b.in) return cubicPoint([a.p, a.out, b.in, b.p] as Cubic, t);
+  return { x: a.p.x + (b.p.x - a.p.x) * t, y: a.p.y + (b.p.y - a.p.y) * t };
+}
+
+/** Warps the single straight open segment `from → to` under `cage`, asserts it genuinely
+ *  subdivided, and checks that every OUTPUT cubic — sampled at 16 interior points each, not just at
+ *  the nodes — lies within `warpTolerance(box)` of the true warped line. */
+function checkRefitAccuracy(cage: Cage, from: Vec, to: Vec): void {
+  const sp: Subpath = { closed: false, nodes: [node(from.x, from.y), node(to.x, to.y)] };
+  const [out] = warpSubpaths([sp], IDENTITY, cage, box);
+  expect(out.nodes.length).toBeGreaterThan(2); // genuinely subdivided
+  expect(out.nodes.length).toBeLessThanOrEqual(65);
+
+  const truth = (t: number) =>
+    warpPoint(cage, box, { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+  const tol = warpTolerance(box);
+  for (let i = 0; i < out.nodes.length - 1; i++) {
+    for (let k = 1; k < 16; k++) {
+      const p = sampleOutputSegment(out.nodes[i], out.nodes[i + 1], k / 16);
+      expect(nearestDistOnCurve(truth, p)).toBeLessThanOrEqual(tol + 1e-9);
+    }
+  }
 }
 
 describe("warp geometry (spec M14 §2, §4)", () => {
@@ -114,69 +191,26 @@ describe("warp geometry (spec M14 §2, §4)", () => {
     expect(out.nodes).toHaveLength(2);
   });
 
-  // Note on the segment choice below (departs from the brief's literal (0,0)->(100,0)): that
-  // segment is axis-parallel (constant v = 0) and, moreover, sits exactly on the cage's own Top
-  // boundary curve. For ANY fixed v (not just 0), S(u, v) is a linear combination of the two
-  // u-only cubics Top(u)/Bottom(u) with t-independent (v-fixed) weights, plus terms affine in u —
-  // so it is itself a single cubic in u, reproduced by `cubicThrough4` with zero error. That is a
-  // strictly more general form of spec §4's "axis-parallel segment... stays straight" result: an
-  // axis-parallel segment under ANY cage (curved or straight-edged) is exactly representable, so
-  // it can never need subdivision. Verified independently (outside warp.ts) with plain arithmetic:
-  // the max error of the unfit cubic against a straight-edged... err, bowed cage's horizontal line
-  // is ~1e-14 for v = 0, 0.5 and 1. A genuinely diagonal segment does not have this property (u and
-  // v both vary with t, so the curved edge's weight is no longer t-independent) — verified error
-  // ≈0.024 against a tolerance of ≈0.01 — so it is used here to actually exercise subdivision.
   it("a curved cage: the refit stays within tolerance and respects the depth cap", () => {
-    const sp: Subpath = { closed: false, nodes: [node(0, 0), node(100, 50)] };
-    const cage = bowed();
-    const [out] = warpSubpaths([sp], IDENTITY, cage, box);
-    expect(out.nodes.length).toBeGreaterThan(2);
-    expect(out.nodes.length).toBeLessThanOrEqual(65);
-    const tol = warpTolerance(box);
+    checkRefitAccuracy(bowed(), { x: 0, y: 0 }, { x: 100, y: 50 });
+  });
 
-    // The true warped curve, exactly: the original segment is straight (u = v = t), so its world
-    // cubic is the uniform-parametrization straight line, and S(line(t)) is the truth for every t.
-    const line = (t: number): { x: number; y: number } => ({ x: t * 100, y: t * 50 });
-    const truth = (t: number) => warpPoint(cage, box, line(t));
-
-    // Nearest point on the true curve to `p`, by ternary search per coarse bracket (the curve here
-    // is a well-behaved single arc, so a coarse-then-refine search is exact to float precision).
-    const nearestDist = (p: { x: number; y: number }): number => {
-      const dist = (t: number) => Math.hypot(truth(t).x - p.x, truth(t).y - p.y);
-      const SAMPLES = 64;
-      let bestT = 0;
-      let bestD = Infinity;
-      for (let i = 0; i <= SAMPLES; i++) {
-        const t = i / SAMPLES;
-        const d = dist(t);
-        if (d < bestD) {
-          bestD = d;
-          bestT = t;
-        }
-      }
-      let lo = Math.max(0, bestT - 1 / SAMPLES);
-      let hi = Math.min(1, bestT + 1 / SAMPLES);
-      for (let k = 0; k < 60; k++) {
-        const m1 = lo + (hi - lo) / 3;
-        const m2 = hi - (hi - lo) / 3;
-        if (dist(m1) <= dist(m2)) hi = m2;
-        else lo = m1;
-      }
-      return dist((lo + hi) / 2);
-    };
-
-    // Every output node lies on the true warped curve, within tolerance.
-    for (const n of out.nodes) expect(nearestDist(n.p)).toBeLessThanOrEqual(tol + 1e-9);
+  it("a curved cage with two bowed edges: the refit still stays within tolerance", () => {
+    checkRefitAccuracy(twoBowed(), { x: 0, y: 0 }, { x: 100, y: 50 });
   });
 
   it("a closed subpath's wrap segment is warped and node 0's in comes from it (Review Focus 3)", () => {
-    const [sp] = warpSubpaths([rectSub()], IDENTITY, bowed(), box);
+    // A triangle whose wrap segment (last node → node 0) is the diagonal (0,0) → (100,50): the
+    // other two sides are axis-parallel and stay exact under `bowed()` (see the note above), so
+    // only the wrap segment subdivides — exercising the fold this test is about.
+    const triangle: Subpath = { closed: true, nodes: [node(100, 50), node(0, 50), node(0, 0)] };
+    const [sp] = warpSubpaths([triangle], IDENTITY, bowed(), box);
     expect(sp.closed).toBe(true);
     const first = sp.nodes[0];
-    const last = sp.nodes[sp.nodes.length - 1];
-    expect(last.p.x === first.p.x && last.p.y === first.p.y).toBe(false);
-    // The bowed top edge is the segment 0 → 1, so node 0 gains an `out` handle.
-    expect(first.out).not.toBeNull();
+    expect(first.in).not.toBeNull();
+    for (const n of sp.nodes.slice(1)) {
+      expect(n.p.x === first.p.x && n.p.y === first.p.y).toBe(false);
+    }
   });
 
   it("maps through the world matrix and back", () => {
@@ -186,33 +220,16 @@ describe("warp geometry (spec M14 §2, §4)", () => {
     expect(out.nodes[1].p.x).toBeCloseTo(90, 9);
   });
 
-  // Note (controller ruling, superseding the earlier version of this test): a subdivision junction
-  // is where the true warped curve is C1, so spec §4's intent is that it comes back editable —
-  // `smooth`, with genuinely collinear handles — rather than being left to the generic 1e-6
-  // collinearity check on two independently-fitted pieces (which, verified independently by
-  // hand-rolled arithmetic, keeps a real tangent kink — cross ratio ~0.15-0.3 at depth 1, still
-  // ~0.025 at the depth-6 cap — nowhere near that threshold). `warpSubpaths` now special-cases
-  // these nodes: forced `smooth`, with both handles rotated onto their mean direction.
-  //
-  // A line at v = 0.5 (the ruling's suggested example) does NOT actually subdivide against this
-  // `bowed()` cage: only the Top edge is curved, so for ANY fixed v (0, 0.5, 1, ...) the patch
-  // reduces to a single cubic in u (see the note above the tolerance test) — verified this holds at
-  // v = 0.5 too. A diagonal segment is used instead, consistent with that test.
-  it("a subdivision junction is smooth, with genuinely collinear handles", () => {
+  // Controller ruling: a subdivision junction is typed "smooth" outright (the true warped curve is
+  // C1 there), with its handles left exactly as `fit` produced them — no rotation onto a bisector
+  // (an earlier version of this rule did that, which measurably pushed some outputs past
+  // `warpTolerance`). A diagonal segment is used because an axis-parallel one never subdivides
+  // against `bowed()` (see the note above `bowed()`).
+  it("a subdivision junction is typed smooth", () => {
     const sp: Subpath = { closed: false, nodes: [node(0, 0), node(100, 50)] };
     const [out] = warpSubpaths([sp], IDENTITY, bowed(), box);
     const inner = out.nodes.slice(1, -1);
     expect(inner.length).toBeGreaterThan(0);
-    for (const n of inner) {
-      expect(n.type).toBe("smooth");
-      expect(n.in).not.toBeNull();
-      expect(n.out).not.toBeNull();
-      const toOut = { x: n.out!.x - n.p.x, y: n.out!.y - n.p.y };
-      const toIn = { x: n.p.x - n.in!.x, y: n.p.y - n.in!.y };
-      const cross = toOut.x * toIn.y - toOut.y * toIn.x;
-      const dot = toOut.x * toIn.x + toOut.y * toIn.y;
-      expect(Math.abs(cross)).toBeLessThan(1e-9);
-      expect(dot).toBeGreaterThan(0);
-    }
+    for (const n of inner) expect(n.type).toBe("smooth");
   });
 });
