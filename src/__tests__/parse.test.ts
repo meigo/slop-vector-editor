@@ -193,7 +193,7 @@ describe("parseSvg — foreign files", () => {
     expect((poly as PathShape).subpaths[0].nodes).toHaveLength(3);
     expect((poly as PathShape).subpaths[0].closed).toBe(true);
     expect(poly.style.fill).toEqual({ color: "#ffcc00", opacity: 1 });
-    expect(dropped).toEqual(["gradients/patterns"]);
+    expect(dropped).toEqual(["radial gradients"]);
   });
 
   it("offsets a viewBox origin, converts unequal radii and reports classes", () => {

@@ -7,21 +7,25 @@ import {
   MIN_INNER,
   MIN_SIDES,
   type Doc,
+  type Fill,
   type Layer,
   type LineCap,
   type LineJoin,
   type Node,
   type Paint,
   type PathShape,
+  type Shape,
   type Style,
   type Subpath,
 } from "../doc/document";
-import { isIdentity, multiply, translate, type Mat } from "../geom/mat";
+import { nodeBounds } from "../geom/bounds";
+import { IDENTITY, isIdentity, multiply, translate, type Mat } from "../geom/mat";
 import { polygonSubpath, rectPath } from "../geom/shapes";
 import type { PolygonGeometry } from "../geom/shapes";
 import { MAX_TEXT_LENGTH, parseOverrides, parseTextOpts } from "../text/attrs";
 import { parseColor } from "./colors";
 import { fmt } from "./fmt";
+import { collectServers, foldLinear, resolveServer } from "./gradient-import";
 import { applyNodeTypes, parsePathData } from "./pathdata";
 import { parseTransform } from "./transform";
 import { parseXml, type XmlElement } from "./xml";
@@ -33,11 +37,17 @@ export class SvgError extends Error {}
  *  whether re-saving in place is safe. */
 export type ParseResult = { doc: Doc; dropped: string[]; native: boolean };
 
+/** Spec M15 §4: a `url(#…)` paint travels through inheritance unresolved, because SVG resolves
+ *  it against the element that is painted — each child in its own space and box. */
+type Ref = { ref: string; fallback: Paint | null };
+type InheritedPaint = Paint | Ref | null;
+const isRef = (p: InheritedPaint): p is Ref => p !== null && "ref" in p;
+
 /** Inherited paint state while walking the tree. */
 type Inherited = {
-  fill: Paint | null;
+  fill: InheritedPaint;
   fillOpacity: number;
-  stroke: Paint | null;
+  stroke: InheritedPaint;
   strokeOpacity: number;
   strokeWidth: number;
   cap: LineCap;
@@ -70,7 +80,18 @@ const PROPS = [
   "filter",
 ] as const;
 
-const SILENT = new Set(["defs", "title", "desc", "metadata", "script"]);
+// Paint servers are not content: one outside `<defs>` is skipped silently, like `<defs>` itself.
+// A referenced radial gradient or pattern is still reported, by name, where it is referenced.
+const SILENT = new Set([
+  "defs",
+  "title",
+  "desc",
+  "metadata",
+  "script",
+  "linearGradient",
+  "radialGradient",
+  "pattern",
+]);
 const CAPS: readonly string[] = ["butt", "round", "square"];
 const JOINS: readonly string[] = ["miter", "round", "bevel"];
 
@@ -155,6 +176,13 @@ export function parseSvg(src: string): ParseResult {
   };
   let next = 1;
   const newId = () => idFor(next++);
+  const servers = collectServers(root);
+  /** Paints still to resolve, keyed by the style object `style()` built for that shape — every
+   *  shape case passes its style through unchanged, so `convert` can find them afterwards. */
+  const pending = new WeakMap<
+    Style,
+    { fill?: { ref: Ref; o: number }; stroke?: { ref: Ref; o: number } }
+  >();
 
   /** Presentation attributes, overridden by inline style declarations. */
   function props(el: XmlElement): Partial<Record<(typeof PROPS)[number], string>> {
@@ -184,13 +212,19 @@ export function parseSvg(src: string): ParseResult {
     return out;
   }
 
-  function paint(value: string | undefined, current: Paint | null): Paint | null {
+  function paint(value: string | undefined, current: InheritedPaint): InheritedPaint {
     if (value === undefined) return current;
     const c = parseColor(value);
     if (c === null) return current;
     if (c.kind === "none") return null;
-    if (c.kind === "unsupported" || c.kind === "url") {
-      // Task 3 resolves `url()` references; until then this stays exactly today's behaviour.
+    if (c.kind === "url") {
+      const fb = c.fallback;
+      return {
+        ref: c.id,
+        fallback: fb && fb.kind === "color" ? { color: fb.color, opacity: fb.alpha } : null,
+      };
+    }
+    if (c.kind === "unsupported") {
       drop("gradients/patterns");
       return null;
     }
@@ -212,16 +246,21 @@ export function parseSvg(src: string): ParseResult {
   }
 
   function style(inh: Inherited, opacity: number): Style {
-    const withOpacity = (p: Paint | null, o: number): Paint | null =>
-      p ? { color: p.color, opacity: p.opacity * o } : null;
-    return {
-      fill: withOpacity(inh.fill, inh.fillOpacity),
-      stroke: withOpacity(inh.stroke, inh.strokeOpacity),
+    const flat = (p: InheritedPaint, o: number): Paint | null =>
+      p && !isRef(p) ? { color: p.color, opacity: p.opacity * o } : null;
+    const st: Style = {
+      fill: flat(inh.fill, inh.fillOpacity),
+      stroke: flat(inh.stroke, inh.strokeOpacity),
       strokeWidth: inh.strokeWidth,
       cap: inh.cap,
       join: inh.join,
       opacity,
     };
+    const refs: { fill?: { ref: Ref; o: number }; stroke?: { ref: Ref; o: number } } = {};
+    if (isRef(inh.fill)) refs.fill = { ref: inh.fill, o: inh.fillOpacity };
+    if (isRef(inh.stroke)) refs.stroke = { ref: inh.stroke, o: inh.strokeOpacity };
+    if (refs.fill || refs.stroke) pending.set(st, refs);
+    return st;
   }
 
   function children(el: XmlElement, inh: Inherited): Node[] {
@@ -266,9 +305,47 @@ export function parseSvg(src: string): ParseResult {
     );
   }
 
+  /** Spec M15 §4: a `url()` fill/stroke resolves against the shape it paints, in that shape's own
+   *  (pre-transform) box — never the group that inherited it, and never the document's. */
+  function resolveRef(r: { ref: Ref; o: number }, shape: Shape): Fill | null {
+    const res = resolveServer(servers, r.ref.ref);
+    if (res.kind === "missing") {
+      if (r.ref.fallback) return { ...r.ref.fallback, opacity: r.ref.fallback.opacity * r.o };
+      drop("missing paint references");
+      return null;
+    }
+    if (res.kind === "drop") {
+      drop(res.label);
+      return null;
+    }
+    // The geometric box in the shape's own space: `nodeBounds` applies the node's own transform,
+    // so hand it the shape with an identity one.
+    const box = nodeBounds({ ...shape, transform: IDENTITY }, IDENTITY);
+    const folded = foldLinear(res.g, box, { w, h }, r.o);
+    if (folded.kind === "drop") {
+      drop(folded.label);
+      return null;
+    }
+    return folded.fill;
+  }
+
   function convert(el: XmlElement, inh: Inherited): Node | null {
     const node = convertNode(el, inh);
     if (!node) return null;
+    let resolved = node;
+    if (node.kind !== "group") {
+      const refs = pending.get(node.style);
+      if (refs) {
+        resolved = {
+          ...node,
+          style: {
+            ...node.style,
+            ...(refs.fill ? { fill: resolveRef(refs.fill, node) } : {}),
+            ...(refs.stroke ? { stroke: resolveRef(refs.stroke, node) } : {}),
+          },
+        };
+      }
+    }
     const p = props(el);
     const { hidden, locked } = flagsOf(el, p);
     // `visibility` can be overridden by a descendant; `display: none` cannot. Reporting the latter
@@ -281,9 +358,9 @@ export function parseSvg(src: string): ParseResult {
     ) {
       drop("nested visibility override");
     }
-    if (!hidden && !locked) return node;
+    if (!hidden && !locked) return resolved;
     return {
-      ...node,
+      ...resolved,
       ...(hidden ? { hidden: true as const } : {}),
       ...(locked ? { locked: true as const } : {}),
     };
@@ -496,10 +573,11 @@ export function parseSvg(src: string): ParseResult {
       if (ownFormat && el.name === "rect" && el.attrs["data-sv-background"] !== undefined) {
         const bp = props(el);
         const fill = paint(bp.fill, null);
-        background = fill && {
-          color: fill.color,
-          opacity: fill.opacity * opacityValue(bp["fill-opacity"], 1),
-        };
+        if (isRef(fill)) drop("background gradients");
+        background =
+          fill && !isRef(fill)
+            ? { color: fill.color, opacity: fill.opacity * opacityValue(bp["fill-opacity"], 1) }
+            : null;
         continue;
       }
       if (el.name === "g" && (!ownFormat || el.attrs["data-sv-layer"] !== undefined)) {
