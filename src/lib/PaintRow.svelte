@@ -75,8 +75,12 @@
     }}
     onblur={endLive}
   />
+  <!-- Fixed, not shrinkable: a hex value must always be fully readable. `w-18` (72px) is sized to
+       the text, not the old `w-20` — 7 mono characters at ~7.2px plus the field's border and
+       padding need ~68px, and 72px leaves a little breathing room. The opacity field below is the
+       one that gives way. -->
   <input
-    class="field w-20 min-w-0 font-mono tabular-nums"
+    class="field w-18 shrink-0 font-mono tabular-nums"
     aria-label="{label} hex"
     value={hexDraft ?? paint.color}
     oninput={(e) => (hexDraft = e.currentTarget.value)}
@@ -92,12 +96,20 @@
       hexDraft = null;
     }}
   />
-  <NumberField
-    label=""
-    value={Math.round(paint.opacity * 100)}
-    min={0}
-    max={100}
-    suffix="%"
-    onchange={(v) => onchange({ ...paint, opacity: v / 100 })}
-  />
+  <!-- `NumberField`'s own root is `display: contents` (it's meant for `.field-grid`), so it has no
+       box of its own to put `flex-1`/`min-w-0` on. Wrapping it gives it one: this div is the flex
+       item that takes whatever the swatch and hex leave behind and shrinks first when the row is
+       tight, and it is also what `width: 100%` on the field inside now measures against — without
+       it, that 100% read against the whole row, which is why the opacity field previously grabbed
+       most of the space instead of giving it up. -->
+  <div class="min-w-0 flex-1">
+    <NumberField
+      label=""
+      value={Math.round(paint.opacity * 100)}
+      min={0}
+      max={100}
+      suffix="%"
+      onchange={(v) => onchange({ ...paint, opacity: v / 100 })}
+    />
+  </div>
 </div>
