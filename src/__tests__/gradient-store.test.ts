@@ -3,6 +3,8 @@ import {
   createDoc,
   DEFAULT_STYLE,
   isGradient,
+  isLinear,
+  isRadial,
   type Doc,
   type LinearGradient,
   type Node,
@@ -16,6 +18,7 @@ import {
   replaceDocument,
   setGradientStop,
   setGradientTarget,
+  setGradientType,
   setSelection,
   setSelectionGradientStop,
   setSelectionPaintKind,
@@ -60,6 +63,10 @@ function styleOf(id: string): Shape["style"] {
 beforeEach(() => {
   replaceDocument(makeDoc(), "Untitled.svg", null, true);
   setSelection(["a", "b"]);
+  // Neither is undone by `replaceDocument`; reset explicitly so a test run after "the target
+  // defaults to fill and is kept" (which leaves `gradientTarget` on "stroke") isn't polluted.
+  setGradientTarget("fill");
+  setGradientType("linear");
 });
 
 describe("gradient store actions", () => {
@@ -90,6 +97,33 @@ describe("gradient store actions", () => {
     expect(app.gradientTarget).toBe("fill");
     setGradientTarget("stroke");
     expect(app.gradientTarget).toBe("stroke");
+  });
+});
+
+describe("Type switch (spec M16 §5)", () => {
+  it("converts the selection's gradients in one undo step and leaves flat paints alone", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelection(["a", "b"]);
+    const bBefore = styleOf("b").fill;
+    setGradientType("radial");
+    expect(app.gradientType).toBe("radial");
+    expect(isRadial(styleOf("a").fill)).toBe(true);
+    expect(styleOf("b").fill).toBe(bBefore);
+    undo();
+    expect(isLinear(styleOf("a").fill)).toBe(true);
+  });
+
+  it("with nothing to convert only sets the kind to draw", () => {
+    setSelection([]);
+    setGradientType("radial");
+    expect(app.gradientType).toBe("radial");
+  });
+
+  it("Flat→Radial from the panel", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "radial");
+    expect(isRadial(styleOf("a").fill)).toBe(true);
   });
 });
 

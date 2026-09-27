@@ -53,9 +53,11 @@ import {
   type NodeRef,
 } from "../doc/path-edit";
 import {
+  convertGradients,
   gradientsToRemember,
   setGradientStop as applyGradientStop,
   setPaintKind,
+  type GradientKind,
   type PaintSlot,
   type RememberedGradient,
   type StopEnd,
@@ -211,6 +213,9 @@ class AppState {
   /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
    *  session. */
   gradientTarget = $state<PaintSlot>("fill");
+  /** Kind of gradient the tool draws next, and the Type row's default when nothing selected has
+   *  one (spec M16 §5). Not saved, not undoable; kept for the session. */
+  gradientType = $state<GradientKind>("linear");
   /** The stop picked on the canvas, highlighted in the panel (spec M15 §7). Store state like
    *  `nodeSel`: not saved, not undoable, cleared with the selection. */
   gradientStop = $state.raw<{ id: string; stop: StopEnd; which: PaintSlot } | null>(null);
@@ -660,13 +665,25 @@ export function setGradientTarget(which: PaintSlot): void {
   app.gradientTarget = which;
 }
 
+/** Sets the kind the Gradient tool draws next and, with a selection, converts the target paint's
+ *  gradients of the other kind to it — one undo step (spec M16 §5, the Type row). Converting is a
+ *  no-op edit when the selection has nothing to convert, so `commitDoc` records no history then
+ *  (invariant 1). */
+export function setGradientType(kind: GradientKind): void {
+  cancelActiveGesture();
+  app.gradientType = kind;
+  if (app.selection.length > 0) {
+    commitDoc(convertGradients(app.doc, app.selection, app.gradientTarget, kind));
+  }
+}
+
 export function setGradientStop(
   pick: { id: string; stop: StopEnd; which: PaintSlot } | null,
 ): void {
   app.gradientStop = pick;
 }
 
-export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | "linear"): void {
+export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | GradientKind): void {
   cancelActiveGesture();
   if (app.selection.length === 0) return;
   if (kind === "flat") {

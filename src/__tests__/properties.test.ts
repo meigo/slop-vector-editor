@@ -19,6 +19,7 @@ import {
   selectionActions,
   selectionGeometry,
   selectionOpacity,
+  gradientTypeShown,
   selectionStyles,
   summarizeGradient,
   summarizePolygons,
@@ -368,5 +369,34 @@ describe("summarizeGradient", () => {
       stops: null,
     });
     expect(summarizeGradient([s(null)], "fill")).toBeNull();
+  });
+
+  it("shows the selection's gradient kind in the Type row, falling back to the draw kind (spec M16 §5)", () => {
+    const lin = {
+      kind: "linear" as const,
+      from: { x: 0, y: 0 },
+      to: { x: 1, y: 0 },
+      start: { color: "#ff0000", opacity: 1 },
+      end: { color: "#0000ff", opacity: 1 },
+    };
+    const rad = {
+      kind: "radial" as const,
+      center: { x: 0, y: 0 },
+      a: { x: 1, y: 0 },
+      b: { x: 0, y: 1 },
+      start: lin.start,
+      end: lin.end,
+    };
+    const s = (fill: Style["fill"]): Style => ({ ...DEFAULT_STYLE, fill });
+    expect(gradientTypeShown([s(rad), s(lin.start)], "fill", "linear")).toEqual({
+      mixed: false,
+      value: "radial",
+    });
+    expect(gradientTypeShown([s(rad), s(lin)], "fill", "linear")).toEqual({ mixed: true });
+    expect(gradientTypeShown([s(lin.start)], "fill", "radial")).toEqual({
+      mixed: false,
+      value: "radial",
+    });
+    expect(summarizeGradient([s(rad)], "fill")?.kind).toEqual({ mixed: false, value: "radial" });
   });
 });
