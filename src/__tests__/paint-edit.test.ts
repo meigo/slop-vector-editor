@@ -5,14 +5,19 @@ import {
   type Doc,
   type LinearGradient,
   type Node,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
 import {
+  convertGradients,
   drawGradientLine,
   gradientsToRemember,
+  setGradientGeometry,
   setGradientPoints,
   setGradientStop,
   setPaintKind,
+  toLinear,
+  toRadial,
   type RememberedGradient,
 } from "../doc/paint-edit";
 import { findNode } from "../doc/tree";
@@ -237,5 +242,103 @@ describe("remembering a gradient across Flat and back", () => {
         "a",
       ),
     ).toEqual(fill(setPaintKind(d, ["a"], "fill", "linear"), "a"));
+  });
+});
+
+const rad0 = (c: [number, number], a: [number, number], b: [number, number]): RadialGradient => ({
+  kind: "radial",
+  center: { x: c[0], y: c[1] },
+  a: { x: a[0], y: a[1] },
+  b: { x: b[0], y: b[1] },
+  start: red,
+  end: blue,
+});
+
+describe("radial edits (spec M16 §5–§6)", () => {
+  it("Flat→Radial draws a circle centred on the box, radius half its larger side", () => {
+    expect(fill(setPaintKind(doc([rect("a", 0, red)]), ["a"], "fill", "radial"), "a")).toEqual({
+      kind: "radial",
+      center: { x: 50, y: 25 },
+      a: { x: 100, y: 25 },
+      b: { x: 50, y: 75 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("converts linear ↔ radial keeping the stops", () => {
+    expect(toRadial(lin(0, 10))).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+    expect(toLinear(rad0([0, 0], [10, 0], [0, 10]))).toEqual(lin(0, 10));
+    const d = doc([rect("a", 0, lin(0, 10)), rect("b", 0, red)]);
+    const out = convertGradients(d, ["a", "b"], "fill", "radial");
+    expect(fill(out, "a")).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+    expect(findNode(out, "b")!.node).toBe(findNode(d, "b")!.node);
+    expect(convertGradients(out, ["a"], "fill", "radial")).toBe(out);
+  });
+
+  it("Linear→Radial through setPaintKind converts instead of starting over", () => {
+    expect(
+      fill(setPaintKind(doc([rect("a", 0, lin(0, 10))]), ["a"], "fill", "radial"), "a"),
+    ).toEqual(rad0([0, 0], [10, 0], [0, 10]));
+  });
+
+  it("setGradientGeometry keeps the current stops and collapses a singular radial", () => {
+    const d = doc([rect("a", 0, rad0([0, 0], [10, 0], [0, 10]))]);
+    const moved = setGradientGeometry(d, "a", "fill", {
+      ...rad0([5, 5], [15, 5], [5, 15]),
+      start: blue,
+      end: red,
+    });
+    expect(fill(moved, "a")).toEqual(rad0([5, 5], [15, 5], [5, 15]));
+    expect(fill(setGradientGeometry(d, "a", "fill", rad0([0, 0], [0, 0], [0, 10])), "a")).toEqual(
+      blue,
+    );
+    expect(setGradientGeometry(d, "a", "fill", rad0([0, 0], [10, 0], [0, 10]))).toBe(d);
+  });
+
+  it("drawGradientLine with kind radial draws a document-space circle into each shape", () => {
+    const group: Node = {
+      kind: "group",
+      id: "g",
+      transform: translate(0, 100),
+      opacity: 1,
+      children: [rect("b", 0, red)],
+    };
+    const out = drawGradientLine(
+      doc([rect("a", 0, lin(0, 10)), group]),
+      ["a", "g"],
+      "fill",
+      { x: 0, y: 110 },
+      { x: 10, y: 110 },
+      "radial",
+    );
+    expect(fill(out, "a")).toEqual(rad0([0, 110], [10, 110], [0, 120]));
+    expect(fill(out, "b")).toEqual({
+      kind: "radial",
+      center: { x: 0, y: 10 },
+      a: { x: 10, y: 10 },
+      b: { x: 0, y: 20 },
+      start: red,
+      end: { ...red, opacity: 0 },
+    });
+  });
+
+  it("remembers a radial across Flat and restores it, converting when Linear is asked for", () => {
+    const r = rad0([50, 25], [100, 25], [50, 75]);
+    const d = doc([rect("a", 0, r)]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const flat = setPaintKind(d, ["a"], "fill", "flat");
+    const recall = (id: string) => memory.get(id);
+    expect(fill(setPaintKind(flat, ["a"], "fill", "radial", recall), "a")).toEqual({
+      ...r,
+      end: blue,
+    });
+    expect(fill(setPaintKind(flat, ["a"], "fill", "linear", recall), "a")).toEqual({
+      kind: "linear",
+      from: r.center,
+      to: r.a,
+      start: red,
+      end: blue,
+    });
   });
 });
