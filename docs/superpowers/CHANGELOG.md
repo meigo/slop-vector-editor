@@ -2077,3 +2077,16 @@ Taken ahead of M14 (envelope warp, which stays specced and next). Implements the
   "gradients/patterns"; added a tool test for cancelling a knob drag mid-gesture and an import test
   for `objectBoundingBox` units combined with a non-identity `gradientTransform` (both already
   passed — coverage gaps, not bugs). 836 tests in 63 files.
+
+## 2026-09-27 — Flat and back to Linear restores the gradient
+
+No spec: reported as "switching to flat and back to linear resets the gradient". Flat kept only
+the start stop and Linear always built the default fade, so a round trip lost the line and the end
+stop. The store now keeps each gradient a paint gives up for Flat (`app.gradientMemory`, keyed by
+shape and slot: session memory — not saved, not undoable, cleared by `replaceDocument`), and
+Linear restores it (`setPaintKind`'s `remembered`). The start stop is the paint's current flat
+colour, so a colour picked while flat is kept; if the shape was resized while flat the remembered
+line is carried from the old own-space box to the new one, axis by axis. With nothing remembered —
+a new session, another file — Linear gives the default fade as before; undo restores a gradient in
+any case. Unit-tested (pure round trip, changed colour, resize, fallback; store round trip and the
+clear on replace); not browser-checked. 843 tests in 63 files.

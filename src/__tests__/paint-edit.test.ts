@@ -9,9 +9,11 @@ import {
 } from "../doc/document";
 import {
   drawGradientLine,
+  gradientsToRemember,
   setGradientPoints,
   setGradientStop,
   setPaintKind,
+  type RememberedGradient,
 } from "../doc/paint-edit";
 import { findNode } from "../doc/tree";
 import { IDENTITY, translate, type Mat } from "../geom/mat";
@@ -185,5 +187,55 @@ describe("drawGradientLine (spec M15 §7)", () => {
   it("skips a shape whose world matrix is singular", () => {
     const d = doc([rect("a", 0, red, [0, 0, 0, 1, 0, 0])]);
     expect(drawGradientLine(d, ["a"], "fill", { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(d);
+  });
+});
+
+describe("remembering a gradient across Flat and back", () => {
+  const recall = (m: Map<string, RememberedGradient>) => (id: string) => m.get(id);
+
+  it("records each linear paint with its own-space box, and nothing for flat ones", () => {
+    const d = doc([rect("a", 0, lin(10, 60)), rect("b", 0, red)]);
+    expect(gradientsToRemember(d, ["a", "b"], "fill")).toEqual([
+      ["a", { g: lin(10, 60), box: { x: 0, y: 0, w: 100, h: 50 } }],
+    ]);
+  });
+
+  it("restores the remembered line and end stop exactly after a round trip", () => {
+    const d = doc([rect("a", 0, lin(10, 60))]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const flat = setPaintKind(d, ["a"], "fill", "flat");
+    const back = setPaintKind(flat, ["a"], "fill", "linear", recall(memory));
+    expect(fill(back, "a")).toEqual(lin(10, 60));
+  });
+
+  it("takes the start stop from a colour picked while flat", () => {
+    const d = doc([rect("a", 0, lin(10, 60))]);
+    const memory = new Map(gradientsToRemember(d, ["a"], "fill"));
+    const green = { color: "#00ff00", opacity: 0.5 };
+    const recoloured = doc([rect("a", 0, green)]);
+    expect(fill(setPaintKind(recoloured, ["a"], "fill", "linear", recall(memory)), "a")).toEqual({
+      ...lin(10, 60),
+      start: green,
+    });
+  });
+
+  it("stretches the remembered line with the box when the shape was resized while flat", () => {
+    const memory = new Map(gradientsToRemember(doc([rect("a", 0, lin(10, 60))]), ["a"], "fill"));
+    // Resized to twice the width and moved 100 right while flat.
+    const resized = doc([{ ...(rect("a", 100, red) as Shape), w: 200 } as Node]);
+    expect(fill(setPaintKind(resized, ["a"], "fill", "linear", recall(memory)), "a")).toEqual({
+      ...lin(120, 220),
+      start: red,
+    });
+  });
+
+  it("falls back to the default fade when nothing is remembered", () => {
+    const d = doc([rect("a", 0, red)]);
+    expect(
+      fill(
+        setPaintKind(d, ["a"], "fill", "linear", () => undefined),
+        "a",
+      ),
+    ).toEqual(fill(setPaintKind(d, ["a"], "fill", "linear"), "a"));
   });
 });

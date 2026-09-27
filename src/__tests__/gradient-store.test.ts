@@ -92,3 +92,27 @@ describe("gradient store actions", () => {
     expect(app.gradientTarget).toBe("stroke");
   });
 });
+
+describe("Flat and back to Linear (session memory)", () => {
+  it("restores the gradient the paint had before it went flat", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelectionGradientStop("fill", "end", { color: "#0000ff", opacity: 1 });
+    const before = styleOf("a").fill;
+    setSelectionPaintKind("fill", "flat");
+    expect(isGradient(styleOf("a").fill)).toBe(false);
+    setSelectionPaintKind("fill", "linear");
+    expect(styleOf("a").fill).toEqual(before);
+  });
+
+  it("forgets everything when the document is replaced", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelectionGradientStop("fill", "end", { color: "#0000ff", opacity: 1 });
+    setSelectionPaintKind("fill", "flat");
+    replaceDocument(makeDoc(), "x.svg", null, true);
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    expect((styleOf("a").fill as LinearGradient).end).toEqual({ color: "#ff0000", opacity: 0 });
+  });
+});

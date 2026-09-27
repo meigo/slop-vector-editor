@@ -53,9 +53,11 @@ import {
   type NodeRef,
 } from "../doc/path-edit";
 import {
+  gradientsToRemember,
   setGradientStop as applyGradientStop,
   setPaintKind,
   type PaintSlot,
+  type RememberedGradient,
   type StopEnd,
 } from "../doc/paint-edit";
 import {
@@ -179,6 +181,10 @@ class AppState {
   shareReady = $state.raw<ShareReadyRequest | null>(null);
   /** Where Save writes without asking. Not reactive: nothing renders from it. */
   fileHandle: FileSystemFileHandle | null = null;
+  /** Gradients set aside when their paint went Flat, keyed `id:fill` / `id:stroke`, so Linear
+   *  brings them back. Session memory: not saved, not undoable, not reactive — nothing renders
+   *  from it — and cleared by `replaceDocument`, whose ids mean other shapes. */
+  gradientMemory = new Map<string, RememberedGradient>();
 
   /** Top-level node ids; not part of undo history. */
   selection = $state.raw<readonly string[]>([]);
@@ -375,6 +381,7 @@ export function replaceDocument(
   app.enteredGroupId = null;
   app.nodeTarget = null;
   app.nodeSel = [];
+  app.gradientMemory.clear();
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
@@ -662,7 +669,16 @@ export function setGradientStop(
 export function setSelectionPaintKind(which: PaintSlot, kind: "flat" | "linear"): void {
   cancelActiveGesture();
   if (app.selection.length === 0) return;
-  commitDoc(setPaintKind(app.doc, app.selection, which, kind));
+  if (kind === "flat") {
+    for (const [id, r] of gradientsToRemember(app.doc, app.selection, which)) {
+      app.gradientMemory.set(`${id}:${which}`, r);
+    }
+  }
+  commitDoc(
+    setPaintKind(app.doc, app.selection, which, kind, (id) =>
+      app.gradientMemory.get(`${id}:${which}`),
+    ),
+  );
 }
 
 export function setSelectionGradientStop(which: PaintSlot, stop: StopEnd, paint: Paint): void {
