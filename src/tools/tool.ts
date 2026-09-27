@@ -74,6 +74,11 @@ export interface ToolContext {
    *  finding 7). */
   gradientStop(): { id: string; stop: StopEnd; which: PaintSlot } | null;
   setGradientStop(pick: { id: string; stop: StopEnd; which: PaintSlot } | null): void;
+  /** Drops any remembered gradient for these shapes' `which` slot (fix M16 review finding 1): the
+   *  Gradient tool calls this once per gesture, right after a DRAW or a KNOB/LINE drag actually
+   *  commits — never on a cancelled one, which restores the document instead — so a stashed
+   *  gradient older than what was just drawn can't be resurrected by a later Type switch. */
+  forgetGradients(ids: readonly string[], which: PaintSlot): void;
 }
 
 export interface Tool {

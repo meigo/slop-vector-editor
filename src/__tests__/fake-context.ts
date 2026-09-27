@@ -31,6 +31,9 @@ export type FakeState = {
   gradientTarget: PaintSlot;
   gradientType: GradientKind;
   gradientStop: { id: string; stop: StopEnd; which: PaintSlot } | null;
+  /** Calls to `forgetGradients` (fix M16 review finding 1), recorded rather than acted on — the
+   *  fake has no `gradientMemory` of its own; the tool tests only check who got called with what. */
+  forgotten: { ids: readonly string[]; which: PaintSlot }[];
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -58,6 +61,7 @@ export function fakeContext(
     gradientTarget: "fill",
     gradientType: "linear",
     gradientStop: null,
+    forgotten: [],
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -121,6 +125,9 @@ export function fakeContext(
     gradientStop: () => state.gradientStop,
     setGradientStop: (pick) => {
       state.gradientStop = pick;
+    },
+    forgetGradients: (ids, which) => {
+      state.forgotten.push({ ids, which });
     },
   };
   return { ctx, state };

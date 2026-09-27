@@ -110,6 +110,18 @@ describe("radial gradients in the model (spec M16 §2)", () => {
     expect(flatIfDegenerate(r)).toBe(r);
   });
 
+  it("collapses a near-degenerate radial the importer's own invert would refuse (review finding 3)", () => {
+    // a − c and b − c are exactly parallel (b = k · a for some real k), but at 6-decimal
+    // precision the written determinant is ~5.5e-17 float noise, not exactly 0 — `invert`
+    // (mat.ts) already refuses anything under 1e-12, so this must collapse here too, or it
+    // saves as a matrix and is dropped as "gradients with an invalid transform" on reload.
+    const noisy = rad([0, 0], [0.580138, -0.525408], [-0.836976, 0.758016]);
+    expect(flatIfDegenerate(noisy)).toEqual(clear);
+    // A small but healthy ellipse (det 1e-4, well above the threshold) is kept.
+    const tiny = rad([0, 0], [0.01, 0], [0, 0.01]);
+    expect(flatIfDegenerate(tiny)).toBe(tiny);
+  });
+
   it("mapStyle maps all three radial points, skew included", () => {
     const s: Style = { ...DEFAULT_STYLE, fill: rad([0, 0], [10, 0], [0, 10]) };
     expect(mapStyle(s, [1, 0, 0.5, 1, 0, 0]).fill).toEqual(rad([0, 0], [10, 0], [5, 10]));

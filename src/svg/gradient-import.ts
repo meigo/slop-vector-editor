@@ -101,6 +101,18 @@ function len(v: string | undefined, fallback: Len): Len {
   return Number.isFinite(n) && Math.abs(n) <= MAX_COORD ? { v: n, pct } : fallback;
 }
 
+/** Like `len`, but an unparseable value counts as absent rather than falling back to a default
+ *  literal — used for fx/fy/fr (review finding 5), which are meaningful only by their PRESENCE
+ *  (null defaults to cx/cy/0 in `foldRadial`); a browser ignores a bad focal attribute instead of
+ *  treating it as a literal focal point, and `len`'s fallback would otherwise manufacture one. */
+function lenOrAbsent(v: string | undefined): Len | null {
+  if (v === undefined) return null;
+  const t = v.trim();
+  const pct = t.endsWith("%");
+  const n = Number(pct ? t.slice(0, -1) : t);
+  return Number.isFinite(n) && Math.abs(n) <= MAX_COORD ? { v: n, pct } : null;
+}
+
 /** A stop's own attribute, overridden by its `style` declaration (Inkscape writes the latter). */
 function stopProp(el: XmlElement, key: "stop-color" | "stop-opacity"): string | undefined {
   let v = el.attrs[key];
@@ -154,9 +166,9 @@ export function resolveServer(servers: Map<string, XmlElement>, id: string): Res
         cx: len(attr("cx"), { v: 50, pct: true }),
         cy: len(attr("cy"), { v: 50, pct: true }),
         r: len(attr("r"), { v: 50, pct: true }),
-        fx: attr("fx") === undefined ? null : len(attr("fx"), { v: 50, pct: true }),
-        fy: attr("fy") === undefined ? null : len(attr("fy"), { v: 50, pct: true }),
-        fr: attr("fr") === undefined ? null : len(attr("fr"), { v: 0, pct: false }),
+        fx: lenOrAbsent(attr("fx")),
+        fy: lenOrAbsent(attr("fy")),
+        fr: lenOrAbsent(attr("fr")),
         transform,
         spread,
         stops,

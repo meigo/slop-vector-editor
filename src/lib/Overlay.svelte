@@ -210,13 +210,8 @@
   {#each gradientView as g, i (i)}
     {#if g.kind === "linear"}
       <line x1={g.a.x} y1={g.a.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
-      <circle
-        cx={g.a.x}
-        cy={g.a.y}
-        r={knobSize / 2 + 1}
-        style="stroke: var(--color-accent); fill: {g.start}"
-        stroke-width={g.picked === "start" ? 3 : 1.5}
-      />
+      <!-- Drawn end, then start (review finding 2): `pickHandle`'s tie order is start, end, so
+           drawing in reverse puts the tie's winner, start, on top. -->
       <circle
         cx={g.b.x}
         cy={g.b.y}
@@ -224,30 +219,39 @@
         style="stroke: var(--color-accent); fill: {g.end}"
         stroke-width={g.picked === "end" ? 3 : 1.5}
       />
+      <circle
+        cx={g.a.x}
+        cy={g.a.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.start}"
+        stroke-width={g.picked === "start" ? 3 : 1.5}
+      />
     {:else}
       <line x1={g.center.x} y1={g.center.y} x2={g.a.x} y2={g.a.y} style={LINE} stroke-width="1" />
       <line x1={g.center.x} y1={g.center.y} x2={g.b.x} y2={g.b.y} style={LINE} stroke-width="1" />
       <polygon points={points(g.rim)} style={LINE} stroke-width="1" stroke-dasharray="4 3" />
+      <!-- Drawn B, then A, then centre (review finding 2): `pickHandle`'s tie order is centre, A,
+           B, so drawing in reverse puts the tie's winner, centre, on top. -->
+      <circle
+        cx={g.b.x}
+        cy={g.b.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.end}"
+        stroke-width={g.picked === "end" ? 3 : 1.5}
+      />
+      <circle
+        cx={g.a.x}
+        cy={g.a.y}
+        r={knobSize / 2 + 1}
+        style="stroke: var(--color-accent); fill: {g.end}"
+        stroke-width={g.picked === "end" ? 3 : 1.5}
+      />
       <circle
         cx={g.center.x}
         cy={g.center.y}
         r={knobSize / 2 + 1}
         style="stroke: var(--color-accent); fill: {g.start}"
         stroke-width={g.picked === "start" ? 3 : 1.5}
-      />
-      <circle
-        cx={g.a.x}
-        cy={g.a.y}
-        r={knobSize / 2 + 1}
-        style="stroke: var(--color-accent); fill: {g.end}"
-        stroke-width={g.picked === "end" ? 3 : 1.5}
-      />
-      <circle
-        cx={g.b.x}
-        cy={g.b.y}
-        r={knobSize / 2 + 1}
-        style="stroke: var(--color-accent); fill: {g.end}"
-        stroke-width={g.picked === "end" ? 3 : 1.5}
       />
     {/if}
   {/each}

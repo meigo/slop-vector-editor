@@ -300,6 +300,15 @@ function syncPropsOverride(wasEmpty: boolean): void {
 function setSession(s: Session): void {
   const wasEmpty = app.selection.length === 0;
   app.session = s;
+  // Fix M16 review finding 1c: a memory entry outlives the shape it was stashed for, keyed by an
+  // id `idFor` can hand a LATER shape once undo goes past the original's creation and the counter
+  // is reused — pruning here, wherever the id is actually gone, is what keeps that new shape from
+  // inheriting a dead one's memory. Cheap only when there is something to prune.
+  if (app.gradientMemory.size > 0) {
+    for (const key of app.gradientMemory.keys()) {
+      if (findNode(s.doc, key.slice(0, key.indexOf(":"))) === null) app.gradientMemory.delete(key);
+    }
+  }
   const pruned = pruneSelection(s.doc, app.selection);
   if (pruned !== app.selection) app.selection = pruned;
   syncPropsOverride(wasEmpty);
@@ -692,6 +701,15 @@ export function setGradientStop(
   pick: { id: string; stop: StopEnd; which: PaintSlot } | null,
 ): void {
   app.gradientStop = pick;
+}
+
+/** Drops the memory entries a committed Gradient-tool draw or knob/line drag makes stale (fix M16
+ *  review finding 1a): once a NEWER gradient is on a shape, the older one its paint gave up on an
+ *  EARLIER Flat/Type conversion must not outlive it in `gradientMemory`, or switching Type back
+ *  later would resurrect that older gradient instead of the one just drawn. Forgetting a key with
+ *  no entry is harmless, so callers need not check first. */
+export function forgetGradients(ids: readonly string[], which: PaintSlot): void {
+  for (const id of ids) app.gradientMemory.delete(`${id}:${which}`);
 }
 
 /** Every gradient about to be discarded — Flat drops any kind, Linear/Radial drops the other kind

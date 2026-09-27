@@ -2168,3 +2168,25 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Plan: `docs/superpowers/plans/2026-09-27-m16-radial-gradients.md`. Spec:
   `docs/superpowers/specs/2026-09-27-m16-radial-gradients-design.md`.
 - 887 tests in 63 files.
+- **Final review** (2026-09-27), fixed in one follow-up commit:
+  1. Stale session memory could restore an old gradient: `app.gradientMemory` was cleared only by
+     `replaceDocument` and overwritten only by the next stash, so drawing a newer gradient and then
+     switching Type away and back resurrected whatever an earlier conversion had stashed instead.
+     `ToolContext.forgetGradients(ids, which)` now drops the affected memory once per gesture, right
+     after the Gradient tool commits a draw or a knob/line drag — never on a cancelled one — and
+     `setSession` prunes any entry whose id is no longer in the document, so a shape deleted (or an
+     id reused after undo) can't leave or inherit stale memory.
+  2. On a small radial, `pickHandle` took the first knob within tolerance in a fixed order (centre,
+     A, B), so with a screen radius under the tolerance the far rim could be unreachable while the
+     Overlay drew a different knob on top. It now picks the NEAREST knob within tolerance (ties keep
+     that order; linear: start, end), and the Overlay draws each handle's knobs in the reverse of
+     that order so the tie's winner is the one drawn on top.
+  3. `flatIfDegenerate` collapsed a radial only when the written determinant was exactly `0`, but
+     the importer's own `invert` (`geom/mat.ts`) already refuses anything under `1e-12` — a radial
+     whose determinant was a few `1e-17` of float noise short of zero saved as a matrix and was then
+     dropped on reload as "gradients with an invalid transform". It now collapses at the same
+     `1e-12` threshold `invert` uses.
+  5. A present but unparseable `fx`/`fy`/`fr` (e.g. `fx="abc"`) fell back to a literal default
+     (50%/0) and could wrongly drop the gradient as having a focal point; a browser ignores a bad
+     value outright. `gradient-import.ts` now treats an unparseable value as absent, so it defaults
+     to the centre/0 like a missing attribute does.

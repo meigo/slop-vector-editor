@@ -80,12 +80,15 @@ function toOwnGradient(h: GradientHandle, g: Gradient): Gradient | null {
       };
 }
 
-function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolEvent): void {
+/** Applies the drag's current geometry and commits it; returns whether it actually committed —
+ *  `false` only when a knob/line drag's own-space conversion is singular (`toOwnGradient`), which
+ *  is also why `up()` must check this before forgetting anything (fix M16 review finding 1). */
+function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolEvent): boolean {
   const which = ctx.gradientTarget();
   if (m.kind === "draw") {
     const to = constrain(m.start, e.doc, e.mods.shift);
     ctx.commit(drawGradientLine(m.base, m.ids, which, m.start, to, ctx.gradientType()));
-    return;
+    return true;
   }
   const h = m.h;
   let next: Gradient;
@@ -129,9 +132,10 @@ function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolE
     next = { kind: "radial", center: h.center, a: h.a, b, start: h.start, end: h.end };
   }
   const own = toOwnGradient(h, next);
-  if (!own) return;
+  if (!own) return false;
   // Commits from the gesture base (invariant 15), so a returning drag restores it exactly.
   ctx.commit(setGradientGeometry(m.base, h.id, which, own));
+  return true;
 }
 
 export function createGradientTool(): Tool {
@@ -215,8 +219,13 @@ export function createGradientTool(): Tool {
         ctx.setSelection(hit ? [hit.nodeId] : []);
         return;
       }
-      apply(ctx, m, e);
+      const committed = apply(ctx, m, e);
       ctx.endGesture();
+      // Once per gesture, and only when it actually committed — a cancelled drag restores the
+      // base document instead (fix M16 review finding 1) and must not touch the memory.
+      if (committed) {
+        ctx.forgetGradients(m.kind === "draw" ? m.ids : [m.h.id], ctx.gradientTarget());
+      }
     },
 
     cancel(ctx) {

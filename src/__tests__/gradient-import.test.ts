@@ -415,6 +415,11 @@ describe("foldRadial (spec M16 §4)", () => {
     expect(f.kind === "fill" && isRadial(f.fill)).toBe(true);
   });
 
+  it("an unparseable fx counts as absent, like a browser (review finding 5)", () => {
+    const f = radOk(userR('cx="30" cy="40" r="10" fx="abc"'));
+    expect(f.center).toEqual({ x: 30, y: 40 });
+  });
+
   it("paints r = 0 as the last stop, flat", () => {
     expect(foldRadial(userR('cx="50" cy="40" r="0"'), box, view, 1)).toEqual({
       kind: "fill",

@@ -84,18 +84,33 @@ function toSegment(p: Vec, a: Vec, b: Vec): number {
  *  from the end, so a coincident pick goes to the FRONTMOST shape, matching `hitTest` (which scans
  *  the reach in reverse) and the Overlay (which draws `handles` in the same back-to-front order,
  *  so the frontmost knob is also the one drawn on top — invariant 14). Radial knobs: centre, then
- *  rim A, then rim B; radial lines: centre→A and centre→B (both part `"line"`, spec M16 §6). */
+ *  rim A, then rim B; radial lines: centre→A and centre→B (both part `"line"`, spec M16 §6).
+ *
+ *  Within ONE handle, the NEAREST knob inside tolerance wins (review finding 2): on a small
+ *  radial all three knobs can sit within `tol` of each other, and always taking the first in
+ *  declared order made the far side of a small ellipse unreachable. A tie (equal distance) keeps
+ *  the declared order — centre, A, B; start, end — which is also why the Overlay draws each
+ *  handle's knobs in the reverse of that order, so the knob a tie picks is the one drawn on top. */
 export function pickHandle(handles: readonly GradientHandle[], p: Vec, tol: number): HandlePick {
   for (let i = handles.length - 1; i >= 0; i--) {
     const h = handles[i];
-    if (h.kind === "linear") {
-      if (dist(h.from, p) <= tol) return { h, part: "start" };
-      if (dist(h.to, p) <= tol) return { h, part: "end" };
-    } else {
-      if (dist(h.center, p) <= tol) return { h, part: "center" };
-      if (dist(h.a, p) <= tol) return { h, part: "rimA" };
-      if (dist(h.b, p) <= tol) return { h, part: "rimB" };
+    const knobs: { part: HandlePart; at: Vec }[] =
+      h.kind === "linear"
+        ? [
+            { part: "start", at: h.from },
+            { part: "end", at: h.to },
+          ]
+        : [
+            { part: "center", at: h.center },
+            { part: "rimA", at: h.a },
+            { part: "rimB", at: h.b },
+          ];
+    let best: { part: HandlePart; d: number } | null = null;
+    for (const k of knobs) {
+      const d = dist(k.at, p);
+      if (d <= tol && (!best || d < best.d)) best = { part: k.part, d };
     }
+    if (best) return { h, part: best.part };
   }
   for (let i = handles.length - 1; i >= 0; i--) {
     const h = handles[i];

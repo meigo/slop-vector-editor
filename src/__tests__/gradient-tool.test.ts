@@ -85,6 +85,22 @@ describe("gradientHandles / pickHandle", () => {
     expect(frontReversed?.h.id).toBe("b");
   });
 
+  it("within tolerance, the nearest knob wins and a tie goes to start (review finding 2)", () => {
+    const smallLin: LinearGradient = {
+      kind: "linear",
+      from: { x: 50, y: 25 },
+      to: { x: 53, y: 25 },
+      start: red,
+      end: blue,
+    };
+    const hs = gradientHandles(doc([rect("a", 0, smallLin)]), ["a"], "fill");
+    const tol = 6;
+    expect(pickHandle(hs, { x: 52.9, y: 25 }, tol)?.part).toBe("end");
+    expect(pickHandle(hs, { x: 50.1, y: 25 }, tol)?.part).toBe("start");
+    // Exactly equidistant from both knobs: the tie goes to start.
+    expect(pickHandle(hs, { x: 51.5, y: 25 }, tol)?.part).toBe("start");
+  });
+
   it("counts a selected group's own selected child only once (controller fix round 1)", () => {
     const g: Group = {
       kind: "group",
@@ -239,6 +255,47 @@ describe("the Gradient tool (spec M15 §7)", () => {
     ]);
     expect(fillOf(ctx.doc(), "a")).toEqual(blue);
   });
+
+  it("a committed draw forgets the drawn shapes' target-slot memory (fix M16 review finding 1)", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, red), rect("b", 200, red)]));
+    ctx.setSelection(["a", "b"]);
+    drag(createGradientTool(), ctx, [
+      [0, 200],
+      [150, 200],
+      [300, 200],
+    ]);
+    expect(state.forgotten).toEqual([{ ids: ["a", "b"], which: "fill" }]);
+  });
+
+  it("a committed knob drag forgets only that shape's memory", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    ctx.setSelection(["a"]);
+    drag(createGradientTool(), ctx, [
+      [100, 25],
+      [150, 25],
+    ]);
+    expect(state.forgotten).toEqual([{ ids: ["a"], which: "fill" }]);
+  });
+
+  it("a committed line drag forgets that shape's memory", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    ctx.setSelection(["a"]);
+    drag(createGradientTool(), ctx, [
+      [50, 25],
+      [60, 35],
+    ]);
+    expect(state.forgotten).toEqual([{ ids: ["a"], which: "fill" }]);
+  });
+
+  it("a cancelled drag does not forget anything — the document is restored instead", () => {
+    const { ctx, state } = fakeContext(doc([rect("a", 0, lin)]));
+    ctx.setSelection(["a"]);
+    const tool = createGradientTool();
+    tool.down(ctx, ev(100, 25));
+    tool.move(ctx, ev(150, 25));
+    tool.cancel(ctx);
+    expect(state.forgotten).toEqual([]);
+  });
 });
 
 const circleFill: RadialGradient = {
@@ -269,6 +326,26 @@ describe("radial handles and drags (spec M16 §6)", () => {
     expect(pickHandle(hs, { x: 100, y: 25 }, 6)?.part).toBe("rimA");
     expect(pickHandle(hs, { x: 50, y: 75 }, 6)?.part).toBe("rimB");
     expect(pickHandle(hs, { x: 75, y: 26 }, 6)?.part).toBe("line");
+  });
+
+  it("small radial: the nearest knob wins, and a tie goes to centre, then A, then B (review finding 2)", () => {
+    const smallRadial: RadialGradient = {
+      kind: "radial",
+      center: { x: 50, y: 25 },
+      a: { x: 53, y: 25 },
+      b: { x: 50, y: 28 },
+      start: red,
+      end: blue,
+    };
+    const hs = gradientHandles(doc([rect("a", 0, smallRadial)]), ["a"], "fill");
+    const tol = 6;
+    expect(pickHandle(hs, { x: 50, y: 25 }, tol)?.part).toBe("center");
+    // Nearer rim A than the centre or rim B.
+    expect(pickHandle(hs, { x: 52.9, y: 25 }, tol)?.part).toBe("rimA");
+    // Nearer rim B than the centre or rim A.
+    expect(pickHandle(hs, { x: 50, y: 27.9 }, tol)?.part).toBe("rimB");
+    // Exactly equidistant from the centre and rim A: the tie goes to the centre.
+    expect(pickHandle(hs, { x: 51.5, y: 25 }, tol)?.part).toBe("center");
   });
 
   it("draws a document-space circle with Type = Radial", () => {

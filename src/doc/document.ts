@@ -100,6 +100,13 @@ export function sameColours(a: Fill | null, b: Fill | null): boolean {
  *  under `doc/` depends on `svg/`. */
 const written = (v: number) => Math.round(v * 1e6) / 1e6;
 
+/** Mirrors `geom/mat.ts`'s `invert` threshold: a determinant this close to zero is one the
+ *  importer's own inverse refuses to read back ("gradients with an invalid transform"), so a
+ *  radial this close to degenerate must collapse here too, before the file is even written
+ *  (review finding 3 — float noise can leave the written determinant a few 1e-17 off zero, which
+ *  `=== 0` let through). */
+const DEGENERATE_DET = 1e-12;
+
 /** SVG paints a gradient whose points coincide (or, for a radial, whose rim collapses to a line or
  *  a point) as its last stop's colour, so that is what we store (spec M15 §2, M16 §2). Judged on
  *  the WRITTEN numbers: a gradient 1e-7 long would otherwise save as one and reload as flat. */
@@ -113,7 +120,7 @@ export function flatIfDegenerate(g: Gradient): Fill {
   const ay = written(g.a.y - g.center.y);
   const bx = written(g.b.x - g.center.x);
   const by = written(g.b.y - g.center.y);
-  return ax * by - bx * ay === 0 ? g.end : g;
+  return Math.abs(ax * by - bx * ay) < DEGENERATE_DET ? g.end : g;
 }
 
 function mapFill(f: Fill | null, m: Mat): Fill | null {

@@ -104,6 +104,46 @@ describe("gradient import (spec M15 §4)", () => {
     expect(stripIds(r.doc).layers[0].children[0]).toEqual(stripIds(d).layers[0].children[0]);
   });
 
+  it("keeps a radial right above the degenerate threshold with nothing dropped (review finding 3)", () => {
+    // a − center = (1e-6, 0), b − center = (0, 2e-6): determinant 2e-12, just above the 1e-12
+    // threshold `flatIfDegenerate` and the importer's own `invert` (mat.ts) both use — a real,
+    // if extremely thin, ellipse that must round-trip rather than being written as a matrix the
+    // importer then refuses to invert.
+    const fill: RadialGradient = {
+      kind: "radial",
+      center: { x: 50, y: 40 },
+      a: { x: 50.000001, y: 40 },
+      b: { x: 50, y: 40.000002 },
+      start: { color: "#ff3366", opacity: 1 },
+      end: { color: "#00ff00", opacity: 0.4 },
+    };
+    const d0 = createDoc(200, 100);
+    const d: Doc = {
+      ...d0,
+      layers: [
+        {
+          ...d0.layers[0],
+          children: [
+            {
+              kind: "ellipse",
+              id: "n5",
+              transform: [1, 0, 0, 1, 0, 0],
+              style: { ...DEFAULT_STYLE, fill },
+              cx: 50,
+              cy: 40,
+              rx: 30,
+              ry: 20,
+            },
+          ],
+        },
+      ],
+    };
+    const r = parseSvg(serializeDoc(d));
+    expect(r.dropped).toEqual([]);
+    expect(r.native).toBe(true);
+    expect(stripIds(r.doc).layers[0].children[0]).toEqual(stripIds(d).layers[0].children[0]);
+  });
+
   it("resolves a group's inherited url per child, in each child's own box", () => {
     const r = parseSvg(
       wrap(

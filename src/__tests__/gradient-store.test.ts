@@ -8,13 +8,18 @@ import {
   type Doc,
   type LinearGradient,
   type Node,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
+import { setGradientGeometry } from "../doc/paint-edit";
 import { findNode } from "../doc/tree";
 import { IDENTITY } from "../geom/mat";
 import {
   app,
   clearOrLeaveGroup,
+  commitDoc,
+  deleteSelection,
+  forgetGradients,
   replaceDocument,
   setGradientStop,
   setGradientTarget,
@@ -202,5 +207,72 @@ describe("switching Type back restores the gradient (fix M16)", () => {
     expect(isLinear(styleOf("a").fill)).toBe(true);
     setSelectionPaintKind("fill", "radial");
     expect(styleOf("a").fill).toEqual(before);
+  });
+});
+
+describe("forgetGradients drops stale memory (fix M16 review finding 1a)", () => {
+  it("a newer radial drawn after Linear→Radial survives a Type round trip instead of the old linear", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    const oldLinear = styleOf("a").fill;
+    expect(isLinear(oldLinear)).toBe(true);
+    // Linear → Radial: "a" gets a fresh circle, and the old linear is stashed as memory.
+    setGradientType("radial");
+    expect(isRadial(styleOf("a").fill)).toBe(true);
+    // The Gradient tool draws or drags a NEWER radial on "a" — a plain geometry commit, exactly
+    // what `setGradientGeometry` does — and then, per the fix, forgets the stale memory.
+    const newer: RadialGradient = {
+      kind: "radial",
+      center: { x: 1, y: 1 },
+      a: { x: 21, y: 1 },
+      b: { x: 1, y: 15 },
+      start: { color: "#000000", opacity: 1 }, // overridden: setGradientGeometry keeps current stops
+      end: { color: "#000000", opacity: 1 },
+    };
+    commitDoc(setGradientGeometry(app.doc, "a", "fill", newer));
+    const newerRadial = styleOf("a").fill as RadialGradient;
+    forgetGradients(["a"], "fill");
+    // Radial → Linear: with the memory forgotten, this must be the ordinary point conversion of
+    // the shape's CURRENT radial, not a restore of the old linear.
+    setGradientType("linear");
+    const after = styleOf("a").fill as LinearGradient;
+    expect(after).not.toEqual(oldLinear);
+    expect(after).toEqual({
+      kind: "linear",
+      from: newerRadial.center,
+      to: newerRadial.a,
+      start: newerRadial.start,
+      end: newerRadial.end,
+    });
+  });
+
+  it("without forgetting, the same round trip would wrongly resurrect the old linear (documents the bug)", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    const oldLinear = styleOf("a").fill;
+    setGradientType("radial");
+    const newer: RadialGradient = {
+      kind: "radial",
+      center: { x: 1, y: 1 },
+      a: { x: 21, y: 1 },
+      b: { x: 1, y: 15 },
+      start: { color: "#000000", opacity: 1 },
+      end: { color: "#000000", opacity: 1 },
+    };
+    commitDoc(setGradientGeometry(app.doc, "a", "fill", newer));
+    // No forgetGradients call here.
+    setGradientType("linear");
+    expect(styleOf("a").fill).toEqual(oldLinear);
+  });
+});
+
+describe("gradientMemory is pruned once its shape is gone (fix M16 review finding 1c)", () => {
+  it("deleting the shape drops its memory entry", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelectionPaintKind("fill", "flat");
+    expect(app.gradientMemory.has("a:fill")).toBe(true);
+    deleteSelection();
+    expect(app.gradientMemory.has("a:fill")).toBe(false);
   });
 });

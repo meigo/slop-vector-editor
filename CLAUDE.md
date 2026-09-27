@@ -692,10 +692,16 @@ every user-visible change.
     `app.gradientType`** (the kind a drag draws, spec M16 ruling 4) — mixed when the selection
     holds both kinds, and pressing it converts every target-paint gradient in the selection to
     that kind (`convertGradients`), remembering what each gave up — keyed by shape and slot, in
-    `app.gradientMemory` — so switching back restores it exactly (stops included) rather than
-    reconverting through the lossy round trip above; the memory covers a kind change exactly as
-    it already covered Flat, so a radial converted to linear and back stays the same ellipse
-    rather than coming back a circle.
+    `app.gradientMemory` — so switching back restores the geometry, with the CURRENT stops kept
+    (not the remembered ones), rather than reconverting through the lossy round trip above; the
+    memory covers a kind change exactly as it already covered Flat, so a radial converted to
+    linear and back stays the same ellipse rather than coming back a circle. **The memory is
+    dropped for a shape's slot the moment the Gradient tool commits a newer gradient there — a
+    finished draw or a knob/line drag, never a cancelled one** (`forgetGradients`, fix M16 final
+    review finding 1), so a later Type switch can't resurrect a gradient staler than what was just
+    drawn; it is also pruned in `setSession` for any id no longer in the document, so a shape
+    deleted (or undone past its creation, whose id `idFor` can then hand to a new shape) can't
+    leave its memory to be inherited.
 
 ## Current state
 
