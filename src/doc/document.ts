@@ -16,7 +16,19 @@ export type Paint = { color: string /* #rrggbb, lowercase */; opacity: number };
  *  the space its geometry lives in, under its `transform` — so move and rotate carry the gradient
  *  for free and every geometry bake must map it (`mapStyle`). */
 export type LinearGradient = { kind: "linear"; from: Vec; to: Vec; start: Paint; end: Paint };
-export type Fill = Paint | LinearGradient;
+/** Spec M16 §2: the unit circle carried by the affine map whose columns are `a − center` and
+ *  `b − center`. Perpendicular and equal is a circle; anything else is an ellipse — and because it
+ *  is three points under an affine map, every bake stays exact by mapping the three points. */
+export type RadialGradient = {
+  kind: "radial";
+  center: Vec;
+  a: Vec;
+  b: Vec;
+  start: Paint;
+  end: Paint;
+};
+export type Gradient = LinearGradient | RadialGradient;
+export type Fill = Paint | Gradient;
 export type LineCap = "butt" | "round" | "square";
 export type LineJoin = "miter" | "round" | "bevel";
 
@@ -34,8 +46,18 @@ export type FlatStyle = Omit<Style, "fill" | "stroke"> & {
   stroke: Paint | null;
 };
 
-export function isGradient(f: Fill | null | undefined): f is LinearGradient {
+export function isGradient(f: Fill | null | undefined): f is Gradient {
   return f !== null && f !== undefined && "kind" in f;
+}
+export const isLinear = (f: Fill | null | undefined): f is LinearGradient =>
+  isGradient(f) && f.kind === "linear";
+export const isRadial = (f: Fill | null | undefined): f is RadialGradient =>
+  isGradient(f) && f.kind === "radial";
+
+/** `[a−c, b−c, c]` in SVG `matrix()` order: the unit circle → the end-stop ellipse. */
+export function radialMatrix(g: RadialGradient): Mat {
+  const { center: c, a, b } = g;
+  return [a.x - c.x, a.y - c.y, b.x - c.x, b.y - c.y, c.x, c.y];
 }
 
 export const samePaint = (a: Paint, b: Paint): boolean =>
@@ -43,27 +65,34 @@ export const samePaint = (a: Paint, b: Paint): boolean =>
 
 const sameVec = (a: Vec, b: Vec) => a.x === b.x && a.y === b.y;
 
-/** Exact: what an edit compares to decide it changed nothing (invariant 1). */
+/** Exact: what an edit compares to decide it changed nothing (invariant 1). Kinds must match — a
+ *  linear and a radial with identical stops are still different fills (spec M16 §2). */
 export function sameFill(a: Fill | null, b: Fill | null): boolean {
   if (a === null || b === null) return a === b;
   if (isGradient(a) !== isGradient(b)) return false;
   if (isGradient(a) && isGradient(b)) {
-    return (
-      sameVec(a.from, b.from) &&
-      sameVec(a.to, b.to) &&
-      samePaint(a.start, b.start) &&
-      samePaint(a.end, b.end)
-    );
+    const pointsMatch =
+      a.kind === "linear" && b.kind === "linear"
+        ? sameVec(a.from, b.from) && sameVec(a.to, b.to)
+        : a.kind === "radial" && b.kind === "radial"
+          ? sameVec(a.center, b.center) && sameVec(a.a, b.a) && sameVec(a.b, b.b)
+          : false;
+    return pointsMatch && samePaint(a.start, b.start) && samePaint(a.end, b.end);
   }
   return samePaint(a as Paint, b as Paint);
 }
 
 /** The colours only (spec M15 §2): what Select Same and the panel's summaries compare. Two
- *  gradients' points are in two different shapes' own spaces, so comparing them means nothing. */
+ *  gradients' points are in two different shapes' own spaces, so comparing them means nothing.
+ *  Kinds must still match — a flat paint never matches a gradient, and (spec M16 §2) a linear
+ *  never matches a radial. */
 export function sameColours(a: Fill | null, b: Fill | null): boolean {
   if (a === null || b === null) return a === b;
   if (isGradient(a) !== isGradient(b)) return false;
-  if (isGradient(a) && isGradient(b)) return samePaint(a.start, b.start) && samePaint(a.end, b.end);
+  if (isGradient(a) && isGradient(b)) {
+    if (a.kind !== b.kind) return false;
+    return samePaint(a.start, b.start) && samePaint(a.end, b.end);
+  }
   return samePaint(a as Paint, b as Paint);
 }
 
@@ -71,16 +100,32 @@ export function sameColours(a: Fill | null, b: Fill | null): boolean {
  *  under `doc/` depends on `svg/`. */
 const written = (v: number) => Math.round(v * 1e6) / 1e6;
 
-/** SVG paints a gradient whose points coincide as its last stop's colour, so that is what we
- *  store (spec M15 §2). Judged on the WRITTEN numbers: a gradient 1e-7 long would otherwise save
- *  as one and reload as flat. */
-export function flatIfDegenerate(g: LinearGradient): Fill {
-  return written(g.from.x) === written(g.to.x) && written(g.from.y) === written(g.to.y) ? g.end : g;
+/** SVG paints a gradient whose points coincide (or, for a radial, whose rim collapses to a line or
+ *  a point) as its last stop's colour, so that is what we store (spec M15 §2, M16 §2). Judged on
+ *  the WRITTEN numbers: a gradient 1e-7 long would otherwise save as one and reload as flat. */
+export function flatIfDegenerate(g: Gradient): Fill {
+  if (g.kind === "linear") {
+    return written(g.from.x) === written(g.to.x) && written(g.from.y) === written(g.to.y)
+      ? g.end
+      : g;
+  }
+  const ax = written(g.a.x - g.center.x);
+  const ay = written(g.a.y - g.center.y);
+  const bx = written(g.b.x - g.center.x);
+  const by = written(g.b.y - g.center.y);
+  return ax * by - bx * ay === 0 ? g.end : g;
 }
 
 function mapFill(f: Fill | null, m: Mat): Fill | null {
   if (!isGradient(f)) return f;
-  return flatIfDegenerate({ ...f, from: applyMat(m, f.from), to: applyMat(m, f.to) });
+  return f.kind === "linear"
+    ? flatIfDegenerate({ ...f, from: applyMat(m, f.from), to: applyMat(m, f.to) })
+    : flatIfDegenerate({
+        ...f,
+        center: applyMat(m, f.center),
+        a: applyMat(m, f.a),
+        b: applyMat(m, f.b),
+      });
 }
 
 /** Spec M15 §5: every site that bakes a matrix into a shape's geometry maps the gradient points

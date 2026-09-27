@@ -4,6 +4,8 @@ import {
   DEFAULT_STYLE,
   type Doc,
   type LinearGradient,
+  type Node,
+  type RadialGradient,
   type Shape,
 } from "../doc/document";
 import { IDENTITY } from "../geom/mat";
@@ -337,5 +339,58 @@ describe("gradients (spec M15 §3)", () => {
 
   it("writes no <defs> at all without gradients", () => {
     expect(serializeDoc(createDoc(200, 100))).not.toContain("<defs");
+  });
+});
+
+describe("radial gradients (spec M16 §3)", () => {
+  const withFill = (fill: RadialGradient) => {
+    const d = createDoc(200, 100);
+    const child: Node = {
+      kind: "rect",
+      id: "n12",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill },
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 50,
+      rx: 0,
+    };
+    return { ...d, layers: [{ ...d.layers[0], children: [child] }] };
+  };
+  const stopsOf = {
+    start: { color: "#ff3366", opacity: 1 },
+    end: { color: "#ff3366", opacity: 0 },
+  };
+
+  it("writes a circle plainly as cx cy r", () => {
+    const out = serializeDoc(
+      withFill({
+        kind: "radial",
+        center: { x: 50, y: 40 },
+        a: { x: 80, y: 40 },
+        b: { x: 50, y: 70 },
+        ...stopsOf,
+      }),
+    );
+    expect(out).toContain(
+      '<radialGradient id="sv-grad-n12-fill" gradientUnits="userSpaceOnUse" cx="50" cy="40" r="30">',
+    );
+    expect(out).toContain('fill="url(#sv-grad-n12-fill)"');
+  });
+
+  it("writes anything else as the unit circle under a matrix", () => {
+    const out = serializeDoc(
+      withFill({
+        kind: "radial",
+        center: { x: 50, y: 40 },
+        a: { x: 80, y: 40 },
+        b: { x: 50, y: 50 },
+        ...stopsOf,
+      }),
+    );
+    expect(out).toContain(
+      '<radialGradient id="sv-grad-n12-fill" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="1" gradientTransform="matrix(30 0 0 10 50 40)">',
+    );
   });
 });

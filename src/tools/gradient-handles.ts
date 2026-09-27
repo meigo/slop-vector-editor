@@ -1,4 +1,4 @@
-import { isGradient, type Doc, type Paint } from "../doc/document";
+import { isLinear, type Doc, type Paint } from "../doc/document";
 import type { PaintSlot } from "../doc/paint-edit";
 import { ancestorIds, findNode, isAfter, paintKey, shapesWithWorld } from "../doc/tree";
 import { applyMat, type Mat } from "../geom/mat";
@@ -37,7 +37,8 @@ export function gradientHandles(
   for (const { found } of founds) {
     for (const { shape, world } of shapesWithWorld(found.node, found.parent)) {
       const f = shape.style[which];
-      if (!isGradient(f)) continue;
+      // Task 5 adds the radial tool's own handles; skip a radial paint here for now.
+      if (!isLinear(f)) continue;
       out.push({
         id: shape.id,
         from: applyMat(world, f.from),

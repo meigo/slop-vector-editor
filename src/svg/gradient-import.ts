@@ -1,4 +1,4 @@
-import { flatIfDegenerate, isGradient, type Fill } from "../doc/document";
+import { flatIfDegenerate, isLinear, type Fill } from "../doc/document";
 import type { Box } from "../geom/box";
 import { applyMat, invert, multiply, type Mat } from "../geom/mat";
 import { parseColor } from "./colors";
@@ -193,8 +193,9 @@ export function foldLinear(
   });
   // Invariant 8: a coordinate is rejected the same way whether it comes from the file directly or
   // from folding it — an absurd `x2`, or a transform that blows the points up, must not silently
-  // reach the document as NaN or a coordinate `fmt` would overflow.
-  if (isGradient(fill)) {
+  // reach the document as NaN or a coordinate `fmt` would overflow. Only linear is produced here yet
+  // (`resolveServer` above drops radials), so `isLinear` reads the same points `isGradient` used to.
+  if (isLinear(fill)) {
     const nums = [fill.from.x, fill.from.y, fill.to.x, fill.to.y];
     if (nums.some((n) => !Number.isFinite(n) || Math.abs(n) > MAX_COORD)) {
       return { kind: "drop", label: "invalid gradient coordinates" };

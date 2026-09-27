@@ -3,6 +3,7 @@ import {
   createDoc,
   DEFAULT_STYLE,
   isGradient,
+  isLinear,
   type Doc,
   type LinearGradient,
   type Shape,
@@ -66,9 +67,9 @@ describe("gradient import (spec M15 §4)", () => {
     );
     expect(r.dropped).toEqual([]);
     const [a, b] = shapesOf(r.doc);
-    expect(isGradient(a.style.fill) && a.style.fill.to.x).toBe(100);
-    expect(isGradient(b.style.fill) && b.style.fill.from.x).toBe(200);
-    expect(isGradient(b.style.fill) && b.style.fill.to.x).toBe(250);
+    expect(isLinear(a.style.fill) && a.style.fill.to.x).toBe(100);
+    expect(isLinear(b.style.fill) && b.style.fill.from.x).toBe(200);
+    expect(isLinear(b.style.fill) && b.style.fill.to.x).toBe(250);
   });
 
   it("uses a url's fallback colour when the reference is missing, else none and a report", () => {

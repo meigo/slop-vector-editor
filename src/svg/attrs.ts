@@ -3,11 +3,13 @@ import {
   isGradient,
   isHidden,
   isLocked,
+  radialMatrix,
   type Fill,
   type Group,
   type Layer,
   type Node,
   type Paint,
+  type RadialGradient,
   type Shape,
   type Style,
   type TextMeta,
@@ -34,12 +36,34 @@ function nameAttr(name: string | undefined): Attrs {
 export const gradientId = (nodeId: string, which: "fill" | "stroke") =>
   `sv-grad-${nodeId}-${which}`;
 
-export type GradientDef = { id: string; attrs: Attrs; stops: Attrs[] };
+export type GradientDef = {
+  id: string;
+  tag: "linearGradient" | "radialGradient";
+  attrs: Attrs;
+  stops: Attrs[];
+};
 
 function stopAttrs(offset: "0" | "1", p: Paint): Attrs {
   const a: Attrs = { offset, "stop-color": p.color };
   if (p.opacity !== 1) a["stop-opacity"] = fmt(p.opacity);
   return a;
+}
+
+/** Spec M16 §3: a circle, as written, is `cx cy r`; anything else is the unit circle under its
+ *  matrix. `fx`/`fy`/`fr` are never written — they default to the centre and 0. */
+function radialAttrs(id: string, g: RadialGradient): Attrs {
+  const m = radialMatrix(g).map(fmt);
+  const circle = m[1] === "0" && m[2] === "0" && m[0] === m[3] && Number(m[0]) > 0;
+  return circle
+    ? { id, gradientUnits: "userSpaceOnUse", cx: m[4], cy: m[5], r: m[0] }
+    : {
+        id,
+        gradientUnits: "userSpaceOnUse",
+        cx: "0",
+        cy: "0",
+        r: "1",
+        gradientTransform: `matrix(${m.join(" ")})`,
+      };
 }
 
 /** The gradient elements a shape's paints need, in fill-then-stroke order. `userSpaceOnUse` is
@@ -51,18 +75,24 @@ export function gradientDefs(s: Shape): GradientDef[] {
     const f = s.style[which];
     if (!isGradient(f)) continue;
     const id = gradientId(s.id, which);
-    out.push({
-      id,
-      attrs: {
+    const stops = [stopAttrs("0", f.start), stopAttrs("1", f.end)];
+    if (f.kind === "linear") {
+      out.push({
         id,
-        gradientUnits: "userSpaceOnUse",
-        x1: fmt(f.from.x),
-        y1: fmt(f.from.y),
-        x2: fmt(f.to.x),
-        y2: fmt(f.to.y),
-      },
-      stops: [stopAttrs("0", f.start), stopAttrs("1", f.end)],
-    });
+        tag: "linearGradient",
+        attrs: {
+          id,
+          gradientUnits: "userSpaceOnUse",
+          x1: fmt(f.from.x),
+          y1: fmt(f.from.y),
+          x2: fmt(f.to.x),
+          y2: fmt(f.to.y),
+        },
+        stops,
+      });
+    } else {
+      out.push({ id, tag: "radialGradient", attrs: radialAttrs(id, f), stops });
+    }
   }
   return out;
 }

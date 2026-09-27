@@ -3,10 +3,14 @@ import {
   DEFAULT_STYLE,
   flatIfDegenerate,
   isGradient,
+  isLinear,
+  isRadial,
   mapStyle,
+  radialMatrix,
   sameColours,
   sameFill,
   type LinearGradient,
+  type RadialGradient,
   type Style,
 } from "../doc/document";
 import { IDENTITY, translate } from "../geom/mat";
@@ -65,5 +69,49 @@ describe("gradient model (spec M15 §2)", () => {
   it("mapStyle collapses a gradient a singular matrix squashes flat", () => {
     const s: Style = { ...DEFAULT_STYLE, fill: grad(0, 0, 10, 0) };
     expect(mapStyle(s, [0, 0, 0, 1, 0, 0]).fill).toEqual(clear);
+  });
+});
+
+const rad = (c: [number, number], a: [number, number], b: [number, number]): RadialGradient => ({
+  kind: "radial",
+  center: { x: c[0], y: c[1] },
+  a: { x: a[0], y: a[1] },
+  b: { x: b[0], y: b[1] },
+  start: red,
+  end: clear,
+});
+
+describe("radial gradients in the model (spec M16 §2)", () => {
+  it("narrows the two kinds", () => {
+    const r = rad([0, 0], [10, 0], [0, 10]);
+    expect(isGradient(r)).toBe(true);
+    expect(isRadial(r)).toBe(true);
+    expect(isLinear(r)).toBe(false);
+    expect(isLinear(grad(0, 0, 10, 0))).toBe(true);
+    expect(isRadial(red)).toBe(false);
+  });
+
+  it("treats a linear and a radial with the same colours as different fills", () => {
+    const r = rad([0, 0], [10, 0], [0, 10]);
+    expect(sameFill(r, rad([0, 0], [10, 0], [0, 10]))).toBe(true);
+    expect(sameFill(r, rad([0, 0], [10, 0], [0, 11]))).toBe(false);
+    expect(sameColours(r, rad([5, 5], [9, 5], [5, 9]))).toBe(true);
+    expect(sameColours(r, grad(0, 0, 10, 0))).toBe(false);
+  });
+
+  it("builds the unit-circle matrix from the three points", () => {
+    expect(radialMatrix(rad([50, 40], [80, 40], [50, 50]))).toEqual([30, 0, 0, 10, 50, 40]);
+  });
+
+  it("collapses a radial whose matrix is singular as written to its end stop", () => {
+    expect(flatIfDegenerate(rad([0, 0], [10, 0], [20, 0]))).toEqual(clear); // rims on one line
+    expect(flatIfDegenerate(rad([0, 0], [1e-7, 0], [0, 1e-7]))).toEqual(clear); // rounds to 0
+    const r = rad([0, 0], [10, 0], [0, 10]);
+    expect(flatIfDegenerate(r)).toBe(r);
+  });
+
+  it("mapStyle maps all three radial points, skew included", () => {
+    const s: Style = { ...DEFAULT_STYLE, fill: rad([0, 0], [10, 0], [0, 10]) };
+    expect(mapStyle(s, [1, 0, 0.5, 1, 0, 0]).fill).toEqual(rad([0, 0], [10, 0], [5, 10]));
   });
 });

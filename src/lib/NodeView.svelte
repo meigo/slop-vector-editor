@@ -23,11 +23,19 @@
   {#if defs.length > 0}
     <defs>
       {#each defs as g (g.id)}
-        <linearGradient {...g.attrs}>
-          {#each g.stops as st, i (i)}
-            <stop {...st} />
-          {/each}
-        </linearGradient>
+        {#if g.tag === "radialGradient"}
+          <radialGradient {...g.attrs}>
+            {#each g.stops as st, i (i)}
+              <stop {...st} />
+            {/each}
+          </radialGradient>
+        {:else}
+          <linearGradient {...g.attrs}>
+            {#each g.stops as st, i (i)}
+              <stop {...st} />
+            {/each}
+          </linearGradient>
+        {/if}
       {/each}
     </defs>
   {/if}

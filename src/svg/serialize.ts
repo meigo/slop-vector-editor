@@ -52,7 +52,7 @@ function defsElement(doc: Doc): string | null {
   if (defs.length === 0) return null;
   const items = defs.map((g) =>
     element(
-      "linearGradient",
+      g.tag,
       g.attrs,
       g.stops.map((s) => element("stop", s, [], 3)),
       2,

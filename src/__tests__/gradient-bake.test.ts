@@ -8,6 +8,7 @@ import {
   type Node,
   type PathShape,
   type PolygonShape,
+  type RadialGradient,
   type Shape,
   type TextMeta,
 } from "../doc/document";
@@ -15,7 +16,7 @@ import { flattenTransform } from "../doc/edits";
 import { combine } from "../doc/path-ops";
 import { resizeNodes } from "../doc/resize";
 import { findNode } from "../doc/tree";
-import { applyMat, translate, type Mat } from "../geom/mat";
+import { applyMat, IDENTITY, translate, type Mat } from "../geom/mat";
 
 const g: LinearGradient = {
   kind: "linear",
@@ -191,5 +192,109 @@ describe("bakes map the gradient (spec M15 §5)", () => {
     expect(out.kind).toBe("ok");
     if (out.kind !== "ok") return;
     expect(fillOf(out.doc, out.id).from).toEqual({ x: 5, y: 5 });
+  });
+});
+
+describe("bakes carry a radial gradient (spec M16 §2)", () => {
+  const circle: RadialGradient = {
+    kind: "radial",
+    center: { x: 50, y: 25 },
+    a: { x: 100, y: 25 },
+    b: { x: 50, y: 75 },
+    start: { color: "#ff0000", opacity: 1 },
+    end: { color: "#0000ff", opacity: 1 },
+  };
+  const rrect = (id: string, t: Mat = IDENTITY): Node => ({
+    kind: "rect",
+    id,
+    transform: t,
+    style: { ...DEFAULT_STYLE, fill: circle },
+    x: 0,
+    y: 0,
+    w: 100,
+    h: 50,
+    rx: 0,
+  });
+  const radOf = (d: Doc, id: string) =>
+    (findNode(d, id)!.node as Shape).style.fill as RadialGradient;
+
+  it("a non-uniform resize stretches the circle into an ellipse", () => {
+    const out = resizeNodes(doc([rrect("a")]), ["a"], [2, 0, 0, 1, 0, 0]);
+    expect(radOf(out, "a")).toEqual({
+      ...circle,
+      center: { x: 100, y: 25 },
+      a: { x: 200, y: 25 },
+      b: { x: 100, y: 75 },
+    });
+  });
+
+  it("flatten bakes the transform into all three points", () => {
+    const p: Node = {
+      kind: "path",
+      id: "p",
+      transform: translate(10, 0),
+      style: { ...DEFAULT_STYLE, fill: circle },
+      subpaths: [
+        {
+          closed: true,
+          nodes: [
+            [0, 0],
+            [100, 0],
+            [100, 50],
+            [0, 50],
+          ].map(([x, y]) => ({ p: { x, y }, in: null, out: null, type: "corner" as const })),
+        },
+      ],
+    };
+    expect(radOf(flattenTransform(doc([p]), ["p"]), "p").center).toEqual({ x: 60, y: 25 });
+  });
+
+  it("an odd polygon's vertical flip keeps the rendered ellipse where L puts it", () => {
+    const poly: Node = {
+      kind: "polygon",
+      id: "t",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: circle },
+      sides: 3,
+      star: false,
+      innerRatio: 0.5,
+      cx: 50,
+      cy: 25,
+      rx: 40,
+      ry: 20,
+    };
+    const L: Mat = [1, 0, 0, -1, 0, 50];
+    const out = findNode(resizeNodes(doc([poly]), ["t"], L), "t")!.node as Shape;
+    const g = out.style.fill as RadialGradient;
+    const rendered = (p: { x: number; y: number }) => applyMat(out.transform, p);
+    for (const k of ["center", "a", "b"] as const) {
+      const want = applyMat(L, circle[k]);
+      expect(rendered(g[k]).x).toBeCloseTo(want.x, 9);
+      expect(rendered(g[k]).y).toBeCloseTo(want.y, 9);
+    }
+  });
+
+  it("combine maps the front shape's radial gradient into the result's space", () => {
+    const p: Node = {
+      kind: "path",
+      id: "p",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, fill: circle },
+      subpaths: [
+        {
+          closed: true,
+          nodes: [
+            [0, 0],
+            [100, 0],
+            [100, 50],
+            [0, 50],
+          ].map(([x, y]) => ({ p: { x, y }, in: null, out: null, type: "corner" as const })),
+        },
+      ],
+    };
+    const q: Node = { ...p, id: "q", transform: translate(50, 0) };
+    const r = combine(doc([p, q]), ["p", "q"]);
+    expect(r).not.toBeNull();
+    expect(radOf(r!.doc, r!.id).center.x).toBe(100);
   });
 });

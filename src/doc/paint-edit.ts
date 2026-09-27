@@ -6,9 +6,11 @@ import {
   DEFAULT_STYLE,
   flatIfDegenerate,
   isGradient,
+  isLinear,
   sameFill,
   type Doc,
   type Fill,
+  type Gradient,
   type LinearGradient,
   type Node,
   type Paint,
@@ -58,7 +60,7 @@ const fadeOf = (p: Paint, from: Vec, to: Vec): LinearGradient => ({
 
 /** A gradient set aside when its paint went flat, with the shape's own-space box at the time, so
  *  switching back can restore it — and stretch it if the shape was resized in between. */
-export type RememberedGradient = { g: LinearGradient; box: Box | null };
+export type RememberedGradient = { g: Gradient; box: Box | null };
 
 const ownBox = (s: Shape): Box | null => nodeBounds({ ...s, transform: IDENTITY }, IDENTITY);
 
@@ -78,16 +80,18 @@ export function gradientsToRemember(
   return out;
 }
 
-/** The remembered line carried from the box it was set aside in to the shape's box now, axis by
- *  axis; an axis that had no extent then only moves. The start stop is the flat colour the paint
- *  has now, so a colour picked while flat is kept. */
+/** The remembered line (or, for a radial, the three points — spec M16) carried from the box it was
+ *  set aside in to the shape's box now, axis by axis; an axis that had no extent then only moves.
+ *  The start stop is the flat colour the paint has now, so a colour picked while flat is kept. */
 function restored(r: RememberedGradient, box: Box | null, start: Paint): Fill {
   const a = r.box;
   const axis = (v: number, a0: number, aw: number, b0: number, bw: number) =>
     aw > 0 ? b0 + ((v - a0) * bw) / aw : v + (b0 - a0);
   const map = (p: Vec): Vec =>
     !a || !box ? p : { x: axis(p.x, a.x, a.w, box.x, box.w), y: axis(p.y, a.y, a.h, box.y, box.h) };
-  return flatIfDegenerate({ ...r.g, from: map(r.g.from), to: map(r.g.to), start });
+  return r.g.kind === "linear"
+    ? flatIfDegenerate({ ...r.g, from: map(r.g.from), to: map(r.g.to), start })
+    : flatIfDegenerate({ ...r.g, center: map(r.g.center), a: map(r.g.a), b: map(r.g.b), start });
 }
 
 /** `remembered` answers the gradient a shape's paint had before it went flat, if the session
@@ -138,17 +142,19 @@ export function setGradientStop(
   });
 }
 
-/** `from`/`to` in the shape's own space; used by the tool's knob and line drags. */
+/** `from`/`to` in the shape's own space; used by the tool's knob and line drags. Linear only — a
+ *  radial's own handles arrive later (task 5). */
 export function setGradientPoints(doc: Doc, id: string, which: PaintSlot, from: Vec, to: Vec): Doc {
   return mapNodes(doc, [id], (n) => {
     if (n.kind === "group") return n;
     const f = n.style[which];
-    return isGradient(f) ? withFill(n, which, flatIfDegenerate({ ...f, from, to })) : n;
+    return isLinear(f) ? withFill(n, which, flatIfDegenerate({ ...f, from, to })) : n;
   });
 }
 
 /** One document-space line mapped into every shape under `ids`, so a line drawn across several
- *  shapes reads as one continuous gradient (spec M15 §7). */
+ *  shapes reads as one continuous gradient (spec M15 §7). Linear only — drawing a radial's line
+ *  arrives later (task 5), so a radial paint is redrawn as a fresh linear fade, same as a flat one. */
 export function drawGradientLine(
   doc: Doc,
   ids: readonly string[],
@@ -162,9 +168,9 @@ export function drawGradientLine(
     const a = applyMat(inv, from);
     const b = applyMat(inv, to);
     const f = s.style[which];
-    const next: LinearGradient = isGradient(f)
+    const next: LinearGradient = isLinear(f)
       ? { ...f, from: a, to: b }
-      : fadeOf(f ?? (DEFAULT_STYLE[which] as Paint), a, b);
+      : fadeOf((isGradient(f) ? f.start : f) ?? (DEFAULT_STYLE[which] as Paint), a, b);
     return withFill(s, which, flatIfDegenerate(next));
   });
 }

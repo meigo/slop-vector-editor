@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isGradient, type LinearGradient } from "../doc/document";
+import { isLinear, type LinearGradient } from "../doc/document";
 import { applyMat, invert, type Mat } from "../geom/mat";
 import { collectServers, foldLinear, resolveServer, type RawLinear } from "../svg/gradient-import";
 import { parseXml } from "../svg/xml";
@@ -18,7 +18,7 @@ const box = { x: 0, y: 0, w: 200, h: 100 };
 const view = { w: 400, h: 300 };
 const foldOk = (g: RawLinear, b = box, o = 1): LinearGradient => {
   const f = foldLinear(g, b, view, o);
-  if (f.kind !== "fill" || !isGradient(f.fill)) throw new Error(JSON.stringify(f));
+  if (f.kind !== "fill" || !isLinear(f.fill)) throw new Error(JSON.stringify(f));
   return f.fill;
 };
 const close = (a: { x: number; y: number }, x: number, y: number) => {
