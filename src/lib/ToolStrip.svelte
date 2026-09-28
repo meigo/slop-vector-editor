@@ -2,7 +2,6 @@
   import {
     Blend,
     Circle,
-    Grid2x2,
     Hand,
     MousePointer2,
     Pentagon,
@@ -12,10 +11,12 @@
     Square,
     Type,
   } from "@lucide/svelte";
+  import type { LucideIcon } from "@lucide/svelte";
   import { app, setTool } from "../state/appState.svelte";
   import type { ToolId } from "../tools/types";
+  import WarpIcon from "./icons/WarpIcon.svelte";
 
-  const TOOL_BUTTONS: { id: ToolId; label: string; key: string; icon: typeof Square }[] = [
+  const TOOL_BUTTONS: { id: ToolId; label: string; key: string; icon: LucideIcon }[] = [
     { id: "select", label: "Select", key: "V", icon: MousePointer2 },
     { id: "node", label: "Edit nodes", key: "N", icon: SplinePointer },
     { id: "rect", label: "Rectangle", key: "R", icon: Square },
@@ -25,7 +26,7 @@
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "text", label: "Text", key: "T", icon: Type },
     { id: "gradient", label: "Gradient", key: "G", icon: Blend },
-    { id: "warp", label: "Warp", key: "W", icon: Grid2x2 },
+    { id: "warp", label: "Warp", key: "W", icon: WarpIcon },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];
 </script>

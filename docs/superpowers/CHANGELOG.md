@@ -2594,3 +2594,18 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - **Verified**: 6 store tests (`style-defaults.test.ts`). Not browser-checked (pure store logic;
   the drawing tools already read `prefs.style`).
 - 1037 tests in 69 files.
+
+## 2026-09-28 — Custom icons: the Warp tool's arch envelope
+
+- **What**: `src/lib/icons/`, a home for icons Lucide doesn't cover, starting with `WarpIcon`
+  for the Warp tool (it borrowed Lucide's `grid-2x2`). Requested with two reference images (a
+  warped grid, a perspective quad with round corner handles); four candidates were drawn on
+  Lucide's grid and compared at 16/24/48px against real Lucide icons, and the user picked "A":
+  four r=2 corner handles (the language of Lucide's `vector-square`) with the top and bottom edges
+  arched — the classic arch envelope, and what the tool draws on the canvas.
+- **How**: each custom icon wraps Lucide's exported `Icon` with its own `{ name, size, node }`
+  data — the same construction as Lucide's shipped icon files — so it takes the same props,
+  renders with Lucide's classes (`lucide lucide-warp`), 24×24 grid and 2px round stroke. The
+  tool strip's icon type is now Lucide's own `LucideIcon`, which custom and built-in icons share.
+- **Verified**: `svelte-check` 0/0, build clean; in the browser the strip renders it at 18px
+  beside Gradient and Hand with matching weight, and the DOM shows Lucide's classes and stroke.
