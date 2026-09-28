@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1031 tests in 68 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1037 tests in 69 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -120,7 +120,7 @@ every user-visible change.
   `fonts/` (four SIL OFL faces + their `OFL.txt`, imported through Vite `?url`).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
-  (localStorage: style + polygon defaults for new shapes, snap, the dock's expanded state, the
+  (localStorage: style + polygon defaults for new shapes — the style is also updated by every style edit on a selection, flat paints only, through the store's `rememberStyle` (2026-09-28) — snap, the dock's expanded state, the
   sidebar's split ratio and the Layers panel's collapse),
   `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing

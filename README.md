@@ -32,7 +32,8 @@ What works today:
   rotating (Shift snaps to 15°) and Alt-duplicating. On an object too small to hold them, the
   resize handles move outside it, so its middle stays grabbable.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
-  defaults for new shapes when nothing is selected. Every number can be typed or dragged
+  defaults for new shapes when nothing is selected. The last fill, stroke, width, cap, join or
+  opacity you set on a selection also becomes the default for the next shape you draw. Every number can be typed or dragged
   sideways — the artwork follows live, a drag is one undo step, and Shift makes it finer.
 - Convert to path and flatten transform.
 - Copy, cut and paste — within the editor and as SVG with other apps.
@@ -146,7 +147,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1031 unit tests
+npm test          # 1037 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
