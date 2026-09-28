@@ -4,6 +4,7 @@
   import {
     addFontFile,
     beginUiGesture,
+    finishCharDrag,
     endDocGesture,
     titleGestureEpoch,
     titleInFlight,
@@ -190,18 +191,25 @@
   </div>
 
   <NumberField
+    onlivestart={beginUiGesture}
+    onliveend={finishCharDrag}
     label="Size"
     value={meta.size}
     min={1}
     onchange={(v) => ready && void setTitleOpts({ size: v })}
   />
   <NumberField
+    onlivestart={beginUiGesture}
+    onliveend={finishCharDrag}
     label="Spacing"
     value={meta.letterSpacing}
     onchange={(v) => ready && void setTitleOpts({ letterSpacing: v })}
   />
   <NumberField
+    onlivestart={beginUiGesture}
+    onliveend={finishCharDrag}
     label="Line height"
+    step={0.05}
     value={meta.lineHeight}
     min={0.5}
     max={4}
@@ -245,6 +253,8 @@
   </p>
   {#each CHAR_FIELDS as c (c.key)}
     <NumberField
+      onlivestart={beginUiGesture}
+      onliveend={finishCharDrag}
       label={c.label}
       value={c.of(effective)}
       suffix={c.suffix}
@@ -267,6 +277,8 @@
     </div>
     {#each AMOUNTS as a (a.key)}
       <NumberField
+        onlivestart={beginUiGesture}
+        onliveend={finishCharDrag}
         label={a.label}
         value={amountValue(a.key)}
         min={0}

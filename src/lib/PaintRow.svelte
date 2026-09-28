@@ -104,6 +104,8 @@
        most of the space instead of giving it up. -->
   <div class="min-w-0 flex-1">
     <NumberField
+      {onlivestart}
+      {onliveend}
       label=""
       value={Math.round(paint.opacity * 100)}
       min={0}
