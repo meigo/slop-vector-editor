@@ -2706,3 +2706,17 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   state and Roadmap updated. 3 regression tests.
 - **Owed**: iPad (the section's buttons by touch); Safari.
 - 1064 tests in 71 files.
+
+## 2026-09-28 — Titles outline through glyphs, not opentype.js string paths
+
+- **What**: `outlineText` draws each character with `charToGlyph(char).getPath(…)` instead of
+  `font.getPath(char, …)`. Output for existing fonts is identical (all text tests, including the
+  exact-outline round trips, unchanged).
+- **Why**: found in the Google Fonts spike. `font.getPath(text, …)` runs opentype.js's string
+  shaping, which throws on many modern fonts once it sees two or more characters (Lora: "lookupType
+  6 – substFormat 2 is not yet supported"). The app always passed a single character, which turned
+  out to be safe — the spike report first claimed otherwise and was corrected — so this was not a
+  live crash. But the glyph route avoids that code entirely and is the one M20's variable-font
+  weights need (`variation.getTransform` works on a glyph).
+- **Verified**: a regression test outlines through a font whose `getPath` throws that error; a
+  one-off check outlined real Lora ("Tallinn šž") through `outlineText`.

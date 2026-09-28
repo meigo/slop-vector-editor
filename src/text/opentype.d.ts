@@ -11,6 +11,8 @@ declare module "opentype.js" {
   export interface Glyph {
     index: number;
     advanceWidth?: number;
+    /** The glyph's outline at a pen position — no string shaping involved (see `outlineText`). */
+    getPath(x: number, y: number, fontSize: number): Path;
   }
 
   export interface PathCommand {

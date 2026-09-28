@@ -216,3 +216,27 @@ describe("multi-line titles", () => {
     expect(moved[1]).not.toEqual(plain[1]);
   });
 });
+
+describe("drawing avoids opentype.js's string shaping (2026-09-28)", () => {
+  it("outlines through each glyph, never font.getPath", () => {
+    // `font.getPath(text, …)` runs opentype.js's string shaping, which throws on many modern fonts
+    // for multi-character strings (Lora: "lookupType: 6 - substFormat: 2 is not yet supported").
+    // Drawing must not depend on it: a font whose getPath throws must still outline, identically.
+    const expected = outlineText(f, meta("Tallinn"));
+    const crashing = new Proxy(f.font, {
+      get(target, prop, receiver) {
+        if (prop === "getPath") {
+          return () => {
+            throw new Error(
+              "substitutionType : 62 lookupType: 6 - substFormat: 2 is not yet supported",
+            );
+          };
+        }
+        const v = Reflect.get(target, prop, receiver);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    });
+    const out = outlineText({ ...f, font: crashing }, meta("Tallinn"));
+    expect(out).toEqual(expected);
+  });
+});

@@ -226,7 +226,12 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
   const { placed, font } = runLayout(f, m);
   const out: Subpath[] = [];
   for (const p of placed) {
-    const d = font.getPath(p.char, p.penX, p.penY, m.size).toPathData(3);
+    // Through the glyph, never `font.getPath(text, …)`: that runs opentype.js's string shaping,
+    // which throws on many modern fonts once it sees two or more characters (Lora: "lookupType 6,
+    // substFormat 2 is not yet supported"). One character at a time happened to be safe, but the
+    // glyph route avoids that code entirely and is the one variable-font weights need (a variation
+    // transforms a glyph, not a string). `charToGlyph` is the same mapping the layout used.
+    const d = font.charToGlyph(p.char).getPath(p.penX, p.penY, m.size).toPathData(3);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
     const t = transformFor(m, p.index);
