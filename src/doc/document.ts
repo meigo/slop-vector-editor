@@ -267,7 +267,35 @@ export type TextMeta = {
   seed: number;
   amounts: { rotate: number; scale: number; offset: number; skew: number };
   overrides: Record<number, { r?: number; s?: number; dx?: number; dy?: number; k?: number }>;
+  /** Absent means 400 (spec M20 §4). Present only when it differs — set through `withWeight`, so
+   *  "regular" has one representation (invariant 39). */
+  weight?: number;
+  /** Absent means upright. Present only as `true` — set through `withItalic`. */
+  italic?: true;
 };
+
+export const DEFAULT_WEIGHT = 400;
+
+/** The weight a title asks for; the key is deleted at the default, and an unchanged weight returns
+ *  the same object (invariant 1). Rounded and clamped to an integer 1-1000 — exactly what
+ *  `parseTextOpts` accepts — because a weight it rejects would turn the title into a plain path on
+ *  reload. A non-finite weight means the default. */
+export function withWeight(m: TextMeta, weight: number): TextMeta {
+  const w = Number.isFinite(weight)
+    ? Math.min(1000, Math.max(1, Math.round(weight)))
+    : DEFAULT_WEIGHT;
+  if ((m.weight ?? DEFAULT_WEIGHT) === w) return m;
+  const next: TextMeta = { ...m, weight: w };
+  if (w === DEFAULT_WEIGHT) delete next.weight;
+  return next;
+}
+
+export function withItalic(m: TextMeta, on: boolean): TextMeta {
+  if ((m.italic === true) === on) return m;
+  const next: TextMeta = { ...m, italic: true };
+  if (!on) delete next.italic;
+  return next;
+}
 
 export type PathShape = ShapeBase & { kind: "path"; subpaths: Subpath[]; text?: TextMeta };
 

@@ -7,6 +7,7 @@ import {
   parseTextOpts,
   type TextOpts,
 } from "../text/attrs";
+import { withItalic, withWeight, type TextMeta } from "../doc/document";
 
 const opts: TextOpts = {
   size: 96,
@@ -152,5 +153,99 @@ describe("splitLines", () => {
   it("counts by code point, so an astral character does not shift later indices", () => {
     // "\u{1D400}" is one character but two UTF-16 units; [...s] is what the layout iterates.
     expect(splitLines("\u{1D400}\nB")[1].start).toBe(2);
+  });
+});
+
+describe("weight and italic in the text-opts attribute (M20 §4)", () => {
+  it("stays nine fields at the defaults — byte-identical to a pre-M20 file", () => {
+    // Written by M10d-M19 for `opts`; a default title must serialize to exactly this.
+    expect(formatTextOpts(opts)).toBe("96 2.5 center 418 12 0.08 4 0 1.2");
+    expect(formatTextOpts({ ...opts, weight: 400 })).toBe("96 2.5 center 418 12 0.08 4 0 1.2");
+  });
+
+  it("appends weight and italic as eleven fields once either is set", () => {
+    expect(formatTextOpts({ ...opts, weight: 700 })).toBe(
+      "96 2.5 center 418 12 0.08 4 0 1.2 700 0",
+    );
+    expect(formatTextOpts({ ...opts, italic: true })).toBe(
+      "96 2.5 center 418 12 0.08 4 0 1.2 400 1",
+    );
+    expect(formatTextOpts({ ...opts, weight: 300, italic: true })).toBe(
+      "96 2.5 center 418 12 0.08 4 0 1.2 300 1",
+    );
+  });
+
+  it("round-trips eleven fields", () => {
+    const o: TextOpts = { ...opts, weight: 700, italic: true };
+    expect(parseTextOpts(formatTextOpts(o))).toEqual(o);
+  });
+
+  it("reads defaults written out in full as absent keys (invariant 39)", () => {
+    const o = parseTextOpts("96 2.5 center 418 12 0.08 4 0 1.2 400 0")!;
+    expect(o).not.toBeNull();
+    expect("weight" in o).toBe(false);
+    expect("italic" in o).toBe(false);
+  });
+
+  it("still reads eight and nine fields with no weight or italic keys", () => {
+    for (const s of ["96 2.5 center 418 12 0.08 4 0", "96 2.5 center 418 12 0.08 4 0 1.65"]) {
+      const o = parseTextOpts(s)!;
+      expect("weight" in o).toBe(false);
+      expect("italic" in o).toBe(false);
+    }
+  });
+
+  it("refuses ten fields, a bad weight or a bad italic flag", () => {
+    const base = "96 2.5 center 418 12 0.08 4 0 1.2";
+    expect(parseTextOpts(`${base} 700`)).toBeNull();
+    for (const w of ["0", "1001", "1.5", "-400", "x", "1e3.5"]) {
+      expect(parseTextOpts(`${base} ${w} 0`)).toBeNull();
+    }
+    expect(parseTextOpts(`${base} 1 0`)).not.toBeNull();
+    expect(parseTextOpts(`${base} 1000 0`)).not.toBeNull();
+    for (const i of ["2", "-1", "true", "x"]) expect(parseTextOpts(`${base} 700 ${i}`)).toBeNull();
+    expect(parseTextOpts(`${base} 700 0 1`)).toBeNull(); // 12 fields
+  });
+});
+
+describe("withWeight / withItalic", () => {
+  const m: TextMeta = {
+    ...opts,
+    text: "A",
+    font: "gf:lora",
+    overrides: {},
+  };
+
+  it("sets a non-default value and deletes the key at the default", () => {
+    const bold = withWeight(m, 700);
+    expect(bold.weight).toBe(700);
+    const back = withWeight(bold, 400);
+    expect("weight" in back).toBe(false);
+    expect(back).toEqual(m);
+    const ital = withItalic(m, true);
+    expect(ital.italic).toBe(true);
+    expect("italic" in withItalic(ital, false)).toBe(false);
+  });
+
+  it("returns the same reference when nothing changes (invariant 1)", () => {
+    expect(withWeight(m, 400)).toBe(m);
+    expect(withItalic(m, false)).toBe(m);
+    const bold = withWeight(m, 700);
+    expect(withWeight(bold, 700)).toBe(bold);
+    const ital = withItalic(m, true);
+    expect(withItalic(ital, true)).toBe(ital);
+  });
+
+  it("writes only an integer 1-1000, the range parseTextOpts accepts", () => {
+    expect(withWeight(m, 649.6).weight).toBe(650);
+    expect(withWeight(m, 0).weight).toBe(1);
+    expect(withWeight(m, -50).weight).toBe(1);
+    expect(withWeight(m, 1200).weight).toBe(1000);
+    expect(withWeight(m, 400.2)).toBe(m); // rounds to the default: unchanged
+    expect(withWeight(m, Number.NaN)).toBe(m);
+    for (const w of [649.6, 0, 1200]) {
+      const written = formatTextOpts({ ...opts, weight: withWeight(m, w).weight });
+      expect(parseTextOpts(written)).not.toBeNull();
+    }
   });
 });

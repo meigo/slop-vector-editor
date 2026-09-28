@@ -12,13 +12,17 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
-  build emits **three** chunks — the app's own, `paper-core`'s and `opentype`'s. The check is not a
-  size bar on the app chunk (it grows with every feature) but that the two libraries stay in chunks
-  of their own: paper in `dist/assets/paper-core-*.js` (~72 KB gzipped) and opentype in
-  `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
-  outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
-  fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1064 tests in 71 files. Only pure logic is unit-tested.
+  build emits **four** chunks — the app's own, `paper-core`'s, `opentype`'s and the Google Fonts
+  catalogue's. The check is not a size bar on the app chunk (it grows with every feature) but that
+  the two libraries stay in chunks of their own — paper in `dist/assets/paper-core-*.js` (~72 KB
+  gzipped) and opentype in `dist/assets/opentype-*.js` (~68 KB gzipped) — and that the catalogue
+  stays lazy, in `dist/assets/google-fonts-*.js` (~25.6 KB gzipped), fetched only when the dialog
+  opens. Paper or opentype appearing in the app chunk means something outside `src/geom/paper.ts`
+  or `src/text/font.ts` imported it statically; the catalogue appearing there means something
+  imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
+  (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
+  them.
+- `npm test` — Vitest, node env, no DOM — 1158 tests in 75 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -114,10 +118,23 @@ every user-visible change.
   half of PNG export), `appState.svelte.ts` (the `app` store + actions, incl. `exportPng` and
   `copyPng`).
 - `src/text/` — `font.ts` (the **only** importer of `opentype.js`, and only dynamically: font
-  registry, `loadFont`, `registerFontFile`, `outlineText`, the unshaped-script and no-glyph
-  guards), `layout.ts` (pure: pen positions, kerning, letter-spacing, alignment), `attrs.ts` (pure:
-  the `data-sv-text-*` format), `opentype.d.ts` (hand-written types — see the invariant),
-  `fonts/` (four SIL OFL faces + their `OFL.txt`, imported through Vite `?url`).
+  registry, `loadFont`/`loadFace` (a `FaceRequest` — font, weight, italic — spec M20 §3),
+  `registerFontFile`, `registerGoogleFamily`, `previewFace`, `familyWeights`/`familyHasItalic`/
+  `familyLicense`, `outlineText`, the unshaped-script and no-glyph guards; `pathDataOf`/`num` format
+  a glyph's path commands by hand — see invariant 40's NaN note), `layout.ts` (pure: pen positions,
+  kerning, letter-spacing, alignment), `attrs.ts` (pure: the `data-sv-text-*` format, 8/9/11 fields
+  — see invariant 40), `opentype.d.ts` (hand-written types — see the invariant), `fonts/` (four SIL
+  OFL faces + their `OFL.txt`, imported through Vite `?url`), `google-catalogue.ts` (the Google
+  Fonts catalogue, spec M20 §2: `GoogleFamily`, `loadCatalogue` — a lazy dynamic `import()` of the
+  committed `google-fonts.json` snapshot, fetched only when the dialog opens — `googleFontId`/
+  `familyIdOf` (the `gf:` prefix), `familyDir` (licence folder + hyphen-stripped id, for jsDelivr),
+  `searchFamilies`/`CATEGORIES` (accent-insensitive ranked search) and `weightName`), `google-fonts.ts`
+  (a family's faces, spec M20 §3: `parseMetadata` (METADATA.pb protobuf-text parsing),
+  `isVariableFile`/`hasItalic`, `chooseFace` (picks the face for a weight+italic request),
+  `fetchMetadata`/`fetchFaceFile` (jsDelivr downloads, an injectable `Fetcher` for tests,
+  `FontDownloadError`) — imports no opentype.js; callers hand `font.ts` the raw bytes),
+  `preview.ts` (`previewOutline`/`PREVIEW_SAMPLE` — the Google Fonts dialog's sample line, "Tallinn
+  — šž õäöü", through the exact same `outlineText` pipeline a title uses).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
   (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
   (localStorage: style + polygon defaults for new shapes — the style is also updated by every style edit on a selection, flat paints only, through the store's `rememberStyle` (2026-09-28) — snap, the dock's expanded state, the
@@ -129,7 +146,14 @@ every user-visible change.
   (`isAppleTouch`, `saveToFilesAvailable`, `canShareFile`, `classifyShareError` — Save to Files
   detection and the share sheet itself), `deliver.ts` (`deliverFile`, the shared/dismissed/ready/
   downloaded decision table between a built file and the share sheet, with `share`/`canShare`/
-  `download` injectable exactly as `system-clipboard.ts` injects its `ClipboardLike`).
+  `download` injectable exactly as `system-clipboard.ts` injects its `ClipboardLike`), `font-cache.ts`
+  (spec M20 §5: the Google Fonts cache's **own** IndexedDB database, `slop-vector-editor-fonts`,
+  stores `families` and `faces` — so autosave's database is never upgraded — behind the injectable
+  `FontStore` interface; `idbFontStore` is the real wrapper, `memoryFontStore` is what tests use;
+  `faceKey` — `<font id>/<filename>` — keys a face's cached bytes; never imports opentype.js).
+- `scripts/` — `google-fonts-catalogue.mjs` (spec M20 §2: an offline, hand-run build script —
+  never at build time or runtime — that fetches Fontsource's API and writes the committed
+  `src/text/google-fonts.json` snapshot `google-catalogue.ts` loads).
 - `src/lib/` — `Canvas` (also shows the tool's hover cursor, `app.hoverCursor`, in place of its
   static cursor when set), `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing; every mark sits on a contrast halo — white under lines, a dark ring then a white one under knobs — so it reads on artwork of the accent's own hue), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
@@ -143,7 +167,10 @@ every user-visible change.
   first range input), `icons/` (custom icons Lucide lacks — each is a component wrapping Lucide's exported `Icon` with its own `{ name, size: 24, node }` data, exactly as Lucide's shipped icons are built, so it takes the same props, shares the `LucideIcon` type and renders on the same 24×24 grid with the 2px round stroke; draw new ones in Lucide's language, e.g. `WarpIcon`'s corner handles come from `vector-square`; `GradientIcon`'s halftone dots vary their stroke width per column — the one sanctioned break from the uniform 2px, so it ignores a `strokeWidth` prop), `ToggleButton` (with
   `toggle.ts`, the pure state helper), `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a
   fresh tap at Save to Files when `deliverFile` didn't attempt a direct share, or the attempt needs
-  a fresh tap), `Notices`.
+  a fresh tap; `GoogleFontsDialog` — spec M20 §6: search box, category filter, a ranked family
+  list with each one's licence, a picked family's preview (`preview.ts`) drawn in its downloaded
+  regular face, and Add, which registers it and switches the title — closing only once the switch
+  itself has committed), `Notices`.
 
 ## Invariants and gotchas
 
@@ -448,7 +475,12 @@ every user-visible change.
     each slop app's favicon colour is listed in `../SLOP-FAVICON-COLOURS.md`. The CSP's `style-src`
     needs `'unsafe-inline'` — canvas and export (`svg/attrs.ts`) and the overlay set `style`
     attributes on every rendered element, which CSP counts as inline styles; scripts need no such
-    exception.
+    exception. **`connect-src` also names `https://cdn.jsdelivr.net`** (M20): it is the one runtime
+    third party — a Google Fonts family's `METADATA.pb` and its face files are fetched from there,
+    never from Google or Fontsource, and downloads happen only when the user picks a family (or a
+    style of one already added) in the dialog. The catalogue itself is a committed, build-time
+    snapshot (`src/text/google-fonts.json`) fetched from nowhere at runtime, so it needs no host of
+    its own.
 36. **The selection commands' reach is `selectableIds(doc, enteredGroupId)`** (`src/doc/tree.ts`,
     spec M6 §4), reused as-is from `src/doc/select-match.ts`. `hitTest` and `marqueeSelect` used to
     re-implement its rule inline; since M9 all three build on the same two pieces in `tree.ts` —
@@ -562,10 +594,48 @@ every user-visible change.
       overflowed onto its neighbour and painted over that label. Superseded 2026-09-20 by the panel
       grid in invariant 23: the field column is `minmax(0, 1fr)`, so a field shrinks instead of
       overflowing, and the `flex flex-wrap` rows this note once prescribed are gone.
-    - **`data-sv-text-opts` is 8 **or** 9 fields.** M10d appended `lineHeight`; `parseTextOpts`
-      accepts either and defaults the missing one to 1.2, because demanding nine would have turned
-      every title saved before it into a plain path with its text lost. Any future field must be
-      appended and optional for the same reason.
+    - **`data-sv-text-opts` is 8, 9 or 11 fields.** M10d appended `lineHeight`; `parseTextOpts`
+      accepts 8 or 9 and defaults the missing one to 1.2, because demanding nine would have turned
+      every title saved before it into a plain path with its text lost. M20 appends `weight` and
+      `italic(0|1)` as a pair, written only when either is off its default (`formatTextOpts` stays 9
+      fields at Regular upright, so an unstyled title still serializes byte-identically); a file
+      with 10 fields is rejected rather than guessed at. Any future field must be appended and
+      optional for the same reason.
+    - **A title's face is font + weight + italic, chosen by `chooseFace`** (`src/text/google-fonts.ts`,
+      spec M20 §3): `TextMeta.weight` (absent = 400, `DEFAULT_WEIGHT` in `document.ts`) and
+      `TextMeta.italic` (absent = upright), both optional and absent-means-default exactly like
+      `hidden`/`locked` (invariant 39). **Weights exist only for a Google family** — `familyWeights`
+      answers `[400]` for a bundled or file-added font, so its Weight menu offers just Regular, and
+      a variable font added from a file (not through the dialog) stays at its one Regular design;
+      only a Google-registered face's `entry.family.weights` and `chooseFace` over its parsed
+      `METADATA.pb` faces can offer more. `chooseFace` picks: the entries matching the requested
+      style, falling back to upright when italic was asked for but the family has none (the toggle
+      is disabled in that case; an imported file asking for it must not fail); a **variable** face
+      in that pool (filename contains `[`, e.g. `Lora[wght].ttf`) covers every weight and is
+      returned outright; otherwise the exact static weight wins, else the nearest (ties to the
+      heavier). Switching font snaps weight to the nearest the new family offers and drops italic if
+      it has none, in the same patch as the font id (one undo step) — otherwise the file could say
+      Bold Italic while the drawing is Regular. A Google family's font id is `gf:<fontsource id>`
+      (`GF_PREFIX`/`googleFontId`/`familyIdOf` in `google-catalogue.ts`); bundled and file-added ids
+      are unchanged.
+    - **Never `font.getPath(text, …)` or opentype.js's `toPathData`.** `outlineText` draws each
+      character through `charToGlyph(char).getPath(...)`, never the string form: that runs
+      opentype.js's string shaping, which throws on many modern fonts once it sees two or more
+      characters (Lora: "lookupType 6, substFormat 2 is not yet supported") — the app always passed
+      one character, which happened to be safe, but the glyph route sidesteps that code entirely and
+      is what a weighted variable face needs (`variation.getTransform` transforms a glyph, not a
+      string). Its own commands are formatted by `pathDataOf`/`num`, a hand port of opentype.js's
+      `optimizeCommands` clean-up, never through `toPathData`: `toPathData`'s rounding appends
+      `"e+" + places` to the number's string form, and a coordinate whose fractional part is already
+      tiny prints in exponent form ("1.2e-7"), so it parses "1.2e-7e+3" to `NaN` and caches it —
+      `parsePathData` then drops the rest of that contour, silently losing part of a glyph at some
+      pen positions (found on Lora's "l"; the bundled Anton hits it too). This is pre-existing and
+      not new in M20; only found because of it.
+    - **A variable face is instanced at every weight, 400 included** (`drawnGlyph` in `font.ts`):
+      `font.variation.getTransform(glyph, { wght })` overwrites the base glyph's advance as a side
+      effect, so after drawing 700 the un-instanced base glyph would lay 400 out with 700's
+      advances. Weight changes advances as well as outlines, so layout measures each glyph's advance
+      at the drawn weight, not the font's default.
     - **Block alignment falls out of the per-line rule** and needs no arithmetic of its own: with
       `left` every line starts at 0, with `center` every line is centred on 0, with `right` every
       line ends at 0 — so the block is aligned because each line is. `layoutRun` is unchanged from
@@ -795,7 +865,24 @@ every user-visible change.
 
 ## Current state
 
-**M19** (align and distribute, 2026-09-28: an Align section in the Properties panel and the Object
+**M20** (a Google Fonts library, weights and italic, 2026-09-28): browse the Google Fonts
+collection (≈2000 OFL/Apache-2.0/UFL families) in a search dialog (Add a font… ▸ From Google
+Fonts…), pick one to download and preview it, and Add to register it for good and switch the
+title — files come from jsDelivr, never Google or Fontsource, and only on that pick; a Weight
+select (exactly the family's own weights) and an Italic toggle (`aria-disabled` with a reason when
+the family has none) in the Text section; bundled and file-added fonts stay Regular-only. Cached in
+its own IndexedDB database so a reopened title stays editable offline. Fixed along the way (found
+in the M20 spike, pre-existing, not new): opentype.js's `toPathData` returns `NaN` for a coordinate
+whose fractional part is small enough to print in exponent form, silently dropping the rest of a
+glyph contour at some pen positions in any font, the bundled Anton included — `outlineText` now
+formats path commands itself (`pathDataOf`) rather than calling `toPathData`. See CHANGELOG. Owed:
+an iPad/touch pass (the dialog, the add-a-font menu, search typing speed over ~1980 unfiltered
+rows), Safari (the IndexedDB font cache, the italic download), the deployed CSP's new
+`connect-src` host on Cloudflare, and offline behaviour with an uncached face (unit-tested only).
+Text's own next milestones — paragraph text, then on-canvas text editing, then shaping for complex
+scripts — are unspecced.
+
+Before that, **M19** (align and distribute, 2026-09-28: an Align section in the Properties panel and the Object
 menu — several objects align to their bounds, one to the artboard, distribute = equal gaps for three
 or more; outermost selected nodes only, near-zero moves ignored so a repeat press is a no-op; owed
 an iPad pass), after smaller 2026-09-28 additions (drag-adjustable number fields, sticky style
@@ -834,8 +921,9 @@ polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the 
 resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad), M15
 (linear gradients, taken ahead of M14), M16 (radial gradients), M17 (gradient midpoint and
 distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) and M19 (align and distribute)
-are complete — see CHANGELOG.
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`), M19 (align and distribute) and
+**M20** (a Google Fonts library, weights and italic,
+`docs/superpowers/specs/2026-09-28-m20-google-fonts-design.md`) are complete — see CHANGELOG.
 Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so

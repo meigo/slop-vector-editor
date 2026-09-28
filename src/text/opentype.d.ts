@@ -27,11 +27,26 @@ declare module "opentype.js" {
 
   export interface Path {
     commands: PathCommand[];
-    toPathData(decimals?: number): string;
     getBoundingBox(): { x1: number; y1: number; x2: number; y2: number };
   }
 
+  /** One axis of a variable font's `fvar` table. */
+  export interface VariationAxis {
+    tag: string;
+    minValue: number;
+    defaultValue: number;
+    maxValue: number;
+  }
+
   export interface Font {
+    /** Present on a variable font only. */
+    tables: { fvar?: { axes: VariationAxis[] } };
+    /** A variable font's instancer. `getTransform` returns a NEW glyph at those coordinates — its
+     *  `advanceWidth` and `getPath` both reflect them — but it also overwrites the base glyph's
+     *  `advanceWidth` as a side effect, so the base glyph's advance must not be read afterwards. */
+    variation?: {
+      getTransform(glyph: Glyph, coords: Record<string, number>): Glyph;
+    };
     unitsPerEm: number;
     ascender: number;
     descender: number;

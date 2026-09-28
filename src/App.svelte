@@ -6,6 +6,7 @@
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
   import ExportPngDialog from "./lib/ExportPngDialog.svelte";
+  import GoogleFontsDialog from "./lib/GoogleFontsDialog.svelte";
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
@@ -19,7 +20,14 @@
   import { errorMessage } from "./persist/errors";
   import { autosaveRecord, restoreAutosave } from "./persist/project-io";
   import { watchOtherTabs } from "./persist/tab-presence";
-  import { app, copySelection, cutSelection, notify, pasteText } from "./state/appState.svelte";
+  import {
+    app,
+    copySelection,
+    cutSelection,
+    notify,
+    pasteText,
+    restoreGoogleFonts,
+  } from "./state/appState.svelte";
   import { runCommand, runEditAction } from "./state/commands";
   import { commandForKey, editActionForKey } from "./state/keys";
 
@@ -39,6 +47,8 @@
 
   onMount(() => {
     void restoreAutosave().then((ok) => (autosaveEnabled = ok));
+    // The cached Google families back into the font menu (spec M20 §5). Silent on failure.
+    void restoreGoogleFonts();
     return watchOtherTabs(() =>
       notify(
         "error",
@@ -240,6 +250,8 @@
   <DocumentSettingsDialog />
 {:else if app.dialog === "export"}
   <ExportPngDialog />
+{:else if app.dialog === "googleFonts"}
+  <GoogleFontsDialog />
 {/if}
 
 {#if app.confirm}

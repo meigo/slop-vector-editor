@@ -1,6 +1,7 @@
 /** The title attributes (spec M10 §7). Pure, and shaped like `parsePolygonAttr`: every field is
  *  validated and a bad one returns null rather than throwing, so a malformed file degrades to an
  *  ordinary path instead of losing its artwork. */
+import { DEFAULT_WEIGHT } from "../doc/document";
 import { fmt } from "../svg/fmt";
 import type { Align } from "./layout";
 
@@ -16,6 +17,10 @@ export type TextOpts = {
   align: Align;
   seed: number;
   amounts: Amounts;
+  /** Absent means 400; present only when it differs (invariant 39, spec M20 §4). */
+  weight?: number;
+  /** Absent means upright; present only as `true`. */
+  italic?: true;
 };
 
 const ALIGNS: readonly string[] = ["left", "center", "right"];
@@ -31,11 +36,16 @@ const num = (v: string): number | null => {
   return v.trim() !== "" && Number.isFinite(n) ? n : null;
 };
 
+/** Nine fields while weight and italic are at their defaults, so every title written before M20
+ *  — and every default title since — serializes byte-identically; eleven once either is set. */
 export function formatTextOpts(o: TextOpts): string {
   const a = o.amounts;
+  const weight = o.weight ?? DEFAULT_WEIGHT;
+  const styled = weight !== DEFAULT_WEIGHT || o.italic === true;
   return [o.size, o.letterSpacing]
     .map(fmt)
     .concat(o.align, [o.seed, a.rotate, a.scale, a.offset, a.skew, o.lineHeight].map(fmt))
+    .concat(styled ? [fmt(weight), o.italic ? "1" : "0"] : [])
     .join(" ");
 }
 
@@ -43,11 +53,13 @@ export function parseTextOpts(s: string): TextOpts | null {
   const p = s.trim().split(/\s+/);
   // **Eight or nine.** M10d appended `lineHeight`; demanding nine would turn every title saved
   // before it into a plain path with its text lost — the same silent loss the seed ceiling caused.
-  if (p.length !== 8 && p.length !== 9) return null;
+  // **Or eleven** (M20): weight and italic are appended as a pair, only when either is set. Ten
+  // is not a shape any version writes, so it is malformed.
+  if (p.length !== 8 && p.length !== 9 && p.length !== 11) return null;
   if (!ALIGNS.includes(p[2])) return null;
   const n = [0, 1, 3, 4, 5, 6, 7].map((i) => num(p[i]));
   if (n.some((v) => v === null)) return null;
-  const lineHeight = p.length === 9 ? num(p[8]) : DEFAULT_LINE_HEIGHT;
+  const lineHeight = p.length >= 9 ? num(p[8]) : DEFAULT_LINE_HEIGHT;
   if (lineHeight === null || lineHeight <= 0) return null;
   const [size, letterSpacing, seed, rotate, scale, offset, skew] = n as number[];
   if (size <= 0) return null;
@@ -57,6 +69,18 @@ export function parseTextOpts(s: string): TextOpts | null {
   if ([size, letterSpacing, rotate, scale, offset, skew].some((v) => Math.abs(v) > MAX_TEXT_NUM)) {
     return null;
   }
+  let weight = DEFAULT_WEIGHT;
+  let italic = false;
+  if (p.length === 11) {
+    // An integer weight class, 1-1000 (OpenType's range for the `wght` axis).
+    if (!/^\d+$/.test(p[9])) return null;
+    weight = Number(p[9]);
+    if (weight < 1 || weight > 1000) return null;
+    if (p[10] !== "0" && p[10] !== "1") return null;
+    italic = p[10] === "1";
+  }
+  // The defaults are absent keys, never written-out values (invariant 39), so a file spelling
+  // them out in full reads back identical to one that omits them.
   return {
     size,
     letterSpacing,
@@ -64,6 +88,8 @@ export function parseTextOpts(s: string): TextOpts | null {
     align: p[2] as Align,
     seed,
     amounts: { rotate, scale, offset, skew },
+    ...(weight === DEFAULT_WEIGHT ? {} : { weight }),
+    ...(italic ? { italic: true as const } : {}),
   };
 }
 

@@ -3,7 +3,24 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { IDENTITY } from "../geom/mat";
 import { nodeBounds } from "../geom/bounds";
 import { DEFAULT_STYLE, type PathShape, type TextMeta } from "../doc/document";
-import { charHits, charQuads, outlineText, type LoadedFont } from "../text/font";
+import {
+  charHits,
+  charQuads,
+  familyHasItalic,
+  familyLicense,
+  familyWeights,
+  fontAvailable,
+  fontChoices,
+  loadFace,
+  loadFont,
+  outlineText,
+  registerGoogleFamily,
+  setFontRegistryListener,
+  type LoadedFont,
+} from "../text/font";
+import type { CachedFamily } from "../persist/font-cache";
+import type { GoogleFamily } from "../text/google-catalogue";
+import { previewOutline } from "../text/preview";
 
 /** Read from disk, not through Vite's `?url`: the pipeline must be testable without a bundler. */
 let f: LoadedFont;
@@ -238,5 +255,253 @@ describe("drawing avoids opentype.js's string shaping (2026-09-28)", () => {
     });
     const out = outlineText({ ...f, font: crashing }, meta("Tallinn"));
     expect(out).toEqual(expected);
+  });
+});
+
+describe("Google families and variable-weight outlining (M20 §3)", () => {
+  const read = (path: string): ArrayBuffer => {
+    const b = fs.readFileSync(path);
+    return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  };
+  const LORA = read("fixtures/Lora[wght].ttf");
+  const ANTON = read("fixtures/Anton-Regular.ttf");
+
+  const catalogue = (id: string, over: Partial<GoogleFamily> = {}): GoogleFamily => ({
+    id,
+    family: "Lora",
+    category: "serif",
+    license: "OFL-1.1",
+    weights: [400, 500, 600, 700],
+    italic: false,
+    variable: true,
+    ...over,
+  });
+
+  /** Upright only: the fixture has no italic, so this family has none either. */
+  const lora: CachedFamily = {
+    id: "gf:lora",
+    family: catalogue("lora"),
+    faces: [{ style: "normal", weight: 400, filename: "Lora[wght].ttf" }],
+  };
+  const loaderCalls: string[] = [];
+  const loader = async (filename: string) => {
+    loaderCalls.push(filename);
+    return LORA;
+  };
+
+  let notified = 0;
+  beforeAll(() => {
+    setFontRegistryListener(() => notified++);
+    registerGoogleFamily(lora, loader);
+    setFontRegistryListener(null);
+  });
+
+  const lm = (text: string, over: Partial<TextMeta> = {}) =>
+    meta(text, { font: "gf:lora", ...over });
+  const width = (hits: { quad: { x: number }[] }[]) =>
+    Math.max(...hits.flatMap((h) => h.quad.map((p) => p.x))) -
+    Math.min(...hits.flatMap((h) => h.quad.map((p) => p.x)));
+
+  it("registers the family: available, in the menu by name, listener notified", () => {
+    expect(notified).toBe(1);
+    expect(fontAvailable("gf:lora")).toBe(true);
+    expect(fontAvailable("gf:nope")).toBe(false);
+    expect(fontChoices()).toContainEqual({ id: "gf:lora", label: "Lora" });
+  });
+
+  it("answers weights, italic and licence from the registry", () => {
+    expect(familyWeights("gf:lora")).toEqual([400, 500, 600, 700]);
+    expect(familyWeights("anton")).toEqual([400]);
+    expect(familyHasItalic("gf:lora")).toBe(false);
+    expect(familyHasItalic("anton")).toBe(false);
+    expect(familyLicense("gf:lora")).toBe("OFL-1.1");
+    expect(familyLicense("anton")).toBeNull();
+  });
+
+  it("loads a variable face with its weight axis range, parsed once", async () => {
+    const a = await loadFace({ font: "gf:lora" });
+    const b = await loadFace({ font: "gf:lora", weight: 700 });
+    expect(a.wght).toEqual({ min: 400, max: 700 });
+    expect(a.label).toBe("Lora");
+    expect(a.id).toBe("gf:lora");
+    expect(b).toBe(a); // one variable file covers every weight
+    expect(await loadFont("gf:lora")).toBe(a);
+    expect(loaderCalls).toEqual(["Lora[wght].ttf"]);
+  });
+
+  it("draws 700 heavier and wider than 400", async () => {
+    const f = await loadFace({ font: "gf:lora" });
+    const regular = outlineText(f, lm("Tallinn"));
+    const bold = outlineText(f, lm("Tallinn", { weight: 700 }));
+    expect(bold).not.toEqual(regular);
+    expect(width(charHits(f, lm("Tallinn", { weight: 700 })))).toBeGreaterThan(
+      width(charHits(f, lm("Tallinn"))),
+    );
+  });
+
+  it("draws 400 the same before and after drawing 700", async () => {
+    // opentype.js's `getTransform` overwrites the BASE glyph's advanceWidth, so reading base
+    // glyphs after a transform would lay 400 out with 700's advances.
+    const f = await loadFace({ font: "gf:lora" });
+    const fresh = outlineText(f, lm("Sõna"));
+    const freshHits = charHits(f, lm("Sõna"));
+    outlineText(f, lm("Sõna", { weight: 700 }));
+    expect(outlineText(f, lm("Sõna"))).toEqual(fresh);
+    expect(charHits(f, lm("Sõna"))).toEqual(freshHits);
+  });
+
+  it("clamps a weight outside the axis to its range", async () => {
+    const f = await loadFace({ font: "gf:lora" });
+    expect(outlineText(f, lm("Ag", { weight: 900 }))).toEqual(
+      outlineText(f, lm("Ag", { weight: 700 })),
+    );
+    expect(outlineText(f, lm("Ag", { weight: 100 }))).toEqual(outlineText(f, lm("Ag")));
+  });
+
+  it("puts each character's hit box around its outline at 700", async () => {
+    const f = await loadFace({ font: "gf:lora" });
+    const m = lm("MW", { weight: 700 });
+    const hits = charHits(f, m);
+    const regular = charHits(f, lm("MW"));
+    expect(hits).not.toEqual(regular);
+    // The second glyph's box starts where the first glyph's advance at 700 ends.
+    const x1 = Math.max(...hits[0].quad.map((p) => p.x));
+    expect(Math.min(...hits[1].quad.map((p) => p.x))).toBeCloseTo(x1, 6);
+    // Each glyph outline sits inside its own box, give or take a small side bearing overhang.
+    const one = (ch: string) => {
+      const node: PathShape = {
+        kind: "path",
+        id: "t",
+        transform: IDENTITY,
+        style: DEFAULT_STYLE,
+        subpaths: outlineText(f, lm(ch, { weight: 700 })),
+      };
+      return nodeBounds(node, IDENTITY)!;
+    };
+    const m0 = one("M");
+    expect(m0.x).toBeGreaterThanOrEqual(-2);
+    expect(m0.x + m0.w).toBeLessThanOrEqual(x1 + 2);
+  });
+
+  it("outlines an italic request upright when the family has no italic", async () => {
+    const upright = await loadFace({ font: "gf:lora" });
+    const asked = await loadFace({ font: "gf:lora", italic: true });
+    expect(asked).toBe(upright);
+    expect(outlineText(asked, lm("Tallinn", { italic: true }))).toEqual(
+      outlineText(upright, lm("Tallinn")),
+    );
+  });
+
+  it("loads the italic face's own file when the family has one", async () => {
+    const calls: string[] = [];
+    registerGoogleFamily(
+      {
+        id: "gf:lora-both",
+        family: catalogue("lora-both", { italic: true }),
+        faces: [
+          { style: "normal", weight: 400, filename: "Lora[wght].ttf" },
+          { style: "italic", weight: 400, filename: "Lora-Italic[wght].ttf" },
+        ],
+      },
+      async (name) => {
+        calls.push(name);
+        return LORA;
+      },
+    );
+    expect(familyHasItalic("gf:lora-both")).toBe(true);
+    const up = await loadFace({ font: "gf:lora-both" });
+    const ital = await loadFace({ font: "gf:lora-both", italic: true });
+    expect(ital).not.toBe(up);
+    expect(calls).toEqual(["Lora[wght].ttf", "Lora-Italic[wght].ttf"]);
+  });
+
+  it("draws a static Google face at its own design, with no synthetic bold", async () => {
+    registerGoogleFamily(
+      {
+        id: "gf:anton",
+        family: catalogue("anton", { family: "Anton", weights: [400], variable: false }),
+        faces: [{ style: "normal", weight: 400, filename: "Anton-Regular.ttf" }],
+      },
+      async () => ANTON,
+    );
+    const g = await loadFace({ font: "gf:anton", weight: 700 });
+    expect(g.wght).toBeUndefined();
+    const plain = outlineText(f, meta("SLOP"));
+    expect(outlineText(g, meta("SLOP", { font: "gf:anton", weight: 700 }))).toEqual(plain);
+  });
+
+  it("leaves a bundled font at weight 700 unchanged — no variation for non-Google fonts", () => {
+    expect(f.wght).toBeUndefined();
+    expect(outlineText(f, meta("SLOP", { weight: 700 }))).toEqual(outlineText(f, meta("SLOP")));
+  });
+
+  it("refuses an unregistered Google font as unavailable, not a download failure", async () => {
+    await expect(loadFace({ font: "gf:missing" })).rejects.toThrow(/isn't loaded/);
+  });
+
+  it("surfaces the loader's download error and stays retryable", async () => {
+    let fail = true;
+    registerGoogleFamily(
+      {
+        id: "gf:flaky",
+        family: catalogue("flaky"),
+        faces: [{ style: "normal", weight: 400, filename: "Lora[wght].ttf" }],
+      },
+      async () => {
+        if (fail) throw new Error("Couldn't download Lora — check your connection");
+        return LORA;
+      },
+    );
+    await expect(loadFace({ font: "gf:flaky" })).rejects.toThrow(/Couldn't download/);
+    fail = false;
+    expect((await loadFace({ font: "gf:flaky" })).wght).toEqual({ min: 400, max: 700 });
+  });
+});
+
+describe("previewOutline", () => {
+  it("outlines the family name over the sample, with bounds for the viewBox", () => {
+    const p = previewOutline(f, "Anton");
+    expect(p).not.toBeNull();
+    expect(p!.d.startsWith("M")).toBe(true);
+    // Two lines: the second baseline is a whole line (32px × 1.3) below the first.
+    expect(p!.box.h).toBeGreaterThan(32 * 1.3);
+    expect(p!.box.w).toBeGreaterThan(0);
+  });
+});
+
+/** opentype.js's `toPathData` turned a coordinate with a tiny fractional part into NaN ("1.2e-7"
+ *  + "e+3"), and the rest of that contour was dropped. Scanning the pen across many fractional
+ *  positions — through letter-spacing — catches any position where a glyph loses nodes. */
+describe("outlines at every pen position", () => {
+  const scan = (font: LoadedFont, text: string): number[] => {
+    const counts: number[] = [];
+    for (let ls = 0; ls <= 60; ls += 0.137) {
+      const sp = outlineText(font, meta(text, { font: font.id, size: 32, letterSpacing: ls }));
+      for (const s of sp) {
+        for (const n of s.nodes) {
+          for (const q of [n.p, n.in, n.out]) {
+            if (q && !(Number.isFinite(q.x) && Number.isFinite(q.y))) {
+              throw new Error(`non-finite coordinate at spacing ${ls}`);
+            }
+          }
+        }
+      }
+      counts.push(sp.reduce((a, s) => a + s.nodes.length, 0));
+    }
+    return counts;
+  };
+
+  it("Lora's “l” keeps all 21 nodes wherever the pen lands", async () => {
+    const ot = (await import("opentype.js")).default;
+    const b = fs.readFileSync("fixtures/Lora[wght].ttf");
+    const font = ot.parse(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+    const lora: LoadedFont = { id: "lora", label: "Lora", font };
+    const t = scan(lora, "T")[0];
+    // The "T" sits at pen 0 while the spacing slides the "l" across 60px in 0.137px steps.
+    expect(new Set(scan(lora, "Tl").map((n) => n - t))).toEqual(new Set([21]));
+  });
+
+  it("Anton's “Tallinn” keeps the same node count wherever the pens land", () => {
+    expect(new Set(scan(f, "Tallinn")).size).toBe(1);
   });
 });

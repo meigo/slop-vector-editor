@@ -2720,3 +2720,129 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   weights need (`variation.getTransform` works on a glyph).
 - **Verified**: a regression test outlines through a font whose `getPath` throws that error; a
   one-off check outlined real Lora ("Tallinn šž") through `outlineText`.
+
+## 2026-09-28 — M20: a Google Fonts library, weights and italic
+
+- **What**: browse the Google Fonts collection (≈2000 families, all OFL-1.1/Apache-2.0/UFL-1.0) in
+  a search dialog, download a family on demand and use it for titles — kept in the font menu for
+  good and cached so a reopened title stays editable offline. A **Weight** select listing exactly a
+  family's own weights, and an **Italic** toggle (disabled with a reason when the family has none)
+  in the Text section; bundled and file-added fonts stay Regular-only. Spec
+  `docs/superpowers/specs/2026-09-28-m20-google-fonts-design.md`, plan
+  `docs/superpowers/plans/2026-09-28-m20-google-fonts.md`, ledger
+  `.superpowers/sdd/2026-09-28-m20-google-fonts/progress.md`, six tasks over seven commits
+  (`d157e14..e63d017`). Follows the font-source spike recorded above (2026-09-28, "Titles outline
+  through glyphs").
+- **Decisions (user)**: approved in chat over three choices, then "go on and don't ask" — a
+  build-time snapshot of Fontsource's catalogue API (not a live Google Fonts API call) for family
+  metadata; full, unsubsetted face files from jsDelivr's mirror of `google/fonts` (not Fontsource's
+  own files, which are split by script and drop accented Latin like `š`/`ž`/`ő`); no live preview
+  while scrolling the list, only for the family actually picked; no width/optical-size axes, no
+  synthetic italic or bold, no weight slider.
+- **How**: `src/text/google-catalogue.ts` — `GoogleFamily`, `loadCatalogue` (a lazy dynamic
+  `import()` of the committed `google-fonts.json`, so nothing is fetched until the dialog opens),
+  `googleFontId`/`familyIdOf` (the `gf:` id prefix), `familyDir` (licence folder + hyphen-stripped
+  id, matching `google/fonts`' own directory names), `searchFamilies` (accent- and
+  case-insensitive, ranked exact-then-prefix-then-word-then-anywhere, so "lora" lists Lora ahead of
+  "Explora"/"Grandiflora One"). `scripts/google-fonts-catalogue.mjs` builds that snapshot from
+  `https://api.fontsource.org/v1/fonts`, offline and by hand, filtered to `type: "google"` and the
+  three accepted licences; nothing else ever talks to Fontsource. `src/text/google-fonts.ts` —
+  `parseMetadata` (a family's `METADATA.pb`, protobuf text format, one `fonts { … }` block per
+  face), `chooseFace` (spec M20 §3: matches style, falling back to upright when italic isn't
+  offered; a variable face — filename containing `[`, e.g. `Lora[wght].ttf` — covers every weight
+  and wins outright; otherwise the exact static weight, else the nearest, ties to the heavier),
+  `fetchMetadata`/`fetchFaceFile` (jsDelivr downloads through an injectable `Fetcher`, with an
+  optional `label` — the catalogue's family name — for a readable `FontDownloadError` instead of a
+  folder-derived guess like "Playfairdisplay"). `src/persist/font-cache.ts` — its **own** IndexedDB
+  database, `slop-vector-editor-fonts` (`families`/`faces` stores), behind an injectable `FontStore`
+  so the registry logic is unit-testable in node (`memoryFontStore` for tests, `idbFontStore` for
+  real use); autosave's database is never upgraded. `src/text/font.ts` gains `loadFace`
+  (a `FaceRequest` — font, weight, italic), `registerGoogleFamily`, `previewFace` (the dialog's
+  preview, parsed into the same cache a later Add reuses without re-downloading or re-parsing),
+  `familyWeights`/`familyHasItalic`/`familyLicense`; a variable face is instanced at the requested
+  weight through `variation.getTransform`, 400 included (it overwrites the base glyph's advance as
+  a side effect, so the unstyled glyph can't be reused across weights); weight changes advances as
+  well as outlines, so layout measures each glyph's advance at its drawn weight. `src/text/preview.ts`
+  (`previewOutline`) draws the dialog's sample line ("Tallinn — šž õäöü") through the exact
+  `outlineText` pipeline a title uses. `TextMeta` gains optional `weight`/`italic` (absent = 400 /
+  upright, invariant 39's shape); `data-sv-text-opts` stays 9 fields at the defaults and becomes 11
+  (`… lineHeight weight italic(0|1)`) otherwise — `parseTextOpts` accepts 8, 9 or 11, rejects 10.
+  Store: `setTitleWeight`/`setTitleItalic` (one reshape, one undo step each), `addGoogleFamily`/
+  `previewGoogleFamily`/`restoreGoogleFonts` (cache-first face loading via `faceLoader`), and a font
+  switch carries the face over as far as the new family allows. `GoogleFontsDialog.svelte` — search,
+  category filter, a ranked family list showing each one's licence, a picked family's preview and
+  licence, Add (disabled until a pick). "Add a font…" becomes a small menu, *From a file…* /
+  *From Google Fonts…*. The Text section gains a Weight select and an Italic `ToggleButton`; a title
+  whose `gf:` font isn't registered offers **Download `<family>`** in the panel's missing-font hint.
+  The CSP's `connect-src` gains `https://cdn.jsdelivr.net` — the one runtime third party; nothing
+  else talks to Google or Fontsource at runtime.
+- **Rulings** (from the task ledger):
+  1. The catalogue JSON (288 KB raw, ~25 KB gzipped — larger than the plan's "well under 250 KB")
+     is accepted: it is a lazy chunk fetched only when the dialog opens, and 1980 families is simply
+     that much data.
+  2. `fetchMetadata`/`fetchFaceFile` gained an optional `label` (the catalogue's family name) for
+     download-error messages, ahead of schedule, fixing "Playfairdisplay"-style folder-derived names
+     immediately rather than deferring it.
+  3. Weights apply to Google faces only — a variable font added from a file stays at its one Regular
+     design, keeping existing titles' outlines unchanged.
+  4. `withWeight` rounds and clamps to 1–1000 (OpenType's `wght` range) so the writer can never emit
+     a weight the reader would reject; one shared `DEFAULT_WEIGHT`.
+  5. Switching font snaps weight to the nearest the new family offers (400 for a bundled or
+     file-added font) and drops italic when the new family has none — otherwise the file could say
+     Bold Italic while the drawing is Regular, or the Weight menu could show a value it doesn't list.
+  6. The Google Fonts dialog closes only once `addGoogleFamily` has succeeded **and** the font
+     switch itself has committed.
+  7. The Italic toggle stays enabled while a title already has italic on, even if its current family
+     has none (so an imported italic title can still be switched off); it is disabled only for
+     turning italic *on*.
+  8. "Download `<family>`" may snap an unlisted weight to the nearest one the family actually offers,
+     since the file needs one consistent weight either way.
+- **Fixed along the way (pre-existing, not M20-introduced)**: opentype.js's `toPathData` builds its
+  rounded number as `decimalPart + "e+" + places`; a fractional part already small enough to print
+  in exponent form (e.g. `1.2e-7`) then parses as `"1.2e-7e+3"`, which is `NaN` — and the NaN is
+  cached per fraction. `parsePathData` drops the rest of that contour, so some pen positions in any
+  font (the bundled Anton included; a spike scan found 4 of ~3000 positions) silently lost part of a
+  glyph — the dialog's preview first noticed it as a thin sliver where Lora's "l" should be. Fixed by
+  never calling `toPathData`: `outlineText` now formats a glyph's path commands itself (`pathDataOf`/
+  `num`), a hand port of opentype.js's own `optimizeCommands` clean-up minus the NaN-prone rounding.
+- **Verified**: unit tests across `google-catalogue.test.ts`, `google-fonts.test.ts`,
+  `google-store.test.ts` and `font-cache.test.ts` (new), plus extensions to the existing text tests
+  (`text-pure.test.ts`, `text-outline.test.ts`, `text-roundtrip.test.ts`) — catalogue search/filter
+  and folder mapping, `METADATA.pb` parsing against real Lora/Ubuntu samples, face choice (variable,
+  static exact/nearest, italic fallback), the 11-field round trip and 8/9-field back-compat,
+  byte-identical 9 fields at the defaults, outlining at weight 700 from a variable fixture differing
+  from 400 in both outline and advance, the cache/registry logic over an in-memory store, and the
+  store actions (one undo step each for weight and italic). Browser check (controller, desktop
+  Chrome :5198, 2026-09-28, at `3666c1e`): the Add a font… menu (From a file / From Google Fonts);
+  the dialog's search, category filters and licensed family list, Add dimmed until a pick; typing
+  "lora" found 3 matches; picking Lora downloaded it and previewed "Lora / Tallinn — šž õäöü" with
+  its licence; Add switched the title to `gf:lora` and closed the dialog, and the title rendered
+  correctly (aside from the NaN sliver above, then unfixed). Browser re-check (after `e63d017`): a
+  reload restored the `gf:lora` title from the IndexedDB cache — editable, no missing-font hint, zero
+  jsDelivr requests; the Weight select showed "Regular 400" in full with exactly Lora's weights
+  (400–700); Bold moved it to weight 700, visibly heavier and wider; a real click on Italic
+  downloaded only `Lora-Italic[wght].ttf` and drew true italic; the opts serialized as
+  "… 1.2 700 1"; weight and italic each landed as one undo step; search "lora" now ranked Lora
+  first; both l's in "Tallinn" drew correctly.
+- **Fix round** (Task 5, one round): the NaN path-data bug above, the dialog's search ranking
+  ("Lora" behind "Explora"/"Grandiflora One"), the Weight select's label truncating at the sidebar's
+  default width ("Regular 4…"), and ruling 7 above (the Italic toggle's enabled state) — all
+  addressed, commits `3666c1e..e63d017`.
+- **Owed**: iPad and touch (the dialog, the Add-a-font menu, search typing speed with ~1980
+  unfiltered rows on an older iPad); Safari (the IndexedDB font cache, the italic download); the
+  deployed CSP's `connect-src` addition, on Cloudflare; offline behaviour with an uncached face
+  (unit-tested only, not checked in a browser with the network off).
+- **Known limitation**: opentype.js changes a glyph's advance for a weight only when the variable
+  font has an `HVAR` table. A variable face without one draws the heavier outlines at the regular
+  advances, so bold letters sit a little tighter — acceptable, and noted rather than worked around.
+- **Final review fixes**: (1) character picking works after **Download `<family>`** or a late
+  startup cache restore — the store's hit-box effect now also tracks `fontsChangedTick()`, so
+  registering the font re-runs it (it read only the selected title, whose meta doesn't change;
+  effects don't run under node, so this is browser-verified, not unit-tested); (2)
+  `addGoogleFamily` captures the target title (or "no title") before the download and switches
+  only if that is still the selection, and takes a `live()` guard the dialog turns off on
+  Cancel/close — otherwise it only registers the family, leaving every title and the new-title
+  default alone; (3) a non-ok HTTP status (404, 5xx) now reads "Lora isn't available from the font
+  source right now", keeping "check your connection" for a fetch that throws; (4) CLAUDE.md's build
+  bar counts four chunks, the lazy catalogue included.
+- 1158 tests in 75 files.
