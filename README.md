@@ -2,7 +2,8 @@
 
 A simple vector graphics editor that runs entirely in your browser — in the spirit of Inkscape
 and Affinity Designer, but small. Works with a mouse and keyboard, and on iPad with touch and
-Apple Pencil. Nothing is uploaded anywhere.
+Apple Pencil. Nothing is uploaded anywhere; fonts you pick from the Google Fonts library are
+downloaded, from jsDelivr rather than Google, and kept for offline use.
 
 Your document is a plain `.svg` file: open it in any browser or design tool.
 
@@ -65,7 +66,11 @@ What works today:
   scale, baseline and skew, each by its own amount, with a seed you can re-roll until you like it. Click a single character to tweak just that
   one by hand, or drag it — your changes survive a re-roll of the rest. The title is outlined to paths, so it looks the
   same on every machine and can be combined, node-edited and recoloured like any other artwork,
-  while staying re-typeable. Drop in your own `.ttf`, `.otf` or `.woff`.
+  while staying re-typeable. Drop in your own `.ttf`, `.otf` or `.woff`, or add one from the
+  **Google Fonts** library (~2000 open-licensed families) via Add a font… ▸ From Google Fonts…:
+  search and pick a family and it downloads — from jsDelivr, never Google — only then, and stays
+  available offline afterwards. **Weight** and **Italic** are selectable wherever the family
+  offers them.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder, and a current layer for
   new shapes; z-order (bring forward/backward, to front/back). **Every shape and group has its own
   eye and lock too** — a hidden or locked object can't be clicked, dragged or marquee-selected, and
@@ -150,7 +155,8 @@ What works today:
 ## Roadmap
 
 Unplanned: gradients with more than three stops, focal points; a freehand pencil/brush tool; grid and smart guides;
-masks/clipping; system-clipboard image paste.
+masks/clipping; system-clipboard image paste; paragraph text, on-canvas text editing and text
+shaping for complex scripts (bold/italic weight and style are done).
 
 ## Development
 
@@ -158,7 +164,7 @@ masks/clipping; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1064 unit tests
+npm test          # 1154 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
@@ -187,3 +193,7 @@ with its licence text beside it in `src/text/fonts/`:
 | [Righteous](https://fonts.google.com/specimen/Righteous)         | The Righteous Project Authors  |
 
 The OFL is separate from this project's MIT licence and continues to govern the fonts themselves.
+
+Fonts added from the Google Fonts library are downloaded, on demand, under whichever of the SIL
+Open Font License 1.1, the Apache License 2.0 or the Ubuntu Font Licence 1.0 that family ships
+under — shown in the Google Fonts dialog when you pick it.
