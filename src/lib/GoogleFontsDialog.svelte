@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import {
     addGoogleFamily,
     app,
@@ -50,6 +50,10 @@
 
   onMount(fetchCatalogue);
 
+  /** Cancel/close destroys the dialog; an add still downloading must then switch nothing. */
+  let open = true;
+  onDestroy(() => (open = false));
+
   function close() {
     app.dialog = null;
   }
@@ -81,7 +85,8 @@
     adding = true;
     addError = null;
     const before = new Set(app.notices);
-    const ok = await addGoogleFamily(f);
+    const ok = await addGoogleFamily(f, { live: () => open });
+    if (!open) return;
     adding = false;
     const t = selectedTitle();
     if (ok && (!t || t.text?.font === googleFontId(f))) {

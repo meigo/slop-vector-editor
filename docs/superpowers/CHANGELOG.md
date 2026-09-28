@@ -2832,4 +2832,17 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   unfiltered rows on an older iPad); Safari (the IndexedDB font cache, the italic download); the
   deployed CSP's `connect-src` addition, on Cloudflare; offline behaviour with an uncached face
   (unit-tested only, not checked in a browser with the network off).
-- 1154 tests in 75 files.
+- **Known limitation**: opentype.js changes a glyph's advance for a weight only when the variable
+  font has an `HVAR` table. A variable face without one draws the heavier outlines at the regular
+  advances, so bold letters sit a little tighter — acceptable, and noted rather than worked around.
+- **Final review fixes**: (1) character picking works after **Download `<family>`** or a late
+  startup cache restore — the store's hit-box effect now also tracks `fontsChangedTick()`, so
+  registering the font re-runs it (it read only the selected title, whose meta doesn't change;
+  effects don't run under node, so this is browser-verified, not unit-tested); (2)
+  `addGoogleFamily` captures the target title (or "no title") before the download and switches
+  only if that is still the selection, and takes a `live()` guard the dialog turns off on
+  Cancel/close — otherwise it only registers the family, leaving every title and the new-title
+  default alone; (3) a non-ok HTTP status (404, 5xx) now reads "Lora isn't available from the font
+  source right now", keeping "check your connection" for a fetch that throws; (4) CLAUDE.md's build
+  bar counts four chunks, the lazy catalogue included.
+- 1158 tests in 75 files.

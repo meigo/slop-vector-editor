@@ -345,3 +345,87 @@ describe("a font switch snaps the face to what the new family has", () => {
     expect(app.doc).toBe(before);
   });
 });
+
+describe("addGoogleFamily targets the title selected when it started (final review I-2)", () => {
+  /** A fetcher that holds every request until `release()`. */
+  function slowNet() {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const inner = fakeNet().fetcher;
+    const fetcher: Fetcher = async (url) => {
+      await gate;
+      return inner(url);
+    };
+    return { fetcher, release };
+  }
+
+  const twoTitles = (): Doc => {
+    const d = docWith("anton");
+    const a = title("anton");
+    const b = { ...title("anton"), id: "t2" };
+    return { ...d, layers: [{ ...d.layers[0], children: [a, b] }] };
+  };
+  const fontOf = (id: string) =>
+    (app.doc.layers[0].children.find((n) => n.id === id) as PathShape).text?.font;
+
+  it("a selection change mid-download switches neither title — the family is still registered", async () => {
+    replaceDocument(twoTitles(), "Untitled.svg", null, true);
+    const net = slowNet();
+    setGoogleFontIo({ store, fetcher: net.fetcher });
+    setSelection(["t"]);
+    const defaultBefore = newTitleFont();
+
+    const adding = addGoogleFamily(family("lora-r"));
+    setSelection(["t2"]);
+    net.release();
+    expect(await adding).toBe(true);
+
+    expect(fontAvailable("gf:lora-r")).toBe(true);
+    expect(fontOf("t")).toBe("anton");
+    expect(fontOf("t2")).toBe("anton");
+    expect(newTitleFont()).toBe(defaultBefore);
+    expect(app.canUndo).toBe(false);
+  });
+
+  it("still switches the title when it is still the one selected", async () => {
+    replaceDocument(twoTitles(), "Untitled.svg", null, true);
+    const net = slowNet();
+    setGoogleFontIo({ store, fetcher: net.fetcher });
+    setSelection(["t2"]);
+    const adding = addGoogleFamily(family("lora-s"));
+    net.release();
+    expect(await adding).toBe(true);
+    expect(fontOf("t2")).toBe("gf:lora-s");
+    expect(fontOf("t")).toBe("anton");
+  });
+
+  it("with no title selected at the start, selecting one mid-download leaves it and the default alone", async () => {
+    replaceDocument(twoTitles(), "Untitled.svg", null, true);
+    const net = slowNet();
+    setGoogleFontIo({ store, fetcher: net.fetcher });
+    setSelection([]);
+    const defaultBefore = newTitleFont();
+    const adding = addGoogleFamily(family("lora-t"));
+    setSelection(["t"]);
+    net.release();
+    expect(await adding).toBe(true);
+    expect(fontOf("t")).toBe("anton");
+    expect(newTitleFont()).toBe(defaultBefore);
+  });
+
+  it("an abandoned add (the dialog cancelled) switches nothing", async () => {
+    const net = slowNet();
+    setGoogleFontIo({ store, fetcher: net.fetcher });
+    setSelection(["t"]);
+    const defaultBefore = newTitleFont();
+    let open = true;
+    const adding = addGoogleFamily(family("lora-u"), { live: () => open });
+    open = false;
+    net.release();
+    expect(await adding).toBe(true);
+    expect(fontAvailable("gf:lora-u")).toBe(true);
+    expect(titleNode().text?.font).toBe("anton");
+    expect(newTitleFont()).toBe(defaultBefore);
+    expect(app.canUndo).toBe(false);
+  });
+});

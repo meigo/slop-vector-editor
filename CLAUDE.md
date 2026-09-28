@@ -12,13 +12,17 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
-  build emits **three** chunks — the app's own, `paper-core`'s and `opentype`'s. The check is not a
-  size bar on the app chunk (it grows with every feature) but that the two libraries stay in chunks
-  of their own: paper in `dist/assets/paper-core-*.js` (~72 KB gzipped) and opentype in
-  `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
-  outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
-  fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1154 tests in 75 files. Only pure logic is unit-tested.
+  build emits **four** chunks — the app's own, `paper-core`'s, `opentype`'s and the Google Fonts
+  catalogue's. The check is not a size bar on the app chunk (it grows with every feature) but that
+  the two libraries stay in chunks of their own — paper in `dist/assets/paper-core-*.js` (~72 KB
+  gzipped) and opentype in `dist/assets/opentype-*.js` (~68 KB gzipped) — and that the catalogue
+  stays lazy, in `dist/assets/google-fonts-*.js` (~25.6 KB gzipped), fetched only when the dialog
+  opens. Paper or opentype appearing in the app chunk means something outside `src/geom/paper.ts`
+  or `src/text/font.ts` imported it statically; the catalogue appearing there means something
+  imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
+  (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
+  them.
+- `npm test` — Vitest, node env, no DOM — 1158 tests in 75 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 

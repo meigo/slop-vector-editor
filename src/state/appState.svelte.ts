@@ -1878,8 +1878,17 @@ export async function previewGoogleFamily(
 /** Adds a family for good (spec M20 §6): its regular face is downloaded first, so a failure
  *  registers, persists and commits nothing — an error notice only (Review Focus 3). Then it is
  *  persisted, registered, and the selected title — or the default for new titles — switches to
- *  it. */
-export async function addGoogleFamily(f: GoogleFamily): Promise<boolean> {
+ *  it.
+ *
+ *  The target is captured BEFORE the download: the switch happens only if that same title (or
+ *  "no title") is still what is selected when it finishes, and only while `live()` still says
+ *  yes — the dialog passes one that turns false on Cancel/close. Otherwise the family is just
+ *  registered, and no title and not the new-title default changes. */
+export async function addGoogleFamily(
+  f: GoogleFamily,
+  opts: { live?: () => boolean } = {},
+): Promise<boolean> {
+  const target = selectedTitle()?.id ?? null;
   let entry: CachedFamily;
   try {
     entry = (await fetchRegular(f)).entry;
@@ -1891,7 +1900,8 @@ export async function addGoogleFamily(f: GoogleFamily): Promise<boolean> {
   // Registered for this session even when the cache can't keep it.
   await store.putFamily(entry).catch((e: unknown) => console.warn("Font cache write failed", e));
   registerGoogleFamily(entry, faceLoader(store, entry));
-  await setTitleFont(entry.id);
+  const live = opts.live?.() ?? true;
+  if (live && (selectedTitle()?.id ?? null) === target) await setTitleFont(entry.id);
   return true;
 }
 
@@ -1985,6 +1995,9 @@ let quadGen = 0;
 $effect.root(() => {
   $effect(() => {
     const t = selectedTitle();
+    // Re-run when a font is registered: a title whose `gf:` family arrives later (Download, or a
+    // late startup cache restore) has the same meta, so the selection alone never re-runs this.
+    fontsChangedTick();
     const gen = ++quadGen;
     if (!t?.text) {
       if (app.charQuads.length > 0) app.charQuads = [];

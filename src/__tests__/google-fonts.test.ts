@@ -176,10 +176,10 @@ describe("fetchMetadata", () => {
     expect(faces).toEqual(parseMetadata(lora));
   });
 
-  it("throws a user-readable error on a 404", async () => {
+  it("on a 404, says the font is unavailable — not to check the connection", async () => {
     const fetcher = fakeFetcher(() => ({ ok: false, status: 404 }));
     await expect(fetchMetadata("ofl/lora", fetcher)).rejects.toThrow(
-      "Couldn't download Lora — check your connection",
+      "Lora isn't available from the font source right now",
     );
   });
 
@@ -193,7 +193,7 @@ describe("fetchMetadata", () => {
   it("uses the given label, not the folder-derived one, on a 404", async () => {
     const fetcher = fakeFetcher(() => ({ ok: false, status: 404 }));
     await expect(fetchMetadata("ofl/playfairdisplay", fetcher, "Playfair Display")).rejects.toThrow(
-      "Couldn't download Playfair Display — check your connection",
+      "Playfair Display isn't available from the font source right now",
     );
   });
 
@@ -229,7 +229,7 @@ describe("fetchFaceFile", () => {
   it("throws a user-readable error on a failed download", async () => {
     const fetcher = fakeFetcher(() => ({ ok: false, status: 500 }));
     await expect(fetchFaceFile("ofl/lora", "Lora[wght].ttf", fetcher)).rejects.toThrow(
-      "Couldn't download Lora — check your connection",
+      "Lora isn't available from the font source right now",
     );
   });
 
@@ -242,7 +242,7 @@ describe("fetchFaceFile", () => {
         fetcher,
         "Playfair Display",
       ),
-    ).rejects.toThrow("Couldn't download Playfair Display — check your connection");
+    ).rejects.toThrow("Playfair Display isn't available from the font source right now");
   });
 
   it("uses the given label, not the folder-derived one, when the fetch throws", async () => {

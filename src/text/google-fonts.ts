@@ -106,9 +106,18 @@ function dirLabel(dir: string): string {
  *  ("Couldn't download Lora — check your connection"), so callers show it as it is. */
 export class FontDownloadError extends Error {}
 
+/** The fetch itself threw: the network, so the connection is worth checking. */
 function downloadError(dir: string, label?: string): Error {
   return new FontDownloadError(
     `Couldn't download ${label ?? dirLabel(dir)} — check your connection`,
+  );
+}
+
+/** The server answered, but not with the file (a 404, a 5xx): the connection is fine, so saying
+ *  "check your connection" would send the user after the wrong thing. */
+function unavailableError(dir: string, label?: string): Error {
+  return new FontDownloadError(
+    `${label ?? dirLabel(dir)} isn't available from the font source right now`,
   );
 }
 
@@ -123,7 +132,7 @@ export async function fetchMetadata(
   } catch {
     throw downloadError(dir, label);
   }
-  if (!res.ok) throw downloadError(dir, label);
+  if (!res.ok) throw unavailableError(dir, label);
   const text = await res.text();
   return parseMetadata(text);
 }
@@ -142,6 +151,6 @@ export async function fetchFaceFile(
   } catch {
     throw downloadError(dir, label);
   }
-  if (!res.ok) throw downloadError(dir, label);
+  if (!res.ok) throw unavailableError(dir, label);
   return res.arrayBuffer();
 }
