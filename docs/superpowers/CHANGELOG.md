@@ -2578,3 +2578,19 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   the code — and the user then tried it by hand and reported it works ("merge, seems to work").
 - **Owed**: an iPad pass (sideways drag vs. vertical scroll on a field, a palm mid-drag); Safari.
 - 1031 tests in 68 files.
+
+## 2026-09-28 — The last style you set is the default for new shapes
+
+- **What**: fill, stroke, stroke width, cap, join and opacity edits made on a selection now also
+  update the defaults for new shapes (`prefs.style`), as Illustrator and Affinity do. Before, the
+  defaults changed only when the edit was made with nothing selected. Requested by the user;
+  bounded change, option 1 of two (the other was an explicit "Use as default" button).
+- **How**: `setSelectionStyle` and `setSelectionOpacity` commit to the selection as before and then
+  call one helper, `rememberStyle`, which is the old no-selection branch's filter — flat paints
+  only, so a gradient edit leaves the default paint alone (spec M15 §2: new shapes are drawn flat).
+  Turning fill or stroke off is remembered too. Selecting alone never changes the defaults.
+- **Note**: a live colour-picker drag writes the preferences on every `input` event (localStorage,
+  small); not debounced.
+- **Verified**: 6 store tests (`style-defaults.test.ts`). Not browser-checked (pure store logic;
+  the drawing tools already read `prefs.style`).
+- 1037 tests in 69 files.

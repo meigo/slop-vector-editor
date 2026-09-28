@@ -723,20 +723,23 @@ export function setSelectionPolygon(patch: PolygonPatch): void {
   commitDoc(setPolygon(app.doc, app.selection, patch));
 }
 
-/** With nothing selected, style edits change the defaults for new shapes instead. */
+/** Merges a style patch into the defaults for new shapes. Spec M15 §2: new shapes are drawn flat,
+ *  so a gradient paint never reaches the preferences — the default colour is left as it was. */
+function rememberStyle(patch: Partial<Style>): void {
+  const { fill, stroke, ...rest } = patch;
+  const flat: Partial<FlatStyle> = { ...rest };
+  if (fill !== undefined && !isGradient(fill)) flat.fill = fill;
+  if (stroke !== undefined && !isGradient(stroke)) flat.stroke = stroke;
+  setPrefs({ ...app.prefs, style: { ...app.prefs.style, ...flat } });
+}
+
+/** With nothing selected, style edits change the defaults for new shapes. With a selection they
+ *  change it AND become the defaults (2026-09-28): the last style you set is what you draw next,
+ *  as in Illustrator and Affinity. Only an edit counts — selecting alone never touches them. */
 export function setSelectionStyle(patch: Partial<Style>): void {
   cancelActiveGesture();
-  if (app.selection.length === 0) {
-    // Spec M15 §2: new shapes are drawn flat; the panel never offers a gradient here, and a
-    // gradient patch must not reach the preferences if one ever arrives.
-    const { fill, stroke, ...rest } = patch;
-    const flat: Partial<FlatStyle> = { ...rest };
-    if (fill !== undefined && !isGradient(fill)) flat.fill = fill;
-    if (stroke !== undefined && !isGradient(stroke)) flat.stroke = stroke;
-    setPrefs({ ...app.prefs, style: { ...app.prefs.style, ...flat } });
-    return;
-  }
-  commitDoc(setStyle(app.doc, app.selection, patch));
+  if (app.selection.length > 0) commitDoc(setStyle(app.doc, app.selection, patch));
+  rememberStyle(patch);
 }
 
 export function setGradientTarget(which: PaintSlot): void {
@@ -1390,11 +1393,9 @@ export function ungroupSelection(): void {
 
 export function setSelectionOpacity(value: number): void {
   cancelActiveGesture();
-  if (app.selection.length === 0) {
-    setPrefs({ ...app.prefs, style: { ...app.prefs.style, opacity: value } });
-    return;
-  }
-  commitDoc(setNodeOpacity(app.doc, app.selection, value));
+  // Remembered for new shapes either way, like the other style edits (2026-09-28).
+  if (app.selection.length > 0) commitDoc(setNodeOpacity(app.doc, app.selection, value));
+  rememberStyle({ opacity: value });
 }
 
 // ---------------------------------------------------------------------------
