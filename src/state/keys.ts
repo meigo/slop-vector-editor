@@ -50,7 +50,8 @@ export type EditAction =
   | { kind: "group" }
   | { kind: "ungroup" }
   | { kind: "selectAll" }
-  | { kind: "invertSelection" };
+  | { kind: "invertSelection" }
+  | { kind: "flip"; axis: "h" | "v" };
 
 const TOOL_KEYS: Readonly<Record<string, ToolId>> = {
   v: "select",
@@ -79,6 +80,9 @@ export function editActionForKey(e: KeyLike): EditAction | null {
     return null;
   }
   if (e.key === "%") return { kind: "toggleSnap" };
+  // Flip (2026-09-28): Shift+H / Shift+V. Plain H and V are tools, and tool keys ignore Shift.
+  if (e.shiftKey && k === "h") return { kind: "flip", axis: "h" };
+  if (e.shiftKey && k === "v") return { kind: "flip", axis: "v" };
   if (k === "delete" || k === "backspace") return { kind: "delete" };
   if (k === "escape") return { kind: "clear" };
   if (k === "enter") return { kind: "commit" };
