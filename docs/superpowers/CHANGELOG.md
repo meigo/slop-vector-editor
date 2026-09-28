@@ -2611,3 +2611,17 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   tool strip's icon type is now Lucide's own `LucideIcon`, which custom and built-in icons share.
 - **Verified**: `svelte-check` 0/0, build clean; in the browser the strip renders it at 18px
   beside Gradient and Hand with matching weight, and the DOM shows Lucide's classes and stroke.
+
+## 2026-09-28 — The Gradient tool's halftone icon
+
+- **What**: `GradientIcon` replaces Lucide's `Blend` (two overlapping circles) on the Gradient
+  tool. The user suggested vertical lines thinning rightwards and was open to other ideas; ten
+  candidates were compared at 18/24/48px (fading bars with and without a frame, equal lines with
+  widening gaps, the tool's own knob shapes, fade plus a knob line, halftone dots) and the user
+  picked the halftone: three rows of dots shrinking left to right — the print/design convention
+  for a fade, and the clearest of them at the strip's 18px.
+- **How**: built on Lucide's `Icon` like `WarpIcon`. Each dot is a zero-length path with a round
+  cap; each column carries its own `stroke-width` (4.2 → 1.2), the one deliberate break from
+  Lucide's uniform 2px — the dots would not follow a `strokeWidth` prop, and nothing passes one.
+- **Verified**: `svelte-check` 0/0, lint clean; in the browser it reads as a fade between Type and
+  Warp at 18px.

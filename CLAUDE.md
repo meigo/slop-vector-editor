@@ -140,7 +140,7 @@ every user-visible change.
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
   flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the
   Auto toggle for the middle stop's colour, between a gradient's Start and End rows — the app's
-  first range input), `icons/` (custom icons Lucide lacks — each is a component wrapping Lucide's exported `Icon` with its own `{ name, size: 24, node }` data, exactly as Lucide's shipped icons are built, so it takes the same props, shares the `LucideIcon` type and renders on the same 24×24 grid with the 2px round stroke; draw new ones in Lucide's language, e.g. `WarpIcon`'s corner handles come from `vector-square`), `ToggleButton` (with
+  first range input), `icons/` (custom icons Lucide lacks — each is a component wrapping Lucide's exported `Icon` with its own `{ name, size: 24, node }` data, exactly as Lucide's shipped icons are built, so it takes the same props, shares the `LucideIcon` type and renders on the same 24×24 grid with the 2px round stroke; draw new ones in Lucide's language, e.g. `WarpIcon`'s corner handles come from `vector-square`; `GradientIcon`'s halftone dots vary their stroke width per column — the one sanctioned break from the uniform 2px, so it ignores a `strokeWidth` prop), `ToggleButton` (with
   `toggle.ts`, the pure state helper), `Modal`, dialogs (incl. `ShareReadyDialog`, which offers a
   fresh tap at Save to Files when `deliverFile` didn't attempt a direct share, or the attempt needs
   a fresh tap), `Notices`.

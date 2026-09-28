@@ -1,6 +1,5 @@
 <script lang="ts">
   import {
-    Blend,
     Circle,
     Hand,
     MousePointer2,
@@ -14,6 +13,7 @@
   import type { LucideIcon } from "@lucide/svelte";
   import { app, setTool } from "../state/appState.svelte";
   import type { ToolId } from "../tools/types";
+  import GradientIcon from "./icons/GradientIcon.svelte";
   import WarpIcon from "./icons/WarpIcon.svelte";
 
   const TOOL_BUTTONS: { id: ToolId; label: string; key: string; icon: LucideIcon }[] = [
@@ -25,7 +25,7 @@
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
     { id: "text", label: "Text", key: "T", icon: Type },
-    { id: "gradient", label: "Gradient", key: "G", icon: Blend },
+    { id: "gradient", label: "Gradient", key: "G", icon: GradientIcon },
     { id: "warp", label: "Warp", key: "W", icon: WarpIcon },
     { id: "hand", label: "Hand", key: "H", icon: Hand },
   ];
