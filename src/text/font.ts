@@ -142,11 +142,29 @@ export async function loadFace(req: FaceRequest): Promise<LoadedFont> {
   const g = google.get(id);
   const face = g ? chooseFace(g.entry.faces, req.weight ?? 400, req.italic ?? false) : null;
   const key = `${id}|${face ? face.filename : "bundled"}`;
+  return loadOnce(key, () => (g && face ? loadGoogleFace(id, g, face.filename) : loadFontOnce(id)));
+}
+
+/** A Google family's regular face WITHOUT registering the family — the dialog's preview (spec
+ *  M20 §6). Parsed into the same cache `loadFace` reads, so adding the family afterwards neither
+ *  downloads nor parses it again. */
+export async function previewFace(
+  entry: CachedFamily,
+  loader: (filename: string) => Promise<ArrayBuffer>,
+): Promise<LoadedFont> {
+  const face = chooseFace(entry.faces, 400, false);
+  if (!face) throw new Error(`${entry.family.family} has no faces to draw`);
+  return loadOnce(`${entry.id}|${face.filename}`, () =>
+    loadGoogleFace(entry.id, { entry, loader }, face.filename),
+  );
+}
+
+async function loadOnce(key: string, load: () => Promise<LoadedFont>): Promise<LoadedFont> {
   const already = loaded.get(key);
   if (already) return already;
   const inFlight = loading.get(key);
   if (inFlight) return inFlight;
-  const p = (g && face ? loadGoogleFace(id, g, face.filename) : loadFontOnce(id)).then((entry) => {
+  const p = load().then((entry) => {
     loaded.set(key, entry);
     return entry;
   });

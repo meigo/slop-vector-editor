@@ -1,6 +1,7 @@
 /** The title attributes (spec M10 §7). Pure, and shaped like `parsePolygonAttr`: every field is
  *  validated and a bad one returns null rather than throwing, so a malformed file degrades to an
  *  ordinary path instead of losing its artwork. */
+import { DEFAULT_WEIGHT } from "../doc/document";
 import { fmt } from "../svg/fmt";
 import type { Align } from "./layout";
 
@@ -21,8 +22,6 @@ export type TextOpts = {
   /** Absent means upright; present only as `true`. */
   italic?: true;
 };
-
-const DEFAULT_WEIGHT = 400;
 
 const ALIGNS: readonly string[] = ["left", "center", "right"];
 /** The same ceiling `parse.ts` puts on every coordinate and length (invariant 8): `fmt`'s

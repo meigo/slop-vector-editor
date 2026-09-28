@@ -277,8 +277,13 @@ export type TextMeta = {
 export const DEFAULT_WEIGHT = 400;
 
 /** The weight a title asks for; the key is deleted at the default, and an unchanged weight returns
- *  the same object (invariant 1). */
-export function withWeight(m: TextMeta, w: number): TextMeta {
+ *  the same object (invariant 1). Rounded and clamped to an integer 1-1000 — exactly what
+ *  `parseTextOpts` accepts — because a weight it rejects would turn the title into a plain path on
+ *  reload. A non-finite weight means the default. */
+export function withWeight(m: TextMeta, weight: number): TextMeta {
+  const w = Number.isFinite(weight)
+    ? Math.min(1000, Math.max(1, Math.round(weight)))
+    : DEFAULT_WEIGHT;
   if ((m.weight ?? DEFAULT_WEIGHT) === w) return m;
   const next: TextMeta = { ...m, weight: w };
   if (w === DEFAULT_WEIGHT) delete next.weight;

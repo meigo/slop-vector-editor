@@ -102,8 +102,14 @@ function dirLabel(dir: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
+/** A download that failed — offline, or the server said no. Its message is written for the user
+ *  ("Couldn't download Lora — check your connection"), so callers show it as it is. */
+export class FontDownloadError extends Error {}
+
 function downloadError(dir: string, label?: string): Error {
-  return new Error(`Couldn't download ${label ?? dirLabel(dir)} — check your connection`);
+  return new FontDownloadError(
+    `Couldn't download ${label ?? dirLabel(dir)} — check your connection`,
+  );
 }
 
 export async function fetchMetadata(

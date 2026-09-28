@@ -235,4 +235,17 @@ describe("withWeight / withItalic", () => {
     const ital = withItalic(m, true);
     expect(withItalic(ital, true)).toBe(ital);
   });
+
+  it("writes only an integer 1-1000, the range parseTextOpts accepts", () => {
+    expect(withWeight(m, 649.6).weight).toBe(650);
+    expect(withWeight(m, 0).weight).toBe(1);
+    expect(withWeight(m, -50).weight).toBe(1);
+    expect(withWeight(m, 1200).weight).toBe(1000);
+    expect(withWeight(m, 400.2)).toBe(m); // rounds to the default: unchanged
+    expect(withWeight(m, Number.NaN)).toBe(m);
+    for (const w of [649.6, 0, 1200]) {
+      const written = formatTextOpts({ ...opts, weight: withWeight(m, w).weight });
+      expect(parseTextOpts(written)).not.toBeNull();
+    }
+  });
 });

@@ -1,6 +1,7 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
 import {
   createDoc,
+  DEFAULT_WEIGHT,
   isGradient,
   isHidden,
   isLocked,
@@ -12,6 +13,8 @@ import {
   type PathShape,
   type Style,
   type TextMeta,
+  withItalic,
+  withWeight,
 } from "../doc/document";
 import {
   addShape,
@@ -96,17 +99,29 @@ import { BUNDLED } from "../text/fonts";
 import { newSeed } from "../text/random";
 import { serializeDoc } from "../svg/serialize";
 import {
-  loadFont,
+  loadFace,
   charHits,
   outlineText,
   FontUnavailableError,
   noGlyphsFor,
+  previewFace,
   registerFontFile,
+  registerGoogleFamily,
   setFontRegistryListener,
   unshapedScript,
   Woff2Error,
+  type FaceRequest,
   type LoadedFont,
 } from "../text/font";
+import { familyDir, googleFontId, type GoogleFamily } from "../text/google-catalogue";
+import {
+  fetchFaceFile,
+  fetchMetadata,
+  FontDownloadError,
+  type FaceEntry,
+  type Fetcher,
+} from "../text/google-fonts";
+import { faceKey, idbFontStore, type CachedFamily, type FontStore } from "../persist/font-cache";
 import {
   loadPrefs,
   sanitizePrefs,
@@ -1472,14 +1487,17 @@ function refuseUnshaped(text: string, quiet = false): boolean {
   return true;
 }
 
-async function withFont<T>(id: string, run: (f: LoadedFont) => T): Promise<T | null> {
+/** Loads the face a title asks for — font, weight and italic (spec M20 §3). */
+async function withFont<T>(req: FaceRequest, run: (f: LoadedFont) => T): Promise<T | null> {
   try {
-    return run(await loadFont(id));
+    return run(await loadFace(req));
   } catch (e) {
-    // Three different causes, three different truths. Telling someone to reload when nothing was
-    // ever downloaded — a session font from a previous session — is simply false.
+    // Four different causes, four different truths. Telling someone to reload when nothing was
+    // ever downloaded — a session font from a previous session — is simply false, and a Google
+    // face that couldn't be downloaded says so itself ("Couldn't download Lora — check your
+    // connection"): the download is retried on the next attempt, no reload needed.
     const text =
-      e instanceof Woff2Error || e instanceof FontUnavailableError
+      e instanceof Woff2Error || e instanceof FontUnavailableError || e instanceof FontDownloadError
         ? e.message
         : "The font couldn't be loaded. Reload the page and try again — a failed download is cached until you do.";
     notify("error", text);
@@ -1503,7 +1521,7 @@ export async function placeTitle(at: Vec): Promise<void> {
   const before = app.doc;
   const meta = defaultMeta("Title");
   titleRunning = true;
-  const subpaths = await withFont(meta.font, (f) => outlineText(f, meta)).finally(() => {
+  const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
     titleRunning = false;
   });
   if (!subpaths || subpaths.length === 0) return;
@@ -1589,7 +1607,7 @@ async function reshapeTitle(
   if (!keepGesture) cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
-  const meta: TextMeta = { ...target.text, ...patch };
+  const meta = withFace({ ...target.text, ...patch });
   // Overrides never outlive the string they were made for (spec M10 §4). Drop them before
   // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
   // still records an undo step for a change that is not there.
@@ -1607,7 +1625,7 @@ async function reshapeTitle(
   const id = target.id;
   titleRunning = true;
   let noGlyphs = false;
-  const subpaths = await withFont(meta.font, (f) => {
+  const subpaths = await withFont(meta, (f) => {
     noGlyphs = noGlyphsFor(f, meta.text);
     return noGlyphs ? [] : outlineText(f, meta);
   }).finally(() => {
@@ -1634,11 +1652,23 @@ async function reshapeTitle(
   );
 }
 
+/** A merged patch's weight and italic in their one representation (invariant 39): a patch can
+ *  only carry values, so `{ weight: 400 }` or `{ italic: undefined }` would otherwise leave a key
+ *  spelled out at its default. `withWeight` also rounds and clamps. */
+function withFace(m: TextMeta): TextMeta {
+  const base: TextMeta = { ...m };
+  delete base.weight;
+  delete base.italic;
+  return withItalic(withWeight(base, m.weight ?? DEFAULT_WEIGHT), m.italic === true);
+}
+
 /** Field by field, because `amounts` and `overrides` are nested objects. */
 function sameMeta(a: TextMeta, b: TextMeta): boolean {
   return (
     a.text === b.text &&
     a.font === b.font &&
+    a.weight === b.weight &&
+    a.italic === b.italic &&
     a.size === b.size &&
     a.letterSpacing === b.letterSpacing &&
     a.lineHeight === b.lineHeight &&
@@ -1709,6 +1739,18 @@ export async function setTitleFont(id: string): Promise<void> {
   if (selectedTitle()) await reshapeTitleDraining({ font: id });
 }
 
+/** The font a new title gets (the picker's last choice, or the family just added). */
+export function newTitleFont(): string {
+  return currentFontId;
+}
+
+/** Spec M20 §6: the Weight menu. One reshape, so one undo step; 400 deletes the key. */
+export const setTitleWeight = (w: number): Promise<void> => reshapeTitleDraining({ weight: w });
+
+/** Spec M20 §6: the Italic toggle. A family without italic draws upright (`chooseFace`). */
+export const setTitleItalic = (on: boolean): Promise<void> =>
+  reshapeTitleDraining({ italic: on ? true : undefined });
+
 /** Registers a font file for the session and switches the selection to it. */
 export async function addFontFile(file: File): Promise<void> {
   try {
@@ -1718,6 +1760,119 @@ export async function addFontFile(file: File): Promise<void> {
   } catch (e) {
     notify("error", e instanceof Error ? e.message : "That font couldn't be read.");
   }
+}
+
+// ---------------------------------------------------------------------------
+// Google Fonts (spec M20 §5, §6). A family's faces come from the cache, else jsDelivr (and are
+// then cached); `src/text/font.ts` only ever sees the bytes (invariant 40).
+// ---------------------------------------------------------------------------
+
+let fontStore: FontStore | null = null;
+let fontFetcher: Fetcher | undefined;
+
+function googleStore(): FontStore {
+  fontStore ??= idbFontStore();
+  return fontStore;
+}
+
+/** Test hook: a memory cache and a fake network in place of IndexedDB and `fetch`. */
+export function setGoogleFontIo(io: { store: FontStore; fetcher?: Fetcher }): void {
+  fontStore = io.store;
+  fontFetcher = io.fetcher;
+  metadataLoads.clear();
+}
+
+/** Reads a face from the cache, else downloads and caches it. A cache that can't be read or
+ *  written costs only the caching — the download still draws the title. */
+function faceLoader(
+  store: FontStore,
+  entry: CachedFamily,
+): (filename: string) => Promise<ArrayBuffer> {
+  return async (filename) => {
+    const key = faceKey(entry.id, filename);
+    const cached = await store.getFace(key).catch(() => null);
+    if (cached) return cached;
+    const buf = await fetchFaceFile(
+      familyDir(entry.family),
+      filename,
+      fontFetcher,
+      entry.family.family,
+    );
+    await store.putFace(key, buf).catch((e: unknown) => console.warn("Font cache write failed", e));
+    return buf;
+  };
+}
+
+/** A family's METADATA.pb, fetched once per session so a preview's download serves the Add that
+ *  follows it. The promise is cached and cleared on rejection (invariant 37). */
+const metadataLoads = new Map<string, Promise<FaceEntry[]>>();
+
+function familyMetadata(f: GoogleFamily): Promise<FaceEntry[]> {
+  const id = googleFontId(f);
+  let p = metadataLoads.get(id);
+  if (!p) {
+    p = fetchMetadata(familyDir(f), fontFetcher, f.family).catch((e: unknown) => {
+      metadataLoads.delete(id);
+      throw e;
+    });
+    metadataLoads.set(id, p);
+  }
+  return p;
+}
+
+/** Downloads (or reads from the cache) the family's metadata and regular face and parses it. */
+async function fetchRegular(f: GoogleFamily): Promise<{ entry: CachedFamily; font: LoadedFont }> {
+  const entry: CachedFamily = { id: googleFontId(f), family: f, faces: await familyMetadata(f) };
+  const font = await previewFace(entry, faceLoader(googleStore(), entry));
+  return { entry, font };
+}
+
+function googleError(f: GoogleFamily, e: unknown): string {
+  return e instanceof FontDownloadError ? e.message : `${f.family} couldn't be read.`;
+}
+
+/** On startup (spec M20 §5): the cached families back into the font menu. Silent on failure — a
+ *  missing cache only means nothing was added yet, or IndexedDB is unavailable. */
+export async function restoreGoogleFonts(store: FontStore = googleStore()): Promise<void> {
+  try {
+    for (const entry of await store.getFamilies()) {
+      registerGoogleFamily(entry, faceLoader(store, entry));
+    }
+  } catch (e) {
+    console.warn("Couldn't restore the Google Fonts cache", e);
+  }
+}
+
+/** The dialog's preview: downloads the metadata and regular face (both cached), does NOT
+ *  register. The reason for a failure is returned for the dialog to show, never a notice. */
+export async function previewGoogleFamily(
+  f: GoogleFamily,
+): Promise<{ font: LoadedFont } | { error: string }> {
+  try {
+    return { font: (await fetchRegular(f)).font };
+  } catch (e) {
+    return { error: googleError(f, e) };
+  }
+}
+
+/** Adds a family for good (spec M20 §6): its regular face is downloaded first, so a failure
+ *  registers, persists and commits nothing — an error notice only (Review Focus 3). Then it is
+ *  persisted, registered, and the selected title — or the default for new titles — switches to
+ *  it. */
+export async function addGoogleFamily(f: GoogleFamily): Promise<boolean> {
+  let entry: CachedFamily;
+  try {
+    entry = (await fetchRegular(f)).entry;
+  } catch (e) {
+    notify("error", googleError(f, e));
+    return false;
+  }
+  const store = googleStore();
+  // Registered for this session even when the cache can't keep it.
+  await store.putFamily(entry).catch((e: unknown) => console.warn("Font cache write failed", e));
+  registerGoogleFamily(entry, faceLoader(store, entry));
+  await setTitleFont(entry.id);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1818,7 +1973,7 @@ $effect.root(() => {
     }
     const id = t.id;
     const meta = t.text;
-    void loadFont(meta.font)
+    void loadFace(meta)
       .then((f) => {
         // A slower load for the previous font or string must not overwrite the quads, and a
         // failure for that old request must not clear the ones a newer load already installed.
