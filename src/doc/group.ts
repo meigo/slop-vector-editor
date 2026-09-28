@@ -9,7 +9,7 @@ const round6 = (v: number) => Math.round(v * 1e6) / 1e6;
 
 /** The selected ids in document order, with any node that sits inside another selected node
  *  dropped — grouping a group together with its own child means grouping the group. */
-function outermost(doc: Doc, ids: readonly string[]): string[] {
+export function outermost(doc: Doc, ids: readonly string[]): string[] {
   const set = new Set(ids);
   const kept: string[] = [];
   const walk = (children: readonly Node[], insideSelected: boolean) => {

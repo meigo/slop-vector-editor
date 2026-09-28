@@ -9,14 +9,16 @@
     AlignStartVertical,
     AlignVerticalSpaceBetween,
   } from "@lucide/svelte";
-  import type { AlignOp, DistributeAxis } from "../doc/align";
+  import { alignTargetCount, type AlignOp, type DistributeAxis } from "../doc/align";
   import { alignSelection, app, distributeSelection } from "../state/appState.svelte";
   import FieldSection from "./FieldSection.svelte";
 
   /** Align and distribute (spec M19 §3). Shown whenever something is selected. Several objects
    *  align to the selection's bounds, a single one to the artboard — and each title (also the
    *  status-bar hint, invariant 24) says which will happen. */
-  const count = $derived(app.selection.length);
+  // What the commands will act on, not the raw selection: a group and its own child count once, and
+  // an object with nothing drawable not at all — so the hints match what happens.
+  const count = $derived(alignTargetCount(app.doc, app.selection));
 
   const ALIGNS: { op: AlignOp; icon: typeof AlignStartVertical; edge: string; name: string }[] = [
     { op: "left", icon: AlignStartVertical, edge: "left edges", name: "left" },
@@ -57,7 +59,10 @@
     {#each DISTRIBUTES as d (d.axis)}
       <button
         type="button"
-        class={["btn flex-1 justify-center gap-1.5", count < 3 && "cursor-default text-disabled"]}
+        class={[
+          "btn flex-1 justify-center gap-1.5",
+          count < 3 && "cursor-default text-disabled hover:border-line",
+        ]}
         aria-disabled={count < 3}
         title={count < 3 ? `${d.label} — select three or more objects` : `${d.label} — equal gaps`}
         onclick={() => count >= 3 && distributeSelection(d.axis)}

@@ -2693,5 +2693,16 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   gave lefts 20/110/250 (equal 50px gaps); one object selected → distribute disabled with its
   reason, the hint "Align centre to the artboard", and centring landed it at the artboard centre.
   (Process note: `align.ts` was written before its tests were run red.)
+- **Final review fixes** (one Opus whole-branch review): (1) float drift — bounds through a rotated
+  matrix come back ~1e-14 off, so a repeat press built a new document (an empty undo step, a dirty
+  flag); moves under 1e-9 now count as none. (2) A group selected together with its own child (the
+  layers panel allows it) counted twice and could distribute the child out of its group; only the
+  outermost selected nodes are acted on (`outermost`, exported from `group.ts`). Also: distribute
+  ties break on the trailing edge then document order, never selection order; the panel and Object
+  menu decide "several vs one" and distribute's availability from `alignTargetCount` (what the
+  command will act on), and the menu's titles say "… to the artboard" for a single object; disabled
+  distribute buttons no longer light up on hover; the spec's "the two outermost stay put" wording was
+  corrected (the one that starts first stays; the last ends on the far edge); CLAUDE.md's Current
+  state and Roadmap updated. 3 regression tests.
 - **Owed**: iPad (the section's buttons by touch); Safari.
-- 1061 tests in 71 files.
+- 1064 tests in 71 files.

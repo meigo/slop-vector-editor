@@ -145,3 +145,57 @@ describe("alignSelection / distributeSelection (store)", () => {
     expect(box(S.app.doc, "b").y).toBe(0);
   });
 });
+
+describe("final-review fixes (M19)", () => {
+  it("pressing Align again on rotated objects is a no-op, not float drift", async () => {
+    const { alignNodes: align } = await import("../doc/align");
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: multiply(translate(37.3, 11.9), rotate(0.7)),
+      opacity: 1,
+      children: [rect("c", 3.1, 2.2, 17.3, 9.9), rect("d", 41.7, 13.3, 22.1, 7.7, rotate(0.3))],
+    };
+    const d = doc([g, rect("e", 120.4, 30.6, 11, 13, rotate(1.1))]);
+    for (const ids of [
+      ["c", "d"],
+      ["g", "e"],
+    ]) {
+      for (const op of ["left", "hcenter", "right", "top", "vcenter", "bottom"] as const) {
+        const once = align(d, ids, op);
+        expect(align(once, ids, op)).toBe(once);
+      }
+    }
+  });
+
+  it("a group selected with its own child counts once and moves as a unit", async () => {
+    const { alignTargetCount } = await import("../doc/align");
+    const g: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("c", 40, 0, 10, 10), rect("k", 0, 0, 100, 10)],
+    };
+    const d = doc([g, rect("o", 150, 0, 10, 10), rect("p", 190, 0, 10, 10)]);
+    expect(alignTargetCount(d, ["g", "c", "o"])).toBe(2);
+    // g (0–100), o (150–160), p (190–200): the child c must not be distributed on its own.
+    const out = distributeNodes(d, ["g", "c", "o", "p"], "h");
+    expect(box(out, "c").x).toBe(40);
+    expect(box(out, "o").x).toBe(140); // span 0–200, widths 120 → two gaps of 40
+    expect(distributeNodes(d, ["g", "c", "o"], "h")).toBe(d); // only two targets
+  });
+
+  it("distribute does not depend on selection order, ties included", () => {
+    const d = doc([
+      rect("a", 0, 0, 10),
+      rect("b", 30, 0, 10),
+      rect("c", 30, 0, 20),
+      rect("z", 90, 0, 10),
+    ]);
+    const one = distributeNodes(d, ["a", "b", "c", "z"], "h");
+    const two = distributeNodes(d, ["z", "c", "a", "b"], "h");
+    expect(box(one, "b").x).toBe(box(two, "b").x);
+    expect(box(one, "c").x).toBe(box(two, "c").x);
+  });
+});

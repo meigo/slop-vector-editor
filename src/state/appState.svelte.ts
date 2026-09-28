@@ -45,7 +45,13 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
-import { alignNodes, distributeNodes, type AlignOp, type DistributeAxis } from "../doc/align";
+import {
+  alignNodes,
+  alignTargetCount,
+  distributeNodes,
+  type AlignOp,
+  type DistributeAxis,
+} from "../doc/align";
 import { flipNodes, type FlipAxis } from "../doc/flip";
 import { groupNodes, ungroupNodes } from "../doc/group";
 import {
@@ -728,7 +734,7 @@ export function alignSelection(op: AlignOp): void {
 /** Distribute (spec M19): equal gaps between three or more selected objects. */
 export function distributeSelection(axis: DistributeAxis): void {
   cancelActiveGesture();
-  if (app.selection.length < 3) return;
+  if (alignTargetCount(app.doc, app.selection) < 3) return;
   commitDoc(distributeNodes(app.doc, app.selection, axis));
 }
 

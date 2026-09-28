@@ -8,13 +8,15 @@ Implements the post-v1 list's "align & distribute".
 - **Align** (6): left, horizontal centre, right, top, vertical centre, bottom. **Two or more**
   selected → aligned to the selection's bounds (the outermost object on that side stays put).
   **One** selected → aligned to the artboard (`0, 0, w, h`).
-- **Distribute** (2): equal horizontal / vertical **gaps**, for **three or more** objects: the two
-  outermost (smallest left/top edge, largest right/bottom edge) stay put, the rest are placed in
-  order of their left/top edge so every gap between neighbours is equal — negative when they
-  overlap.
+- **Distribute** (2): equal horizontal / vertical **gaps**, for **three or more** objects: the span runs from the smallest left/top edge to the largest
+  right/bottom edge; the object that starts first stays put and the rest are laid out in order of
+  their left/top edge (ties: right/bottom edge, then document order), the last ending on the far
+  edge, so every gap between neighbours is equal — negative when they overlap. (Amended after the
+  final review: "the two outermost stay put" was not always true.)
 - **Bounds**: each selected node's axis-aligned document-space bounds (`nodeBounds(node,
   parent)`), the ones the selection frame and snapping use. A rotated object aligns by its visible
-  extent; a group moves as a unit. A node with no bounds is left out.
+  extent; a group moves as a unit. A node with no bounds is left out, and so is a node whose ancestor is also selected (it moves
+  with the group); near-zero moves (float drift) count as none.
 - **Every command is a move**: each node gets its own translation, composed into its transform in
   its parent's space (`inParent`, invariant 26) exactly as `translateNodes` does — so titles,
   polygons, gradients and strokes stay live. One undo step; a command that moves nothing returns

@@ -60,6 +60,7 @@
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
+  import { alignTargetCount } from "../doc/align";
   import { BOOL_LABEL, BOOL_OPS, BOOL_REASON, BOOL_TITLE, type BoolOp } from "../geom/boolean";
   import { PATH_LABEL, PATH_OPS, PATH_TITLE, type PathOp } from "../doc/path-ops";
   import { selectionActions } from "../state/properties";
@@ -144,6 +145,7 @@
   ] as const;
 
   /** Align and distribute (spec M19 §3) — the panel's commands, reachable from the menu too. */
+  const alignCount = $derived(alignTargetCount(app.doc, app.selection));
   const MENU_ALIGNS: { label: string; min: number; reason: string; run: () => void }[] = [
     ...(
       [
@@ -559,9 +561,13 @@
           <button
             class="menu-item"
             role="menuitem"
-            aria-disabled={app.selection.length < a.min}
-            title={app.selection.length < a.min ? `${a.label} — ${a.reason}` : a.label}
-            onclick={() => app.selection.length >= a.min && runObject(a.run)}
+            aria-disabled={alignCount < a.min}
+            title={alignCount < a.min
+              ? `${a.label} — ${a.reason}`
+              : a.min === 1 && alignCount === 1
+                ? `${a.label} to the artboard`
+                : a.label}
+            onclick={() => alignCount >= a.min && runObject(a.run)}
           >
             {a.label}
           </button>
