@@ -20,7 +20,8 @@ What works today:
   and the original tap has expired by then; Save and Save As are the same action there, and it's
   still a new file each time, not an overwrite; other browsers download). Other tools' SVGs
   import best-effort — unsupported content (their `<text>`
-  elements, gradients, filters, CSS classes…) is listed when you open the file, and such files
+  elements, gradients with more than three stops or a focal point, filters, CSS classes…) is
+  listed when you open the file, and such files
   always open as a copy (Save asks where to write them) so the original is never overwritten with
   a lossy re-export.
 - New document with size presets; artboard size and background (or transparent).
@@ -33,11 +34,13 @@ What works today:
   resize handles move outside it, so its middle stays grabbable.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with
   defaults for new shapes when nothing is selected. The last fill, stroke, width, cap, join or
-  opacity you set on a selection also becomes the default for the next shape you draw. Every number can be typed or dragged
-  sideways — the artwork follows live, a drag is one undo step, and Shift makes it finer.
+  opacity you set on a selection also becomes the default for the next shape you draw. Every
+  number can be typed or dragged sideways — the artwork follows live, a drag is one undo step,
+  and Shift makes it finer.
 - Convert to path and flatten transform.
-- Flip horizontal (⇧H) and vertical (⇧V), from the Object menu or the right-click menu: the
-  selection is mirrored about its own centre, and titles and polygons stay editable.
+- Flip horizontal (⇧H) and vertical (⇧V), from the Object menu, the right-click menu or the top
+  bar's flip buttons on wide windows: the selection is mirrored about its own centre, and titles
+  and polygons stay editable.
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
@@ -50,7 +53,8 @@ What works today:
   away behind a chevron, and open themselves the first time you use a finger or a Pencil.
 - An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover
   and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
-  — in the status bar. Shape options (corner radius, polygon sides/star) live in the properties
+  — in the status bar. On narrower windows some icon groups fold away (flip first, clipboard
+  last); their commands stay in the menus at every width. Shape options (corner radius, polygon sides/star) live in the properties
   panel.
 - **Artistic titles**: place a title with the Text tool (T) and type it in the properties panel —
   choose a font, size, letter-spacing, line height and alignment, and press Return for a second line, then **randomise the characters** — rotation,
@@ -102,10 +106,10 @@ What works today:
   drag it, or use the Midpoint slider under the gradient's Start row, to push the blend toward one
   end. Its colour is automatic — the mix of the two ends — until you give it one: edit the Mid
   colour row (or click the diamond to pick it), and a colour can hold its strength out to the
-  diamond before fading. Auto puts the mix back. Three-colour gradients from other apps now open
-  with their middle colour instead of being dropped. Linear and radial gradients from other apps'
-  SVGs are kept when they have two or three stops.
-- **Warp**: select something, press W (or the tool strip's grid icon), and drag any of the four
+  diamond before fading. Auto puts the mix back. Linear and radial gradients from other apps'
+  SVGs are kept when they have two or three stops — a three-colour gradient opens with its middle
+  colour.
+- **Warp**: select something, press W (or the tool strip's envelope icon), and drag any of the four
   corners or eight handles to bend everything selected through one cage. Enter applies it as one
   undo step; Esc cancels. Shift snaps a drag to 45°. The result is ordinary paths — polygons,
   rectangles, ellipses and titles stop being live, and a notice says which — and gradients move
@@ -141,7 +145,7 @@ What works today:
 
 ## Roadmap
 
-Unplanned: more gradient stops, focal points; a freehand pencil/brush tool; grid and smart guides;
+Unplanned: gradients with more than three stops, focal points; a freehand pencil/brush tool; grid and smart guides;
 masks/clipping; align & distribute; system-clipboard image paste.
 
 ## Development
