@@ -35,6 +35,7 @@ export type Prefs = {
  *  (spec M10e §1): a title's text and size are why the panel is open, and the four jitter amounts
  *  are ~200px of what is otherwise a set-once control. */
 export const SECTION_IDS = [
+  "align",
   "text",
   "randomise",
   "shape",

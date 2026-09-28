@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1048 tests in 70 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1061 tests in 71 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -50,7 +50,7 @@ every user-visible change.
   intersect/exclude on the current selection, in document space), `path-ops.ts` (`pathOpRefusal`,
   `subdivideSelection`, `reverseSelection`, `breakApart`, `combine` — Subdivide/Reverse
   direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
-  the async Simplify action, modelled on `booleanSelection`'s shape), `flip.ts` (`flipNodes` — Flip horizontal/vertical as a mirror composed into each node's transform in parent space, never a bake, so titles and polygons stay live), `subset.ts`
+  the async Simplify action, modelled on `booleanSelection`'s shape), `align.ts` (`alignNodes`, `distributeNodes` — spec M19: several objects align to their bounds, one to the artboard; distribute = equal gaps for three or more; every command a per-node translation in parent space, so everything stays live), `flip.ts` (`flipNodes` — Flip horizontal/vertical as a mirror composed into each node's transform in parent space, never a bake, so titles and polygons stay live), `subset.ts`
   (`filterToSelection` — the document reduced to a selection, for exporting a region that contains
   only the selected objects), `warp-edit.ts` (`warpNodes`, `warpStyle`, `droppedLive`,
   `warpRefusal` — the Warp tool's bake: gradients follow the warp via `warpStyle`, not `mapStyle`,
@@ -135,7 +135,7 @@ every user-visible change.
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
+  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `AlignSection` (spec M19: the Properties panel's Align section, shown with any selection), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField` (typed, or dragged sideways through the pure `scrub.ts` — see invariant 42), `PaintField` (Flat/
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
   flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the

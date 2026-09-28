@@ -41,6 +41,10 @@ What works today:
 - Flip horizontal (⇧H) and vertical (⇧V), from the Object menu, the right-click menu or the top
   bar's flip buttons on wide windows: the selection is mirrored about its own centre, and titles
   and polygons stay editable.
+- **Align and distribute**, in an Align section at the top of the Properties panel and in the
+  Object menu: align left, centre, right, top, middle or bottom — several objects to each other,
+  a single object to the artboard — and distribute three or more with equal gaps, horizontally or
+  vertically. Everything stays editable; each command is one undo step.
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
@@ -146,7 +150,7 @@ What works today:
 ## Roadmap
 
 Unplanned: gradients with more than three stops, focal points; a freehand pencil/brush tool; grid and smart guides;
-masks/clipping; align & distribute; system-clipboard image paste.
+masks/clipping; system-clipboard image paste.
 
 ## Development
 
@@ -154,7 +158,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1048 unit tests
+npm test          # 1061 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

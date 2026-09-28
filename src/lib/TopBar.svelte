@@ -41,6 +41,8 @@
     duplicateSelection,
     flattenSelection,
     flipSelection,
+    alignSelection,
+    distributeSelection,
     groupSelection,
     deselectAll,
     invertSelection,
@@ -140,6 +142,36 @@
     { axis: "h", label: "Flip horizontal", keys: "⇧H", icon: TrianglesCenterlineDashedVertical },
     { axis: "v", label: "Flip vertical", keys: "⇧V", icon: TrianglesCenterlineDashedHorizontal },
   ] as const;
+
+  /** Align and distribute (spec M19 §3) — the panel's commands, reachable from the menu too. */
+  const MENU_ALIGNS: { label: string; min: number; reason: string; run: () => void }[] = [
+    ...(
+      [
+        ["left", "Align left"],
+        ["hcenter", "Align horizontal centres"],
+        ["right", "Align right"],
+        ["top", "Align top"],
+        ["vcenter", "Align vertical centres"],
+        ["bottom", "Align bottom"],
+      ] as const
+    ).map(([op, label]) => ({
+      label,
+      min: 1,
+      reason: "nothing selected",
+      run: () => alignSelection(op),
+    })),
+    ...(
+      [
+        ["h", "Distribute horizontally"],
+        ["v", "Distribute vertically"],
+      ] as const
+    ).map(([axis, label]) => ({
+      label,
+      min: 3,
+      reason: "select three or more objects",
+      run: () => distributeSelection(axis),
+    })),
+  ];
 
   function runObject(fn: () => void) {
     objectOpen = false;
@@ -520,6 +552,18 @@
             onclick={() => anySelected && runObject(a.run)}
           >
             {a.label} <span class="kbd">{a.keys}</span>
+          </button>
+        {/each}
+        <div class="my-1 h-px bg-line"></div>
+        {#each MENU_ALIGNS as a (a.label)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={app.selection.length < a.min}
+            title={app.selection.length < a.min ? `${a.label} — ${a.reason}` : a.label}
+            onclick={() => app.selection.length >= a.min && runObject(a.run)}
+          >
+            {a.label}
           </button>
         {/each}
         <div class="my-1 h-px bg-line"></div>
