@@ -133,10 +133,23 @@ describe("Warp tool (spec M14 §5)", () => {
     tool.activate!(ctx);
     const before = state.session.doc;
     const past = state.session.history.past.length;
-    expect(tool.keydown!(ctx, "enter")).toBe(true);
+    expect(tool.keydown!(ctx, "enter")).toBe(false);
     expect(state.session.doc).toBe(before);
     expect(state.session.history.past.length).toBe(past);
     expect(state.notices).toEqual([]);
+  });
+
+  it("Enter with an idle cage is not consumed, so a focused button still activates (final review 2)", () => {
+    const { ctx, state, tool } = setup(["a"]);
+    tool.activate!(ctx);
+    const before = state.session.doc;
+    expect(tool.keydown!(ctx, "enter")).toBe(false);
+    expect(state.session.doc).toBe(before);
+    expect(state.overlay).toEqual({ kind: "cage", cage: identityCage(BOX_A) });
+    expect(state.notices).toEqual([]);
+    // Escape with the same idle cage still leaves the tool.
+    expect(tool.keydown!(ctx, "escape")).toBe(true);
+    expect(state.toolId).toBe("select");
   });
 
   it("a click on a corner opens the bracket but Enter adds no undo step", () => {

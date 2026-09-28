@@ -27,7 +27,8 @@ import { pointerTolerance, type Tool, type ToolContext, type ToolEvent } from ".
  *  | press anywhere else        | Applies the warp, then selects what is under the press (or      |
  *  |                            | nothing) and re-seeds a cage on the new selection.              |
  *  | Enter (also a tool change, | Closes the bracket — all drags of this cage are ONE undo step — |
- *  |  which sends Enter)        | notices any live shape that became a path, re-seeds.            |
+ *  |  which sends Enter)        | notices any live shape that became a path, re-seeds. With no    |
+ *  |                            | warp pending it is declined, so a focused button still gets it. |
  *  | `settle` (store hook)      | The same commit, but SILENT — no "Warped — …" notice and no     |
  *  |                            | refusal notice.                                                 |
  *  | Escape                     | Restores `base`, closes the bracket (no undo step), back to     |
@@ -168,6 +169,9 @@ export function createWarpTool(): Tool {
 
     keydown(ctx, key) {
       if (key === "enter") {
+        // Nothing pending: decline, so a focused toolbar or panel button still activates on Enter,
+        // exactly as with no tool busy (`runEditAction`'s "commit").
+        if (!session?.base) return false;
         close(ctx, true);
         seed(ctx, false);
         return true;

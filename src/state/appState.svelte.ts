@@ -381,6 +381,16 @@ export function beginDocGesture(): number {
   return gestureEpoch;
 }
 
+/** A document gesture opened by the UI (a colour picker drag, a typing burst — invariant 42), not
+ *  by a tool. It settles the active tool FIRST: the Warp tool holds its own bracket open across
+ *  drags, and opening this one inside it would make it a no-op — the first edit's
+ *  `cancelActiveGesture` would then settle the warp and close the bracket this caller believes it
+ *  owns, leaving every later value its own undo step. */
+export function beginUiGesture(): number {
+  cancelActiveGesture();
+  return beginDocGesture();
+}
+
 export function titleGestureEpoch(): number {
   return gestureEpoch;
 }
@@ -565,8 +575,9 @@ export function askConfirm(text: string, confirmLabel: string): Promise<boolean>
 
 // ----- selection, tools, preferences -----
 
-/** `pruneSelection` hands back a fresh array whenever nothing was filtered, so two calls with the
- *  same ids but separate array literals would otherwise look like a change. Comparing content here
+/** `pruneSelection` returns `ids` itself when nothing was filtered, but callers pass fresh array
+ *  literals (`setSelection([id])`), so two calls with the same ids would otherwise look like a
+ *  change. Comparing content here
  *  keeps `app.selection` — and so the settle hook below — stable across a no-op reselect. */
 function sameSelection(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i]);

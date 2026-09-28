@@ -163,6 +163,20 @@ describe("warpNodes (spec M14 §3)", () => {
     expect(outChild.kind).toBe("path");
   });
 
+  it("leaves a hidden child of a selected group untouched (final review 3)", () => {
+    const hidden = rect({ id: "h", x: 500, y: 500, hidden: true });
+    const group: Group = {
+      kind: "group",
+      id: "g2",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect({ id: "v" }), hidden],
+    };
+    const out = warpNodes(doc([group]), ["g2"], draggedCage(), box);
+    expect(findNode(out, "h")!.node).toBe(hidden);
+    expect(findNode(out, "v")!.node.kind).toBe("path");
+  });
+
   it("leaves a node with a singular world matrix untouched", () => {
     const singular: Mat = [0, 0, 0, 0, 5, 5];
     const d = doc([rect({ id: "s", transform: singular })]);

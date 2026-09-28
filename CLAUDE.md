@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1021 tests in 67 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1024 tests in 67 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -769,6 +769,15 @@ every user-visible change.
     change, which routes Enter to a busy tool) and a press that selects something else raise the
     notice; the store path via `settle` is quiet everywhere else, because the tool cannot tell a
     colour edit from an undo about to discard the very warp it would be reporting on.
+    **A UI-opened bracket uses `beginUiGesture`, never `beginDocGesture`** (the colour picker, the
+    Midpoint slider, the title field's typing burst): it runs `cancelActiveGesture()` first, so the
+    warp settles into its own undo step BEFORE the UI bracket opens — otherwise the bracket would
+    open inside the warp's (a no-op), the first edit's settle would close it, and every later value
+    would be its own undo step (invariant 42). Tools keep `ctx.beginGesture` (= `beginDocGesture`).
+    **Enter with no warp pending is declined** (`keydown` returns false), so a focused button still
+    activates; Escape with an idle cage still leaves the tool. **A hidden descendant is never
+    warped** (`warpNode` returns it as is): the cage is fitted to `nodeBounds`, which skips hidden
+    children, so one outside the box would otherwise be wildly extrapolated.
 
 ## Current state
 

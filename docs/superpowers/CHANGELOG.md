@@ -2526,14 +2526,31 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   now ordinary paths.", left transforms untouched, and seeded a fresh cage on the new bounds. Not
   yet checked (the browser extension disconnected mid-session): Escape, a mid-warp colour edit, the
   hover cursor, Shift.
+- **Final-review fixes** (2026-09-28):
+  - **A live UI drag mid-warp is one undo step again** (invariant 42). The colour picker's first
+    `input` used to call `beginDocGesture` inside the warp's still-open bracket (a no-op); the
+    edit's `cancelActiveGesture` then settled the warp and closed the bracket the picker believed it
+    owned, so every later colour was its own undo step. New store action `beginUiGesture()` runs
+    `cancelActiveGesture()` then `beginDocGesture()`; `PropertiesPanel`'s `onlivestart` (PaintField,
+    PaintRow, MidpointRow) and `TextPanel`'s typing burst (whose `typeTitleText` cancels the same
+    way) use it. Tools keep `ctx.beginGesture`.
+  - **Enter with an idle cage is no longer swallowed**: with no warp pending the tool declines it,
+    so a focused toolbar or panel button activates as it would with no tool busy. Escape with an
+    idle cage still leaves the tool.
+  - **Hidden children of a selected group are not warped**: the cage is fitted to `nodeBounds`,
+    which skips them, so a hidden child outside the box was extrapolated wildly. `warpNode` now
+    returns a hidden node unchanged (same reference).
 - **Owed** (the items above the browser check didn't reach are covered only by unit tests, including
   real-store tests, not the browser): Escape, a mid-warp colour edit, the hover cursor, and
   Shift-45°/undo-then-drag; an iPad/Pencil pass (knob reach — the cage's four corners and eight
   handles sit close together on a small shape — and whether a resting palm holds the cage); Safari;
   performance on large selections (reasoned about, not measured); autosave writing mid-warp state;
   and, on touch (or after a keyboard edit on desktop), an idle cage can show stale bounds until the
-  next hover or press.
+  next hover or press; on touch, after a large panel edit (W/H) mid-session, the old cage stays
+  drawn until the next press, and a tap where the old handle was can miss and select/deselect
+  instead; the per-pointermove refit cost is unmeasured (a repeat refit also runs on up) — for the
+  performance group.
 - Plan: `docs/superpowers/plans/2026-09-28-m14-envelope-warp.md`. Spec:
   `docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md` (§0 amendments, 2026-09-28).
-  Commits `f8882a9..141338b`.
-- 1021 tests in 67 files.
+  Commits `f8882a9..141338b`, plus the final-review fix commit.
+- 1024 tests in 67 files.

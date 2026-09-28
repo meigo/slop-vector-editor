@@ -7,6 +7,7 @@ import { type Cage, isIdentityCage, warpPoint, warpSubpaths } from "../geom/warp
 import {
   flatIfDegenerate,
   isGradient,
+  isHidden,
   withBakedSubpaths,
   type Doc,
   type Fill,
@@ -21,8 +22,12 @@ import { findNode, mapNodes, shapesOf } from "./tree";
  *  26): a group recurses into its children with `world` as their parent, and a leaf shape goes
  *  through `toPath` first (invariant 21's polygon, a rect's live corner radius, invariant 39's
  *  ellipse) and then `withBakedSubpaths` (invariant 40 — this is the new bake site that drops a
- *  title's `text`, exactly as `resize.ts` and `flattenTransform` already do for their own bakes). */
+ *  title's `text`, exactly as `resize.ts` and `flattenTransform` already do for their own bakes).
+ *  A hidden node is returned unchanged. */
 function warpNode(n: Node, parent: Mat, cage: Cage, box: Box): Node {
+  // A hidden descendant is left as it is: the cage was fitted to `nodeBounds`, which skips hidden
+  // children, so one outside that box would be wildly extrapolated by a warp nobody could see.
+  if (isHidden(n)) return n;
   const world = multiply(parent, n.transform);
   if (!invert(world)) return n;
 

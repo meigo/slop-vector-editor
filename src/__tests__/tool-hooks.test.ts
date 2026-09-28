@@ -4,7 +4,9 @@ import { findNode } from "../doc/tree";
 import { IDENTITY } from "../geom/mat";
 import {
   app,
+  beginUiGesture,
   cancelActiveGesture,
+  endDocGesture,
   registerToolActivate,
   registerToolSettle,
   replaceDocument,
@@ -134,5 +136,27 @@ describe("a store edit mid-warp keeps the warp (Review Focus 4)", () => {
     dragCorner();
     expect(findNode(app.doc, "a")!.node.kind).toBe("path");
     expect(app.session.gestureBase).not.toBeNull();
+  });
+
+  it("a UI live drag mid-warp settles the warp first, then records ONE step (final review 1)", () => {
+    replaceDocument(doc(), "t.svg", null, true);
+    setSelection(["a"]);
+    setTool("warp");
+    const past = app.session.history.past.length;
+    dragCorner();
+    const oldFill = (findNode(app.doc, "a")!.node as { style: typeof DEFAULT_STYLE }).style.fill;
+    beginUiGesture();
+    setSelectionStyle({ fill: { color: "#ff0000", opacity: 1 } });
+    setSelectionStyle({ fill: { color: "#00ff00", opacity: 1 } });
+    setSelectionStyle({ fill: { color: "#0000ff", opacity: 1 } });
+    endDocGesture();
+    expect(app.session.history.past.length).toBe(past + 2);
+    undo();
+    let a = findNode(app.doc, "a")!.node;
+    expect(a.kind).toBe("path");
+    expect(a.kind !== "group" && a.style.fill).toEqual(oldFill);
+    undo();
+    a = findNode(app.doc, "a")!.node;
+    expect(a).toEqual(rect("a"));
   });
 });

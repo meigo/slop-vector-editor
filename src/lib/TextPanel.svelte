@@ -3,7 +3,7 @@
   import type { PathShape } from "../doc/document";
   import {
     addFontFile,
-    beginDocGesture,
+    beginUiGesture,
     endDocGesture,
     titleGestureEpoch,
     titleInFlight,
@@ -52,7 +52,7 @@
   function startTyping() {
     if (typing) return;
     typing = true;
-    typingEpoch = beginDocGesture();
+    typingEpoch = beginUiGesture();
   }
 
   function endTyping() {
