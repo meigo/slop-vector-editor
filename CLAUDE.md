@@ -368,15 +368,18 @@ every user-visible change.
     top bar must never scroll or wrap, because that would clip the File menu. Only the file name
     shrinks. **Width-dependent hiding is the one exception** (added M7): a control may be absent
     below a breakpoint when the same command stays reachable at every width through a menu — the
-    four icon groups are hidden in a cascade, each carried by a menu at every width: clipboard
+    five icon groups are hidden in a cascade, each carried by a menu at every width: clipboard
     below 870px (**Edit** menu), Convert/Flatten below 950px (**Object**), the booleans below
-    1110px (**Path**), and arrange below 1270px (**Object**). They drop least-essential first as
+    1110px (**Path**), arrange below 1270px (**Object**), and flip below 1350px (**Object**,
+    2026-09-28 — the first to go). They drop least-essential first as
     the bar narrows, so Cut/Copy/Paste survive longest and Undo/Redo never hide at all. The
     **Object** menu carries arrange (added M10e §8; before that menu existed,
     arrange's only other routes were ⌘]/⌘[ and the right-click menu, which `route.ts` opens for
     **mouse input only**, so on a touch device the icons were the single route and could not
-    legally be hidden). **Those breakpoints are measured, not chosen**: the bar needs 1048px with
-    1259px with everything shown and 739px with all four groups hidden, and a breakpoint below what the bar
+    legally be hidden). **Those breakpoints are measured, not chosen**: the bar needs 1344px with
+    everything shown, 1259px with flip hidden, 1102px with arrange hidden too, 945px and 860px
+    as the booleans and Convert/Flatten go, and 739px with all five groups hidden (re-measured
+    2026-09-28 by narrowing the header until it overflows, each group hidden in turn), and a breakpoint below what the bar
     needs silently reintroduces the overflow the exception exists to prevent — an earlier 900px was
     148px short of what it needed. **The bar now fits at every width down to 739px**, iPad portrait
     (768px) included; verified at each boundary. The
