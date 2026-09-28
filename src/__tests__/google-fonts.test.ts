@@ -189,6 +189,20 @@ describe("fetchMetadata", () => {
       "Couldn't download Lora — check your connection",
     );
   });
+
+  it("uses the given label, not the folder-derived one, on a 404", async () => {
+    const fetcher = fakeFetcher(() => ({ ok: false, status: 404 }));
+    await expect(fetchMetadata("ofl/playfairdisplay", fetcher, "Playfair Display")).rejects.toThrow(
+      "Couldn't download Playfair Display — check your connection",
+    );
+  });
+
+  it("uses the given label, not the folder-derived one, when the fetch throws", async () => {
+    const fetcher = fakeFetcher(() => "throw");
+    await expect(fetchMetadata("ofl/playfairdisplay", fetcher, "Playfair Display")).rejects.toThrow(
+      "Couldn't download Playfair Display — check your connection",
+    );
+  });
 });
 
 describe("fetchFaceFile", () => {
@@ -217,5 +231,29 @@ describe("fetchFaceFile", () => {
     await expect(fetchFaceFile("ofl/lora", "Lora[wght].ttf", fetcher)).rejects.toThrow(
       "Couldn't download Lora — check your connection",
     );
+  });
+
+  it("uses the given label, not the folder-derived one, on a failed download", async () => {
+    const fetcher = fakeFetcher(() => ({ ok: false, status: 500 }));
+    await expect(
+      fetchFaceFile(
+        "ofl/playfairdisplay",
+        "PlayfairDisplay[wght].ttf",
+        fetcher,
+        "Playfair Display",
+      ),
+    ).rejects.toThrow("Couldn't download Playfair Display — check your connection");
+  });
+
+  it("uses the given label, not the folder-derived one, when the fetch throws", async () => {
+    const fetcher = fakeFetcher(() => "throw");
+    await expect(
+      fetchFaceFile(
+        "ofl/playfairdisplay",
+        "PlayfairDisplay[wght].ttf",
+        fetcher,
+        "Playfair Display",
+      ),
+    ).rejects.toThrow("Couldn't download Playfair Display — check your connection");
   });
 });

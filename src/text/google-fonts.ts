@@ -84,9 +84,7 @@ export function chooseFace(
   return best;
 }
 
-export type Fetcher = (
-  url: string,
-) => Promise<{
+export type Fetcher = (url: string) => Promise<{
   ok: boolean;
   status: number;
   text(): Promise<string>;
@@ -95,29 +93,31 @@ export type Fetcher = (
 
 const defaultFetcher: Fetcher = (url) => fetch(url);
 
-/** `dir`'s own family folder, e.g. "ofl/lora" → "Lora" — used only to name the family in an
- *  error message when the caller has no `GoogleFamily` at hand (both download functions take
- *  just the directory, spec M20 §2). */
+/** `dir`'s own family folder, e.g. "ofl/lora" → "Lora" — the fallback label for an error message
+ *  when the caller has no `GoogleFamily.family` at hand to pass as `label`. Misnames a multi-word
+ *  family (e.g. "ofl/playfairdisplay" → "Playfairdisplay"), which is exactly why callers that do
+ *  have the catalogue entry should pass its `family` string instead. */
 function dirLabel(dir: string): string {
   const id = dir.split("/").pop() ?? dir;
   return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-function downloadError(dir: string): Error {
-  return new Error(`Couldn't download ${dirLabel(dir)} — check your connection`);
+function downloadError(dir: string, label?: string): Error {
+  return new Error(`Couldn't download ${label ?? dirLabel(dir)} — check your connection`);
 }
 
 export async function fetchMetadata(
   dir: string,
   fetcher: Fetcher = defaultFetcher,
+  label?: string,
 ): Promise<FaceEntry[]> {
   let res;
   try {
     res = await fetcher(`${GOOGLE_FONTS_BASE}${dir}/METADATA.pb`);
   } catch {
-    throw downloadError(dir);
+    throw downloadError(dir, label);
   }
-  if (!res.ok) throw downloadError(dir);
+  if (!res.ok) throw downloadError(dir, label);
   const text = await res.text();
   return parseMetadata(text);
 }
@@ -128,13 +128,14 @@ export async function fetchFaceFile(
   dir: string,
   filename: string,
   fetcher: Fetcher = defaultFetcher,
+  label?: string,
 ): Promise<ArrayBuffer> {
   let res;
   try {
     res = await fetcher(`${GOOGLE_FONTS_BASE}${dir}/${encodeURIComponent(filename)}`);
   } catch {
-    throw downloadError(dir);
+    throw downloadError(dir, label);
   }
-  if (!res.ok) throw downloadError(dir);
+  if (!res.ok) throw downloadError(dir, label);
   return res.arrayBuffer();
 }
