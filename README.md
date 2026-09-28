@@ -8,7 +8,7 @@ Your document is a plain `.svg` file: open it in any browser or design tool.
 
 **[Try it → slop-vector-editor.meigo.workers.dev](https://slop-vector-editor.meigo.workers.dev)**
 
-![The editor with a vectorised drawing open: the tool strip, a canvas holding a sketched portrait and a red circle, a selected vertical title reading “SLOP VECTOR EDITOR” with its per-character randomiser settings in the properties panel, the layers panel, and the on-screen modifier pad](docs/screenshot.png)
+![The editor with a vectorised drawing open: the tool strip, a canvas holding a sketched portrait and a red circle, a selected vertical title reading “SLOP VECTOR EDITOR” with its text settings — font, size, spacing, line height and alignment — in the properties panel, the layers panel, and the Snap toggle](docs/screenshot.png)
 
 ## Status
 
