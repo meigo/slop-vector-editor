@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1037 tests in 69 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1048 tests in 70 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -50,7 +50,7 @@ every user-visible change.
   intersect/exclude on the current selection, in document space), `path-ops.ts` (`pathOpRefusal`,
   `subdivideSelection`, `reverseSelection`, `breakApart`, `combine` — Subdivide/Reverse
   direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
-  the async Simplify action, modelled on `booleanSelection`'s shape), `subset.ts`
+  the async Simplify action, modelled on `booleanSelection`'s shape), `flip.ts` (`flipNodes` — Flip horizontal/vertical as a mirror composed into each node's transform in parent space, never a bake, so titles and polygons stay live), `subset.ts`
   (`filterToSelection` — the document reduced to a selection, for exporting a region that contains
   only the selected objects), `warp-edit.ts` (`warpNodes`, `warpStyle`, `droppedLive`,
   `warpRefusal` — the Warp tool's bake: gradients follow the warp via `warpStyle`, not `mapStyle`,
@@ -83,7 +83,7 @@ every user-visible change.
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool` — incl. the optional `activate`/
   `settle` hooks (invariant 47) — `ToolContext` — incl. `setHoverCursor`, the per-part hover-cursor
   slot — `ToolEvent`),
-  `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
+  `frame.ts` (rotated selection frame; a mirrored matrix's frame angle is folded into (−90°, 90°] so a flipped object's handles stay upright), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools; `constrain45`, the shared 45°-snap helper the
   Gradient and Warp tools call), `select.ts` (the select tool: click, drag-select,
   move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and

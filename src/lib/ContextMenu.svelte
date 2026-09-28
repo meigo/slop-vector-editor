@@ -14,6 +14,7 @@
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    flipSelection,
     groupSelection,
     deselectAll,
     invertSelection,
@@ -159,6 +160,12 @@
           Flatten transform
         </button>
       {/if}
+      <button class="menu-item" role="menuitem" onclick={() => run(() => flipSelection("h"))}>
+        Flip horizontal <span class="kbd">⇧H</span>
+      </button>
+      <button class="menu-item" role="menuitem" onclick={() => run(() => flipSelection("v"))}>
+        Flip vertical <span class="kbd">⇧V</span>
+      </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionToFront)}>
         Bring to front <span class="kbd">⇧⌘]</span>

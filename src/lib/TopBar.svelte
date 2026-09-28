@@ -38,6 +38,7 @@
     deleteSelection,
     duplicateSelection,
     flattenSelection,
+    flipSelection,
     groupSelection,
     deselectAll,
     invertSelection,
@@ -129,6 +130,12 @@
    *  `route.ts` opens the right-click menu for **mouse input only** — so on an iPad the icons were
    *  the single route, which is exactly what invariant 24 requires before a control may be hidden
    *  at a width. With this menu they may be. */
+  /** Flip (2026-09-28): mirrors the selection about its own centre, as a transform. */
+  const FLIPS = [
+    { axis: "h", label: "Flip horizontal", keys: "⇧H" },
+    { axis: "v", label: "Flip vertical", keys: "⇧V" },
+  ] as const;
+
   function runObject(fn: () => void) {
     objectOpen = false;
     fn();
@@ -508,6 +515,18 @@
             onclick={() => anySelected && runObject(a.run)}
           >
             {a.label} <span class="kbd">{a.keys}</span>
+          </button>
+        {/each}
+        <div class="my-1 h-px bg-line"></div>
+        {#each FLIPS as f (f.axis)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={!anySelected}
+            title={anySelected ? `${f.label} (${f.keys})` : `${f.label} — nothing selected`}
+            onclick={() => anySelected && runObject(() => flipSelection(f.axis))}
+          >
+            {f.label} <span class="kbd">{f.keys}</span>
           </button>
         {/each}
         <div class="my-1 h-px bg-line"></div>

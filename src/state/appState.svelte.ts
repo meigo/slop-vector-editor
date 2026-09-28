@@ -45,6 +45,7 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
+import { flipNodes, type FlipAxis } from "../doc/flip";
 import { groupNodes, ungroupNodes } from "../doc/group";
 import {
   closeSubpath,
@@ -706,6 +707,14 @@ export function nudgeSelection(dx: number, dy: number): void {
 export function convertSelectionToPath(): void {
   cancelActiveGesture();
   commitDoc(convertToPath(app.doc, app.selection));
+}
+
+/** Flip horizontal (⇧H) / vertical (⇧V), 2026-09-28: mirrors the selection about its own centre,
+ *  as a transform, one undo step (`flipNodes`). */
+export function flipSelection(axis: FlipAxis): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(flipNodes(app.doc, app.selection, axis));
 }
 
 export function flattenSelection(): void {

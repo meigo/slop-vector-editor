@@ -11,6 +11,7 @@ import {
   duplicateSelection,
   fitArtboard,
   groupSelection,
+  flipSelection,
   invertSelection,
   moveSelectedNodes,
   nudgeSelection,
@@ -118,6 +119,9 @@ export function runEditAction(a: EditAction): boolean {
       return true;
     case "invertSelection":
       invertSelection();
+      return true;
+    case "flip":
+      flipSelection(a.axis);
       return true;
   }
 }

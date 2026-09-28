@@ -216,7 +216,10 @@ describe("editActionForKey", () => {
     expect(k("n")).toEqual({ kind: "tool", tool: "node" });
     expect(k("g")).toEqual({ kind: "tool", tool: "gradient" });
     expect(k("w")).toEqual({ kind: "tool", tool: "warp" });
-    expect(k("v", { shiftKey: true })).toBeNull();
+    // Shift+V / Shift+H are Flip vertical / horizontal (2026-09-28), not tools.
+    expect(k("v", { shiftKey: true })).toEqual({ kind: "flip", axis: "v" });
+    expect(k("H", { shiftKey: true })).toEqual({ kind: "flip", axis: "h" });
+    expect(k("r", { shiftKey: true })).toBeNull();
     expect(k("x")).toBeNull();
   });
 

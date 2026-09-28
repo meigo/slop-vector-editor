@@ -36,6 +36,8 @@ What works today:
   opacity you set on a selection also becomes the default for the next shape you draw. Every number can be typed or dragged
   sideways — the artwork follows live, a drag is one undo step, and Shift makes it finer.
 - Convert to path and flatten transform.
+- Flip horizontal (⇧H) and vertical (⇧V), from the Object menu or the right-click menu: the
+  selection is mirrored about its own centre, and titles and polygons stay editable.
 - Copy, cut and paste — within the editor and as SVG with other apps.
 - Snapping to the artboard and other objects while moving, resizing and drawing, with guide
   lines — including other paths' nodes while editing one.
@@ -134,6 +136,7 @@ What works today:
 | Text                                            | T                                     |
 | Gradient tool                                   | G                                     |
 | Warp tool                                       | W                                     |
+| Flip horizontal / vertical                      | ⇧H / ⇧V                               |
 | Finish a path                                   | Enter                                 |
 
 ## Roadmap
@@ -147,7 +150,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1037 unit tests
+npm test          # 1048 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

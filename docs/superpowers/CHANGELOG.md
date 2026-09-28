@@ -2625,3 +2625,27 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   Lucide's uniform 2px — the dots would not follow a `strokeWidth` prop, and nothing passes one.
 - **Verified**: `svelte-check` 0/0, lint clean; in the browser it reads as a fade between Type and
   Warp at 18px.
+
+## 2026-09-28 — Flip horizontal and vertical
+
+- **What**: Flip horizontal (⇧H) and Flip vertical (⇧V) in the Object menu and the right-click
+  menu; the selection is mirrored about the centre of its bounds, one undo step. Requested as
+  "flip selected objects, V and H"; bounded change, designed in chat.
+- **How** (option 1 of two): `flipNodes` (`src/doc/flip.ts`) composes the mirror into each selected
+  node's transform, converted into its parent's space (invariant 26) — the way move and rotate
+  work, never a geometry bake. So titles stay editable (mirrored), polygons stay live, gradients and
+  stroke widths are untouched, groups flip as a unit, and flipping twice restores the transform
+  exactly. Declined: baking it like a −100% resize, which would drop a flipped title's text
+  (invariant 44) and need the odd-polygon half-turn (invariant 22).
+- **Frame fix**: `selectionFrame` read a mirrored matrix's angle from its flipped x axis, so a
+  horizontally flipped object got a 180°-turned frame with the rotate handle underneath. A
+  negative-determinant matrix's frame angle is now folded into (−90°, 90°]; an ordinary 180°
+  rotation keeps its upside-down frame.
+- **Keys**: Shift+H / Shift+V were unused (plain H/V are tools; tool keys ignore Shift); the keys
+  test that expected Shift+V to do nothing now expects the flip. No top-bar icons: the bar's width
+  breakpoints are measured (invariant 24), and the menus carry the commands at every width.
+- **Verified**: 11 unit tests (`flip.test.ts`); in desktop Chrome a real Shift+H flipped a triangle
+  in place with an upright frame, the Object menu's Flip vertical worked, the two flips were two
+  undo steps, and undoing both restored the exact identity transform.
+- **Owed**: iPad (the menus are the touch route — the right-click menu is mouse-only); Safari.
+- 1048 tests in 70 files.

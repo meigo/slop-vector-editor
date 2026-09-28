@@ -20,12 +20,24 @@ function nodesOf(doc: Doc, ids: readonly string[]): { node: Node; parent: Mat }[
   return out;
 }
 
+/** A mirrored matrix (negative determinant — a flipped object, 2026-09-28) reads its x axis as
+ *  pointing the other way, so `rotationOf` alone would turn a horizontally flipped object's frame
+ *  180° and put the rotate handle underneath it. A mirror has no "up" of its own to preserve, so its
+ *  angle is folded into (−90°, 90°]; an ordinary 180° rotation keeps its upside-down frame. */
+function frameAngle(m: Mat): number {
+  const a = rotationOf(m);
+  if (m[0] * m[3] - m[1] * m[2] >= 0) return a;
+  if (a > Math.PI / 2) return a - Math.PI;
+  if (a <= -Math.PI / 2) return a + Math.PI;
+  return a;
+}
+
 export function selectionFrame(doc: Doc, ids: readonly string[]): Frame | null {
   const nodes = nodesOf(doc, ids);
   if (nodes.length === 0) return null;
   const world = nodes.length === 1 ? multiply(nodes[0].parent, nodes[0].node.transform) : null;
   const single = world !== null && !isSkewed(world);
-  const angle = single ? rotationOf(world) : 0;
+  const angle = single ? frameAngle(world) : 0;
   const m = rot(-angle);
   let box: Box | null = null;
   for (const n of nodes) box = unionBox(box, nodeBounds(n.node, multiply(m, n.parent)));
