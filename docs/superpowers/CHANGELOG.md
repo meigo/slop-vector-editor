@@ -2554,3 +2554,27 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   `docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md` (§0 amendments, 2026-09-28).
   Commits `f8882a9..141338b`, plus the final-review fix commit.
 - 1024 tests in 67 files.
+
+## 2026-09-28 — Drag-adjustable number fields
+
+- **What**: every `NumberField` in the Properties panel (stroke width, opacity, radius, sides,
+  inner, node X/Y, geometry X/Y/W/H/rotation, the Midpoint `%`, gradient stop opacity, and the
+  title's size, spacing, line height, character and randomiser values) can be dragged sideways as
+  well as typed. Requested as "drag adjustable numeric fields like in some other slop apps";
+  ported from slop-animator's `NumberField` + `core/scrub.ts` (bounded change, designed in chat).
+- **Behaviour**: 3px of sideways travel turns a press into a drag; 4px per step, Shift 4× finer on
+  the same grid; values snap to the field's `step` (1, except stroke width 0.5 and line height
+  0.05) and clamp to min/max; the drag is measured from the press, so returning restores the
+  value exactly. Live: the artwork follows on every step change, and the whole drag is one undo
+  step (`beginUiGesture`/`endDocGesture`; the title fields end through `finishCharDrag` so the
+  async outline commits land inside the bracket). A tap still focuses the field for typing; a
+  mixed value is typed only. Each field's title (status-bar hint) reads "… — drag sideways or
+  type". Decisions (user): live update, and drag the number itself rather than the label.
+- **iPad**: the input is `touch-pan-y`, so a vertical finger-scroll of the panel still scrolls
+  and only sideways travel adjusts the number; the browser taking a pan cancels the pointer
+  stream, which ends the drag.
+- **Verified**: `scrub.ts` unit tests (7). The browser check was cut short — the automation's
+  Chrome session froze and then vanished right after a shape was selected; no loop was found in
+  the code — and the user then tried it by hand and reported it works ("merge, seems to work").
+- **Owed**: an iPad pass (sideways drag vs. vertical scroll on a field, a palm mid-drag); Safari.
+- 1031 tests in 68 files.

@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1024 tests in 67 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1031 tests in 68 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -136,7 +136,7 @@ every user-visible change.
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
   helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
-  clamp, the drag maths and the Properties open/override rule), `NumberField`, `PaintField` (Flat/
+  clamp, the drag maths and the Properties open/override rule), `NumberField` (typed, or dragged sideways through the pure `scrub.ts` — see invariant 42), `PaintField` (Flat/
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
   flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the
   Auto toggle for the middle stop's colour, between a gradient's Start and End rows — the app's
@@ -615,6 +615,17 @@ every user-visible change.
     owns the gesture and passes `onlivestart`/`onliveend`. `setSelectionStyle`'s
     `cancelActiveGesture()` is unrelated — it cancels a running _tool_ drag and never touches
     `session.gestureBase`.
+    **`NumberField` is draggable** (2026-09-28, ported from slop-animator): a press that travels
+    3px sideways becomes a drag (`src/lib/scrub.ts`: 4px per step, Shift 4× finer, snapped to the
+    field's `step`, measured from the press so returning restores the value; the grid anchors at
+    0 when `min` is not finite). It calls `onchange` live on every step change and brackets the
+    drag in its `onlivestart`/`onliveend` props — callers pass `beginUiGesture`/`endDocGesture`,
+    and TextPanel passes `finishCharDrag` as the end, because title outlines are async and the
+    bracket must wait for them (invariant 41). A mixed value (`null`) is typed only. The input is
+    `touch-pan-y`, never `touch-none`: on iPad a vertical finger-scroll of the panel must still
+    scroll, and the browser taking the pan cancels the pointer stream, which ends the drag. After
+    a drag, the one stray `click` is swallowed so a drag released over a dialog backdrop cannot
+    close the dialog.
 
 43. **A title's layer row is labelled by its own text** (`rowLabel`, M10e §6), not "Path". A title
     is a path carrying metadata (invariant 40), so it fell through to the path case and every
