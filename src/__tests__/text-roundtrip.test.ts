@@ -47,6 +47,24 @@ const docWith = (p: PathShape): Doc => {
 const reload = (d: Doc) => parseSvg(serializeDoc(d)).doc.layers[0].children[0] as PathShape;
 
 describe("a title round-trips as a path", () => {
+  it("writes nine opts fields for a default title — byte-identical to pre-M20", () => {
+    const svg = serializeDoc(docWith(title()));
+    expect(svg).toContain('data-sv-text-opts="96 2.5 center 418 12 0.08 4 0 1.2"');
+  });
+
+  it("keeps weight and italic across a save and reload (M20 §4)", () => {
+    const styled = { ...meta, font: "gf:lora", weight: 700, italic: true as const };
+    const svg = serializeDoc(docWith(title({ text: styled })));
+    expect(svg).toContain('data-sv-text-opts="96 2.5 center 418 12 0.08 4 0 1.2 700 1"');
+    expect(reload(docWith(title({ text: styled }))).text).toEqual(styled);
+  });
+
+  it("reloads a default title with no weight or italic keys (invariant 39)", () => {
+    const back = reload(docWith(title()));
+    expect("weight" in back.text!).toBe(false);
+    expect("italic" in back.text!).toBe(false);
+  });
+
   it("keeps every field, including a string with quotes and ampersands", () => {
     const back = reload(docWith(title()));
     expect(back.kind).toBe("path");

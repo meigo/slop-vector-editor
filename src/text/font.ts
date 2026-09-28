@@ -6,7 +6,9 @@ import { applyMat, multiply, rotate, scale, skewX, translate, type Mat } from ".
 import type { Vec } from "../geom/vec";
 import { transformSubpaths } from "../geom/shapes";
 import { parsePathData } from "../svg/pathdata";
+import type { CachedFamily } from "../persist/font-cache";
 import { BUNDLED } from "./fonts";
+import { chooseFace, hasItalic } from "./google-fonts";
 import { layoutRun, splitLines } from "./layout";
 import { charTransform, isIdentityChar, withOverride, type CharTransform } from "./random";
 
@@ -14,7 +16,17 @@ type OT = (typeof import("opentype.js"))["default"];
 type ParsedFont = import("opentype.js").Font;
 type Glyph = import("opentype.js").Glyph;
 
-export type LoadedFont = { id: string; label: string; font: ParsedFont };
+/** `id` is the font id, not the face: every face of a family shares it. `wght` is the weight
+ *  axis's range, present only on a variable Google face — the one kind that draws other weights. */
+export type LoadedFont = {
+  id: string;
+  label: string;
+  font: ParsedFont;
+  wght?: { min: number; max: number };
+};
+
+/** Which face of a family to draw (spec M20 §3). Absent weight is 400, absent italic upright. */
+export type FaceRequest = { font: string; weight?: number; italic?: boolean };
 
 export const FONT_EXTS = [".ttf", ".otf", ".woff"] as const;
 export const WOFF2_REFUSAL = "Fonts in .woff2 can't be read here — use .ttf, .otf or .woff";
@@ -36,11 +48,20 @@ async function ot(): Promise<OT> {
   return otPromise;
 }
 
+/** Parsed faces, keyed `${font id}|${filename}` for a Google face and `${font id}|bundled` for
+ *  every other font (one face each). */
 const loaded = new Map<string, LoadedFont>();
 /** Fonts added this session. Not written into the document (spec M10 §5). */
 const added = new Map<string, { label: string; buf: ArrayBuffer }>();
-/** In-flight loads, so two callers for the same id share one fetch and one parse (invariant 37's
- *  rule: cache the promise, clear it on rejection). */
+/** Google families (spec M20 §5), by `gf:` font id. The loader hands back a face file's bytes —
+ *  from the cache or the network, which is the caller's business, so this module stays the only
+ *  importer of opentype.js and never touches either. */
+const google = new Map<
+  string,
+  { entry: CachedFamily; loader: (filename: string) => Promise<ArrayBuffer> }
+>();
+/** In-flight loads, so two callers for the same face share one fetch and one parse (invariant
+ *  37's rule: cache the promise, clear it on rejection). */
 const loading = new Map<string, Promise<LoadedFont>>();
 
 /** Notified whenever `added` changes. This module stays free of runes so it can be unit-tested in
@@ -61,12 +82,15 @@ export function setFontRegistryListener(fn: (() => void) | null): void {
  *  Asking `isFontLoaded` here was a bug: after a reload nothing has been fetched yet, so every
  *  title in the file came back read-only until something happened to load its font. */
 export function fontAvailable(id: string): boolean {
-  return loaded.has(id) || added.has(id) || BUNDLED.some((b) => b.id === id);
+  return google.has(id) || added.has(id) || BUNDLED.some((b) => b.id === id);
 }
 
 export function fontChoices(): { id: string; label: string }[] {
   return [
     ...BUNDLED.map((b) => ({ id: b.id, label: b.label })),
+    // By family name alone: a Google family's id says where it came from, and its name is the
+    // catalogue's, so it cannot be confused with a bundled face the way a file's can.
+    ...[...google].map(([id, g]) => ({ id, label: g.entry.family.family })),
     // Marked, because a font you added often has the same family name as a bundled one and two
     // identical entries in the list tell you nothing about which is which.
     ...[...added].map(([id, v]) => ({ id, label: `${v.label} (added)` })),
@@ -84,21 +108,70 @@ function familyOf(font: ParsedFont, fallback: string): string {
   );
 }
 
-export async function loadFont(id: string): Promise<LoadedFont> {
-  const already = loaded.get(id);
+/** Registers a Google family for this session (spec M20 §5) and tells the listener. */
+export function registerGoogleFamily(
+  entry: CachedFamily,
+  loader: (filename: string) => Promise<ArrayBuffer>,
+): void {
+  google.set(entry.id, { entry, loader });
+  onRegistryChange?.();
+}
+
+/** The weights a family offers: a Google family's catalogue weights; any other font only
+ *  Regular (spec M20 §1). */
+export function familyWeights(fontId: string): number[] {
+  return google.get(fontId)?.entry.family.weights ?? [400];
+}
+
+/** From the faces, not the catalogue flag: the faces are what `chooseFace` actually draws. */
+export function familyHasItalic(fontId: string): boolean {
+  const g = google.get(fontId);
+  return g ? hasItalic(g.entry.faces) : false;
+}
+
+export function familyLicense(fontId: string): string | null {
+  return google.get(fontId)?.entry.family.license ?? null;
+}
+
+export function loadFont(id: string): Promise<LoadedFont> {
+  return loadFace({ font: id });
+}
+
+export async function loadFace(req: FaceRequest): Promise<LoadedFont> {
+  const id = req.font;
+  const g = google.get(id);
+  const face = g ? chooseFace(g.entry.faces, req.weight ?? 400, req.italic ?? false) : null;
+  const key = `${id}|${face ? face.filename : "bundled"}`;
+  const already = loaded.get(key);
   if (already) return already;
-  const inFlight = loading.get(id);
+  const inFlight = loading.get(key);
   if (inFlight) return inFlight;
-  const p = loadFontOnce(id).catch((e: unknown) => {
-    loading.delete(id); // a failure must stay retryable
-    throw e;
+  const p = (g && face ? loadGoogleFace(id, g, face.filename) : loadFontOnce(id)).then((entry) => {
+    loaded.set(key, entry);
+    return entry;
   });
-  loading.set(id, p);
+  loading.set(key, p);
   try {
     return await p;
   } finally {
-    loading.delete(id);
+    loading.delete(key); // a failure must stay retryable
   }
+}
+
+async function loadGoogleFace(
+  id: string,
+  g: { entry: CachedFamily; loader: (filename: string) => Promise<ArrayBuffer> },
+  filename: string,
+): Promise<LoadedFont> {
+  const o = await ot();
+  const font = o.parse(await g.loader(filename));
+  const axis = font.variation ? font.tables.fvar?.axes.find((a) => a.tag === "wght") : undefined;
+  return {
+    id,
+    label: g.entry.family.family,
+    font,
+    ...(axis ? { wght: { min: axis.minValue, max: axis.maxValue } } : {}),
+  };
 }
 
 async function loadFontOnce(id: string): Promise<LoadedFont> {
@@ -118,9 +191,7 @@ async function loadFontOnce(id: string): Promise<LoadedFont> {
     label = b.label;
   }
   const font = o.parse(buf);
-  const entry = { id, label: familyOf(font, label), font };
-  loaded.set(id, entry);
-  return entry;
+  return { id, label: familyOf(font, label), font };
 }
 
 export class Woff2Error extends Error {}
@@ -142,7 +213,7 @@ export async function registerFontFile(file: File): Promise<string> {
   const label = familyOf(font, file.name.replace(/\.[^.]+$/, ""));
   const id = `file:${label}`;
   added.set(id, { label, buf });
-  loaded.set(id, { id, label, font });
+  loaded.set(`${id}|bundled`, { id, label, font });
   onRegistryChange?.();
   return id;
 }
@@ -175,7 +246,26 @@ export function noGlyphsFor(f: LoadedFont, text: string): boolean {
 
 /** One placed glyph. `index` is into the whole string, newlines included, so overrides survive.
  *  Newlines themselves never appear here — they have no glyph. */
-type Placed = { char: string; index: number; penX: number; penY: number; advance: number };
+type Placed = {
+  char: string;
+  index: number;
+  penX: number;
+  penY: number;
+  advance: number;
+  /** The glyph as drawn — at the title's weight on a variable face — so the outline and the
+   *  advance the layout used come from one object. */
+  glyph: Glyph;
+};
+
+/** The glyph at the title's weight. Only a variable Google face (`f.wght`) is instanced; every
+ *  other font draws its one design exactly as before M20. A variable face is instanced at every
+ *  weight, 400 included, because `getTransform` overwrites the base glyph's advance as a side
+ *  effect: after drawing 700, the base glyph would lay 400 out with 700's advances. */
+function drawnGlyph(f: LoadedFont, base: Glyph, weight: number | undefined): Glyph {
+  if (!f.wght || !f.font.variation) return base;
+  const wght = Math.min(f.wght.max, Math.max(f.wght.min, weight ?? 400));
+  return f.font.variation.getTransform(base, { wght });
+}
 
 /** The shared layout behind both `outlineText` and `charQuads`, so a character's outline and its
  *  hit box can never disagree about where it is.
@@ -197,7 +287,10 @@ function runLayout(
     // One glyph per code point. `stringToGlyphs` applies `liga`, so "office" in Anton is four
     // glyphs and the loop below would drop `c` and `e`.
     const glyphs = chars.map((ch) => font.charToGlyph(ch));
-    const advances = glyphs.map((g: Glyph) => (g.advanceWidth ?? 0) / upm);
+    // Weight changes advances as well as outlines (spec M20 §3). Kerning stays on the base
+    // glyphs: `getKerningValue` reads glyph indices, which a variation does not change.
+    const drawn = glyphs.map((g: Glyph) => drawnGlyph(f, g, m.weight));
+    const advances = drawn.map((g: Glyph) => (g.advanceWidth ?? 0) / upm);
     const kerns = glyphs.map((g: Glyph, i: number) =>
       i === 0 ? 0 : font.getKerningValue(glyphs[i - 1], g) / upm,
     );
@@ -210,6 +303,7 @@ function runLayout(
         penX: pen[i],
         penY,
         advance: advances[i] ?? 0,
+        glyph: drawn[i],
       });
     }
   });
@@ -223,15 +317,15 @@ function transformFor(m: TextMeta, i: number): CharTransform {
 
 /** string + font + options → outlines, in the title's own space with the first baseline at y = 0. */
 export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
-  const { placed, font } = runLayout(f, m);
+  const { placed } = runLayout(f, m);
   const out: Subpath[] = [];
   for (const p of placed) {
     // Through the glyph, never `font.getPath(text, …)`: that runs opentype.js's string shaping,
     // which throws on many modern fonts once it sees two or more characters (Lora: "lookupType 6,
     // substFormat 2 is not yet supported"). One character at a time happened to be safe, but the
     // glyph route avoids that code entirely and is the one variable-font weights need (a variation
-    // transforms a glyph, not a string). `charToGlyph` is the same mapping the layout used.
-    const d = font.charToGlyph(p.char).getPath(p.penX, p.penY, m.size).toPathData(3);
+    // transforms a glyph, not a string). It is the very glyph the layout measured.
+    const d = p.glyph.getPath(p.penX, p.penY, m.size).toPathData(3);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
     const t = transformFor(m, p.index);
