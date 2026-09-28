@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 963 tests in 63 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1021 tests in 67 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -52,7 +52,9 @@ every user-visible change.
   direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
   the async Simplify action, modelled on `booleanSelection`'s shape), `subset.ts`
   (`filterToSelection` — the document reduced to a selection, for exporting a region that contains
-  only the selected objects).
+  only the selected objects), `warp-edit.ts` (`warpNodes`, `warpStyle`, `droppedLive`,
+  `warpRefusal` — the Warp tool's bake: gradients follow the warp via `warpStyle`, not `mapStyle`,
+  since a warp is not a matrix; invariant 47).
 - `src/geom/` — `vec.ts`, `mat.ts` (SVG `matrix()` order), `shapes.ts` (`rectPath`, `polygonSubpath`,
   and the other shape-to-path constructors), `box.ts` (`Box`, `boxFromPoints`, `unionBox`,
   `boxMap`), `bezier.ts` (cubic point/bounds/flatten helpers, `splitCubic`, `nearestOnSubpath`),
@@ -61,8 +63,11 @@ every user-visible change.
   targets from the artboard and object bounds, plus path node points via `collectTargets`'s
   `nodes` option, `snapValue`/`snapBox`/`snapPoint`), `paper.ts` (the only module that imports
   paper, loaded on first use; the loader and the two-way conversion between subpaths and Paper's
-  path model), `boolean.ts` (`booleanOf`, a caller of `paper.ts`) and `simplify.ts` (`simplifyOf`,
-  the other caller — Paper's `simplify(tolerance)` through the same conversion).
+  path model), `boolean.ts` (`booleanOf`, a caller of `paper.ts`), `simplify.ts` (`simplifyOf`,
+  the other caller — Paper's `simplify(tolerance)` through the same conversion) and `warp.ts`
+  (`Cage`, `identityCage`, `isIdentityCage`, `warpTolerance`, `warpPoint`, `cubicThrough4`,
+  `edgeCubic`, `warpSubpaths` — the Coons-patch cage, its patch map and the cubic refit that bends
+  a subpath through it).
 - `src/svg/` — `xml.ts` (own XML reader), `pathdata.ts`, `arc.ts`, `colors.ts`,
   `transform.ts`, `attrs.ts` (model → attributes, shared by canvas and export; also
   writes polygons as paths via `polygonD`, and a shape's gradient
@@ -75,10 +80,12 @@ every user-visible change.
   region; absent, output is byte-identical to today), `parse.ts` (reads polygons back
   via `parsePolygonAttr`; resolves `url()` paint references per painted shape via
   `gradient-import.ts`).
-- `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool`, `ToolContext` — incl.
-  `setHoverCursor`, the per-part hover-cursor slot — `ToolEvent`),
+- `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool` — incl. the optional `activate`/
+  `settle` hooks (invariant 47) — `ToolContext` — incl. `setHoverCursor`, the per-part hover-cursor
+  slot — `ToolEvent`),
   `frame.ts` (rotated selection frame), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
-  (rect/ellipse/line/polygon/hand draw tools), `select.ts` (the select tool: click, drag-select,
+  (rect/ellipse/line/polygon/hand draw tools; `constrain45`, the shared 45°-snap helper the
+  Gradient and Warp tools call), `select.ts` (the select tool: click, drag-select,
   move, resize, rotate), `node-tool.ts` (the node tool: pick a path, select/drag nodes and
   handles, insert/delete, retype, close), `pen.ts` (the pen tool: draws a path node by node,
   keeping its own draft; resumes an open path from either end), `gradient-tool.ts` (the Gradient
@@ -87,9 +94,15 @@ every user-visible change.
   the whole gradient, one rim stretches the circle into an ellipse, the other rotates and scales it
   (Shift 45°, or keeps the stretch perpendicular)), `gradient-handles.ts` (pure
   `gradientHandles`/`pickHandle` — handle geometry for both kinds, in document order back to front,
-  shared by the tool's hit-testing and the Overlay's drawing), `registry.ts`
+  shared by the tool's hit-testing and the Overlay's drawing), `warp-tool.ts` (the Warp tool: seeds
+  an identity cage over the selection's world bounds on activation or a selection change, drags a
+  corner or handle — a corner carries its two adjacent handles — committing `warpNodes` from a
+  lazily-opened gesture `base` on every frame; Enter/Escape/`settle` close it) with `cage-handles.ts`
+  (pure `CagePart`, `pickCage`, `moveCagePart`, `handleCorner` — cage hit-testing and edits),
+  `registry.ts`
   (`TOOLS`, one instance per id), `context.ts` (`storeContext`, the real `ToolContext` wired to
-  `app`; tests use `__tests__/fake-context.ts`).
+  `app`, incl. registering the tool's `activate`/`settle` hooks beside `registerToolFinish`/
+  `registerToolDiscard`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
   `double-tap.ts` (pure double-tap/double-click detection).
@@ -639,7 +652,10 @@ every user-visible change.
     (`document.ts`) — `resize.ts`'s `bakeShape` (all four kinds), `edits.ts`'s
     `flattenTransform`, `path-ops.ts`'s `combine` and `boolean-edit.ts`'s `booleanShapes` today;
     a new bake site must too, exactly as it must use `withBakedSubpaths` for titles (invariant
-    40). `mapStyle` maps each gradient's own-space points — two for a linear, three (`center`,
+    40). **The one exception is `warp-edit.ts`'s `warpStyle`** (invariant 47): a warp is not a
+    matrix, so it cannot "map the style by the same matrix" — it maps a gradient's own-space
+    points through the cage directly, point by point — but it still returns the same style object
+    when neither paint is a gradient, exactly as `mapStyle` does. `mapStyle` maps each gradient's own-space points — two for a linear, three (`center`,
     `a`, `b`) for a radial, spec M16 §2 — through the same matrix the branch applies to the
     geometry, so a radial's ellipse (and its rotation and skew) survive any bake exactly, the
     same guarantee M15 gave a linear's angle and length. A title's uniform resize bakes only the
@@ -732,26 +748,55 @@ every user-visible change.
     the mix within tolerance as Auto; four or more stops drop as "gradients with more than three
     stops". `StopEnd` includes `"mid"`, so the diamond's click picks the middle stop.
 
+47. **A warp is a non-affine bake**, so it cannot reuse `mapStyle` (spec M14 §0.3, §3). Like every
+    other bake site (invariant 46) it goes through `toPath` then `withBakedSubpaths` and leaves
+    every node's own `transform` untouched (invariant 26); but the Coons-patch map is not a matrix,
+    so `warp-edit.ts`'s `warpNodes` refits each segment's geometry (`geom/warp.ts`'s
+    `warpSubpaths`) and maps a gradient's own-space points through `warpStyle`
+    **pointwise** (`local —M→ world —S→ world′ —M⁻¹→ local′`) instead of mapping the whole style by
+    one shared matrix — the exception invariant 46's bake-site list now names. **Every recompute
+    runs against the tool's `base`, never the current document** (invariant 15): each cage drag
+    commits `warpNodes(base, ids, cage, box)` afresh, so two drags of one cage compose into the
+    cage's own final shape rather than two compounded bakes, and a mid-warp store edit (a fill
+    colour, a nudge) lands on top of the warp instead of being lost under the next drag.
+    **The gesture bracket opens lazily**, on the first handle drag rather than on activation (plan
+    ruling 2), so pressing W and letting go with no drag opens no bracket and costs no undo step;
+    it closes on Enter, Escape or `settle`. **`Tool.settle`** (`tool.ts`, new alongside `activate`)
+    is what makes this safe: the store calls it from `cancelActiveGesture()` and from
+    `setSelection` whenever the pruned selection's CONTENT actually changes, so a warp session
+    commits — silently, with no "Warped — …" notice — before any other store edit or selection
+    change can touch the document out from under it (plan ruling 1). Only Enter (including a tool
+    change, which routes Enter to a busy tool) and a press that selects something else raise the
+    notice; the store path via `settle` is quiet everywhere else, because the tool cannot tell a
+    colour edit from an undo about to discard the very warp it would be reporting on.
+
 ## Current state
 
 Milestone 18 (custom gradient midpoint colour: `midPaint?: Paint` on both gradient kinds, absent
 meaning Auto — the 50/50 mix — read through `midPaintOf` and set through `withMidPaint`/
 `setGradientMidAuto`; a Mid colour row and Auto toggle in each paint's gradient rows; the tool's
 diamond now shows and picks the middle stop; every valid three-stop gradient imports instead of
-dropping) — see CHANGELOG. It was taken ahead of M14, which stays specced and is next: **M14 —
-envelope warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`). Verification is
-outstanding for M15-M18's iPad/touch/Pencil behaviour (knob reach — a radial's three knobs sit
-close together on a small shape; M17's Midpoint slider touch drag and diamond reach; M18's
-mixed-selection Auto toggle state, visually) and Safari's rendering of a gradient under
-`gradientTransform` — see CHANGELOG. Beyond M14, the post-v1 list (project design §10) now holds
-more gradient stops and focal points, a freehand tool, grid and smart guides, masks, align and
-distribute, and image paste — **gradients have left the list** (M15, M16, M17, M18). **A
-light theme is no longer planned** (2026-09-19), and
+dropping), and **M14** (envelope warp: a Warp tool, shortcut W, that bends the whole selection
+through one 12-point Coons cage — drag corners and handles, Enter bakes it as one undo step, Escape
+cancels, Shift snaps to 45°; polygons, rectangles, ellipses and titles stop being live and a notice
+says which; gradients follow the warp pointwise) — see CHANGELOG. M14 was taken after M15-M18
+(gradients pulled ahead of it three times over); with it done, **nothing on the roadmap is
+currently specced and unbuilt**. Verification is outstanding for M15-M18's iPad/touch/Pencil
+behaviour (knob reach — a radial's three knobs sit close together on a small shape; M17's Midpoint
+slider touch drag and diamond reach; M18's mixed-selection Auto toggle state, visually), for M14's
+(Escape, a mid-warp colour edit, the hover cursor, Shift-45° and undo-then-drag were checked only by
+unit tests — including real-store tests — not the browser; iPad/Pencil cage-knob reach and a resting
+palm; performance on large selections, reasoned about but not measured; autosave mid-warp; a stale
+idle cage on touch or after a keyboard edit), and for Safari's rendering of a gradient under
+`gradientTransform` and of the warp cage — see CHANGELOG. Beyond M14, the post-v1 list (project
+design §10) now holds more gradient stops and focal points, a freehand tool, grid and smart guides,
+masks, align and distribute, and image paste — **gradients have left the list** (M15, M16, M17,
+M18). **A light theme is no longer planned** (2026-09-19), and
 **multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
 dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d), so
 it has left the list, and so has **PNG export** (M12) and **Save to Files** (M13). The
-accessibility group and the performance group (both parked below) remain the two obvious milestones
-after M14.
+accessibility group and the performance group (both parked below) are the two remaining candidate
+milestones, and neither is specced yet.
 
 ## Roadmap
 
@@ -760,9 +805,9 @@ polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the 
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
 resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad), M15
 (linear gradients, taken ahead of M14), M16 (radial gradients), M17 (gradient midpoint and
-distinct handles) and M18 (custom gradient midpoint colour) are complete — see CHANGELOG.
-**M14 — envelope warp** (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) is
-specced and is the next step.
+distinct handles), M18 (custom gradient midpoint colour) and **M14 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) are complete — see CHANGELOG.
+Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

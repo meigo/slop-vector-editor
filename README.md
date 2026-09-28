@@ -101,6 +101,11 @@ What works today:
   diamond before fading. Auto puts the mix back. Three-colour gradients from other apps now open
   with their middle colour instead of being dropped. Linear and radial gradients from other apps'
   SVGs are kept when they have two or three stops.
+- **Warp**: select something, press W (or the tool strip's grid icon), and drag any of the four
+  corners or eight handles to bend everything selected through one cage. Enter applies it as one
+  undo step; Esc cancels. Shift snaps a drag to 45°. The result is ordinary paths — polygons,
+  rectangles, ellipses and titles stop being live, and a notice says which — and gradients move
+  with the shape. A heavy warp can add nodes; Path ▸ Simplify sheds them.
 
 ## Keyboard
 
@@ -126,6 +131,7 @@ What works today:
 | Pen                                             | P                                     |
 | Text                                            | T                                     |
 | Gradient tool                                   | G                                     |
+| Warp tool                                       | W                                     |
 | Finish a path                                   | Enter                                 |
 
 ## Roadmap
@@ -139,7 +145,7 @@ masks/clipping; align & distribute; system-clipboard image paste.
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 963 unit tests
+npm test          # 1021 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
