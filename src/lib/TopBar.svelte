@@ -41,6 +41,8 @@
     duplicateSelection,
     flattenSelection,
     flipSelection,
+    alignSelection,
+    distributeSelection,
     groupSelection,
     deselectAll,
     invertSelection,
@@ -58,6 +60,7 @@
   import { runCommand } from "../state/commands";
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
+  import { alignTargetCount } from "../doc/align";
   import { BOOL_LABEL, BOOL_OPS, BOOL_REASON, BOOL_TITLE, type BoolOp } from "../geom/boolean";
   import { PATH_LABEL, PATH_OPS, PATH_TITLE, type PathOp } from "../doc/path-ops";
   import { selectionActions } from "../state/properties";
@@ -140,6 +143,37 @@
     { axis: "h", label: "Flip horizontal", keys: "⇧H", icon: TrianglesCenterlineDashedVertical },
     { axis: "v", label: "Flip vertical", keys: "⇧V", icon: TrianglesCenterlineDashedHorizontal },
   ] as const;
+
+  /** Align and distribute (spec M19 §3) — the panel's commands, reachable from the menu too. */
+  const alignCount = $derived(alignTargetCount(app.doc, app.selection));
+  const MENU_ALIGNS: { label: string; min: number; reason: string; run: () => void }[] = [
+    ...(
+      [
+        ["left", "Align left"],
+        ["hcenter", "Align horizontal centres"],
+        ["right", "Align right"],
+        ["top", "Align top"],
+        ["vcenter", "Align vertical centres"],
+        ["bottom", "Align bottom"],
+      ] as const
+    ).map(([op, label]) => ({
+      label,
+      min: 1,
+      reason: "nothing selected",
+      run: () => alignSelection(op),
+    })),
+    ...(
+      [
+        ["h", "Distribute horizontally"],
+        ["v", "Distribute vertically"],
+      ] as const
+    ).map(([axis, label]) => ({
+      label,
+      min: 3,
+      reason: "select three or more objects",
+      run: () => distributeSelection(axis),
+    })),
+  ];
 
   function runObject(fn: () => void) {
     objectOpen = false;
@@ -520,6 +554,22 @@
             onclick={() => anySelected && runObject(a.run)}
           >
             {a.label} <span class="kbd">{a.keys}</span>
+          </button>
+        {/each}
+        <div class="my-1 h-px bg-line"></div>
+        {#each MENU_ALIGNS as a (a.label)}
+          <button
+            class="menu-item"
+            role="menuitem"
+            aria-disabled={alignCount < a.min}
+            title={alignCount < a.min
+              ? `${a.label} — ${a.reason}`
+              : a.min === 1 && alignCount === 1
+                ? `${a.label} to the artboard`
+                : a.label}
+            onclick={() => alignCount >= a.min && runObject(a.run)}
+          >
+            {a.label}
           </button>
         {/each}
         <div class="my-1 h-px bg-line"></div>

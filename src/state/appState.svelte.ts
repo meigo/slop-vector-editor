@@ -45,6 +45,13 @@ import {
   setLayerLocked,
   setLayerVisible,
 } from "../doc/layers";
+import {
+  alignNodes,
+  alignTargetCount,
+  distributeNodes,
+  type AlignOp,
+  type DistributeAxis,
+} from "../doc/align";
 import { flipNodes, type FlipAxis } from "../doc/flip";
 import { groupNodes, ungroupNodes } from "../doc/group";
 import {
@@ -715,6 +722,20 @@ export function flipSelection(axis: FlipAxis): void {
   cancelActiveGesture();
   if (app.selection.length === 0) return;
   commitDoc(flipNodes(app.doc, app.selection, axis));
+}
+
+/** Align (spec M19): several selected objects to their bounds, a single one to the artboard. */
+export function alignSelection(op: AlignOp): void {
+  cancelActiveGesture();
+  if (app.selection.length === 0) return;
+  commitDoc(alignNodes(app.doc, app.selection, op));
+}
+
+/** Distribute (spec M19): equal gaps between three or more selected objects. */
+export function distributeSelection(axis: DistributeAxis): void {
+  cancelActiveGesture();
+  if (alignTargetCount(app.doc, app.selection) < 3) return;
+  commitDoc(distributeNodes(app.doc, app.selection, axis));
 }
 
 export function flattenSelection(): void {

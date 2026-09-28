@@ -34,6 +34,7 @@
     type Field,
     type GeometryField,
   } from "../state/properties";
+  import AlignSection from "./AlignSection.svelte";
   import NumberField from "./NumberField.svelte";
   import PanelHeader from "./PanelHeader.svelte";
   import TextPanel from "./TextPanel.svelte";
@@ -171,6 +172,11 @@
             </div>
           </div>
         </FieldSection>
+      {/if}
+
+      <!-- Spec M19: align and distribute, near the top — it applies to any selection. -->
+      {#if hasSelection}
+        <AlignSection />
       {/if}
 
       <!-- Spec M10 §6: first, not last. Placing a title is immediately followed by typing it, and

@@ -18,7 +18,7 @@ entries supersede earlier ones — mark superseded entries).
   `dist/assets/opentype-*.js` (~68 KB gzipped). Either appearing in the app chunk means something
   outside `src/geom/paper.ts` or `src/text/font.ts` imported it statically. The four bundled
   fonts are content-hashed `.ttf` assets beside them.
-- `npm test` — Vitest, node env, no DOM — 1048 tests in 70 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1064 tests in 71 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -50,7 +50,7 @@ every user-visible change.
   intersect/exclude on the current selection, in document space), `path-ops.ts` (`pathOpRefusal`,
   `subdivideSelection`, `reverseSelection`, `breakApart`, `combine` — Subdivide/Reverse
   direction/Break apart/Combine on the current selection), `simplify-edit.ts` (`simplifyShapes` —
-  the async Simplify action, modelled on `booleanSelection`'s shape), `flip.ts` (`flipNodes` — Flip horizontal/vertical as a mirror composed into each node's transform in parent space, never a bake, so titles and polygons stay live), `subset.ts`
+  the async Simplify action, modelled on `booleanSelection`'s shape), `align.ts` (`alignNodes`, `distributeNodes` — spec M19: several objects align to their bounds, one to the artboard; distribute = equal gaps for three or more; every command a per-node translation in parent space, so everything stays live), `flip.ts` (`flipNodes` — Flip horizontal/vertical as a mirror composed into each node's transform in parent space, never a bake, so titles and polygons stay live), `subset.ts`
   (`filterToSelection` — the document reduced to a selection, for exporting a region that contains
   only the selected objects), `warp-edit.ts` (`warpNodes`, `warpStyle`, `droppedLive`,
   `warpRefusal` — the Warp tool's bake: gradients follow the warp via `warpStyle`, not `mapStyle`,
@@ -135,7 +135,7 @@ every user-visible change.
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `split.ts` (pure: the ratio
+  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `AlignSection` (spec M19: the Properties panel's Align section, shown with any selection), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField` (typed, or dragged sideways through the pure `scrub.ts` — see invariant 42), `PaintField` (Flat/
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
   flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the
@@ -795,7 +795,12 @@ every user-visible change.
 
 ## Current state
 
-Milestone 18 (custom gradient midpoint colour: `midPaint?: Paint` on both gradient kinds, absent
+**M19** (align and distribute, 2026-09-28: an Align section in the Properties panel and the Object
+menu — several objects align to their bounds, one to the artboard, distribute = equal gaps for three
+or more; outermost selected nodes only, near-zero moves ignored so a repeat press is a no-op; owed
+an iPad pass), after smaller 2026-09-28 additions (drag-adjustable number fields, sticky style
+defaults, custom Lucide-style icons, flip horizontal/vertical with top-bar buttons below 1350px).
+Before that, milestone 18 (custom gradient midpoint colour: `midPaint?: Paint` on both gradient kinds, absent
 meaning Auto — the 50/50 mix — read through `midPaintOf` and set through `withMidPaint`/
 `setGradientMidAuto`; a Mid colour row and Auto toggle in each paint's gradient rows; the tool's
 diamond now shows and picks the middle stop; every valid three-stop gradient imports instead of
@@ -813,7 +818,7 @@ palm; performance on large selections, reasoned about but not measured; autosave
 idle cage on touch or after a keyboard edit), and for Safari's rendering of a gradient under
 `gradientTransform` and of the warp cage — see CHANGELOG. Beyond M14, the post-v1 list (project
 design §10) now holds more gradient stops and focal points, a freehand tool, grid and smart guides,
-masks, align and distribute, and image paste — **gradients have left the list** (M15, M16, M17,
+masks and image paste — **gradients have left the list** (and align and distribute, M19) (M15, M16, M17,
 M18). **A light theme is no longer planned** (2026-09-19), and
 **multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
 dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d), so
@@ -828,8 +833,9 @@ polish + deploy), M6 (selection conveniences), M7 (boolean operations), M8 (the 
 (per-object visibility and lock), M10a-M10e (titles, the randomiser, panel density and the
 resizable sidebar), M11 (path operations), M12 (PNG export), M13 (Save to Files on iPad), M15
 (linear gradients, taken ahead of M14), M16 (radial gradients), M17 (gradient midpoint and
-distinct handles), M18 (custom gradient midpoint colour) and **M14 — envelope warp**
-(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) are complete — see CHANGELOG.
+distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope warp**
+(`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`) and M19 (align and distribute)
+are complete — see CHANGELOG.
 Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so

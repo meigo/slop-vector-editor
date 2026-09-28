@@ -2668,3 +2668,41 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - **Verified**: desktop Chrome — the group renders between Arrange and Convert/Flatten, a real
   click on Flip horizontal mirrored the selection, the icons now match their commands, and the bar
   measures 1344px with everything shown.
+
+## 2026-09-28 — M19: align and distribute
+
+- **What**: align left / horizontal centre / right / top / vertical centre / bottom, and distribute
+  horizontally / vertically with equal gaps. Several selected objects align to the selection's
+  bounds, a single one to the artboard; distribute needs three or more and keeps the outermost two.
+  Removed from the post-v1 list. Spec `docs/superpowers/specs/2026-09-28-m19-align-distribute-design.md`,
+  plan `docs/superpowers/plans/2026-09-28-m19-align-distribute.md` (executed natively, not by
+  subagents, given its size).
+- **Decisions (user)**: controls in the Properties panel (plus the Object menu), not the top bar;
+  selection-or-artboard reference with no toggle; distribute by equal gaps.
+- **How**: `src/doc/align.ts` — each selected node's document-space bounds (`nodeBounds`), a
+  per-node translation composed into its transform in parent space (as `translateNodes`), same
+  reference when nothing moves. `alignSelection` / `distributeSelection` in the store
+  (`cancelActiveGesture` first). `AlignSection` (a `FieldSection`, id `align` added to
+  `SECTION_IDS`) at the top of the Properties panel whenever something is selected; its titles say
+  what will happen ("Align left edges" / "Align left to the artboard"); distribute is disabled with
+  a reason below three objects. The Object menu carries the same eight commands.
+- **Icons**: Lucide `AlignStart/Center/EndVertical`, `AlignStart/Center/EndHorizontal`,
+  `AlignHorizontal/VerticalSpaceBetween` — each checked in the browser against its command.
+- **Verified**: 13 tests (`align.test.ts`, incl. a store test: one undo step per command). Browser
+  (desktop Chrome, real clicks): Align top put three objects' tops at 30; Distribute horizontal
+  gave lefts 20/110/250 (equal 50px gaps); one object selected → distribute disabled with its
+  reason, the hint "Align centre to the artboard", and centring landed it at the artboard centre.
+  (Process note: `align.ts` was written before its tests were run red.)
+- **Final review fixes** (one Opus whole-branch review): (1) float drift — bounds through a rotated
+  matrix come back ~1e-14 off, so a repeat press built a new document (an empty undo step, a dirty
+  flag); moves under 1e-9 now count as none. (2) A group selected together with its own child (the
+  layers panel allows it) counted twice and could distribute the child out of its group; only the
+  outermost selected nodes are acted on (`outermost`, exported from `group.ts`). Also: distribute
+  ties break on the trailing edge then document order, never selection order; the panel and Object
+  menu decide "several vs one" and distribute's availability from `alignTargetCount` (what the
+  command will act on), and the menu's titles say "… to the artboard" for a single object; disabled
+  distribute buttons no longer light up on hover; the spec's "the two outermost stay put" wording was
+  corrected (the one that starts first stays; the last ends on the far edge); CLAUDE.md's Current
+  state and Roadmap updated. 3 regression tests.
+- **Owed**: iPad (the section's buttons by touch); Safari.
+- 1064 tests in 71 files.
