@@ -223,7 +223,10 @@
           />
         </div>
         <NumberField
+          onlivestart={beginUiGesture}
+          onliveend={endDocGesture}
           label="Width"
+          step={0.5}
           value={value(summary.strokeWidth)}
           min={0}
           max={1000}
@@ -256,6 +259,8 @@
           </select>
         </label>
         <NumberField
+          onlivestart={beginUiGesture}
+          onliveend={endDocGesture}
           label="Opacity"
           value={opacityValue}
           min={0}
@@ -269,6 +274,8 @@
         <FieldSection id="shape" title="Shape">
           {#if rects}
             <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
               label="Radius"
               value={rects.radius}
               min={0}
@@ -277,6 +284,8 @@
           {/if}
           {#if polygons}
             <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
               label="Sides"
               value={polygons.sides}
               min={3}
@@ -292,6 +301,8 @@
             </div>
             {#if polygons.anyStar}
               <NumberField
+                onlivestart={beginUiGesture}
+                onliveend={endDocGesture}
                 label="Inner"
                 value={polygons.innerRatio === null ? null : Math.round(polygons.innerRatio * 100)}
                 min={10}
@@ -307,6 +318,8 @@
       {#if !hasSelection || app.toolId === "polygon"}
         <FieldSection id="newPolygons" title="New polygons">
           <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
             label="Sides"
             value={poly.sides}
             min={3}
@@ -322,6 +335,8 @@
           </div>
           {#if poly.star}
             <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
               label="Inner"
               value={Math.round(poly.innerRatio * 100)}
               min={10}
@@ -346,8 +361,20 @@
           </div>
           {#if nodeSummary.point}
             {@const pt = nodeSummary.point}
-            <NumberField label="X" value={pt.x} onchange={(v) => moveSelectedNodes(v - pt.x, 0)} />
-            <NumberField label="Y" value={pt.y} onchange={(v) => moveSelectedNodes(0, v - pt.y)} />
+            <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
+              label="X"
+              value={pt.x}
+              onchange={(v) => moveSelectedNodes(v - pt.x, 0)}
+            />
+            <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
+              label="Y"
+              value={pt.y}
+              onchange={(v) => moveSelectedNodes(0, v - pt.y)}
+            />
           {/if}
         </FieldSection>
       {/if}
@@ -356,6 +383,8 @@
         <FieldSection id="geometry" title="Geometry">
           {#each GEOMETRY as g (g.field)}
             <NumberField
+              onlivestart={beginUiGesture}
+              onliveend={endDocGesture}
               label={g.label}
               value={geometry[g.field]}
               min={g.min}

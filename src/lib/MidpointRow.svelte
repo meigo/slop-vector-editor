@@ -72,6 +72,8 @@
        against, as in PaintRow. -->
   <div class="w-12 shrink-0">
     <NumberField
+      {onlivestart}
+      {onliveend}
       label=""
       value={pct}
       min={1}

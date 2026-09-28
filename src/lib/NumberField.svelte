@@ -1,25 +1,43 @@
 <script lang="ts">
+  import { SCRUB_THRESHOLD_PX, scrubbedValue } from "./scrub";
+
   let {
     label,
     value,
     min = -Infinity,
     max = Infinity,
     suffix = "",
+    step = 1,
+    pxPerStep = 4,
     onchange,
+    onlivestart,
+    onliveend,
   }: {
     label: string;
     value: number | null;
     min?: number;
     max?: number;
     suffix?: string;
+    /** The grid a drag snaps to (2026-09-28). Typed values are kept as typed. */
+    step?: number;
+    /** Horizontal travel worth one step; Shift makes it four times finer. */
+    pxPerStep?: number;
     onchange: (v: number) => void;
+    /** Brackets a drag so the whole drag is ONE undo step (invariant 42); `onchange` fires on every
+     *  step change in between, so the artwork follows the pointer live. The caller owns the
+     *  document gesture; this component never touches the store. */
+    onlivestart?: () => void;
+    onliveend?: () => void;
   } = $props();
 
   let editing = $state(false);
   let draft = $state("");
   let initial = "";
+  /** The value shown while dragging — the field owns its text then, as it does while typing. */
+  let dragging = $state<number | null>(null);
+  const fmt = (v: number) => String(Math.round(v * 100) / 100);
   const shown = $derived(
-    editing ? draft : value === null ? "" : String(Math.round(value * 100) / 100),
+    dragging !== null ? fmt(dragging) : editing ? draft : value === null ? "" : fmt(value),
   );
 
   function commit() {
@@ -28,6 +46,84 @@
     const v = Number(draft);
     if (draft.trim() === "" || !Number.isFinite(v)) return;
     onchange(Math.min(max, Math.max(min, v)));
+  }
+
+  let input: HTMLInputElement | undefined;
+  // Non-reactive on purpose: nothing renders from it.
+  let scrub: {
+    id: number;
+    startX: number;
+    startValue: number;
+    moved: boolean;
+    last: number;
+  } | null = null;
+
+  function onpointerdown(e: PointerEvent) {
+    // A mixed value ("–") has no single number to drag from; typing still works.
+    if (value === null || e.button !== 0 || scrub) return;
+    scrub = { id: e.pointerId, startX: e.clientX, startValue: value, moved: false, last: value };
+    // No preventDefault: a press that never travels still focuses the field for typing.
+    window.addEventListener("pointermove", onpointermove);
+    window.addEventListener("pointerup", end);
+    // A browser-taken pan (touch-action: pan-y) or palm rejection cancels the stream; that must END
+    // the drag, not leave it armed (invariant 6).
+    window.addEventListener("pointercancel", end);
+  }
+
+  function onpointermove(e: PointerEvent) {
+    if (!scrub || e.pointerId !== scrub.id) return;
+    const dx = e.clientX - scrub.startX;
+    if (!scrub.moved) {
+      if (Math.abs(dx) < SCRUB_THRESHOLD_PX) return;
+      scrub.moved = true;
+      dragging = scrub.startValue;
+      input?.blur(); // a caret blinking in a field being dragged is a lie; `dragging` skips commit
+      onlivestart?.();
+    }
+    const next = scrubbedValue({
+      startValue: scrub.startValue,
+      dx,
+      step,
+      pxPerStep,
+      fine: e.shiftKey,
+      min,
+      max,
+    });
+    dragging = next;
+    if (next !== scrub.last) {
+      scrub.last = next;
+      onchange(next);
+    }
+  }
+
+  function end(e?: PointerEvent) {
+    if (!scrub || (e && e.pointerId !== scrub.id)) return;
+    window.removeEventListener("pointermove", onpointermove);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+    const moved = scrub.moved;
+    scrub = null;
+    dragging = null;
+    if (!moved) return; // a tap: the field is focused for typing, nothing written
+    onliveend?.();
+    swallowNextClick();
+  }
+
+  // Clearing the selection removes the field mid-drag; the bracket must still close (invariant 42).
+  $effect(() => () => end());
+
+  /** A drag released over a dialog backdrop makes the browser fire a `click` there, which would
+   *  close the dialog (slop-animator's finding). Swallow exactly that one click, in the capture
+   *  phase, bounded by the first click seen and by a timeout. */
+  function swallowNextClick() {
+    const timer = setTimeout(() => window.removeEventListener("click", swallow, true), 400);
+    function swallow(e: MouseEvent) {
+      e.stopPropagation();
+      e.preventDefault();
+      clearTimeout(timer);
+      window.removeEventListener("click", swallow, true);
+    }
+    window.addEventListener("click", swallow, true);
   }
 </script>
 
@@ -40,8 +136,15 @@
 <label class="field-row text-xs whitespace-nowrap">
   <span class="text-muted">{label}</span>
   <span class="relative block w-full min-w-0">
+    <!-- Drag sideways to change (2026-09-28); `touch-pan-y` leaves a vertical finger-scroll of the
+         panel to the browser, which then cancels the pointer stream and so ends any drag. -->
     <input
-      class={["field w-full min-w-0 tabular-nums", suffix && "pr-6"]}
+      bind:this={input}
+      class={[
+        "field w-full min-w-0 touch-pan-y tabular-nums",
+        value !== null && "cursor-ew-resize",
+        suffix && "pr-6",
+      ]}
       type="text"
       inputmode="decimal"
       value={shown}
@@ -59,8 +162,14 @@
           e.currentTarget.blur();
         }
       }}
+      title={value === null
+        ? `${label || "Value"} — mixed; type a value`
+        : `${label || "Value"} — drag sideways or type`}
+      {onpointerdown}
       onblur={() => {
-        if (editing) commit();
+        // The blur the drag itself fires must not commit: the drag has already written live.
+        if (dragging !== null) editing = false;
+        else if (editing) commit();
       }}
     />
     {#if suffix}
