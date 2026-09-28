@@ -201,7 +201,9 @@ describe("Warp tool (spec M14 §5)", () => {
     expect(viaSettle.state.session.doc).toEqual(viaEnter.state.session.doc);
     expect(viaSettle.state.session.history.past.length).toBe(past + 1);
     expect(viaSettle.state.session.gestureBase).toBeNull();
-    expect(viaSettle.state.notices).toEqual(viaEnter.state.notices);
+    // The store path is silent: it also runs just before undo/redo/replace (fix round 1).
+    expect(viaEnter.state.notices).toEqual(["Warped — a rectangle is now an ordinary path."]);
+    expect(viaSettle.state.notices).toEqual([]);
     expect(viaSettle.state.overlay).toEqual(viaEnter.state.overlay);
   });
 
@@ -278,12 +280,48 @@ describe("Warp tool (spec M14 §5)", () => {
     expect(state.hoverCursor).toBeNull();
   });
 
-  it("discard drops the cage", () => {
+  it("discard hides the cage; the next hover re-seeds it", () => {
     const { ctx, state, tool } = setup(["a"]);
     tool.activate!(ctx);
     tool.discard!(ctx);
     expect(state.overlay).toBeNull();
+    // The document is the same object here, yet the stale marker still forces a re-seed.
+    tool.hover!(ctx, ev(300, 300));
+    expect(state.overlay).toEqual({ kind: "cage", cage: identityCage(BOX_A) });
+  });
+
+  it("a press on a corner right after discard re-seeds and then drags", () => {
+    const { ctx, state, tool } = setup(["a"]);
+    tool.activate!(ctx);
+    tool.discard!(ctx);
+    drag(tool, ctx, [100, 50], [120, 70]);
+    expect(state.selection).toEqual(["a"]);
+    expect(findNode(state.session.doc, "a")!.node.kind).toBe("path");
+    expect(state.session.gestureBase).not.toBeNull();
+  });
+
+  it("a re-seed from hover never raises a refusal notice", () => {
+    const { ctx, state, tool } = setup(["a"]);
+    tool.activate!(ctx);
+    tool.discard!(ctx);
+    state.selection = ["l"];
+    tool.hover!(ctx, ev(300, 300));
+    expect(state.notices).toEqual([]);
+    expect(state.overlay).toBeNull();
     expect(tool.busy!()).toBe(false);
+  });
+
+  it("settle re-seeds quietly; a press on something unwarpable says why", () => {
+    const { ctx, state, tool } = setup(["a"]);
+    tool.activate!(ctx);
+    state.selection = ["l"];
+    tool.settle!(ctx);
+    expect(state.notices).toEqual([]);
+    state.selection = ["a"];
+    tool.settle!(ctx);
+    tool.down(ctx, ev(50, 300));
+    expect(state.selection).toEqual(["l"]);
+    expect(state.notices).toEqual(["Warp — select something with width and height"]);
   });
 });
 

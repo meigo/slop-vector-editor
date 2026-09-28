@@ -98,4 +98,41 @@ describe("a store edit mid-warp keeps the warp (Review Focus 4)", () => {
     a = findNode(app.doc, "a")!.node;
     expect(a).toEqual(rect("a"));
   });
+
+  const dragCorner = () => {
+    TOOLS.warp.down(storeContext, ev(10, 10));
+    TOOLS.warp.move(storeContext, ev(15, 15));
+    TOOLS.warp.up(storeContext, ev(20, 20));
+  };
+
+  it("a tool change mid-bracket keeps the warp as ONE undo step", () => {
+    replaceDocument(doc(), "t.svg", null, true);
+    setSelection(["a"]);
+    setTool("warp");
+    const past = app.session.history.past.length;
+    dragCorner();
+    dragCorner();
+    setTool("select");
+    expect(app.session.gestureBase).toBeNull();
+    expect(app.session.history.past.length).toBe(past + 1);
+    expect(findNode(app.doc, "a")!.node.kind).toBe("path");
+    undo();
+    expect(findNode(app.doc, "a")!.node).toEqual(rect("a"));
+  });
+
+  it("undo mid-bracket reverses the warp, and the tool still warps afterwards", () => {
+    const original = doc();
+    replaceDocument(original, "t.svg", null, true);
+    setSelection(["a"]);
+    setTool("warp");
+    dragCorner();
+    undo();
+    expect(app.doc).toBe(original);
+    expect(app.session.gestureBase).toBeNull();
+    expect(app.selection).toEqual(["a"]);
+    // Fix round 1: the first press on a corner re-seeds the cage and drags, rather than selecting.
+    dragCorner();
+    expect(findNode(app.doc, "a")!.node.kind).toBe("path");
+    expect(app.session.gestureBase).not.toBeNull();
+  });
 });

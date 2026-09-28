@@ -24,18 +24,29 @@ import { pointerTolerance, type Tool, type ToolContext, type ToolEvent } from ".
  *  |                            | (ruling 4). Shift: 45° — a handle about its corner, a corner    |
  *  |                            | about where the drag started. Every frame commits               |
  *  |                            | `warpNodes(base, …)` — never from the current doc (inv. 15).    |
- *  | press anywhere else        | Settles, then selects what is under the press (or nothing),     |
- *  |                            | which re-seeds a cage through the store's settle hook.          |
- *  | Enter / `settle`           | Closes the bracket — all drags of this cage are ONE undo step — |
- *  |                            | notices any live shape that became a path, re-seeds.            |
+ *  | press anywhere else        | Applies the warp, then selects what is under the press (or      |
+ *  |                            | nothing) and re-seeds a cage on the new selection.              |
+ *  | Enter (also a tool change, | Closes the bracket — all drags of this cage are ONE undo step — |
+ *  |  which sends Enter)        | notices any live shape that became a path, re-seeds.            |
+ *  | `settle` (store hook)      | The same commit, but SILENT — no "Warped — …" notice and no     |
+ *  |                            | refusal notice.                                                 |
  *  | Escape                     | Restores `base`, closes the bracket (no undo step), back to     |
  *  |                            | Select.                                                         |
  *  | `cancel` (pointercancel)   | Ends the drag only; the cage and its bracket stay — a palm is   |
  *  |                            | not a decision (the pen's rule, invariant 33).                  |
- *  | `discard` (undo/redo/open) | Drops the cage; the store already settled any bracket.          |
+ *  | `discard` (undo/redo/open) | Hides the cage and marks it stale; the store already settled any |
+ *  |                            | bracket. The next hover or press re-seeds on the new document.  |
+ *
+ *  **Notices come only from what the user chose.** The "Warped — …" notice is raised by Enter and
+ *  by a press elsewhere, never by `settle`: the store calls `settle` from `cancelActiveGesture`
+ *  just before undo, redo and replacing the document too, and a notice about a warp that is about
+ *  to be reverted or thrown away is noise — the tool cannot tell those apart from a colour change,
+ *  so the store path is silent for all of them. Likewise a refusal ("select something with width
+ *  and height") comes only from `activate`, Enter and a press; a re-seed from `hover` or `settle`
+ *  is quiet.
  *
  *  `settle` is called by the store from `cancelActiveGesture` and `setSelection`, so it must never
- *  reach either: it only commits, ends the gesture, notifies and sets the overlay. */
+ *  reach either: it only commits, ends the gesture and sets the overlay. */
 
 type Session = {
   ids: readonly string[];
@@ -44,8 +55,9 @@ type Session = {
   /** Non-null while the gesture bracket is open. */
   base: Doc | null;
   /** The document the cage was seeded on. An idle cage whose document has changed since (a nudge
-   *  or delete runs `settle` BEFORE its edit) is re-seeded before it is used or hovered. */
-  seededOn: Doc;
+   *  or delete runs `settle` BEFORE its edit) is re-seeded before it is used or hovered. `null`
+   *  after `discard`: stale, never equal to a document, so the next hover or press re-seeds. */
+  seededOn: Doc | null;
 };
 
 type Drag = { part: CagePart; start: Vec; startCage: Cage };
@@ -54,7 +66,7 @@ export function createWarpTool(): Tool {
   let session: Session | null = null;
   let drag: Drag | null = null;
 
-  function seed(ctx: ToolContext): void {
+  function seed(ctx: ToolContext, quiet: boolean): void {
     const doc = ctx.doc();
     const ids = ctx.selection();
     const refusal = warpRefusal(doc, ids);
@@ -62,7 +74,7 @@ export function createWarpTool(): Tool {
     if (!box) {
       session = null;
       ctx.setOverlay(null);
-      if (refusal && ids.length > 0) ctx.notify("info", refusal);
+      if (refusal && ids.length > 0 && !quiet) ctx.notify("info", refusal);
       return;
     }
     const cage = identityCage(box);
@@ -71,19 +83,24 @@ export function createWarpTool(): Tool {
   }
 
   /** Re-seeds an idle cage whose document changed under it; a cage mid-warp is left alone. */
-  function fresh(ctx: ToolContext): void {
-    if (session && session.base === null && session.seededOn !== ctx.doc()) seed(ctx);
+  function fresh(ctx: ToolContext, quiet: boolean): void {
+    if (session && session.base === null && session.seededOn !== ctx.doc()) seed(ctx, quiet);
   }
 
-  function settle(ctx: ToolContext): void {
+  /** Closes an open bracket, keeping the warp as one undo step; `report` raises the notice. */
+  function close(ctx: ToolContext, report: boolean): void {
     if (session?.base) {
       const before = session.base;
       ctx.endGesture();
-      const msg = droppedLive(before, ctx.doc(), session.ids);
+      const msg = report ? droppedLive(before, ctx.doc(), session.ids) : null;
       if (msg) ctx.notify("info", msg);
     }
     drag = null;
-    seed(ctx);
+  }
+
+  function settle(ctx: ToolContext): void {
+    close(ctx, false);
+    seed(ctx, true);
   }
 
   function apply(ctx: ToolContext, e: ToolEvent): void {
@@ -109,14 +126,14 @@ export function createWarpTool(): Tool {
     cursor: "crosshair",
 
     activate(ctx) {
-      seed(ctx);
+      seed(ctx, false);
       if (ctx.selection().length === 0) ctx.notify("info", "Warp — select something to warp");
     },
 
     down(ctx, e) {
       const tol = tolerance(ctx, e);
       ctx.setHoverCursor(null);
-      fresh(ctx);
+      fresh(ctx, false);
       const part = session ? pickCage(session.cage, e.doc, tol) : null;
       if (session && part) {
         if (session.base === null) {
@@ -126,10 +143,12 @@ export function createWarpTool(): Tool {
         drag = { part, start: e.doc, startCage: session.cage };
         return;
       }
-      settle(ctx);
+      close(ctx, true);
       const hit = hitTest(ctx.doc(), e.doc, tol, ctx.enteredGroupId());
-      // Re-enters `settle` through the store's hook, which re-seeds on the new selection.
+      // Re-enters `settle` through the store's hook, which re-seeds quietly; seeding again here is
+      // idempotent and is what lets a press on something unwarpable say why.
       ctx.setSelection(hit ? [hit.nodeId] : []);
+      seed(ctx, false);
     },
 
     move(ctx, e) {
@@ -149,7 +168,8 @@ export function createWarpTool(): Tool {
 
     keydown(ctx, key) {
       if (key === "enter") {
-        settle(ctx);
+        close(ctx, true);
+        seed(ctx, false);
         return true;
       }
       if (key === "escape") {
@@ -171,13 +191,13 @@ export function createWarpTool(): Tool {
     },
 
     discard(ctx) {
-      session = null;
+      if (session) session = { ...session, base: null, seededOn: null };
       drag = null;
       ctx.setOverlay(null);
     },
 
     hover(ctx, e) {
-      fresh(ctx);
+      fresh(ctx, true);
       const hit = session !== null && pickCage(session.cage, e.doc, tolerance(ctx, e)) !== null;
       ctx.setHoverCursor(hit ? "move" : null);
     },
