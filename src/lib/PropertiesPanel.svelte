@@ -4,7 +4,7 @@
   import { gradientHandles } from "../tools/gradient-handles";
   import {
     app,
-    beginDocGesture,
+    beginUiGesture,
     endDocGesture,
     applyGeometry,
     moveSelectedNodes,
@@ -197,7 +197,7 @@
             onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
             onmid={(m) => setSelectionGradientMid("fill", m)}
             onmidauto={(a) => setSelectionGradientMidAuto("fill", a)}
-            onlivestart={beginDocGesture}
+            onlivestart={beginUiGesture}
             onliveend={endDocGesture}
           />
         </div>
@@ -218,7 +218,7 @@
             onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}
             onmid={(m) => setSelectionGradientMid("stroke", m)}
             onmidauto={(a) => setSelectionGradientMidAuto("stroke", a)}
-            onlivestart={beginDocGesture}
+            onlivestart={beginUiGesture}
             onliveend={endDocGesture}
           />
         </div>

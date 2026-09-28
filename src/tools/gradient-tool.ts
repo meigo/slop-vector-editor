@@ -14,7 +14,7 @@ import {
   type GradientHandle,
   type HandlePart,
 } from "./gradient-handles";
-import { SNAP_45 } from "./shape-tools";
+import { constrain45 } from "./shape-tools";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
 /** Spec M15 §7, M16 §6: draws and adjusts the target paint's gradient on the selected shapes. */
@@ -33,16 +33,6 @@ const scaleVec = (v: Vec, k: number) => ({ x: v.x * k, y: v.y * k });
 function unit(v: Vec): Vec {
   const len = Math.hypot(v.x, v.y);
   return len === 0 ? { x: 0, y: 0 } : { x: v.x / len, y: v.y / len };
-}
-
-/** Shift: the moving end rotates about `pivot` to the nearest 45°, keeping its distance. */
-function constrain(pivot: Vec, p: Vec, on: boolean): Vec {
-  if (!on) return p;
-  const dx = p.x - pivot.x;
-  const dy = p.y - pivot.y;
-  const r = Math.hypot(dx, dy);
-  const a = Math.round(Math.atan2(dy, dx) / SNAP_45) * SNAP_45;
-  return { x: pivot.x + r * Math.cos(a), y: pivot.y + r * Math.sin(a) };
 }
 
 /** Rim A: the similarity about `c` taking the old A to the new one, applied to B as well — the
@@ -104,7 +94,7 @@ function toOwnGradient(h: GradientHandle, g: Gradient): Gradient | null {
 function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolEvent): boolean {
   const which = ctx.gradientTarget();
   if (m.kind === "draw") {
-    const to = constrain(m.start, e.doc, e.mods.shift);
+    const to = e.mods.shift ? constrain45(m.start, e.doc) : e.doc;
     ctx.commit(drawGradientLine(m.base, m.ids, which, m.start, to, ctx.gradientType()));
     return true;
   }
@@ -142,12 +132,12 @@ function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolE
             end: h.end,
           };
   } else if (h.kind === "linear") {
-    const from = m.part === "start" ? constrain(h.to, e.doc, e.mods.shift) : h.from;
-    const to = m.part === "end" ? constrain(h.from, e.doc, e.mods.shift) : h.to;
+    const from = m.part === "start" ? (e.mods.shift ? constrain45(h.to, e.doc) : e.doc) : h.from;
+    const to = m.part === "end" ? (e.mods.shift ? constrain45(h.from, e.doc) : e.doc) : h.to;
     next = { kind: "linear", from, to, start: h.start, end: h.end };
   } else if (m.part === "rimA") {
     // Rotates and scales the whole ellipse about the centre, keeping its shape.
-    const a = constrain(h.center, e.doc, e.mods.shift);
+    const a = e.mods.shift ? constrain45(h.center, e.doc) : e.doc;
     const b = similarityB(h.center, h.a, a, h.b) ?? h.b;
     next = { kind: "radial", center: h.center, a, b, start: h.start, end: h.end };
   } else {

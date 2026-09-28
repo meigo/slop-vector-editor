@@ -3,6 +3,7 @@ import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
+import type { Cage } from "../geom/warp";
 import type { Prefs } from "../persist/preferences";
 import type { View } from "../state/viewport";
 import type { Mods, ToolId } from "./types";
@@ -23,6 +24,7 @@ export type Overlay =
       /** Whether a press at the pointer would close the path — the first knob fills (spec §7). */
       closeHint: boolean;
     }
+  | { kind: "cage"; cage: Cage }
   | null;
 
 /** Everything a tool may read or change. The app binds it to the store; tests use a fake. */
@@ -103,6 +105,11 @@ export interface Tool {
   /** Pointer movement the canvas reports while no gesture is running — usually a plain hover, but
    *  also a held right-button drag or a pointer the router ignored. */
   hover?(ctx: ToolContext, e: ToolEvent): void;
+  /** Called when the tool becomes active (spec M14 §5, plan ruling 1). */
+  activate?(ctx: ToolContext): void;
+  /** Something outside the tool is about to edit the document or change the selection: commit
+   *  whatever session it holds (spec M14 §5, plan ruling 1/2). */
+  settle?(ctx: ToolContext): void;
 }
 
 export const MIN_DRAG_PX = 2;

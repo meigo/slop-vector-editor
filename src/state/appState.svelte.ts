@@ -258,6 +258,7 @@ export function cancelActiveGesture(): void {
   const fn = gestureCancel;
   gestureCancel = null;
   fn?.();
+  toolSettle?.();
 }
 
 /** Set once by `tools/context.ts`: drops the active tool's draft without committing it (spec M4b
@@ -272,6 +273,14 @@ export function registerToolDiscard(fn: (() => void) | null): void {
 /** A draft is built on a document that these paths throw away, so it can't be committed after. */
 function discardToolDraft(): void {
   toolDiscard?.();
+}
+
+/** Set once by `tools/context.ts`: something outside the active tool is about to edit the
+ *  document or change the selection (spec M14 §5, plan ruling 1). */
+let toolSettle: (() => void) | null = null;
+
+export function registerToolSettle(fn: (() => void) | null): void {
+  toolSettle = fn;
 }
 
 /** Keeps the Properties panel's override tied to the selection state it was made in (spec M8 §5).
@@ -370,6 +379,16 @@ export function beginDocGesture(): number {
   if (app.session.gestureBase === null) gestureEpoch += 1;
   setSession(beginGesture(app.session));
   return gestureEpoch;
+}
+
+/** A document gesture opened by the UI (a colour picker drag, a typing burst — invariant 42), not
+ *  by a tool. It settles the active tool FIRST: the Warp tool holds its own bracket open across
+ *  drags, and opening this one inside it would make it a no-op — the first edit's
+ *  `cancelActiveGesture` would then settle the warp and close the bracket this caller believes it
+ *  owns, leaving every later value its own undo step. */
+export function beginUiGesture(): number {
+  cancelActiveGesture();
+  return beginDocGesture();
 }
 
 export function titleGestureEpoch(): number {
@@ -556,11 +575,23 @@ export function askConfirm(text: string, confirmLabel: string): Promise<boolean>
 
 // ----- selection, tools, preferences -----
 
+/** `pruneSelection` returns `ids` itself when nothing was filtered, but callers pass fresh array
+ *  literals (`setSelection([id])`), so two calls with the same ids would otherwise look like a
+ *  change. Comparing content here
+ *  keeps `app.selection` — and so the settle hook below — stable across a no-op reselect. */
+function sameSelection(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
 export function setSelection(ids: readonly string[]): void {
   const wasEmpty = app.selection.length === 0;
   const before = app.selection;
-  app.selection = pruneSelection(app.doc, ids);
-  if (app.selection !== before) clearSubSelections();
+  const pruned = pruneSelection(app.doc, ids);
+  app.selection = sameSelection(pruned, before) ? before : pruned;
+  if (app.selection !== before) {
+    clearSubSelections();
+    toolSettle?.();
+  }
   syncPropsOverride(wasEmpty);
   // The layer of the last selected object becomes current (spec M3a §2).
   const last = app.selection[app.selection.length - 1];
@@ -580,12 +611,21 @@ export function registerToolFinish(fn: (() => void) | null): void {
   finishActiveTool = fn;
 }
 
+/** Set once by `tools/context.ts`: the newly active tool may want to reset its own state (spec
+ *  M14 §5, plan ruling 1). */
+let toolActivate: (() => void) | null = null;
+
+export function registerToolActivate(fn: (() => void) | null): void {
+  toolActivate = fn;
+}
+
 export function setTool(id: ToolId): void {
   if (app.toolId === id) return;
   finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
   app.hoverCursor = null;
+  toolActivate?.();
 }
 
 export function setHoverCursor(c: string | null): void {

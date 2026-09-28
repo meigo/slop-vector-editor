@@ -8,7 +8,8 @@ export type ToolId =
   | "text"
   | "node"
   | "hand"
-  | "gradient";
+  | "gradient"
+  | "warp";
 
 /** Modifier state for tools: physical keys combined with the on-screen modifier dock.
  *

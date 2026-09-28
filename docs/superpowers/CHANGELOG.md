@@ -2410,3 +2410,147 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   on the blue shape at touch size (16px). `svelte-check` 0/0, 963 tests unchanged.
 - **Owed**: Safari and iPad rendering of the halo; performance with very many node-tool knobs (each
   knob is now three elements).
+
+## 2026-09-28 — M14: envelope warp
+
+- **Geometry** (`src/geom/warp.ts`, spec §2/§4): `Cage` — four corners and four cubic boundary
+  edges, a 12-point Coons patch — with `identityCage`/`isIdentityCage` (compared field-by-field with
+  `===`, so an undragged cage short-circuits `warpNodes` to the same document reference, invariant
+  1), `warpPoint` (the bilinear-corrected patch map `S(u,v)`), `warpTolerance`
+  (`max(1e-4, max(B.w,B.h)·1e-4)`), `cubicThrough4` (inverts the cubic Bernstein basis to recover a
+  curve through four samples) and `warpSubpaths` (per segment: sample, map through `S`, fit, and —
+  when the fit strays past tolerance at `t = ⅙, ½, ⅚` — split the *original* segment at `t = 0.5`
+  and recurse, to a depth cap of 6). A straight segment under a straight-edged cage fits exactly
+  with zero subdivision, and an axis-parallel one stays straight, so an ordinary perspective drag
+  adds no nodes at all. A fitted piece is emitted straight (`in`/`out` null) when its control points
+  land within `tol × 1e-3` of the chord's thirds. A subdivision junction is typed `smooth` by
+  construction, with its handles left exactly as `fit` produced them rather than rotated onto their
+  mean direction — an earlier version that rotated them broke the `WARP_TOL` guarantee on 7 of 60
+  random warps (up to 2.4× tolerance), and the node tool's own collinearity enforcement covers the
+  junction's first manual edit anyway. **`WARP_TOL` holds for ordinary cages; an extreme one —
+  control points displaced by more than the selection's own box size — can exceed it, which is the
+  spec's 3-sample error check's inherent limit**, not a bug to chase further.
+- **The document edit** (`src/doc/warp-edit.ts`, spec §0.3/§3/§6): `warpNodes(doc, ids, cage, box)`
+  bakes every selected node's geometry through its own world matrix (`multiply(parent, transform)`;
+  a singular matrix leaves the node alone, as `inParent` already does for a resize), recursing into
+  groups with their children's `transform`s left untouched (invariant 26); a rect/ellipse/polygon
+  goes through `toPath` first and a path with `text` through `withBakedSubpaths`, which drops it — a
+  new bake site under invariant 40. `warpStyle` is the non-affine counterpart to invariant 46's
+  `mapStyle` (invariant 47): a warp is not a matrix, so a gradient's own-space points (`from`/`to`,
+  or a radial's `center`/`a`/`b`) travel `local —M→ world —S→ world′ —M⁻¹→ local′` individually, go
+  through `flatIfDegenerate` as every bake does, and the function returns the same style object when
+  neither paint is a gradient. `droppedLive(before, after, ids)` walks every leaf under the
+  selection and builds the one notice for the whole commit ("Warped — 2 polygons, a rectangle and a
+  title are now ordinary paths."). `warpRefusal` is the tool's title/`aria-disabled` reason for an
+  empty or zero-area selection; it computes the selection bounds locally (`selectionBoundsLocal`)
+  rather than importing `tools/frame.ts` into `doc/`, since the architecture map's layering runs the
+  other way.
+- **Tool plumbing** (`src/tools/tool.ts`, `context.ts`, `appState.svelte.ts`, `shape-tools.ts`, spec
+  §5, plan rulings 1 and 6): `Tool` gains two optional hooks — `activate(ctx)`, called from `setTool`
+  after the overlay and hover cursor are cleared, and `settle(ctx)`, called from
+  `cancelActiveGesture()` and from `setSelection` whenever the pruned selection's content actually
+  changes — registered through the store exactly like `registerToolFinish`/`registerToolDiscard`
+  (`registerToolActivate`/`registerToolSettle` in `context.ts`). `settle` is what lets a Warp session
+  survive every other store action: a menu command, an undo, or a selection change commits the warp
+  against its own `base` first instead of discarding it. `shape-tools.ts` gains
+  `constrain45(pivot, p)`, a shared 45°-snap helper; `gradient-tool.ts`'s local `constrain` now calls
+  it (`pen.ts` and `select.ts` keep their own, differently-shaped helper, per plan ruling 6).
+- **The Warp tool** (`src/tools/warp-tool.ts`, `cage-handles.ts`, `ToolStrip.svelte`, `keys.ts`,
+  `Overlay.svelte`; shortcut **W**; spec §5 as amended by the plan's rulings): activating with a
+  selection seeds an identity cage over its world bounds; an empty or degenerate selection stays in
+  the tool with an info notice rather than falling back to Select (ruling 3) — a click on an object
+  in the tool selects it and seeds a cage, a click on empty canvas clears the selection, matching the
+  Gradient tool's in-tool selection. `cage-handles.ts`'s `pickCage` picks a corner before a handle,
+  nearest within `pointerTolerance(pointerType) / zoom`, with **no small-object padding** (ruling 5);
+  `moveCagePart` carries a corner's two adjacent handles by the same delta (ruling 4), and Shift
+  constrains to 45° about the corner (dragging a handle) or the drag's start (dragging a corner). The
+  gesture bracket opens **lazily**, on the first handle drag rather than on activation (ruling 2),
+  and every frame commits `warpNodes` computed from that same `base` — never the live document
+  (invariant 15) — so two drags of one cage compose into the cage's own final shape, not two
+  compounded bakes. Enter (or a tool change, which routes Enter to a busy tool) closes the bracket as
+  one undo step and raises the drop notice; Escape restores `base` and returns to Select; `cancel()`
+  (a `pointercancel`) ends only the drag and keeps the cage — the pen's "a palm, not a decision" rule
+  (invariant 33). The cage draws over the M14 §0.4 halo (`lineHalo` for the outline and leader lines,
+  `knobHalo` under each corner square and handle circle) and sets the hover cursor to `move` over a
+  control point.
+- **Spec amendments** (§0, 2026-09-28, decided before implementation):
+  1. Subdivide is out of this milestone (it shipped separately in M11).
+  2. Simplify (M11) is the way to shed the nodes a heavy warp adds; `cubicThrough4` stays in
+     `geom/warp.ts`.
+  3. Gradients follow the warp via a new `warpStyle`, not invariant 46's `mapStyle` — the first bake
+     that is not a matrix.
+  4. The cage draws with the overlay halo and sets per-part hover cursors through `setHoverCursor`.
+  5. `constrain45` is consolidated to one exported helper in `shape-tools.ts`.
+  6. Every document-editing store action still cancels a running tool gesture (invariant 15); the
+     Warp session's `cancel`/`settle` restores `base` and drops the cage rather than discarding the
+     warp silently.
+- **Plan rulings** (`docs/superpowers/plans/2026-09-28-m14-envelope-warp.md`, decided before
+  implementation):
+  1. A store edit during a warp session commits it first, through `Tool.settle`.
+  2. The gesture bracket opens lazily, on the first drag, and closes on Enter/settle/Escape.
+  3. Activation with an empty or degenerate selection stays in the Warp tool with an info notice,
+     rather than falling back to Select as spec §5 said; a click in the tool selects and seeds.
+  4. A corner drag carries its two adjacent edge handles by the same delta; a handle drag moves
+     alone. Shift constrains to 45°.
+  5. No small-object handle padding for the cage: reach is `pointerTolerance(pointerType) / zoom`,
+     corners before handles.
+  6. `constrain45` consolidation is minimal: exported from `shape-tools.ts`, adopted by the Gradient
+     and Warp tools only; `pen.ts`/`select.ts` keep their own differently-shaped helper.
+- **Controller rulings** (decided during review, recorded so they can be challenged):
+  - Subdivision junctions are typed `smooth` by construction; an initial version that also rotated
+    their handles onto the mean direction was reverted after it measurably broke the `WARP_TOL`
+    guarantee (7/60 random warps up to 2.4× tolerance) — the fit's own handles are kept instead, and
+    the node tool's collinearity enforcement covers the first manual edit.
+  - `setSelection`'s content-based `sameSelection` check stays: it is required by the settle
+    contract (fire only on a real selection change), and it is also why re-clicking an
+    already-selected object no longer clears a picked gradient stop or character (see Behaviour
+    change below).
+  - An idle cage re-seeds at the start of `down`/`hover` when the document changed since it was
+    seeded — the store settles *before* its own edit, so a nudge or delete would otherwise leave a
+    stale cage on old bounds — but never touches a cage whose bracket is open.
+  - Taken as follow-up fixes (commit 141338b): the cage now survives undo instead of disappearing;
+    only Enter (including a tool change) and a press elsewhere raise the "Warped — …" notice — a
+    warp committed via `settle` by an undo, redo, replace or ordinary store edit is silent, since the
+    tool cannot tell a colour change from an undo about to discard the very warp it would be
+    reporting on; a refusal notice comes only from `activate`, Enter and a press, never from a quiet
+    `hover`/`settle` re-seed; store-level tests now cover a tool change and an undo mid-bracket.
+- **Behaviour change** (Task 3, worth noting beyond the warp itself): `setSelection` now fires the
+  settle hook, and clears the picked gradient stop / picked character, only when the selection's
+  **content** changes — re-clicking the object that is already selected no longer drops either.
+- **Browser check** (partial, 2026-09-28, desktop Chrome, dev server on :5198, real clicks/drags):
+  the Warp button in the strip activates the tool and draws the cage (corner squares, handle
+  circles, leaders) around a two-object selection (a gradient rect and a polygon); real drags on
+  both top handles bowed the top edge, and a bottom-right corner drag pulled it in; both shapes
+  stayed in register through the one cage, the gradient followed, undo was disabled mid-session;
+  Enter produced one undo step, closed the bracket, raised "Warped — a polygon and a rectangle are
+  now ordinary paths.", left transforms untouched, and seeded a fresh cage on the new bounds. Not
+  yet checked (the browser extension disconnected mid-session): Escape, a mid-warp colour edit, the
+  hover cursor, Shift.
+- **Final-review fixes** (2026-09-28):
+  - **A live UI drag mid-warp is one undo step again** (invariant 42). The colour picker's first
+    `input` used to call `beginDocGesture` inside the warp's still-open bracket (a no-op); the
+    edit's `cancelActiveGesture` then settled the warp and closed the bracket the picker believed it
+    owned, so every later colour was its own undo step. New store action `beginUiGesture()` runs
+    `cancelActiveGesture()` then `beginDocGesture()`; `PropertiesPanel`'s `onlivestart` (PaintField,
+    PaintRow, MidpointRow) and `TextPanel`'s typing burst (whose `typeTitleText` cancels the same
+    way) use it. Tools keep `ctx.beginGesture`.
+  - **Enter with an idle cage is no longer swallowed**: with no warp pending the tool declines it,
+    so a focused toolbar or panel button activates as it would with no tool busy. Escape with an
+    idle cage still leaves the tool.
+  - **Hidden children of a selected group are not warped**: the cage is fitted to `nodeBounds`,
+    which skips them, so a hidden child outside the box was extrapolated wildly. `warpNode` now
+    returns a hidden node unchanged (same reference).
+- **Owed** (the items above the browser check didn't reach are covered only by unit tests, including
+  real-store tests, not the browser): Escape, a mid-warp colour edit, the hover cursor, and
+  Shift-45°/undo-then-drag; an iPad/Pencil pass (knob reach — the cage's four corners and eight
+  handles sit close together on a small shape — and whether a resting palm holds the cage); Safari;
+  performance on large selections (reasoned about, not measured); autosave writing mid-warp state;
+  and, on touch (or after a keyboard edit on desktop), an idle cage can show stale bounds until the
+  next hover or press; on touch, after a large panel edit (W/H) mid-session, the old cage stays
+  drawn until the next press, and a tap where the old handle was can miss and select/deselect
+  instead; the per-pointermove refit cost is unmeasured (a repeat refit also runs on up) — for the
+  performance group.
+- Plan: `docs/superpowers/plans/2026-09-28-m14-envelope-warp.md`. Spec:
+  `docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md` (§0 amendments, 2026-09-28).
+  Commits `f8882a9..141338b`, plus the final-review fix commit.
+- 1024 tests in 67 files.
