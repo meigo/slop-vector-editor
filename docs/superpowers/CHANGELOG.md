@@ -2602,7 +2602,9 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   warped grid, a perspective quad with round corner handles); four candidates were drawn on
   Lucide's grid and compared at 16/24/48px against real Lucide icons, and the user picked "A":
   four r=2 corner handles (the language of Lucide's `vector-square`) with the top and bottom edges
-  arched — the classic arch envelope, and what the tool draws on the canvas.
+  arched — the classic arch envelope, and what the tool draws on the canvas. The handles were then
+  enlarged to r=2.25 (user: they read smaller than the Node icon's at 18px — two joining lines per
+  handle thicken the ring; optical compensation).
 - **How**: each custom icon wraps Lucide's exported `Icon` with its own `{ name, size, node }`
   data — the same construction as Lucide's shipped icon files — so it takes the same props,
   renders with Lucide's classes (`lucide lucide-warp`), 24×24 grid and 2px round stroke. The
