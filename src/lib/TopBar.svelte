@@ -18,6 +18,8 @@
     SquaresUnite,
     Stamp,
     Trash2,
+    TrianglesCenterlineDashedHorizontal,
+    TrianglesCenterlineDashedVertical,
     Undo2,
     Ungroup,
     Waypoints,
@@ -132,8 +134,11 @@
    *  at a width. With this menu they may be. */
   /** Flip (2026-09-28): mirrors the selection about its own centre, as a transform. */
   const FLIPS = [
-    { axis: "h", label: "Flip horizontal", keys: "⇧H" },
-    { axis: "v", label: "Flip vertical", keys: "⇧V" },
+    // A horizontal flip mirrors across a VERTICAL line, so its icon is the vertical centreline
+    // with triangles either side. (Lucide's old `FlipHorizontal2` alias points at the horizontal
+    // centreline — the opposite — which is why the unambiguous new names are used.)
+    { axis: "h", label: "Flip horizontal", keys: "⇧H", icon: TrianglesCenterlineDashedVertical },
+    { axis: "v", label: "Flip vertical", keys: "⇧V", icon: TrianglesCenterlineDashedHorizontal },
   ] as const;
 
   function runObject(fn: () => void) {
@@ -659,8 +664,8 @@
   <!-- Arrange, from the same list the Object menu renders. Hidden below the breakpoint like the
        boolean operations, which is only legal because the Object menu now carries these commands
        at every width (invariant 24) — before it existed, the right-click menu was mouse-only and
-       these icons were the one route on a touch device. With everything shown the bar needs
-       1259px, so arrange appears at 1270. -->
+       these icons were the one route on a touch device. With everything but flip shown the
+       bar needs 1259px, so arrange appears at 1270. -->
   <span class="hidden min-[1270px]:contents">
     <span class="bar-sep"></span>
     {#each ARRANGE as a (a.label)}
@@ -671,6 +676,23 @@
         disabled={none}
         disabledTitle="{a.label} — nothing selected"
         onclick={a.run}
+      />
+    {/each}
+  </span>
+  <!-- Flip (2026-09-28), from the same list the Object menu renders. The FIRST group to hide as
+       the bar narrows — the least used, and the Object menu carries both at every width
+       (invariant 24). Measured: with everything shown the bar needs 1344px, so flip appears at
+       1350; with flip hidden it needs 1259, so arrange's 1270 still holds. -->
+  <span class="hidden min-[1350px]:contents">
+    <span class="bar-sep"></span>
+    {#each FLIPS as f (f.axis)}
+      <IconButton
+        label={f.label}
+        title="{f.label} ({f.keys})"
+        icon={f.icon}
+        disabled={none}
+        disabledTitle="{f.label} — nothing selected"
+        onclick={() => flipSelection(f.axis)}
       />
     {/each}
   </span>

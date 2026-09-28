@@ -2649,3 +2649,22 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   undo steps, and undoing both restored the exact identity transform.
 - **Owed**: iPad (the menus are the touch route — the right-click menu is mouse-only); Safari.
 - 1048 tests in 70 files.
+
+## 2026-09-28 — Flip buttons in the top bar, width-triaged
+
+- **What**: Flip horizontal and Flip vertical get top-bar icons, in a group after Arrange, rendered
+  from the same `FLIPS` list the Object menu uses so the two can't drift. Disabled with a reason
+  when nothing is selected (invariant 24). Requested with "we are getting tight on top toolbar —
+  triage these based on screen width".
+- **Width cascade**: flip is the first group to hide as the bar narrows (the least used; the Object
+  menu carries both at every width). Measured by narrowing the header until it overflows, each
+  group hidden in turn: 1344px with everything shown → flip appears at **1350px**; 1259 with flip
+  hidden (arrange's 1270 still holds); 1102, 945, 860 and 739 below — every earlier breakpoint
+  reproduced exactly, so none moved.
+- **Icons**: Lucide's new `TrianglesCenterlineDashedVertical` (Flip horizontal — a mirror across a
+  vertical line) and `…Horizontal` (Flip vertical). The old `FlipHorizontal2` alias points at the
+  horizontal centreline, i.e. the opposite meaning — caught in the browser check, where the first
+  button flipped correctly but showed a vertical-flip picture.
+- **Verified**: desktop Chrome — the group renders between Arrange and Convert/Flatten, a real
+  click on Flip horizontal mirrored the selection, the icons now match their commands, and the bar
+  measures 1344px with everything shown.
