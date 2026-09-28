@@ -20,6 +20,7 @@ import {
 } from "../text/font";
 import type { CachedFamily } from "../persist/font-cache";
 import type { GoogleFamily } from "../text/google-catalogue";
+import { previewOutline } from "../text/preview";
 
 /** Read from disk, not through Vite's `?url`: the pipeline must be testable without a bundler. */
 let f: LoadedFont;
@@ -454,5 +455,16 @@ describe("Google families and variable-weight outlining (M20 §3)", () => {
     await expect(loadFace({ font: "gf:flaky" })).rejects.toThrow(/Couldn't download/);
     fail = false;
     expect((await loadFace({ font: "gf:flaky" })).wght).toEqual({ min: 400, max: 700 });
+  });
+});
+
+describe("previewOutline", () => {
+  it("outlines the family name over the sample, with bounds for the viewBox", () => {
+    const p = previewOutline(f, "Anton");
+    expect(p).not.toBeNull();
+    expect(p!.d.startsWith("M")).toBe(true);
+    // Two lines: the second baseline is a whole line (32px × 1.3) below the first.
+    expect(p!.box.h).toBeGreaterThan(32 * 1.3);
+    expect(p!.box.w).toBeGreaterThan(0);
   });
 });

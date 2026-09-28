@@ -3,6 +3,7 @@
   import type { PathShape } from "../doc/document";
   import {
     addFontFile,
+    addGoogleFamily,
     beginUiGesture,
     finishCharDrag,
     endDocGesture,
@@ -14,11 +15,20 @@
     rerollTitle,
     setCharOverride,
     setTitleFont,
+    setTitleItalic,
     setTitleOpts,
+    setTitleWeight,
     setTitleText,
     typeTitleText,
   } from "../state/appState.svelte";
-  import { fontAvailable, fontChoices } from "../text/font";
+  import { familyHasItalic, familyWeights, fontAvailable, fontChoices } from "../text/font";
+  import {
+    familyIdOf,
+    loadCatalogue,
+    weightName,
+    type GoogleFamily,
+  } from "../text/google-catalogue";
+  import ToggleButton from "./ToggleButton.svelte";
   import { charTransform, withOverride } from "../text/random";
   import FieldSection from "./FieldSection.svelte";
   import NumberField from "./NumberField.svelte";
@@ -30,15 +40,82 @@
   type CharT = ReturnType<typeof charTransform>;
 
   const meta = $derived(title.text!);
-  const ready = $derived(fontAvailable(meta.font));
-  // `fontsChangedTick()` is the tracked dependency: `fontChoices()` reads plain Maps that
-  // Svelte cannot see, so without it a font you just added never reaches the list.
+  // `fontsChangedTick()` is the tracked dependency: `fontChoices()` and the rest read plain Maps
+  // that Svelte cannot see, so without it a font you just added never reaches the list — and a
+  // Google family restored from the cache after the panel mounted would still read as missing.
+  const ready = $derived((fontsChangedTick(), fontAvailable(meta.font)));
   const choices = $derived((fontsChangedTick(), fontChoices()));
-  const label = $derived(choices.find((c) => c.id === meta.font)?.label ?? meta.font);
+  const weights = $derived.by(() => {
+    fontsChangedTick();
+    const w = familyWeights(meta.font);
+    const current = meta.weight ?? 400;
+    // A file from elsewhere can ask for a weight the family doesn't list; show it rather than
+    // letting the select fall back to a weight the title isn't in.
+    return w.includes(current) ? w : [...w, current].sort((a, b) => a - b);
+  });
+  const hasItalic = $derived((fontsChangedTick(), familyHasItalic(meta.font)));
+
+  /** A missing `gf:` font that the catalogue knows (spec M20 §6): the panel offers to download it.
+   *  The catalogue is only loaded for that case, keyed by font so a stale answer can't land on the
+   *  next title. */
+  let found = $state.raw<{ font: string; family: GoogleFamily | null } | null>(null);
+  $effect(() => {
+    const font = meta.font;
+    const id = familyIdOf(font);
+    if (ready || id === null || found?.font === font) return;
+    loadCatalogue().then(
+      (all) => (found = { font, family: all.find((f) => f.id === id) ?? null }),
+      () => (found = { font, family: null }),
+    );
+  });
+  const missingFamily = $derived(!ready && found?.font === meta.font ? found.family : null);
+
+  const label = $derived(
+    choices.find((c) => c.id === meta.font)?.label ?? missingFamily?.family ?? meta.font,
+  );
   /** Every control here re-derives geometry, so all of them need the font (spec §5) — not just the
    *  string field. The font picker is the exception: switching to a font you DO have is the way
    *  out, so it stays live and says so. */
-  const missing = $derived(`Needs the font “${label}”, which isn't loaded — add it from a file`);
+  const missing = $derived(
+    missingFamily
+      ? `Needs the font “${label}”, which isn't downloaded — download it from Google Fonts`
+      : `Needs the font “${label}”, which isn't loaded — add it from a file`,
+  );
+
+  const weightLabel = (w: number) => {
+    const name = weightName(w);
+    return name === String(w) ? name : `${name} ${w}`;
+  };
+
+  let downloading = $state(false);
+  async function download(f: GoogleFamily) {
+    if (downloading) return;
+    downloading = true;
+    try {
+      await addGoogleFamily(f);
+    } finally {
+      downloading = false;
+    }
+  }
+
+  /** "Add a font…" is a small menu (spec M20 §6). Positioned `fixed` from the button, because the
+   *  properties panel scrolls and would clip an absolutely positioned menu at its bottom edge. */
+  let addMenuBtn: HTMLButtonElement | null = $state(null);
+  let addMenu = $state<{ top?: number; bottom?: number; right: number } | null>(null);
+
+  function openAddMenu() {
+    if (addMenu || !addMenuBtn) {
+      addMenu = null;
+      return;
+    }
+    const r = addMenuBtn.getBoundingClientRect();
+    const right = window.innerWidth - r.right;
+    // Two menu items need ~80px; open upwards when the button is too near the bottom.
+    addMenu =
+      window.innerHeight - r.bottom < 90
+        ? { bottom: window.innerHeight - r.top + 4, right }
+        : { top: r.bottom + 4, right };
+  }
 
   let picker: HTMLInputElement | null = $state(null);
 
@@ -169,12 +246,57 @@
         <option value={c.id}>{c.label}</option>
       {/each}
       {#if !choices.some((c) => c.id === meta.font)}
-        <option value={meta.font}>{meta.font} (not loaded)</option>
+        <option value={meta.font}>{label} (not loaded)</option>
       {/if}
     </select>
-    <button class="btn" title="Add a font from a file" onclick={() => picker?.click()}>
+    <button
+      bind:this={addMenuBtn}
+      class={["btn", addMenu && "ui-on"]}
+      aria-haspopup="menu"
+      aria-expanded={addMenu !== null}
+      title="Add a font from a file or from Google Fonts"
+      onclick={openAddMenu}
+    >
       Add a font…
     </button>
+    {#if addMenu}
+      <button
+        class="fixed inset-0 z-40 cursor-default"
+        aria-label="Close menu"
+        tabindex="-1"
+        onclick={() => (addMenu = null)}
+      ></button>
+      <div
+        class="fixed z-50 w-48 rounded border border-line bg-panel py-1 shadow-lg"
+        style:top={addMenu.top === undefined ? null : `${addMenu.top}px`}
+        style:bottom={addMenu.bottom === undefined ? null : `${addMenu.bottom}px`}
+        style:right={`${addMenu.right}px`}
+        role="menu"
+      >
+        <button
+          class="menu-item min-h-(--ctl-h)"
+          role="menuitem"
+          title="Add a .ttf, .otf or .woff font file for this session"
+          onclick={() => {
+            addMenu = null;
+            picker?.click();
+          }}
+        >
+          From a file…
+        </button>
+        <button
+          class="menu-item min-h-(--ctl-h)"
+          role="menuitem"
+          title="Browse Google Fonts and add a family for good"
+          onclick={() => {
+            addMenu = null;
+            app.dialog = "googleFonts";
+          }}
+        >
+          From Google Fonts…
+        </button>
+      </div>
+    {/if}
     <input
       bind:this={picker}
       type="file"
@@ -188,6 +310,53 @@
         if (f) void addFontFile(f);
       }}
     />
+  </div>
+
+  {#if missingFamily}
+    <div class="field-full">
+      <button
+        class="btn w-full justify-center"
+        aria-disabled={downloading}
+        title={downloading ? `Downloading ${missingFamily.family}…` : missing}
+        onclick={() => missingFamily && void download(missingFamily)}
+      >
+        {downloading ? `Downloading ${missingFamily.family}…` : `Download ${missingFamily.family}`}
+      </button>
+    </div>
+  {/if}
+
+  <div class="field-row">
+    <span class="text-muted">Weight</span>
+    <div class="flex min-w-0 gap-1">
+      <select
+        class="field min-w-0 flex-1"
+        aria-label="Weight"
+        aria-disabled={!ready}
+        title={ready ? "Change the weight" : missing}
+        value={meta.weight ?? 400}
+        onchange={async (e) => {
+          const el = e.currentTarget;
+          if (ready) await setTitleWeight(Number(el.value));
+          // Uncontrolled, like the font picker: a refused change leaves the weight untouched.
+          if (el.isConnected) el.value = String(title.text?.weight ?? 400);
+        }}
+      >
+        {#each weights as w (w)}
+          <option value={w}>{weightLabel(w)}</option>
+        {/each}
+      </select>
+      <ToggleButton
+        label="Italic"
+        value={meta.italic === true}
+        disabled={!ready || !hasItalic}
+        title={!ready
+          ? missing
+          : hasItalic
+            ? "Use the italic face"
+            : `Italic — ${label} has no italic`}
+        onchange={(on) => void setTitleItalic(on)}
+      />
+    </div>
   </div>
 
   <NumberField

@@ -101,6 +101,8 @@ import { serializeDoc } from "../svg/serialize";
 import {
   loadFace,
   charHits,
+  familyHasItalic,
+  familyWeights,
   outlineText,
   FontUnavailableError,
   noGlyphsFor,
@@ -163,7 +165,7 @@ import {
 import { fitRect, screenToDoc, zoomAt, type View } from "./viewport";
 
 export type Notice = { id: number; kind: "info" | "error"; text: string };
-export type DialogKind = "new" | "settings" | "export" | null;
+export type DialogKind = "new" | "settings" | "export" | "googleFonts" | null;
 export type ConfirmRequest = {
   text: string;
   confirmLabel: string;
@@ -1734,9 +1736,27 @@ export function rerollTitle(): Promise<void> {
   return setTitleOpts({ seed: newSeed() });
 }
 
+/** The weight in `weights` nearest to `w`; a tie goes to the heavier one. */
+function nearestWeight(weights: readonly number[], w: number): number {
+  let best = weights[0] ?? DEFAULT_WEIGHT;
+  for (const c of weights) {
+    const d = Math.abs(c - w) - Math.abs(best - w);
+    if (d < 0 || (d === 0 && c > best)) best = c;
+  }
+  return best;
+}
+
+/** A switch carries the face over as far as the new family allows: the nearest weight it offers
+ *  (Regular for a bundled or file-added font) and italic only if it has one. In the same patch as
+ *  the font, so it is one undo step — and it serves the select, the Google Fonts dialog's Add and
+ *  the missing-font download alike. */
 export async function setTitleFont(id: string): Promise<void> {
   currentFontId = id;
-  if (selectedTitle()) await reshapeTitleDraining({ font: id });
+  const t = selectedTitle()?.text;
+  if (!t) return;
+  const weight = nearestWeight(familyWeights(id), t.weight ?? DEFAULT_WEIGHT);
+  const italic = t.italic === true && familyHasItalic(id) ? true : undefined;
+  await reshapeTitleDraining({ font: id, weight, italic });
 }
 
 /** The font a new title gets (the picker's last choice, or the family just added). */

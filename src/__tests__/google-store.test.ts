@@ -30,6 +30,11 @@ const read = (path: string): ArrayBuffer => {
 };
 const LORA = read("fixtures/Lora[wght].ttf");
 const LORA_PB = fs.readFileSync("fixtures/metadata/lora.pb", "utf8");
+/** Lora's metadata with its italic face removed: a family that has no italic. */
+const LORA_UPRIGHT_PB = LORA_PB.replace(
+  /fonts \{\n {2}name: "Lora"\n {2}style: "italic"[^}]*\}\n/,
+  "",
+);
 
 /** Each test gets its own family id: the font registry is module state, shared by the file. */
 const family = (id: string): GoogleFamily => ({
@@ -44,7 +49,7 @@ const family = (id: string): GoogleFamily => ({
 
 /** Serves Lora's METADATA.pb for every family, and the upright fixture for both of its files
  *  (the italic file isn't committed; the bytes only need to parse). */
-function fakeNet(opts: { offline?: boolean } = {}) {
+function fakeNet(opts: { offline?: boolean; upright?: boolean } = {}) {
   const urls: string[] = [];
   const fetcher: Fetcher = async (url) => {
     urls.push(url);
@@ -53,7 +58,7 @@ function fakeNet(opts: { offline?: boolean } = {}) {
     return {
       ok: true,
       status: 200,
-      text: async () => (isPb ? LORA_PB : ""),
+      text: async () => (isPb ? (opts.upright ? LORA_UPRIGHT_PB : LORA_PB) : ""),
       arrayBuffer: async () => LORA,
     };
   };
@@ -274,5 +279,69 @@ describe("restoreGoogleFonts", () => {
     expect(app.notices).toEqual([]);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("addGoogleFamily after a failure", () => {
+  it("succeeds on a retry once the network is back — the failed download isn't replayed", async () => {
+    // One fetcher throughout, so nothing but the failure itself clears the session's caches.
+    const net = { offline: true };
+    const fetcher: Fetcher = (url) =>
+      net.offline ? Promise.reject(new TypeError("Failed to fetch")) : fakeNet().fetcher(url);
+    setGoogleFontIo({ store, fetcher });
+    setSelection(["t"]);
+
+    expect(await addGoogleFamily(family("lora-m"))).toBe(false);
+    net.offline = false;
+    expect(await addGoogleFamily(family("lora-m"))).toBe(true);
+
+    expect(fontAvailable("gf:lora-m")).toBe(true);
+    expect(titleNode().text?.font).toBe("gf:lora-m");
+  });
+});
+
+describe("a font switch snaps the face to what the new family has", () => {
+  it("snaps to the nearest weight (ties go heavier), keeping italic the family has — one step", async () => {
+    setGoogleFontIo({ store, fetcher: fakeNet().fetcher });
+    setSelection(["t"]);
+    await addGoogleFamily(family("lora-n"));
+    await setTitleWeight(600);
+    await setTitleItalic(true);
+    const before = app.doc;
+
+    // 600 sits exactly between 500 and 700.
+    expect(await addGoogleFamily({ ...family("lora-o"), weights: [500, 700] })).toBe(true);
+
+    expect(titleNode().text?.font).toBe("gf:lora-o");
+    expect(titleNode().text?.weight).toBe(700);
+    expect(titleNode().text?.italic).toBe(true);
+    undo();
+    expect(app.doc).toBe(before);
+  });
+
+  it("a family with only Regular and no italic drops both keys, in one step", async () => {
+    // The same rule serves a bundled or file-added font: `familyWeights` gives them [400] and
+    // `familyHasItalic` false. A Google family is used here because bundled fonts load by URL.
+    const net = { upright: false };
+    const fetcher: Fetcher = (url) => fakeNet(net).fetcher(url);
+    setGoogleFontIo({ store, fetcher });
+    setSelection(["t"]);
+    await addGoogleFamily(family("lora-p"));
+    await setTitleWeight(700);
+    await setTitleItalic(true);
+    const before = app.doc;
+
+    net.upright = true;
+    expect(await addGoogleFamily({ ...family("lora-q"), weights: [400], italic: false })).toBe(
+      true,
+    );
+
+    expect(familyHasItalic("gf:lora-q")).toBe(false);
+    const meta = titleNode().text ?? {};
+    expect(titleNode().text?.font).toBe("gf:lora-q");
+    expect("weight" in meta).toBe(false);
+    expect("italic" in meta).toBe(false);
+    undo();
+    expect(app.doc).toBe(before);
   });
 });

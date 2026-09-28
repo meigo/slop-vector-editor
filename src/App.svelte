@@ -6,6 +6,7 @@
   import ContextMenu from "./lib/ContextMenu.svelte";
   import DocumentSettingsDialog from "./lib/DocumentSettingsDialog.svelte";
   import ExportPngDialog from "./lib/ExportPngDialog.svelte";
+  import GoogleFontsDialog from "./lib/GoogleFontsDialog.svelte";
   import ModifierDock from "./lib/ModifierDock.svelte";
   import NewDocumentDialog from "./lib/NewDocumentDialog.svelte";
   import Notices from "./lib/Notices.svelte";
@@ -249,6 +250,8 @@
   <DocumentSettingsDialog />
 {:else if app.dialog === "export"}
   <ExportPngDialog />
+{:else if app.dialog === "googleFonts"}
+  <GoogleFontsDialog />
 {/if}
 
 {#if app.confirm}
