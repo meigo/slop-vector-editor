@@ -327,33 +327,42 @@
 
   <div class="field-row">
     <span class="text-muted">Weight</span>
-    <div class="flex min-w-0 gap-1">
-      <select
-        class="field min-w-0 flex-1"
-        aria-label="Weight"
-        aria-disabled={!ready}
-        title={ready ? "Change the weight" : missing}
-        value={meta.weight ?? 400}
-        onchange={async (e) => {
-          const el = e.currentTarget;
-          if (ready) await setTitleWeight(Number(el.value));
-          // Uncontrolled, like the font picker: a refused change leaves the weight untouched.
-          if (el.isConnected) el.value = String(title.text?.weight ?? 400);
-        }}
-      >
-        {#each weights as w (w)}
-          <option value={w}>{weightLabel(w)}</option>
-        {/each}
-      </select>
+    <!-- The whole field column: beside the Italic toggle, a 240px sidebar cut "Regular 400" short. -->
+    <select
+      class="field w-full min-w-0"
+      aria-label="Weight"
+      aria-disabled={!ready}
+      title={ready ? "Change the weight" : missing}
+      value={meta.weight ?? 400}
+      onchange={async (e) => {
+        const el = e.currentTarget;
+        if (ready) await setTitleWeight(Number(el.value));
+        // Uncontrolled, like the font picker: a refused change leaves the weight untouched.
+        if (el.isConnected) el.value = String(title.text?.weight ?? 400);
+      }}
+    >
+      {#each weights as w (w)}
+        <option value={w}>{weightLabel(w)}</option>
+      {/each}
+    </select>
+  </div>
+
+  <div class="field-row">
+    <span class="text-muted">Style</span>
+    <!-- Refused only for turning italic ON in a family without one: an italic that came in with a
+         file must still be switchable off. -->
+    <div class="flex">
       <ToggleButton
         label="Italic"
         value={meta.italic === true}
-        disabled={!ready || !hasItalic}
+        disabled={!ready || (!hasItalic && meta.italic !== true)}
         title={!ready
           ? missing
           : hasItalic
             ? "Use the italic face"
-            : `Italic — ${label} has no italic`}
+            : meta.italic === true
+              ? `Turn italic off — ${label} has no italic, so it draws upright`
+              : `Italic — ${label} has no italic`}
         onchange={(on) => void setTitleItalic(on)}
       />
     </div>

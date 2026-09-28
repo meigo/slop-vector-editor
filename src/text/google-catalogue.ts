@@ -48,16 +48,36 @@ function normalize(s: string): string {
     .toLowerCase();
 }
 
+/** How well a normalized name matches a normalized query: 0 exact, 1 the name starts with it,
+ *  2 a later word starts with it, 3 anywhere else, null no match. */
+function matchRank(name: string, q: string): number | null {
+  if (name === q) return 0;
+  if (name.startsWith(q)) return 1;
+  const at = name.indexOf(q);
+  if (at < 0) return null;
+  // Any occurrence at a word start, not only the first: "Grandiflora Lora" is a word match.
+  for (let i = at; i >= 0; i = name.indexOf(q, i + 1)) {
+    if (/[^\p{L}\p{N}]/u.test(name[i - 1])) return 2;
+  }
+  return 3;
+}
+
+/** Families whose name contains the query, best matches first — exact, then names starting with
+ *  it, then a word starting with it, then anywhere — so "lora" lists Lora ahead of Explora. Stable:
+ *  within a group the catalogue's own order holds. */
 export function searchFamilies(
   all: readonly GoogleFamily[],
   query: string,
   category: string | null,
 ): GoogleFamily[] {
   const q = normalize(query.trim());
-  return all.filter((f) => {
-    if (category !== null && f.category !== category) return false;
-    return q === "" || normalize(f.family).includes(q);
-  });
+  const groups: GoogleFamily[][] = [[], [], [], []];
+  for (const f of all) {
+    if (category !== null && f.category !== category) continue;
+    const rank = q === "" ? 0 : matchRank(normalize(f.family), q);
+    if (rank !== null) groups[rank].push(f);
+  }
+  return groups.flat();
 }
 
 let cataloguePromise: Promise<readonly GoogleFamily[]> | null = null;

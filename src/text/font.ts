@@ -15,6 +15,7 @@ import { charTransform, isIdentityChar, withOverride, type CharTransform } from 
 type OT = (typeof import("opentype.js"))["default"];
 type ParsedFont = import("opentype.js").Font;
 type Glyph = import("opentype.js").Glyph;
+type PathCommand = import("opentype.js").PathCommand;
 
 /** `id` is the font id, not the face: every face of a family shares it. `wght` is the weight
  *  axis's range, present only on a variable Google face — the one kind that draws other weights. */
@@ -333,6 +334,80 @@ function transformFor(m: TextMeta, i: number): CharTransform {
   return withOverride(charTransform(m.seed, i, m.amounts), m.overrides[i]);
 }
 
+/** A coordinate to 3 decimals, exactly as `toPathData(3)` rounded it where that worked — the
+ *  fraction rounded through its decimal string, so a value on a …5 boundary lands where it always
+ *  did and re-derived outlines match the ones already in documents — but never NaN: a fraction
+ *  small enough to print in exponent form rounds to 0. Written with `toFixed`, so the string is
+ *  never in exponent form, and never `-0`. */
+function num(v: number): string {
+  const whole = Math.floor(v);
+  const frac = v - whole;
+  const scaled = Math.round(Number(`${frac}e+3`));
+  const r = whole + (Number.isFinite(scaled) ? Number(`${scaled}e-3`) : 0);
+  if (r === 0) return "0";
+  return Math.round(r) === r ? String(r) : r.toFixed(3);
+}
+
+/** The clean-up `toPathData` applied by default (opentype.js 2.0's `optimizeCommands`), kept
+ *  exactly so outlines stay what they were: per contour, a closing `L` that lands within 1 unit of
+ *  the start before `Z` is dropped (otherwise the closed subpath would end on a repeat of its first
+ *  node, which invariant 30 forbids), an `L` repeating the previous point is dropped, and a contour
+ *  written `M a, L …, L a, Z` starts from its second point instead. */
+function optimizeCommands(commands: readonly PathCommand[]): PathCommand[] {
+  const contours: PathCommand[][] = [[]];
+  let startX = 0;
+  let startY = 0;
+  for (let i = 0; i < commands.length; i++) {
+    const contour = contours[contours.length - 1];
+    const cmd = { ...commands[i] };
+    const first = contour[0];
+    const second = contour[1];
+    const previous = contour[contour.length - 1];
+    const next = commands[i + 1];
+    contour.push(cmd);
+    if (cmd.type === "M") {
+      startX = cmd.x!;
+      startY = cmd.y!;
+    } else if (cmd.type === "L" && (!next || next.type === "Z")) {
+      if (!(Math.abs(cmd.x! - startX) > 1 || Math.abs(cmd.y! - startY) > 1)) contour.pop();
+    } else if (cmd.type === "L" && previous && previous.x === cmd.x && previous.y === cmd.y) {
+      contour.pop();
+    } else if (cmd.type === "Z") {
+      if (
+        first?.type === "M" &&
+        second?.type === "L" &&
+        previous?.type === "L" &&
+        previous.x === first.x &&
+        previous.y === first.y
+      ) {
+        contour.shift();
+        contour[0].type = "M";
+      }
+      if (i + 1 < commands.length) contours.push([]);
+    }
+  }
+  return contours.flat();
+}
+
+/** A glyph path's commands as SVG path data. Never through opentype.js's `toPathData`: its
+ *  rounding appends `"e+" + places` to the number's string form, and a coordinate whose fractional
+ *  part is tiny already prints in exponent form ("1.2e-7"), so it parses "1.2e-7e+3" to NaN — and
+ *  caches that NaN. `parsePathData` then drops the rest of the contour, so at some pen positions a
+ *  letter lost most of its outline (Lora's "l" came out as a thin sliver). */
+function pathDataOf(commands: readonly PathCommand[]): string {
+  const parts: string[] = [];
+  for (const c of optimizeCommands(commands)) {
+    if (c.type === "Z") parts.push("Z");
+    else if (c.type === "Q") parts.push(`Q${num(c.x1!)} ${num(c.y1!)} ${num(c.x!)} ${num(c.y!)}`);
+    else if (c.type === "C") {
+      parts.push(
+        `C${num(c.x1!)} ${num(c.y1!)} ${num(c.x2!)} ${num(c.y2!)} ${num(c.x!)} ${num(c.y!)}`,
+      );
+    } else parts.push(`${c.type}${num(c.x!)} ${num(c.y!)}`);
+  }
+  return parts.join("");
+}
+
 /** string + font + options → outlines, in the title's own space with the first baseline at y = 0. */
 export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
   const { placed } = runLayout(f, m);
@@ -343,7 +418,7 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
     // substFormat 2 is not yet supported"). One character at a time happened to be safe, but the
     // glyph route avoids that code entirely and is the one variable-font weights need (a variation
     // transforms a glyph, not a string). It is the very glyph the layout measured.
-    const d = p.glyph.getPath(p.penX, p.penY, m.size).toPathData(3);
+    const d = pathDataOf(p.glyph.getPath(p.penX, p.penY, m.size).commands);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
     const t = transformFor(m, p.index);

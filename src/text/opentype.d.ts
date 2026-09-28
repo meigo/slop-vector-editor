@@ -27,7 +27,6 @@ declare module "opentype.js" {
 
   export interface Path {
     commands: PathCommand[];
-    toPathData(decimals?: number): string;
     getBoundingBox(): { x1: number; y1: number; x2: number; y2: number };
   }
 

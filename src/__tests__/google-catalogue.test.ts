@@ -149,6 +149,32 @@ describe("searchFamilies", () => {
     expect(searchFamilies(all, "s", "serif")).toEqual([zilla, oldStandard]);
   });
 
+  it("ranks exact, then prefix, then word-start, then other matches — stable within each", () => {
+    const fam = (family: string): GoogleFamily => ({ ...roboto, id: family, family });
+    const list = ["Explora", "Lorax Two", "Grandiflora One", "Lora", "Big Lora", "Loraine"].map(
+      fam,
+    );
+    expect(searchFamilies(list, "lora", null).map((f) => f.family)).toEqual([
+      "Lora",
+      "Lorax Two",
+      "Loraine",
+      "Big Lora",
+      "Explora",
+      "Grandiflora One",
+    ]);
+    // A later occurrence at a word start still counts as a word match.
+    expect(searchFamilies([fam("Floral Lora")], "lora", null).map((f) => f.family)).toEqual([
+      "Floral Lora",
+    ]);
+    expect(
+      searchFamilies([fam("Explora"), fam("Floral Lora")], "lora", null).map((f) => f.family),
+    ).toEqual(["Floral Lora", "Explora"]);
+  });
+
+  it("puts Lora first for “lora” in the real catalogue", () => {
+    expect(searchFamilies(catalogue as GoogleFamily[], "lora", null)[0].family).toBe("Lora");
+  });
+
   it("returns everything, in the input's order, for an empty query and no category", () => {
     expect(searchFamilies(all, "", null)).toEqual(all);
   });

@@ -468,3 +468,40 @@ describe("previewOutline", () => {
     expect(p!.box.w).toBeGreaterThan(0);
   });
 });
+
+/** opentype.js's `toPathData` turned a coordinate with a tiny fractional part into NaN ("1.2e-7"
+ *  + "e+3"), and the rest of that contour was dropped. Scanning the pen across many fractional
+ *  positions — through letter-spacing — catches any position where a glyph loses nodes. */
+describe("outlines at every pen position", () => {
+  const scan = (font: LoadedFont, text: string): number[] => {
+    const counts: number[] = [];
+    for (let ls = 0; ls <= 60; ls += 0.137) {
+      const sp = outlineText(font, meta(text, { font: font.id, size: 32, letterSpacing: ls }));
+      for (const s of sp) {
+        for (const n of s.nodes) {
+          for (const q of [n.p, n.in, n.out]) {
+            if (q && !(Number.isFinite(q.x) && Number.isFinite(q.y))) {
+              throw new Error(`non-finite coordinate at spacing ${ls}`);
+            }
+          }
+        }
+      }
+      counts.push(sp.reduce((a, s) => a + s.nodes.length, 0));
+    }
+    return counts;
+  };
+
+  it("Lora's “l” keeps all 21 nodes wherever the pen lands", async () => {
+    const ot = (await import("opentype.js")).default;
+    const b = fs.readFileSync("fixtures/Lora[wght].ttf");
+    const font = ot.parse(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+    const lora: LoadedFont = { id: "lora", label: "Lora", font };
+    const t = scan(lora, "T")[0];
+    // The "T" sits at pen 0 while the spacing slides the "l" across 60px in 0.137px steps.
+    expect(new Set(scan(lora, "Tl").map((n) => n - t))).toEqual(new Set([21]));
+  });
+
+  it("Anton's “Tallinn” keeps the same node count wherever the pens land", () => {
+    expect(new Set(scan(f, "Tallinn")).size).toBe(1);
+  });
+});
