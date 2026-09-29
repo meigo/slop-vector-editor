@@ -62,7 +62,7 @@ What works today:
   last); their commands stay in the menus at every width. Shape options (corner radius, polygon sides/star) live in the properties
   panel.
 - **Artistic titles**: place a title with the Text tool (T) and type it right on the canvas — the whole
-  text is selected, so typing replaces “Title”. To edit one later, double-click it with the Select tool or
+  text is selected, so typing replaces “Text”. To edit one later, double-click it with the Select tool or
   click it with the Text tool: a caret appears where you clicked. Drag, Shift and the arrow keys, ⌘A and a
   double-click on a word select text; ↑ and ↓ move between lines; paste replaces a selection; Escape (or
   a click elsewhere) finishes, and the whole session is one undo step. Selecting exactly one character

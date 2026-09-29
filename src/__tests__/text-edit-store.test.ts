@@ -260,9 +260,9 @@ describe("the text edit session (spec M22 §2-§3)", () => {
     setTool("text"); // placing enters editing only from the Text tool
     await placeTitle({ x: 50, y: 60 });
     const placed = app.doc.layers[0].children.at(-1) as PathShape;
-    expect(placed.text?.text).toBe("Title");
+    expect(placed.text?.text).toBe("Text");
     expect(app.selection).toEqual([placed.id]);
-    expect(app.textEdit).toEqual({ id: placed.id, anchor: 0, focus: 5 });
+    expect(app.textEdit).toEqual({ id: placed.id, anchor: 0, focus: 4 });
     expect(focus).toHaveBeenCalledTimes(2);
     await endTextEdit();
   });
@@ -433,7 +433,7 @@ describe("the text edit session — final review fixes", () => {
     setTool("select");
     await placing;
     const placed = app.doc.layers[0].children.at(-1) as PathShape;
-    expect(placed.text?.text).toBe("Title");
+    expect(placed.text?.text).toBe("Text");
     expect(app.selection).toEqual([placed.id]);
     expect(app.textEdit).toBeNull();
     expect(blur).toHaveBeenCalledTimes(1);
