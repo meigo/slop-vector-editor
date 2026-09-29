@@ -2975,4 +2975,14 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   refused keystroke still moves `charSel`; a drag back inside the threshold keeps the extended
   selection; auto-pan also runs during a drag-select near the edge; `textWordAt` reads the document's
   text, which can lag the field by an outline; the goal x is not reset across sessions.
-- 1282 tests in 84 files.
+- **Final review fixes**: a session no longer outlives its title — `setSession` ends it (deferred
+  to a microtask and re-checked) when the title is pruned from the selection or loses its text, e.g.
+  its layer locked or hidden, or its row dragged into one; before, focus stayed in the field,
+  keystrokes were ignored and the typing bracket stayed open, swallowing later edits into one undo
+  step. A live keystroke dropped in flight by a store-driven leave is now quiet, like a queued one.
+  The Text tool edits the selected title when a press inside its box hits only its un-entered group
+  (a grouped title selected from Layers used to get a new title placed on top). Placing a title
+  starts no session if the tool changed during the font load. The caret no longer blinks out while
+  the document trails the field by a keystroke. ⌘S / ⌘⇧S in the canvas field save the document
+  instead of opening the browser's Save Page. Not checked in the browser.
+- 1287 tests in 84 files.

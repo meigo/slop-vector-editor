@@ -927,10 +927,15 @@ every user-visible change.
     - **Store state.** `app.textEdit: { id, anchor, focus } | null` (code points; not saved, not
       undoable). `beginTextEdit(id, at | "all")` selects the title, sets the selection, calls the
       registered `registerTextFocus` function **synchronously** (the tap) and opens the typing bracket;
-      `endTextEdit` commits with reporting (`setTitleText`) and leaves; `leaveTextEdit` is the
-      store-driven leave (Escape, a click on empty canvas, a tool change, the selection changing to
-      anything but the edited title, undo/redo/replace, blur) and clears `textEdit` **before**
-      blurring the field so nothing ends twice. Entering while the stops are not loaded keeps the
+      `endTextEdit` is the committing leave (Escape, a click on empty canvas, a blur outside a canvas
+      press): it commits with reporting (`setTitleText`), then leaves; `leaveTextEdit` is the
+      store-driven leave (a tool change, `setSelection` to anything but the edited title,
+      undo/redo/replace, and `setSession` finding the title pruned from the selection or no longer a
+      title — its layer locked or hidden, or it dragged into one) and reports nothing — not even a
+      refused text — and clears `textEdit` **before** blurring the field so nothing ends twice. The
+      `setSession` leave is deferred to a microtask and re-checked there, because the leave itself
+      closes the bracket through `setSession` and `setSession` runs mid-action (`beginDocGesture`,
+      `beginTextEdit`'s re-entry). Entering while the stops are not loaded keeps the
       click point (`pendingAt`) and resolves it when they arrive. `app.caretStops` is cached beside
       `charQuads`; `editCaretStops()` returns them only when they belong to the edited title.
     - **`charSel` is derived**: a selection of exactly one character (not a newline) sets it, so the
@@ -941,9 +946,11 @@ every user-visible change.
       while `insideTyping()`.
     - **Entry.** Select tool double-click on a title (on pointer-up, invariant 32) switches to the
       Text tool and edits with the caret at the click; Text tool click on a title edits it (Shift
-      extends, double tap selects the word, a drag selects from the press); Text tool click on empty
-      canvas places a title — `placeTitle` **pre-focuses the field before the font await**, releasing
-      it on every failure path, and enters editing with the text fully selected — or, while editing,
+      extends, double tap selects the word, a drag selects from the press) — a press inside the box
+      of the one selected title counts as on it, since `hitTest` answers a grouped title's
+      un-entered group; Text tool click on empty canvas places a title — `placeTitle`
+      **pre-focuses the field before the font await**, releasing it on every failure path, and
+      enters editing with the text fully selected if the Text tool is still active — or, while editing,
       only leaves (the next click places). Placing no longer focuses the panel's field or opens the
       Properties drawer below 900px: the editing is on the canvas. A title whose font is
       unavailable (invariant 40) does not enter editing.
@@ -957,10 +964,13 @@ every user-visible change.
       outside that window ends the session (the iPad keyboard's dismiss key).
     - **Typing** is live and quiet, invariant 41: `input` → `typeTextEdit` → `typeTitleText`. The
       title's queued patch is replaced **per target**, so a burst on one title cannot drop another
-      title's pending patch, and a dropped queued patch raises a notice. The document trails the
+      title's pending patch, and a dropped patch — queued or in flight — raises a notice unless it
+      was a quiet keystroke (the burst's own commit reports). The document trails the
       field by an outline; the field is the source from its first `input`.
     - **One undo step per session**, from `beginTextEdit` to the leave. ⌘Z inside the field is the
-      field's own text undo (invariant 41). ⌘A selects the text, not every object.
+      field's own text undo (invariant 41). ⌘A selects the text, not every object. ⌘S / ⌘⇧S (Ctrl
+      too) are passed through to the app's Save / Save As (`commandForKey` → `runCommand`), since
+      the window's shortcut handler skips a focused field and the browser would Save Page.
     - **Auto-pan.** After entering and after each caret change (and as the stops load) the view
       pans by `revealPan(view, caretRect, visible, margin)` — `visible` is the canvas host
       intersected with `visualViewport` — and is not restored. The view is read untracked so a hand
