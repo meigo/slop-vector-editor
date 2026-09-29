@@ -3026,3 +3026,18 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   files. Browser-checked: "Lighthouse" in Anton at ±35° rotation — each letter turns about its own
   middle and stays on the line (tall, narrow letters with no spacing can still touch at that angle).
 
+## 2026-09-29 — Two-finger tap undoes, three-finger tap redoes
+
+- Ported from slop-paint (`src/touch-gestures.ts`) as the pure `src/input/finger-tap.ts`, same
+  rules: reported when the last finger lifts; no finger moved past 15 px; the last finger down
+  under 300 ms; the count is the most fingers down at once; a moved contact resets it, so a pinch
+  never hands its "2" to the next tap; 100 ms debounce. Added here: a Pencil or mouse involved in
+  the contact spoils it — routing ignores fingers under a Pencil stroke (a resting palm), and
+  lifting that palm quickly must not undo the stroke.
+- `Canvas.svelte` feeds every pointer to it before routing (a third finger is never tracked as a
+  gesture) and runs undo/redo after `endPointer`. 10 new tests; 1306 tests in 85 files.
+- **Browser-checked** (desktop Chrome, synthetic touch PointerEvents): two-finger tap undid a
+  rectangle; three-finger tap redid it; a pinch that moved zoomed and did not undo; a Pencil stroke
+  with a two-finger palm tap during it landed and was not undone. **Owed:** real fingers on the iPad
+  (timing and slop of real taps; iOS's own three-finger gestures may take the three-finger tap).
+

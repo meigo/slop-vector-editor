@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { hitTest } from "../geom/hit";
   import type { Vec } from "../geom/vec";
+  import { createFingerTap } from "../input/finger-tap";
   import { routePointerDown } from "../input/route";
   import {
     app,
@@ -13,6 +14,8 @@
     setSelection,
     setView,
     setViewportSize,
+    undo,
+    redo,
   } from "../state/appState.svelte";
   import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
   import { storeContext } from "../tools/context";
@@ -35,6 +38,9 @@
   let gesture = $state.raw<Gesture | null>(null);
   /** Once a Pencil has touched the canvas, fingers only navigate (spec §5). */
   let pencilSeen = false;
+  /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
+   *  a third finger is routed to "ignore" and never tracked below. */
+  const fingerTap = createFingerTap();
   /** Active pointers in canvas-local px. A plain Map: nothing renders from it. */
   const pointers = new Map<number, Vec>();
   /** Each active pointer's `pointerType`, alongside `pointers`. */
@@ -154,6 +160,13 @@
 
   function onpointerdown(e: PointerEvent) {
     app.contextMenu = null;
+    if (e.pointerType === "touch") {
+      fingerTap.down(e.pointerId, { x: e.clientX, y: e.clientY }, e.timeStamp);
+      // A finger landing while a Pencil or mouse is down is a palm, never a tap.
+      for (const t of pointerTypes.values()) if (t !== "touch") fingerTap.spoil();
+    } else {
+      fingerTap.spoil();
+    }
     if (e.pointerType === "pen") pencilSeen = true;
     let activeTouches = 0;
     for (const t of pointerTypes.values()) if (t === "touch") activeTouches++;
@@ -229,6 +242,7 @@
   }
 
   function onpointermove(e: PointerEvent) {
+    if (e.pointerType === "touch") fingerTap.move(e.pointerId, { x: e.clientX, y: e.clientY });
     const p = local(e);
     oncursor(screenToDoc(app.view, p));
     if (!gesture) TOOLS[app.toolId].hover?.(storeContext, toolEvent(e));
@@ -336,10 +350,22 @@
   aria-label="Drawing canvas"
   {onpointerdown}
   {onpointermove}
-  onpointerup={(e) => endPointer(e, false)}
-  onpointercancel={(e) => endPointer(e, true)}
+  onpointerup={(e) => {
+    const taps = e.pointerType === "touch" ? fingerTap.up(e.pointerId, e.timeStamp) : null;
+    endPointer(e, false);
+    // After the gesture bookkeeping: a pinch the second finger started has already cancelled the
+    // first finger's tool action, so undo acts on the document as it was before the tap.
+    if (taps === 2) undo();
+    else if (taps === 3) redo();
+  }}
+  onpointercancel={(e) => {
+    fingerTap.cancel(e.pointerId);
+    endPointer(e, true);
+  }}
   onlostpointercapture={(e) => {
-    if (e.target === host) endPointer(e, true);
+    if (e.target !== host) return;
+    fingerTap.cancel(e.pointerId);
+    endPointer(e, true);
   }}
   {oncontextmenu}
   onpointerleave={() => {
