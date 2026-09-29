@@ -211,7 +211,7 @@
         gesture.tool.cancel(storeContext);
         gesture = null;
       }
-    });
+    }, tool.id);
   }
 
   function onpointermove(e: PointerEvent) {

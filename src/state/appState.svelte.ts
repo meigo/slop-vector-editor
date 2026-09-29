@@ -282,16 +282,21 @@ class AppState {
 
 export const app = new AppState();
 
-/** Set by the canvas while a tool gesture is running; any outside edit cancels the drag first. */
+/** Set by the canvas while a tool gesture is running; any outside edit cancels the drag first.
+ *  `gestureTool` is the id of the tool that owns it — not necessarily `app.toolId`, which a key
+ *  press can change mid-drag while the canvas keeps driving the gesture's own tool. */
 let gestureCancel: (() => void) | null = null;
+let gestureTool: ToolId | null = null;
 
-export function registerGestureCancel(fn: (() => void) | null): void {
+export function registerGestureCancel(fn: (() => void) | null, toolId: ToolId | null = null): void {
   gestureCancel = fn;
+  gestureTool = fn ? toolId : null;
 }
 
 export function cancelActiveGesture(): void {
   const fn = gestureCancel;
   gestureCancel = null;
+  gestureTool = null;
   fn?.();
   toolSettle?.();
 }
@@ -1578,8 +1583,10 @@ export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
         return;
       }
       // The next brush stroke may already be in progress; it is a draft, not a drag committing
-      // from a base document, and cancelling it would throw away what the user is drawing.
-      if (app.toolId !== "brush") cancelActiveGesture();
+      // from a base document, and cancelling it would throw away what the user is drawing. Keyed
+      // on the RUNNING gesture's tool, not `app.toolId`: a key press mid-drag makes them differ,
+      // and any other tool's drag would commit from its base on its next move, erasing this one.
+      if (gestureTool !== "brush") cancelActiveGesture();
       const shape: PathShape = { kind: "path", id: "", transform: IDENTITY, style, subpaths };
       commitDoc(addShape(app.doc, target, shape).doc);
     } catch {

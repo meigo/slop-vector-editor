@@ -121,11 +121,41 @@ describe("commitBrushStroke", () => {
   it("does not cancel a brush stroke in progress when it lands", async () => {
     setTool("brush");
     let cancelled = false;
-    // registerGestureCancel is what Canvas calls while a tool gesture runs.
-    registerGestureCancel(() => (cancelled = true));
+    // registerGestureCancel is what Canvas calls while a tool gesture runs, tagged with its tool.
+    registerGestureCancel(() => (cancelled = true), "brush");
     try {
       await commitBrushStroke(wavy());
       expect(cancelled).toBe(false);
+    } finally {
+      registerGestureCancel(null);
+    }
+  });
+
+  it("cancels another tool's running drag when it lands, even with the brush active", async () => {
+    // V, a select drag begins, B mid-drag: the drag still commits from its base document, so
+    // leaving it running would erase the stroke on its next move.
+    setTool("brush");
+    let cancelled = false;
+    registerGestureCancel(() => (cancelled = true), "select");
+    try {
+      await commitBrushStroke(wavy());
+      expect(cancelled).toBe(true);
+      expect(paths()).toHaveLength(1);
+    } finally {
+      registerGestureCancel(null);
+    }
+  });
+
+  it("does not cancel a brush stroke in progress when another tool is active", async () => {
+    // V pressed during stroke B: the stroke keeps running (it lands at pen-up) while toolId moves on.
+    setTool("brush");
+    let cancelled = false;
+    registerGestureCancel(() => (cancelled = true), "brush");
+    setTool("select");
+    try {
+      await commitBrushStroke(wavy());
+      expect(cancelled).toBe(false);
+      expect(paths()).toHaveLength(1);
     } finally {
       registerGestureCancel(null);
     }
