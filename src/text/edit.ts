@@ -165,5 +165,13 @@ export function selectionRects(
       bottom: s.bottom,
     });
   }
+  // A font's ascender-to-descender can exceed the line pitch: meet adjacent rects, don't overlap.
+  for (let i = 0; i + 1 < rects.length; i++) {
+    if (rects[i].bottom > rects[i + 1].top) {
+      const mid = (rects[i].bottom + rects[i + 1].top) / 2;
+      rects[i].bottom = mid;
+      rects[i + 1].top = mid;
+    }
+  }
   return rects;
 }

@@ -50,6 +50,15 @@
    *  as polygons so a rotated or flipped title stays right. `editCaretStops` is the store's own
    *  guard: a stale title's stops are never drawn. */
   const MIN_SEL_PX = 4;
+  /** A stable number per object identity: the caret's key changes whenever `textEdit` or the stops
+   *  are replaced, so a Forward-Delete or an undo landing on the same index restarts the blink. */
+  const seen = new WeakMap<object, number>();
+  let seenCount = 0;
+  const identity = (o: object) => {
+    let n = seen.get(o);
+    if (n === undefined) seen.set(o, (n = ++seenCount));
+    return n;
+  };
   const textCaret = $derived.by(() => {
     const edit = app.textEdit;
     const stops = editCaretStops();
@@ -75,7 +84,7 @@
       rects,
       a: toScreen(stop.x, stop.top),
       b: toScreen(stop.x, stop.bottom),
-      key: `${edit.focus}:${edit.anchor}`,
+      key: `${identity(edit)}:${identity(stops)}`,
     };
   });
   const outlines = $derived(
@@ -544,7 +553,7 @@
 
   {#if textCaret}
     {#each textCaret.rects as r, i (i)}
-      {@render lineHalo({ t: "poly", pts: r, closed: true })}
+      {@render mark({ t: "poly", pts: r, closed: true }, HALO_LIGHT, 1)}
       <polygon
         points={points(r)}
         style="stroke: none; fill: var(--color-accent); fill-opacity: 0.25"

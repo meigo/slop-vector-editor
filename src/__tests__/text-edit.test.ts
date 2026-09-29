@@ -90,6 +90,22 @@ describe("selectionRects", () => {
   });
 });
 
+describe("selectionRects overlap", () => {
+  it("meets adjacent lines at the midpoint of their overlap", () => {
+    const st: CaretStop[] = [
+      { x: 0, baseline: 0, top: -20, bottom: 10, line: 0 },
+      { x: 10, baseline: 0, top: -20, bottom: 10, line: 0 },
+      { x: 0, baseline: 24, top: 4, bottom: 34, line: 1 },
+      { x: 10, baseline: 24, top: 4, bottom: 34, line: 1 },
+    ];
+    const r = selectionRects(st, 0, 3);
+    expect(r[0].bottom).toBe(7);
+    expect(r[1].top).toBe(7);
+    expect(r[0].top).toBe(-20);
+    expect(r[1].bottom).toBe(34);
+  });
+});
+
 describe("revealPan", () => {
   const view = { x: 0, y: 0, zoom: 1 };
   const visible = { x: 0, y: 0, w: 800, h: 400 };
