@@ -27,7 +27,8 @@ What works today:
   a lossy re-export.
 - New document with size presets; artboard size and background (or transparent).
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
-- Undo/redo and automatic saving to the browser.
+- Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
+  and three to redo.
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width),

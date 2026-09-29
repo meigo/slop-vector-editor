@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1296 tests in 84 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1306 tests in 85 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -109,7 +109,13 @@ every user-visible change.
   `registerToolDiscard`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
-  `double-tap.ts` (pure double-tap/double-click detection).
+  `double-tap.ts` (pure double-tap/double-click detection), `finger-tap.ts` (`createFingerTap`:
+  two-finger tap = undo, three = redo — ported from slop-paint's `touch-gestures.ts`, same rules:
+  reported on the last lift, no finger past 15 px, the last finger down under 300 ms, 100 ms
+  debounce; plus `spoil()`, which `Canvas.svelte` calls when a Pencil or mouse is involved, so a
+  resting palm lifted mid-stroke never undoes it. Canvas feeds it every pointer **before**
+  routing, because a third finger is routed to "ignore" and never tracked; undo/redo run after
+  `endPointer`, once a pinch has cancelled the first finger's tool action).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
   `viewport.ts` (incl. `revealPan`, the pure smallest pan that brings the caret's rectangle into the visible area, spec M22 §6), `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
