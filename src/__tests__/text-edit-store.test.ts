@@ -439,3 +439,67 @@ describe("the text edit session — final review fixes", () => {
     expect(blur).toHaveBeenCalledTimes(1);
   });
 });
+
+/** Emptying the field: the document refuses an empty title (a path needs an outline), so the canvas
+ *  would keep showing the old text under the caret. The title is hidden while the field is empty,
+ *  and leaving with it empty removes the title — as Illustrator and Figma drop an empty text
+ *  object — in the session's own undo step. */
+describe("an emptied title", () => {
+  beforeEach(() => replaceDocument(twoTitles(), "Untitled.svg", null, true));
+  const has = (id: string) => app.doc.layers.some((l) => l.children.some((n) => n.id === id));
+
+  it("is flagged while the field is empty, and not once it has text again", () => {
+    beginTextEdit("t", "all");
+    expect(app.editEmpty).toBe(false);
+    typeTextEdit("");
+    expect(app.editEmpty).toBe(true);
+    typeTextEdit("A");
+    expect(app.editEmpty).toBe(false);
+  });
+
+  it("is removed when the session ends empty, quietly, and one undo brings it back", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("");
+    await endTextEdit();
+    expect(has("t")).toBe(false);
+    expect(app.textEdit).toBeNull();
+    expect(app.editEmpty).toBe(false);
+    expect(app.notices).toEqual([]);
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.canUndo).toBe(false);
+  });
+
+  it("is removed when the selection moves on while it is empty", () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("");
+    setSelection([]);
+    expect(has("t")).toBe(false);
+    expect(app.textEdit).toBeNull();
+  });
+
+  it("is removed when the tool changes while it is empty", () => {
+    setTool("text"); // editing happens with the Text tool; switching away is the leave
+    beginTextEdit("t", "all");
+    typeTextEdit("");
+    setTool("select");
+    expect(has("t")).toBe(false);
+  });
+
+  it("is kept by undo during the session, which reverts the session instead", () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("");
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.textEdit).toBeNull();
+    expect(app.editEmpty).toBe(false);
+  });
+
+  it("is kept when text is typed again before leaving", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("");
+    typeTextEdit("Tartu");
+    await endTextEdit();
+    expect(textOf("t")).toBe("Tartu");
+  });
+});

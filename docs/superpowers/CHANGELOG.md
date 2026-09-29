@@ -2986,3 +2986,19 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   the document trails the field by a keystroke. ⌘S / ⌘⇧S in the canvas field save the document
   instead of opening the browser's Save Page. Not checked in the browser.
 - 1287 tests in 84 files.
+
+## 2026-09-29 — Fix: emptying a title on the canvas
+
+- **Reported:** after placing a title, Backspace left "Title" on the canvas with the caret jumped
+  to its start; the glitch showed when typing began after that.
+- **Cause:** the field was emptied, but the document refuses an empty title (a path needs an
+  outline, the M2 constraint), and during typing that refusal is quiet by design (invariant 41) —
+  so the canvas kept drawing the old text, and the caret sat at index 0 of its stale stops.
+- **Fix:** `app.editEmpty` hides the edited title and its selection frame while the field is empty,
+  with the caret at the run's anchor (x = 0). Leaving with the field empty removes the title —
+  Illustrator and Figma drop an empty text object — in the session's own undo step, quietly (no
+  "A title needs at least one character"). Undo, redo and replace just leave, as before. 6 new
+  store tests; 1293 tests in 84 files.
+- **Browser-checked** (desktop Chrome): place → ⌘A → Backspace shows only the caret (no old text,
+  no frame); typing shows exactly what is typed; emptying then Escape removes the title with no
+  notice; one undo restores it. **Owed:** the same on iPad with the on-screen keyboard.

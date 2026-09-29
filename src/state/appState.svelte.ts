@@ -266,6 +266,10 @@ class AppState {
   /** The title being edited on the canvas and its selection (spec M22 §2). Store state like
    *  `charSel`: not saved, not undoable, replaced never mutated. */
   textEdit = $state.raw<TextEdit | null>(null);
+  /** The field of the session is empty (fix 2026-09-29). The document refuses an empty title — a
+   *  path needs an outline — so without this the canvas kept drawing the old text under the caret.
+   *  `NodeView` hides the edited title while it is set. */
+  editEmpty = $state(false);
   /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
    *  session. */
   gradientTarget = $state<PaintSlot>("fill");
@@ -452,7 +456,7 @@ function queueEditCheck(): void {
     editCheckQueued = false;
     // Whichever session is open now — the one that went invalid, or one entered since — ends only
     // if it is invalid now. `leaveTextEdit` does nothing with no session.
-    if (!editStillValid()) leaveTextEdit();
+    if (!editStillValid()) leaveTextEdit(false);
   });
 }
 
@@ -501,7 +505,7 @@ export function endToolGesture(): void {
 }
 
 export function undo(): void {
-  leaveTextEdit();
+  leaveTextEdit(false);
   cancelActiveGesture();
   if (!canUndo(app.session.history)) return;
   discardToolDraft();
@@ -509,7 +513,7 @@ export function undo(): void {
 }
 
 export function redo(): void {
-  leaveTextEdit();
+  leaveTextEdit(false);
   cancelActiveGesture();
   if (!canRedo(app.session.history)) return;
   discardToolDraft();
@@ -522,7 +526,7 @@ export function replaceDocument(
   handle: FileSystemFileHandle | null,
   saved: boolean,
 ): void {
-  leaveTextEdit();
+  leaveTextEdit(false);
   cancelActiveGesture();
   discardToolDraft();
   app.selection = [];
@@ -681,11 +685,15 @@ function sameSelection(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function setSelection(ids: readonly string[]): void {
-  const pruned = pruneSelection(app.doc, ids);
+  let pruned = pruneSelection(app.doc, ids);
   // Before `clearSubSelections`: `beginTextEdit` itself selects exactly the edited title, which
   // must neither end the session nor lose the `charSel` it derives (spec M22 §3).
   const edit = app.textEdit;
-  if (edit && !(pruned.length === 1 && pruned[0] === edit.id)) leaveTextEdit();
+  if (edit && !(pruned.length === 1 && pruned[0] === edit.id)) {
+    leaveTextEdit();
+    // Leaving with an empty field removes the title, which may be among the ids asked for.
+    pruned = pruneSelection(app.doc, ids);
+  }
   const wasEmpty = app.selection.length === 0;
   const before = app.selection;
   app.selection = sameSelection(pruned, before) ? before : pruned;
@@ -2366,6 +2374,7 @@ export function textWordAt(index: number): { start: number; end: number } {
 export function typeTextEdit(text: string): void {
   if (!app.textEdit) return;
   editText = text;
+  app.editEmpty = text === "";
   startTitleTyping();
   void typeTitleText(text);
 }
@@ -2378,7 +2387,8 @@ export function endTextEdit(): Promise<void> {
   const seq = editSeq;
   const text = editText ?? editedTitle()?.text?.text ?? "";
   const ending: Promise<void> = (async () => {
-    await setTitleText(text);
+    // An empty field is not a refusal to report: leaving removes the title (`leaveTextEdit`).
+    if (text !== "") await setTitleText(text);
     // A store-driven leave, or a re-entry, may have run while the commit awaited its outline.
     if (seq === editSeq) leaveTextEdit();
   })().finally(() => {
@@ -2398,12 +2408,20 @@ export function endTextEdit(): Promise<void> {
  *  deliberately reports nothing (a refused text, too, goes unreported here; only `endTextEdit`, the
  *  committing path, reports). `textEdit` is cleared before the blur, so the field's blur handler
  *  finds no session and does not start a second leave. */
-function leaveTextEdit(): void {
+function leaveTextEdit(removeEmpty = true): void {
   if (!app.textEdit) return;
+  const { id } = app.textEdit;
+  const empty = editText === "";
   app.textEdit = null;
+  app.editEmpty = false;
   editSeq++;
   pendingAt = null;
   editText = null;
+  // A title left empty is removed, as Illustrator and Figma drop an empty text object — inside the
+  // session's bracket, so one undo brings back the title and its text together. Not for undo, redo
+  // or a replace (they revert or discard the document themselves) nor for `setSession` finding the
+  // title gone or out of reach; `textEdit` is already null, so the commit's own check stays quiet.
+  if (removeEmpty && empty && findNode(app.doc, id)) commitDoc(deleteNodes(app.doc, [id]));
   endTitleTyping();
   textBlur?.();
 }

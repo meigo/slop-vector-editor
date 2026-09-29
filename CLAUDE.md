@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1287 tests in 84 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1293 tests in 84 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -938,6 +938,14 @@ every user-visible change.
       `beginTextEdit`'s re-entry). Entering while the stops are not loaded keeps the
       click point (`pendingAt`) and resolves it when they arrive. `app.caretStops` is cached beside
       `charQuads`; `editCaretStops()` returns them only when they belong to the edited title.
+      **An emptied field** (fix 2026-09-29): the document refuses an empty title — a path needs an
+      outline — so it keeps the old text; `app.editEmpty` hides the title (`NodeView`) and its frame
+      (Overlay) and puts the caret at x = 0 until text arrives. Leaving empty **removes the title**
+      (the Illustrator/Figma convention), inside the session's bracket so one undo restores it —
+      `endTextEdit` skips the reporting commit for an empty field, and `leaveTextEdit(removeEmpty)`
+      does the removal, except for undo/redo/replace and the `setSession` leave (`false`), which
+      revert, discard or have already lost the title. `setSelection` re-prunes after that leave,
+      because the removed title may be among the ids it was asked to select.
     - **`charSel` is derived**: a selection of exactly one character (not a newline) sets it, so the
       Character block edits it and a press on it drags it (`setCharOffset`); anything else sets it
       to null. A character drag inside a session **keeps the session's one undo step** — the
