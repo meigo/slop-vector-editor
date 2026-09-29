@@ -30,7 +30,8 @@ describe("brush tool", () => {
     expect(state.brushStrokes).toHaveLength(1);
     expect(state.brushStrokes[0].length).toBeGreaterThan(10);
     expect(state.session.doc.layers[0].children).toHaveLength(0); // the tool never writes the doc
-    expect(state.overlay?.kind === "brush" ? state.overlay.live : null).toBeNull();
+    // The slot is cleared, not left holding a brush overlay: a tool switch may already have run.
+    expect(state.overlay).toBeNull();
   });
 
   it("a tap commits a dot", () => {
@@ -108,6 +109,26 @@ describe("brush tool", () => {
     tool.up(ctx, ev(100, 0, {}, "mouse", 120));
     const ys = state.brushStrokes[0].map((p) => p.y);
     expect(Math.max(...ys)).toBeGreaterThan(15); // the zig-zag in the samples reached the outline
+  });
+
+  it("a pan during the stroke keeps the ink under the pen", () => {
+    const tool = createBrushTool();
+    const { ctx, state } = fakeContext(blank());
+    // The event's screen point, with its document point through the view of the moment.
+    const at = (sx: number, time: number) => {
+      const e = ev(sx - state.view.x, 50, {}, "mouse", time);
+      e.screen = { x: sx, y: 50 };
+      return e;
+    };
+    tool.down(ctx, at(10, 0));
+    for (let i = 1; i <= 20; i++) tool.move(ctx, at(10 + i * 3, i * 8));
+    state.view = { x: 100, y: 0, zoom: 1 }; // a wheel pan mid-stroke
+    for (let i = 21; i <= 40; i++) tool.move(ctx, at(100 + 10 + i * 3, i * 8));
+    tool.up(ctx, at(100 + 130, 400));
+    const xs = state.brushStrokes[0].map((p) => p.x);
+    // The pen ended at document x 130; mapped through the pointer-down view it would be 230.
+    expect(Math.max(...xs)).toBeGreaterThan(125);
+    expect(Math.max(...xs)).toBeLessThan(140);
   });
 
   it("hover shows the size cursor, radius size/2 in document px", () => {

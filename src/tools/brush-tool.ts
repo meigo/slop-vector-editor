@@ -5,17 +5,20 @@ import type { Paint } from "../doc/document";
 import { blockMessage, layerBlock } from "../doc/layers";
 import { loadPaper } from "../geom/paper";
 import type { Vec } from "../geom/vec";
-import { screenToDoc, type View } from "../state/viewport";
+import { screenToDoc } from "../state/viewport";
 import type { Tool, ToolContext } from "./tool";
 
 /** The Brush tool (spec M21 §2, §3, §5): steadies the pointer in screen space, outlines the
- *  stroke in document space through the view at pointer-down, previews it in the overlay and
+ *  stroke in document space — each point through the view at the moment it was accepted, so a
+ *  wheel pan or zoom mid-stroke keeps the ink under the pen (spec §3) — previews it in the overlay and
  *  hands the finished outline to the store. Like the pen's draft (invariant 33), a stroke in
  *  progress never enters the document. */
 export function createBrushTool(): Tool {
   let steadier: Steadier | null = null;
   let pen = false; // pointerType === "pen" for this stroke
-  let origin: View | null = null; // the view at pointer-down; screen → doc through it
+  // `steadier.points` mapped to document space through the view current when each was accepted.
+  // The steadier only appends, so after every call its new tail is mapped and appended here.
+  let docPoints: StrokePoint[] = [];
 
   const settings = (ctx: ToolContext) => ctx.prefs().brush;
   const toPoint = (e: { screen: Vec; pressure: number; time: number }): StrokePoint => ({
@@ -24,11 +27,16 @@ export function createBrushTool(): Tool {
     pressure: pen ? e.pressure : 0.5,
     timestamp: e.time,
   });
+  const accept = (ctx: ToolContext) => {
+    const v = ctx.view();
+    const pts = steadier!.points;
+    for (let i = docPoints.length; i < pts.length; i++)
+      docPoints.push({ ...pts[i], ...screenToDoc(v, pts[i]) });
+  };
   const outline = (ctx: ToolContext, last: boolean): Vec[] => {
     const b = settings(ctx);
-    const v = origin!;
-    const pts = steadier!.points.map((p) => ({ ...p, ...screenToDoc(v, p) }));
-    return brushOutline(pts, {
+    const v = ctx.view();
+    return brushOutline(docPoints, {
       size: b.size,
       pressureRange: pen ? b.pressure : 1,
       taper: b.taper,
@@ -43,8 +51,10 @@ export function createBrushTool(): Tool {
   };
   const end = (ctx: ToolContext) => {
     steadier = null;
-    origin = null;
-    show(ctx, null, null);
+    docPoints = [];
+    // Null, not an empty brush overlay: a tool switch may already have cleared the slot, and the
+    // next hover brings the size cursor back.
+    ctx.setOverlay(null);
   };
 
   return {
@@ -62,19 +72,22 @@ export function createBrushTool(): Tool {
         return;
       }
       pen = e.pointerType === "pen";
-      origin = ctx.view();
       steadier = new Steadier(ropeLength(settings(ctx).stream / 100));
+      docPoints = [];
       steadier.start(toPoint(e));
+      accept(ctx);
       show(ctx, outline(ctx, false), null);
     },
     move(ctx, e) {
       if (!steadier) return;
       for (const s of e.samples ?? [e]) steadier.move(toPoint(s));
+      accept(ctx);
       show(ctx, outline(ctx, false), null);
     },
     up(ctx, e) {
       if (!steadier) return;
       steadier.finish(toPoint(e));
+      accept(ctx);
       const o = outline(ctx, true);
       end(ctx);
       if (o.length >= 3) ctx.commitBrushStroke(o);

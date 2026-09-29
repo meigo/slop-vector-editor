@@ -39,6 +39,7 @@ const paths = (): PathShape[] =>
   app.doc.layers.flatMap((l) => l.children).filter((n): n is PathShape => n.kind === "path");
 
 beforeEach(() => {
+  setTool("select");
   replaceDocument(twoLayers(), "Untitled.svg", null, true);
   app.notices = [];
 });
@@ -122,9 +123,12 @@ describe("commitBrushStroke", () => {
     let cancelled = false;
     // registerGestureCancel is what Canvas calls while a tool gesture runs.
     registerGestureCancel(() => (cancelled = true));
-    await commitBrushStroke(wavy());
-    expect(cancelled).toBe(false);
-    registerGestureCancel(null);
+    try {
+      await commitBrushStroke(wavy());
+      expect(cancelled).toBe(false);
+    } finally {
+      registerGestureCancel(null);
+    }
   });
 
   it("reports a stroke that fails to land, and the next stroke still lands", async () => {
