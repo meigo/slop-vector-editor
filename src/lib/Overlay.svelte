@@ -6,8 +6,9 @@
   import { applyMat, multiply } from "../geom/mat";
   import type { Vec } from "../geom/vec";
   import { edgeCubic } from "../geom/warp";
-  import { app } from "../state/appState.svelte";
+  import { app, editCaretStops } from "../state/appState.svelte";
   import { docToScreen } from "../state/viewport";
+  import { selectionRects } from "../text/edit";
   import { selectionFrame } from "../tools/frame";
   import { handleCorner } from "../tools/cage-handles";
   import { activeHandles, frameOutline, handlePositions, handleSize } from "../tools/gizmo";
@@ -44,6 +45,52 @@
     if (!found) return null;
     const world = multiply(found.parent, found.node.transform);
     return quad.map((q) => docToScreen(view, applyMat(world, q)));
+  });
+  /** The text edit's selection and caret (M22 §5), title-local through the title's world matrix,
+   *  as polygons so a rotated or flipped title stays right. `editCaretStops` is the store's own
+   *  guard: a stale title's stops are never drawn. */
+  const MIN_SEL_PX = 4;
+  /** A stable number per object identity: the caret's key changes whenever `textEdit` or the stops
+   *  are replaced, so a Forward-Delete or an undo landing on the same index restarts the blink. */
+  const seen = new WeakMap<object, number>();
+  let seenCount = 0;
+  const identity = (o: object) => {
+    let n = seen.get(o);
+    if (n === undefined) seen.set(o, (n = ++seenCount));
+    return n;
+  };
+  const textCaret = $derived.by(() => {
+    const edit = app.textEdit;
+    const stops = editCaretStops();
+    if (!edit || !stops) return null;
+    const found = findNode(app.doc, edit.id);
+    if (!found) return null;
+    const world = multiply(found.parent, found.node.transform);
+    const toScreen = (x: number, y: number) => docToScreen(view, applyMat(world, { x, y }));
+    // A minimum width in title-local units, so an empty line's zero-width rect stays visible.
+    const minLocal = MIN_SEL_PX / (view.zoom * (Math.hypot(world[0], world[1]) || 1));
+    // The document trails the field during a burst, so the stops can be one keystroke short:
+    // clamp, as `TextEditField.caretRect` does, rather than let the caret blink out.
+    const last = stops.length - 1;
+    const anchor = Math.min(edit.anchor, last);
+    const focus = Math.min(edit.focus, last);
+    const rects = selectionRects(stops, anchor, focus).map((r) => {
+      const x1 = Math.max(r.x1, r.x0 + minLocal);
+      return [
+        toScreen(r.x0, r.top),
+        toScreen(x1, r.top),
+        toScreen(x1, r.bottom),
+        toScreen(r.x0, r.bottom),
+      ];
+    });
+    const stop = stops[focus];
+    if (!stop) return null;
+    return {
+      rects,
+      a: toScreen(stop.x, stop.top),
+      b: toScreen(stop.x, stop.bottom),
+      key: `${identity(edit)}:${identity(stops)}`,
+    };
   });
   const outlines = $derived(
     app.selection
@@ -507,6 +554,29 @@
       {@render lineHalo({ t: "line", a: { x: 0, y: sy }, b: { x: app.viewportSize.w, y: sy } })}
       <line x1="0" y1={sy} x2={app.viewportSize.w} y2={sy} style={GUIDE} stroke-width="1" />
     {/each}
+  {/if}
+
+  {#if textCaret}
+    {#each textCaret.rects as r, i (i)}
+      {@render mark({ t: "poly", pts: r, closed: true }, HALO_LIGHT, 1)}
+      <polygon
+        points={points(r)}
+        style="stroke: none; fill: var(--color-accent); fill-opacity: 0.25"
+      />
+    {/each}
+    {#key textCaret.key}
+      <g class="text-caret">
+        {@render lineHalo({ t: "line", a: textCaret.a, b: textCaret.b })}
+        <line
+          x1={textCaret.a.x}
+          y1={textCaret.a.y}
+          x2={textCaret.b.x}
+          y2={textCaret.b.y}
+          style={LINE}
+          stroke-width="1.5"
+        />
+      </g>
+    {/key}
   {/if}
 
   {#if charOutline}

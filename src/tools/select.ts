@@ -315,6 +315,14 @@ export function createSelectTool(): Tool {
         if (m.handle) return;
         // The gesture stayed a click (never dragged): apply a pending double tap now.
         if (m.secondTap === "path" && m.hitId !== null) {
+          // A title is edited as text instead (spec M22 §3); the tool switches first, so the
+          // session is entered with the Text tool already active.
+          const n = findNode(ctx.doc(), m.hitId)?.node;
+          if (n?.kind === "path" && n.text) {
+            ctx.setTool("text");
+            ctx.beginTextEdit(m.hitId, e.doc);
+            return;
+          }
           ctx.setNodeTarget(m.hitId);
           ctx.setSelection([m.hitId]);
           ctx.setTool("node");

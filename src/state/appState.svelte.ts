@@ -100,12 +100,23 @@ import { outlineSubpath, polygonArea } from "../brush/outline";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
+import {
+  indexAt,
+  remapIndex,
+  remapOverrides,
+  wordAt,
+  type CaretStop,
+  type TextEdit,
+} from "../text/edit";
 import { newSeed } from "../text/random";
 import { serializeDoc } from "../svg/serialize";
 import {
   loadFace,
+  caretStops,
   charHits,
   familyHasItalic,
+  fontAvailable,
+  fontChoices,
   familyWeights,
   outlineText,
   FontUnavailableError,
@@ -119,7 +130,7 @@ import {
   type FaceRequest,
   type LoadedFont,
 } from "../text/font";
-import { familyDir, googleFontId, type GoogleFamily } from "../text/google-catalogue";
+import { familyDir, familyIdOf, googleFontId, type GoogleFamily } from "../text/google-catalogue";
 import {
   fetchFaceFile,
   fetchMetadata,
@@ -190,6 +201,7 @@ export type ShareReadyRequest = {
   doc: Doc | null;
 };
 export type ContextMenuState = { x: number; y: number } | null;
+export type { TextEdit };
 export type DockState = { shift: Latch; alt: Latch };
 
 /** The single app store. Exported as `app`, never `state`, so components that use the `$state`
@@ -249,6 +261,11 @@ class AppState {
   charQuads = $state.raw<Vec[][]>([]);
   /** String index of each quad. The quad list skips newlines, so slot and index disagree. */
   charAt = $state.raw<number[]>([]);
+  /** A caret position for every index of the selected title, plus the end (spec M22 §2). */
+  caretStops = $state.raw<CaretStop[]>([]);
+  /** The title being edited on the canvas and its selection (spec M22 §2). Store state like
+   *  `charSel`: not saved, not undoable, replaced never mutated. */
+  textEdit = $state.raw<TextEdit | null>(null);
   /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
    *  session. */
   gradientTarget = $state<PaintSlot>("fill");
@@ -405,6 +422,38 @@ function setSession(s: Session): void {
       if (kept.length !== app.nodeSel.length) app.nodeSel = kept;
     }
   }
+  if (app.textEdit && !editStillValid()) queueEditCheck();
+}
+
+/** The text edit session outlives nothing it edits (spec M22 §3): `setSession` can prune the
+ *  edited title from the selection (its layer locked or hidden, the title dragged into one) or
+ *  bake its text away without `setSelection` ever running. True while the session still has its
+ *  title, selected alone and still a title. */
+function editStillValid(): boolean {
+  const edit = app.textEdit;
+  if (!edit) return true;
+  if (app.selection.length !== 1 || app.selection[0] !== edit.id) return false;
+  const n = findNode(app.doc, edit.id)?.node;
+  return !!n && n.kind === "path" && !!n.text;
+}
+
+/** Deferred to a microtask, and re-checked there, rather than leaving inside `setSession`: the
+ *  leave closes the typing bracket (`endDocGesture` → `setSession` again) and blurs the field, and
+ *  `setSession` runs in the middle of other store actions — `beginDocGesture` would have the
+ *  gesture it is opening closed under it, and `beginTextEdit`'s re-entry passes through a moment
+ *  where the selection is not yet the title. After the caller's whole synchronous action, only a
+ *  session that is still invalid ends; no event (a keystroke) can run in between. */
+let editCheckQueued = false;
+
+function queueEditCheck(): void {
+  if (editCheckQueued) return;
+  editCheckQueued = true;
+  queueMicrotask(() => {
+    editCheckQueued = false;
+    // Whichever session is open now — the one that went invalid, or one entered since — ends only
+    // if it is invalid now. `leaveTextEdit` does nothing with no session.
+    if (!editStillValid()) leaveTextEdit();
+  });
 }
 
 export function commitDoc(next: Doc): void {
@@ -431,10 +480,6 @@ export function beginUiGesture(): number {
   return beginDocGesture();
 }
 
-export function titleGestureEpoch(): number {
-  return gestureEpoch;
-}
-
 export function endDocGesture(): void {
   setSession(endGesture(app.session));
 }
@@ -444,11 +489,19 @@ export function endDocGesture(): void {
 export function finishCharDrag(): void {
   const epoch = gestureEpoch;
   void titleInFlight().then(() => {
-    if (gestureEpoch === epoch) endDocGesture();
+    if (gestureEpoch === epoch && !insideTyping()) endDocGesture();
   });
 }
 
+/** A tool's own `endGesture` (through `ToolContext`). A tool gesture inside the typing bracket —
+ *  a character drag while editing on the canvas — opened nothing (`beginDocGesture` inside an open
+ *  gesture is a no-op), so it must not close the bracket that the typing session owns. */
+export function endToolGesture(): void {
+  if (!insideTyping()) endDocGesture();
+}
+
 export function undo(): void {
+  leaveTextEdit();
   cancelActiveGesture();
   if (!canUndo(app.session.history)) return;
   discardToolDraft();
@@ -456,6 +509,7 @@ export function undo(): void {
 }
 
 export function redo(): void {
+  leaveTextEdit();
   cancelActiveGesture();
   if (!canRedo(app.session.history)) return;
   discardToolDraft();
@@ -468,6 +522,7 @@ export function replaceDocument(
   handle: FileSystemFileHandle | null,
   saved: boolean,
 ): void {
+  leaveTextEdit();
   cancelActiveGesture();
   discardToolDraft();
   app.selection = [];
@@ -626,9 +681,13 @@ function sameSelection(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function setSelection(ids: readonly string[]): void {
+  const pruned = pruneSelection(app.doc, ids);
+  // Before `clearSubSelections`: `beginTextEdit` itself selects exactly the edited title, which
+  // must neither end the session nor lose the `charSel` it derives (spec M22 §3).
+  const edit = app.textEdit;
+  if (edit && !(pruned.length === 1 && pruned[0] === edit.id)) leaveTextEdit();
   const wasEmpty = app.selection.length === 0;
   const before = app.selection;
-  const pruned = pruneSelection(app.doc, ids);
   app.selection = sameSelection(pruned, before) ? before : pruned;
   if (app.selection !== before) {
     clearSubSelections();
@@ -663,6 +722,9 @@ export function registerToolActivate(fn: (() => void) | null): void {
 
 export function setTool(id: ToolId): void {
   if (app.toolId === id) return;
+  // The Text tool is where editing lives (the Select tool's double-click switches to it); any
+  // other tool ends the session (spec M22 §3).
+  if (id !== "text") leaveTextEdit();
   finishActiveTool?.();
   app.toolId = id;
   app.overlay = null;
@@ -1613,54 +1675,51 @@ export async function placeTitle(at: Vec): Promise<void> {
     notify("info", blockMessage(b, "draw"));
     return;
   }
-  const before = app.doc;
-  const meta = defaultMeta("Title");
-  titleRunning = true;
-  const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
-    titleRunning = false;
-  });
-  if (!subpaths || subpaths.length === 0) return;
-  if (app.doc !== before) {
-    notify("info", "The document changed while the font loaded — try placing the title again.");
-    return;
-  }
-  // Re-checked after the await: the layer may have been locked, and a canvas drag may have begun
-  // (invariant 15 — the first `cancelActiveGesture` was before the fetch, which is too early).
-  const again = layerBlock(app.doc, layerId);
-  if (again) {
-    notify("info", blockMessage(again, "draw"));
-    return;
-  }
-  cancelActiveGesture();
-  const shape: PathShape = {
-    kind: "path",
-    id: "",
-    transform: [1, 0, 0, 1, at.x, at.y],
-    style: { ...app.prefs.style },
-    subpaths,
-    text: meta,
-  };
-  const r = addShape(app.doc, layerId, shape);
-  commitDoc(r.doc);
-  setSelection([r.id]);
-  // Spec §6: placing a title is immediately followed by typing it. On iPad this is the difference
-  // between the keyboard appearing and hunting for the field in a panel that just re-laid out.
-  // The control is a textarea. Below 900px the sidebar is a drawer and is not mounted until opened,
-  // and a wide window can have a hidden copy of it first in the document.
-  queueMicrotask(() => {
-    if (window.matchMedia("(max-width: 899px)").matches) app.propertiesOpen = true;
-    requestAnimationFrame(() => {
-      const fields = document.querySelectorAll<HTMLTextAreaElement>(
-        'textarea[aria-label="Title text"]',
-      );
-      for (const el of fields) {
-        if (el.getClientRects().length > 0) {
-          el.focus();
-          return;
-        }
-      }
+  // Focus the canvas text field now, inside the tap (spec M22 §1): iOS raises the keyboard only
+  // for a focus made synchronously there, and the outline below awaits the font. `beginTextEdit`
+  // focuses it again; any way out that does not reach it lets the field go, so the keyboard does
+  // not stay up (with the app's shortcuts off) over a placement that never happened. A focused
+  // field with no session ignores input and blur.
+  textFocus?.();
+  try {
+    const before = app.doc;
+    const meta = defaultMeta("Title");
+    titleRunning = true;
+    const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
+      titleRunning = false;
     });
-  });
+    if (!subpaths || subpaths.length === 0) return;
+    if (app.doc !== before) {
+      notify("info", "The document changed while the font loaded — try placing the title again.");
+      return;
+    }
+    // Re-checked after the await: the layer may have been locked, and a canvas drag may have begun
+    // (invariant 15 — the first `cancelActiveGesture` was before the fetch, which is too early).
+    const again = layerBlock(app.doc, layerId);
+    if (again) {
+      notify("info", blockMessage(again, "draw"));
+      return;
+    }
+    cancelActiveGesture();
+    const shape: PathShape = {
+      kind: "path",
+      id: "",
+      transform: [1, 0, 0, 1, at.x, at.y],
+      style: { ...app.prefs.style },
+      subpaths,
+      text: meta,
+    };
+    const r = addShape(app.doc, layerId, shape);
+    commitDoc(r.doc);
+    setSelection([r.id]);
+    // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
+    // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap. Only while the
+    // Text tool is still active: a tool changed during the font load ended editing, and the
+    // `finally` below lets the field go.
+    if (app.toolId === "text") beginTextEdit(r.id, "all");
+  } finally {
+    if (!app.textEdit) textBlur?.();
+  }
 }
 
 /** The single selected title, or null. */
@@ -1677,6 +1736,19 @@ export function selectedTitle(): PathShape | null {
  *  the "one outline at a time" property the guard exists for, while making the **last** intent the
  *  one that lands. */
 let queuedPatch: Partial<TextMeta> | null = null;
+/** The title the queued patch was meant for. A patch that is still queued when the selection moves
+ *  on is dropped, never applied to whatever title is selected by then — a keystroke typed into one
+ *  title would otherwise land on the next (spec M22 §3, leaving on a selection change). */
+let queuedTarget: string | null = null;
+
+/** Newest wins, merged — but only for the same title: a patch meant for another title replaces
+ *  the queue, or one title's pending change would be applied to the next. */
+function enqueueTitlePatch(patch: Partial<TextMeta>): void {
+  const target = selectedTitle()?.id ?? null;
+  queuedPatch =
+    queuedPatch !== null && queuedTarget === target ? { ...queuedPatch, ...patch } : { ...patch };
+  queuedTarget = target;
+}
 /** True while the text field is being typed in (spec M10e §5). A live keystroke is a state the
  *  user is passing THROUGH, not one they asked for: an empty field on the way to retyping, or a
  *  half-typed word the font has no glyph for, are both ordinary. So a live reshape fails silently
@@ -1692,7 +1764,7 @@ async function reshapeTitle(
   keepGesture = false,
 ): Promise<void> {
   if (titleRunning) {
-    queuedPatch = { ...queuedPatch, ...patch };
+    enqueueTitlePatch(patch);
     // A burst that ends on a live keystroke must stay quiet when it drains, and one that ends on
     // the commit must not — so the flag follows the newest arrival, like the patch itself.
     titleQuiet = quiet;
@@ -1707,9 +1779,16 @@ async function reshapeTitle(
   // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
   // still records an undo step for a change that is not there.
   const len = [...meta.text].length;
-  meta.overrides = Object.fromEntries(
-    Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
-  );
+  if (patch.text !== undefined) {
+    // An edit to the string moves characters: overrides and the picked character follow theirs
+    // (spec M22 §4), rather than staying at the same index.
+    meta.overrides = remapOverrides(target.text.text, meta.text, meta.overrides);
+    if (app.charSel !== null) app.charSel = remapIndex(target.text.text, meta.text, app.charSel);
+  } else {
+    meta.overrides = Object.fromEntries(
+      Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
+    );
+  }
   if (app.charSel !== null && app.charSel >= len) app.charSel = null;
   // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
   // Re-picking the current font, or tapping the alignment button already on, reached here.
@@ -1732,7 +1811,9 @@ async function reshapeTitle(
     return;
   }
   if (app.doc !== before || app.selection !== beforeSel) {
-    notify("info", "The selection changed while the font loaded — try that again.");
+    // Quiet for a live keystroke, like the queued drop in `reshapeTitleDraining`: the burst's own
+    // commit (`endTextEdit`, the panel field's blur) writes the whole text and reports.
+    if (!quiet) notify("info", "The selection changed while the font loaded — try that again.");
     return;
   }
   if (subpaths.length === 0) {
@@ -1793,7 +1874,7 @@ function reshapeTitleDraining(
 ): Promise<void> {
   if (titleRunning) {
     // Queued onto the running drain; awaiting *that* is what makes the caller wait for this patch.
-    queuedPatch = { ...queuedPatch, ...patch };
+    enqueueTitlePatch(patch);
     titleQuiet = quiet;
     titleKeepGesture = keepGesture;
     return titleWork ?? Promise.resolve();
@@ -1805,6 +1886,13 @@ function reshapeTitleDraining(
     while (queuedPatch !== null && !titleRunning) {
       const next = queuedPatch;
       queuedPatch = null;
+      if (queuedTarget !== (selectedTitle()?.id ?? null)) {
+        // Said out loud like the in-flight case, except for a live keystroke (quiet): the burst's
+        // own commit reports.
+        if (!titleQuiet)
+          notify("info", "The selection changed while the font loaded — try that again.");
+        break;
+      }
       await reshapeTitle(next, titleQuiet, titleKeepGesture);
     }
   })().finally(() => {
@@ -1816,7 +1904,7 @@ function reshapeTitleDraining(
 export const setTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text });
 
 /** A keystroke in the text field (spec M10e §5). The canvas follows the typing, and the whole
- *  burst is one undo step because `TextPanel` brackets it in a document gesture (invariant 41) —
+ *  burst is one undo step because the shared typing bracket (`startTitleTyping`, invariants 41 and 49) wraps it —
  *  the same shape as dragging the colour picker. `quiet`, so the states a burst passes through
  *  raise nothing. */
 export const typeTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text }, true);
@@ -2006,26 +2094,30 @@ export function setCharSel(i: number | null): void {
   app.charSel = i;
 }
 
-/** Picks the character under a document point. Synchronous on purpose: the quads are kept up to
+/** The selected title's character under a document point, or null (spec M22 §3: the Text tool
+ *  asks whether a press is on the selected one). Synchronous on purpose: the quads are kept up to
  *  date as the selection changes, because loading the font is async and a tool's `down` is not. */
-export function pickCharacter(at: Vec): void {
+export function charAtPoint(at: Vec): number | null {
+  return charHit(at) ?? null;
+}
+
+/** The character index under `at`, null for a miss, or undefined when there is nothing to test
+ *  against (no selected title, no quads yet, a singular matrix). */
+function charHit(at: Vec): number | null | undefined {
   const t = selectedTitle();
   const quads = app.charQuads;
-  if (!t || quads.length === 0) return;
+  if (!t || quads.length === 0) return undefined;
   const found = findNode(app.doc, t.id);
-  if (!found) return;
+  if (!found) return undefined;
   const world = multiplyMat(found.parent, t.transform);
   const inv = invertMat(world);
-  if (!inv) return; // a singular matrix has no inside (invariant 26)
+  if (!inv) return undefined; // a singular matrix has no inside (invariant 26)
   const p = applyMat(inv, at);
   // Last match wins: later characters are drawn on top, so that is what the eye picked.
   for (let i = quads.length - 1; i >= 0; i--) {
-    if (pointInQuad(p, quads[i])) {
-      app.charSel = app.charAt[i] ?? i;
-      return;
-    }
+    if (pointInQuad(p, quads[i])) return app.charAt[i] ?? i;
   }
-  app.charSel = null;
+  return null;
 }
 
 function pointInQuad(p: Vec, q: readonly Vec[]): boolean {
@@ -2080,6 +2172,242 @@ export function setCharOffset(dx: number, dy: number): Promise<void> {
   return reshapeTitleDraining({ overrides }, true, true);
 }
 
+// ---------------------------------------------------------------------------
+// On-canvas text editing (spec M22). The session is store state; the textarea that mirrors it
+// lives in Canvas, which registers its focus and blur here.
+// ---------------------------------------------------------------------------
+
+/** Which title `app.caretStops` belongs to. The stops follow the selection through an effect, so
+ *  just after `setSelection` they can still be the previous title's. Not reactive. */
+let caretStopsFor: string | null = null;
+/** A click point that entered editing before the stops were loaded (spec M22 §2). */
+let pendingAt: Vec | null = null;
+/** The last text the textarea sent, committed with reporting when the session ends. */
+let editText: string | null = null;
+/** Bumped by every leave, so an `endTextEdit` still awaiting its commit does not end a newer
+ *  session. */
+let editSeq = 0;
+let endingEdit: Promise<void> | null = null;
+
+let textFocus: (() => void) | null = null;
+let textBlur: (() => void) | null = null;
+
+/** Canvas registers its textarea focus here (spec §1). */
+export function registerTextFocus(fn: (() => void) | null): void {
+  textFocus = fn;
+}
+
+/** Canvas registers its textarea blur here, for the store-driven leaves. */
+export function registerTextBlur(fn: (() => void) | null): void {
+  textBlur = fn;
+}
+
+/** The shared typing bracket (spec M22 §3, invariant 41), used by the panel field and the canvas
+ *  session alike: a whole typing burst is one undo step. `beginUiGesture` settles the active tool
+ *  first (invariant 47). */
+let titleTyping = false;
+let titleTypingEpoch = 0;
+
+export function startTitleTyping(): void {
+  // Reopened when something closed the gesture under the flag, so the rest of a burst is still
+  // bracketed rather than one undo step per keystroke.
+  if (titleTyping && app.session.gestureBase !== null) return;
+  titleTyping = true;
+  titleTypingEpoch = beginUiGesture();
+}
+
+/** True while the open document gesture is the typing bracket itself. */
+function insideTyping(): boolean {
+  return titleTyping && app.session.gestureBase !== null && gestureEpoch === titleTypingEpoch;
+}
+
+/** Closes the bracket now — after an awaited commit, or when a leave must not wait. */
+export function endTitleTyping(): void {
+  if (!titleTyping) return;
+  titleTyping = false;
+  endDocGesture();
+}
+
+/** Closes the bracket once the outline drain settles, and only if no newer gesture began meanwhile
+ *  — for an end that cannot await the commit (the panel unmounting mid-burst). */
+export function abandonTitleTyping(): void {
+  if (!titleTyping) return;
+  titleTyping = false;
+  const epoch = titleTypingEpoch;
+  void titleInFlight().then(() => {
+    if (gestureEpoch === epoch) endDocGesture();
+  });
+}
+
+function editedTitle(): PathShape | null {
+  const edit = app.textEdit;
+  if (!edit) return null;
+  const n = findNode(app.doc, edit.id)?.node;
+  return n && n.kind === "path" && n.text ? n : null;
+}
+
+/** The panel's missing-font wording (`TextPanel`), without the catalogue lookup it does for a
+ *  Google family's display name. */
+function missingFontText(font: string): string {
+  const gf = familyIdOf(font);
+  const label = fontChoices().find((c) => c.id === font)?.label ?? gf ?? font;
+  return gf !== null
+    ? `Needs the font “${label}”, which isn't downloaded — download it from Google Fonts`
+    : `Needs the font “${label}”, which isn't loaded — add it from a file`;
+}
+
+/** Installs the caret stops for title `id` (the store's quad effect; tests call it directly), and
+ *  resolves a click point that entered editing before they arrived. */
+export function setCaretStops(id: string | null, stops: CaretStop[]): void {
+  caretStopsFor = id;
+  app.caretStops = stops;
+  const edit = app.textEdit;
+  if (pendingAt && edit && edit.id === id) {
+    const i = textIndexAt(pendingAt);
+    if (i !== null) {
+      pendingAt = null;
+      setTextSelection(i, i);
+    }
+  }
+}
+
+/** Enter editing `id` (selects it). `at` is a document point (caret there, resolved when stops
+ *  arrive if they are not loaded yet), or "all" (select the whole text). Calls the registered
+ *  focus function synchronously. Refuses (notice) when the title's font is unavailable.
+ *
+ *  Why on the canvas and not in the panel (this replaces M10's focus of the panel's field after
+ *  placing): on iPad, entering a title is immediately followed by typing it, and the keyboard
+ *  appears only for a focus made synchronously inside the tap. Below 900px the sidebar is a drawer
+ *  that is not mounted until opened, and a wide window can have a hidden copy of it first in the
+ *  document, so the panel field meant a deferred focus — and hunting for a field in a panel that
+ *  had just re-laid out. The canvas textarea is always mounted, so the focus can be synchronous. */
+export function beginTextEdit(id: string, at: Vec | "all"): void {
+  const n = findNode(app.doc, id)?.node;
+  if (!n || n.kind !== "path" || !n.text) return;
+  if (!fontAvailable(n.text.font)) {
+    notify("info", missingFontText(n.text.font));
+    return;
+  }
+  // Re-entering the title being edited keeps its session — and its bracket, so it stays one undo
+  // step. Any other session ends first; its keystrokes are already committed live.
+  if (app.textEdit && app.textEdit.id !== id) leaveTextEdit();
+  // An `endTextEdit` still awaiting its commit must not end the session entered now.
+  editSeq++;
+  endingEdit = null;
+  cancelActiveGesture();
+  setSelection([id]);
+  // A hidden or locked title cannot be selected (invariant 39), so it cannot be edited either.
+  if (app.selection.length !== 1 || app.selection[0] !== id) return;
+  if (app.textEdit?.id !== id) {
+    editText = n.text.text;
+    const end = [...editText].length;
+    app.textEdit = { id, anchor: end, focus: end };
+  }
+  // Re-entering measures the session's text, which the document may still trail.
+  const len = [...(editText ?? n.text.text)].length;
+  pendingAt = null;
+  if (at === "all") {
+    setTextSelection(0, len);
+  } else {
+    const i = textIndexAt(at);
+    if (i === null) pendingAt = at;
+    else setTextSelection(i, i);
+  }
+  // Synchronously, still inside the tap: iOS raises the keyboard only for a focus made there.
+  textFocus?.();
+  startTitleTyping();
+}
+
+/** Set the selection (code points). Derives `app.charSel` (spec §2): a one-character selection is
+ *  the picked character, unless that character is a newline; anything else picks nothing. */
+export function setTextSelection(anchor: number, focus: number): void {
+  const edit = app.textEdit;
+  // The textarea's text, which the document trails by an outline during a typing burst.
+  const text = editText ?? editedTitle()?.text?.text;
+  if (!edit || text === undefined) return;
+  const chars = [...text];
+  const clamp = (i: number) => Math.min(Math.max(Math.round(i), 0), chars.length);
+  const a = clamp(anchor);
+  const f = clamp(focus);
+  if (a !== edit.anchor || f !== edit.focus) app.textEdit = { id: edit.id, anchor: a, focus: f };
+  const lo = Math.min(a, f);
+  const pick = Math.abs(f - a) === 1 && chars[lo] !== "\n" ? lo : null;
+  if (app.charSel !== pick) app.charSel = pick;
+}
+
+/** Document point → index in the edited title, through its world matrix; null if not editing,
+ *  stops not loaded, or the matrix is singular. */
+export function textIndexAt(at: Vec): number | null {
+  const edit = app.textEdit;
+  if (!edit || caretStopsFor !== edit.id || app.caretStops.length === 0) return null;
+  const found = findNode(app.doc, edit.id);
+  if (!found) return null;
+  const inv = invertMat(multiplyMat(found.parent, found.node.transform));
+  if (!inv) return null; // invariant 26
+  const i = indexAt(app.caretStops, applyMat(inv, at));
+  return i < 0 ? null : i;
+}
+
+/** The caret stops, when they belong to the edited title — else null (not editing, or the stops
+ *  are still the previous title's or not loaded). Reactive through `app.textEdit` and
+ *  `app.caretStops`, which `setCaretStops` always assigns together with `caretStopsFor`. */
+export function editCaretStops(): CaretStop[] | null {
+  const edit = app.textEdit;
+  const stops = app.caretStops;
+  return edit && caretStopsFor === edit.id && stops.length > 0 ? stops : null;
+}
+
+/** The word around `index` in the edited title (the tool's double tap). */
+export function textWordAt(index: number): { start: number; end: number } {
+  return wordAt(editedTitle()?.text?.text ?? "", index);
+}
+
+/** Live keystroke from the textarea: typeTitleText + bracket start (idempotent). */
+export function typeTextEdit(text: string): void {
+  if (!app.textEdit) return;
+  editText = text;
+  startTitleTyping();
+  void typeTitleText(text);
+}
+
+/** Leave editing: commit the textarea's text (setTitleText — reporting), close the bracket. The
+ *  same end as the panel field's blur: a refused text is reported here, once. */
+export function endTextEdit(): Promise<void> {
+  if (!app.textEdit) return Promise.resolve();
+  if (endingEdit) return endingEdit;
+  const seq = editSeq;
+  const text = editText ?? editedTitle()?.text?.text ?? "";
+  const ending: Promise<void> = (async () => {
+    await setTitleText(text);
+    // A store-driven leave, or a re-entry, may have run while the commit awaited its outline.
+    if (seq === editSeq) leaveTextEdit();
+  })().finally(() => {
+    if (endingEdit === ending) endingEdit = null;
+  });
+  endingEdit = ending;
+  return ending;
+}
+
+/** The one leave both paths share. Synchronous, for the store-driven leaves (selection, undo, redo,
+ *  replace, tool change, and `setSession` finding the title gone from the selection) that must end
+ *  the session BEFORE the store acts: every keystroke already went to the live path, so there is
+ *  nothing left to write. The bracket closes now, so an undo that follows removes the whole session
+ *  as one step. A keystroke whose outline is still in flight (or queued) at that moment is dropped
+ *  by `reshapeTitle`'s own check, since the selection or document moved under it — quietly, as a
+ *  live keystroke is: it needs a keystroke and a leave within one outline, and a store-driven leave
+ *  deliberately reports nothing (a refused text, too, goes unreported here; only `endTextEdit`, the
+ *  committing path, reports). `textEdit` is cleared before the blur, so the field's blur handler
+ *  finds no session and does not start a second leave. */
+function leaveTextEdit(): void {
+  if (!app.textEdit) return;
+  app.textEdit = null;
+  editSeq++;
+  pendingAt = null;
+  editText = null;
+  endTitleTyping();
+  textBlur?.();
+}
+
 /** The quads follow the selected title. This lives in the store, not in `TextPanel`, because M8 put
  *  that panel behind `{#if expanded}` — with Properties collapsed, character picking would have
  *  silently stopped working. */
@@ -2095,6 +2423,7 @@ $effect.root(() => {
     if (!t?.text) {
       if (app.charQuads.length > 0) app.charQuads = [];
       if (app.charAt.length > 0) app.charAt = [];
+      if (app.caretStops.length > 0 || caretStopsFor !== null) setCaretStops(null, []);
       return;
     }
     const id = t.id;
@@ -2107,11 +2436,13 @@ $effect.root(() => {
         const hits = charHits(f, meta);
         app.charQuads = hits.map((h) => h.quad);
         app.charAt = hits.map((h) => h.index);
+        setCaretStops(id, caretStops(f, meta));
       })
       .catch(() => {
         if (gen !== quadGen) return;
         app.charQuads = [];
         app.charAt = [];
+        setCaretStops(null, []);
       });
   });
 });

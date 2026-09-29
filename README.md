@@ -61,7 +61,15 @@ What works today:
   — in the status bar. On narrower windows some icon groups fold away (flip first, clipboard
   last); their commands stay in the menus at every width. Shape options (corner radius, polygon sides/star) live in the properties
   panel.
-- **Artistic titles**: place a title with the Text tool (T) and type it in the properties panel —
+- **Artistic titles**: place a title with the Text tool (T) and type it right on the canvas — the whole
+  text is selected, so typing replaces “Title”. To edit one later, double-click it with the Select tool or
+  click it with the Text tool: a caret appears where you clicked. Drag, Shift and the arrow keys, ⌘A and a
+  double-click on a word select text; ↑ and ↓ move between lines; paste replaces a selection; Escape (or
+  a click elsewhere) finishes, and the whole session is one undo step. Selecting exactly one character
+  gives you the Character block below, and dragging that character moves it. On an iPad the on-screen
+  keyboard comes up and the canvas pans to keep the caret above it; if Chrome leaves the app shifted
+  after the keyboard closes, use Safari or the Home Screen app. The properties panel's text field still
+  edits the same string —
   choose a font, size, letter-spacing, line height and alignment, and press Return for a second line, then **randomise the characters** — rotation,
   scale, baseline and skew, each by its own amount, with a seed you can re-roll until you like it. Click a single character to tweak just that
   one by hand, or drag it — your changes survive a re-roll of the rest. The title is outlined to paths, so it looks the
@@ -162,7 +170,7 @@ What works today:
 ## Roadmap
 
 Unplanned: gradients with more than three stops, focal points; grid and smart guides;
-masks/clipping; system-clipboard image paste; paragraph text, on-canvas text editing and text
+masks/clipping; system-clipboard image paste; paragraph text and text
 shaping for complex scripts (bold/italic weight and style are done).
 
 ## Development
@@ -171,7 +179,7 @@ shaping for complex scripts (bold/italic weight and style are done).
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1227 unit tests
+npm test          # 1282 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```

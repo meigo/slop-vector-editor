@@ -2,10 +2,11 @@ import type { Doc } from "../doc/document";
 import { resolveLayerId } from "../doc/layers";
 import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
-import { pruneSelection } from "../doc/tree";
+import { findNode, pruneSelection } from "../doc/tree";
 import { DEFAULT_PREFS, type Prefs } from "../persist/preferences";
 import { beginGesture, commit, endGesture, newSession, type Session } from "../state/session";
 import type { View } from "../state/viewport";
+import { wordAt, type TextEdit } from "../text/edit";
 import type { Overlay, ToolContext, ToolEvent } from "../tools/tool";
 import type { Vec } from "../geom/vec";
 import { NO_MODS, type Mods, type ToolId } from "../tools/types";
@@ -13,9 +14,7 @@ import { NO_MODS, type Mods, type ToolId } from "../tools/types";
 export type FakeState = {
   /** Where the Text tool asked for a title (spec M10 §6). */
   titlesPlaced: Vec[];
-  charsPicked: Vec[];
   charNudges: Vec[];
-  fakeTitleId: string | null;
   fakeCharSel: number | null;
   fakeCharOffset: { dx: number; dy: number };
   session: Session;
@@ -38,6 +37,19 @@ export type FakeState = {
   hoverCursor: string | null;
   /** Each `commitBrushStroke` call's outline (spec M21 §4.2), recorded rather than committed. */
   brushStrokes: Vec[][];
+  /** Every text-edit call (spec M22), recorded in order. */
+  textEdits: (
+    | { op: "begin"; id: string; at: Vec | "all" }
+    | { op: "select"; anchor: number; focus: number }
+    | { op: "end" }
+  )[];
+  /** The session `textEdit()` reports. `beginTextEdit` sets it (caret at `fakeIndexAt`, or 0 for
+   *  "all"), `setTextSelection` updates it and `endTextEdit` clears it; tests may also set it. */
+  fakeTextEdit: TextEdit | null;
+  /** What `textIndexAt` answers. */
+  fakeIndexAt: (at: Vec) => number | null;
+  /** What `charAtPoint` answers. */
+  fakeCharAt: (at: Vec) => number | null;
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -47,9 +59,7 @@ export function fakeContext(
 ): { ctx: ToolContext; state: FakeState } {
   const state: FakeState = {
     titlesPlaced: [],
-    charsPicked: [],
     charNudges: [],
-    fakeTitleId: null,
     fakeCharSel: null,
     fakeCharOffset: { dx: 0, dy: 0 },
     session: newSession(doc, true),
@@ -68,6 +78,10 @@ export function fakeContext(
     forgotten: [],
     hoverCursor: null,
     brushStrokes: [],
+    textEdits: [],
+    fakeTextEdit: null,
+    fakeIndexAt: () => null,
+    fakeCharAt: () => null,
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -114,14 +128,11 @@ export function fakeContext(
     commitBrushStroke: (o) => {
       state.brushStrokes.push([...o]);
     },
-    pickCharacter: (at) => {
-      state.charsPicked.push(at);
-    },
+    charAtPoint: (at) => state.fakeCharAt(at),
     charOffset: () => state.fakeCharOffset,
     setCharOffset: (dx, dy) => {
       state.charNudges.push({ x: dx, y: dy });
     },
-    titleId: () => state.fakeTitleId,
     charSel: () => state.fakeCharSel,
     notify: (_kind, text) => {
       state.notices.push(text);
@@ -140,6 +151,27 @@ export function fakeContext(
     },
     setHoverCursor: (c) => {
       state.hoverCursor = c;
+    },
+    textEdit: () => state.fakeTextEdit,
+    beginTextEdit: (id, at) => {
+      state.textEdits.push({ op: "begin", id, at });
+      const i = at === "all" ? 0 : (state.fakeIndexAt(at) ?? 0);
+      state.fakeTextEdit = { id, anchor: i, focus: i };
+    },
+    setTextSelection: (anchor, focus) => {
+      state.textEdits.push({ op: "select", anchor, focus });
+      if (state.fakeTextEdit) state.fakeTextEdit = { ...state.fakeTextEdit, anchor, focus };
+    },
+    textIndexAt: (at) => (state.fakeTextEdit ? state.fakeIndexAt(at) : null),
+    endTextEdit: () => {
+      state.textEdits.push({ op: "end" });
+      state.fakeTextEdit = null;
+    },
+    textWordAt: (index) => {
+      const id = state.fakeTextEdit?.id;
+      const found = id ? findNode(state.session.doc, id) : null;
+      const n = found?.node;
+      return wordAt(n && n.kind === "path" && n.text ? n.text.text : "", index);
     },
   };
   return { ctx, state };

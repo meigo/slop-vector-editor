@@ -4,6 +4,7 @@ import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
 import type { Cage } from "../geom/warp";
+import type { TextEdit } from "../text/edit";
 import type { Prefs } from "../persist/preferences";
 import type { View } from "../state/viewport";
 import type { Mods, ToolId } from "./types";
@@ -77,17 +78,15 @@ export interface ToolContext {
   /** Commits a finished brush stroke's outline (spec M21 §4.2). The store owns it for the same
    *  reason as `placeTitle`: simplifying awaits Paper's lazy chunk. */
   commitBrushStroke(outline: readonly Vec[]): void;
-  /** Selects the character of the selected title under a document point (spec M10 §6). */
-  pickCharacter(at: Vec): void;
+  /** The index of the selected title's character under a document point, or null (spec M22 §3:
+   *  the Text tool asks whether a press is on the selected character). */
+  charAtPoint(at: Vec): number | null;
   /** The selected character's current offset, read once when a drag begins. */
   charOffset(): { dx: number; dy: number };
   /** Sets that offset absolutely — see the note on `setCharOffset` in the store. */
   setCharOffset(dx: number, dy: number): void;
   /** Closes the character-drag bracket after its outline commit, which is async. */
   finishCharDrag(): void;
-  /** The selected title's id, or null — the tool needs it to tell "click inside a title I am
-   *  already editing" from "click on empty canvas, place a new one". */
-  titleId(): string | null;
   charSel(): number | null;
   notify(kind: "info" | "error", text: string): void;
   setOverlay(o: Overlay): void;
@@ -108,6 +107,20 @@ export interface ToolContext {
   /** A cursor for what is under a hovering pointer (spec M17 §6), shown in place of the tool's
    *  static `cursor`; null restores it. Desktop only in practice — touch has no hover. */
   setHoverCursor(c: string | null): void;
+  /** The title being edited on the canvas and its selection (spec M22 §2), or null. */
+  textEdit(): TextEdit | null;
+  /** Enters editing a title: the caret at a document point, or "all" of its text selected. Focuses
+   *  the hidden textarea synchronously, so call it from the pointer handler itself (spec M22 §1). */
+  beginTextEdit(id: string, at: Vec | "all"): void;
+  /** Sets the edited title's selection, in code points. */
+  setTextSelection(anchor: number, focus: number): void;
+  /** The index nearest a document point in the edited title, or null (not editing, no stops yet,
+   *  or a singular matrix). */
+  textIndexAt(at: Vec): number | null;
+  /** Leaves editing, committing the text with reporting. */
+  endTextEdit(): void;
+  /** The word around an index of the edited title's text (a double tap). */
+  textWordAt(index: number): { start: number; end: number };
 }
 
 export interface Tool {

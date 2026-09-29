@@ -10,6 +10,7 @@ import type { CachedFamily } from "../persist/font-cache";
 import { BUNDLED } from "./fonts";
 import { chooseFace, hasItalic } from "./google-fonts";
 import { layoutRun, splitLines } from "./layout";
+import type { CaretStop } from "./edit";
 import { charTransform, isIdentityChar, withOverride, type CharTransform } from "./random";
 
 type OT = (typeof import("opentype.js"))["default"];
@@ -456,6 +457,36 @@ export function charHits(f: LoadedFont, m: TextMeta): CharHit[] {
       : corners.map((c) => applyMat(charMatrix(t, centreOf(p, m.size), p.penY), c));
     return { index: p.index, quad };
   });
+}
+
+/** A caret position for every string index, plus the end (spec M22 §2): `[...m.text].length + 1`
+ *  stops. Un-jittered by design — the caret sits on the layout, not on the randomised glyphs. A
+ *  newline's stop is the end of its line; an empty line sits at x 0. */
+export function caretStops(f: LoadedFont, m: TextMeta): CaretStop[] {
+  const { placed, font, upm } = runLayout(f, m);
+  const top = (-font.ascender / upm) * m.size;
+  const bottom = (-font.descender / upm) * m.size;
+  const byIndex = new Map(placed.map((p) => [p.index, p]));
+  const out: CaretStop[] = [];
+  splitLines(m.text).forEach((line, lineNo) => {
+    const baseline = lineNo * m.lineHeight * m.size;
+    const n = [...line.text].length;
+    const stop = (x: number): CaretStop => ({
+      x,
+      baseline,
+      top: baseline + top,
+      bottom: baseline + bottom,
+      line: lineNo,
+    });
+    let end = 0;
+    for (let k = 0; k < n; k++) {
+      const p = byIndex.get(line.start + k);
+      out.push(stop(p ? p.penX : end));
+      if (p) end = p.penX + p.advance * m.size;
+    }
+    out.push(stop(end));
+  });
+  return out;
 }
 
 export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {

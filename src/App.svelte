@@ -81,6 +81,34 @@
     };
   });
 
+  // The PAGE must never scroll. iOS can still shift it to reveal a focused field above the
+  // on-screen keyboard — the on-canvas text field (spec M22 §6), the panel's fields, the dialogs —
+  // and does not always shift it back, leaving the app pushed up with a blank band below. Snap it
+  // back when focus leaves a field, when the visual viewport resizes (the keyboard opening or
+  // closing), and on the page's own `scroll`: Chrome for iPad scrolls a moment AFTER the first two.
+  // A no-op wherever the page is already at 0 (always on desktop); element scrollers never fire
+  // `scroll` on window. As slop-animator and slop-paint keep it (../CLAUDE.md): this undoes the
+  // real page scroll, NOT Chrome for iPad's leftover shift after the keyboard, which lives in
+  // Chrome's native view out of the page's reach — there Safari, or the Home Screen app, is the way.
+  $effect(() => {
+    const resetPageScroll = () => {
+      const el = document.scrollingElement;
+      if (window.scrollX !== 0 || window.scrollY !== 0 || (el && el.scrollTop !== 0)) {
+        window.scrollTo(0, 0);
+        if (el) el.scrollTop = 0;
+      }
+    };
+    const onFocusOut = () => requestAnimationFrame(resetPageScroll);
+    document.addEventListener("focusout", onFocusOut);
+    window.visualViewport?.addEventListener("resize", resetPageScroll);
+    window.addEventListener("scroll", resetPageScroll, { passive: true });
+    return () => {
+      document.removeEventListener("focusout", onFocusOut);
+      window.visualViewport?.removeEventListener("resize", resetPageScroll);
+      window.removeEventListener("scroll", resetPageScroll);
+    };
+  });
+
   function isEditable(t: EventTarget | null): boolean {
     return (
       t instanceof HTMLElement &&
