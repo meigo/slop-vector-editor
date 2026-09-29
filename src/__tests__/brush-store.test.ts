@@ -6,9 +6,11 @@ import {
   app,
   commitBrushStroke,
   commitDoc,
+  registerGestureCancel,
   replaceDocument,
   setCurrentLayer,
   setSelection,
+  setTool,
   toggleLayerLocked,
   undo,
 } from "../state/appState.svelte";
@@ -113,6 +115,16 @@ describe("commitBrushStroke", () => {
     await p;
     expect(paths()).toHaveLength(0);
     expect(app.notices.map((n) => n.text)).toContain("“Front” is locked — unlock it to draw.");
+  });
+
+  it("does not cancel a brush stroke in progress when it lands", async () => {
+    setTool("brush");
+    let cancelled = false;
+    // registerGestureCancel is what Canvas calls while a tool gesture runs.
+    registerGestureCancel(() => (cancelled = true));
+    await commitBrushStroke(wavy());
+    expect(cancelled).toBe(false);
+    registerGestureCancel(null);
   });
 
   it("reports a stroke that fails to land, and the next stroke still lands", async () => {

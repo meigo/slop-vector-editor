@@ -1,3 +1,4 @@
+import { createBrushTool } from "./brush-tool";
 import { createGradientTool } from "./gradient-tool";
 import { createNodeTool } from "./node-tool";
 import { createPenTool } from "./pen";
@@ -22,6 +23,7 @@ export const TOOLS: Readonly<Record<ToolId, Tool>> = {
   line: createLineTool(),
   polygon: createPolygonTool(),
   pen: createPenTool(),
+  brush: createBrushTool(),
   text: createTextTool(),
   node: createNodeTool(),
   hand: createHandTool(),

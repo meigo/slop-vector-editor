@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    Brush,
     Circle,
     Hand,
     MousePointer2,
@@ -24,6 +25,7 @@
     { id: "line", label: "Line", key: "L", icon: Slash },
     { id: "polygon", label: "Polygon / star", key: "Y", icon: Pentagon },
     { id: "pen", label: "Pen", key: "P", icon: PenTool },
+    { id: "brush", label: "Brush", key: "B", icon: Brush },
     { id: "text", label: "Text", key: "T", icon: Type },
     { id: "gradient", label: "Gradient", key: "G", icon: GradientIcon },
     { id: "warp", label: "Warp", key: "W", icon: WarpIcon },

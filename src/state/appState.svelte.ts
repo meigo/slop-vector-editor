@@ -1561,8 +1561,7 @@ export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
       }
       // The next brush stroke may already be in progress; it is a draft, not a drag committing
       // from a base document, and cancelling it would throw away what the user is drawing.
-      // (The cast goes once M21 Task 5 adds "brush" to `ToolId`.)
-      if ((app.toolId as string) !== "brush") cancelActiveGesture();
+      if (app.toolId !== "brush") cancelActiveGesture();
       const shape: PathShape = { kind: "path", id: "", transform: IDENTITY, style, subpaths };
       commitDoc(addShape(app.doc, target, shape).doc);
     } catch {

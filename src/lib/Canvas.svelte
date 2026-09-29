@@ -9,6 +9,7 @@
     dockMods,
     fitArtboard,
     registerGestureCancel,
+    setOverlay,
     setSelection,
     setView,
     setViewportSize,
@@ -319,6 +320,9 @@
   {oncontextmenu}
   onpointerleave={() => {
     if (pointers.size === 0) oncursor(null);
+    // The brush's size cursor follows hover; take it away when the pointer leaves (spec M21 §5).
+    if (pointers.size === 0 && app.overlay?.kind === "brush")
+      setOverlay({ ...app.overlay, cursor: null });
   }}
 >
   <svg class="absolute inset-0" {width} {height}>
