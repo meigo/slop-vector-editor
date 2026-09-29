@@ -257,6 +257,7 @@ describe("the text edit session (spec M22 §2-§3)", () => {
   it("placing a title enters editing with its whole text selected", async () => {
     const focus = vi.fn();
     registerTextFocus(focus);
+    setTool("text"); // placing enters editing only from the Text tool
     await placeTitle({ x: 50, y: 60 });
     const placed = app.doc.layers[0].children.at(-1) as PathShape;
     expect(placed.text?.text).toBe("Title");
@@ -271,6 +272,7 @@ describe("the text edit session (spec M22 §2-§3)", () => {
     const blur = vi.fn();
     registerTextFocus(focus);
     registerTextBlur(blur);
+    setTool("text"); // placing enters editing only from the Text tool
     const placing = placeTitle({ x: 50, y: 60 });
     // Still inside the tap: iOS raises the keyboard only for a synchronous focus (spec §1).
     expect(focus).toHaveBeenCalledTimes(1);
@@ -348,7 +350,8 @@ describe("the text edit session — fix round 1", () => {
     typeTextEdit("B12");
     setSelection(["t2"]);
     await titleInFlight();
-    expect(said()).toBe(1);
+    // Neither the keystroke in flight nor the queued one says anything (final review, minor 1).
+    expect(said()).toBe(0);
   });
 
   it("re-entering the title while its end is awaiting keeps the new session", async () => {
@@ -387,5 +390,52 @@ describe("the text edit session — fix round 1", () => {
     undo();
     expect(textOf("t")).toBe("Tallinn");
     expect(app.canUndo).toBe(false);
+  });
+});
+
+describe("the text edit session — final review fixes", () => {
+  beforeEach(() => replaceDocument(twoTitles(), "Untitled.svg", null, true));
+
+  it("a session change that prunes the edited title from the selection ends the session", async () => {
+    const blur = vi.fn();
+    registerTextBlur(blur);
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn");
+    await titleInFlight();
+    // Locking the title's layer prunes it from the selection through `setSession`, not
+    // `setSelection` (the same path as dragging its Layers row into a locked layer).
+    toggleLayerLocked("L0");
+    await Promise.resolve();
+    expect(app.selection).toEqual([]);
+    expect(app.textEdit).toBeNull();
+    expect(blur).toHaveBeenCalledTimes(1);
+    // The bracket closed with the leave, so the next edit is an undo step of its own.
+    toggleLayerLocked("L0");
+    undo();
+    expect(app.doc.layers[0].locked).toBe(true);
+    expect(textOf("t")).toBe("XTallinn");
+  });
+
+  it("a live keystroke in flight when a store-driven leave happens is dropped quietly", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("B1");
+    setSelection(["t2"]);
+    await titleInFlight();
+    expect(app.notices.filter((n) => /selection changed/.test(n.text))).toHaveLength(0);
+    expect(textOf("t2")).toBe("Tartu");
+  });
+
+  it("a tool change while placing's font loads does not start a session", async () => {
+    const blur = vi.fn();
+    registerTextBlur(blur);
+    setTool("text");
+    const placing = placeTitle({ x: 50, y: 60 });
+    setTool("select");
+    await placing;
+    const placed = app.doc.layers[0].children.at(-1) as PathShape;
+    expect(placed.text?.text).toBe("Title");
+    expect(app.selection).toEqual([placed.id]);
+    expect(app.textEdit).toBeNull();
+    expect(blur).toHaveBeenCalledTimes(1);
   });
 });

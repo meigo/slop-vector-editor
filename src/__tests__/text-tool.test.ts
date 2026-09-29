@@ -242,3 +242,33 @@ describe("the Text tool: dragging the selected character", () => {
     expect(state.fakeTextEdit).toEqual({ id: "t", anchor: 5, focus: 7 });
   });
 });
+
+describe("the Text tool: a title inside a group", () => {
+  /** Title "t" inside group "g", which has not been entered: `hitTest` answers "g". */
+  const grouped = () => {
+    const d = createDoc(400, 400);
+    const g = {
+      kind: "group" as const,
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [titleShape("t", "Tallinn"), titleShape("u", "Other", 150)],
+    };
+    return fakeContext({ ...d, layers: [{ ...d.layers[0], children: [g] }] });
+  };
+
+  it("a click on the selected title edits it rather than placing a new one", () => {
+    const { ctx, state } = grouped();
+    state.selection = ["t"];
+    tap(createTextTool(), ctx, 50, 50);
+    expect(state.titlesPlaced).toEqual([]);
+    expect(state.textEdits[0]).toEqual({ op: "begin", id: "t", at: { x: 50, y: 50 } });
+  });
+
+  it("a click outside the selected title still hits only the group", () => {
+    const { ctx, state } = grouped();
+    state.selection = ["t"];
+    tap(createTextTool(), ctx, 50, 150);
+    expect(state.textEdits).toEqual([]);
+  });
+});

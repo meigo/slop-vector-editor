@@ -1,5 +1,7 @@
 import { findNode } from "../doc/tree";
+import { nodeBounds } from "../geom/bounds";
 import { hitTest } from "../geom/hit";
+import { applyMat, IDENTITY, invert, multiply } from "../geom/mat";
 import { isDoubleTap, type Tap } from "../input/double-tap";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
@@ -8,9 +10,28 @@ function titleAt(ctx: ToolContext, e: ToolEvent): string | null {
   const doc = ctx.doc();
   const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
   const id = hitTest(doc, e.doc, tol, ctx.enteredGroupId())?.nodeId ?? null;
-  if (id === null) return null;
-  const n = findNode(doc, id)?.node;
-  return n && n.kind === "path" && n.text ? id : null;
+  const n = id === null ? null : findNode(doc, id)?.node;
+  if (n && n.kind === "path" && n.text) return id;
+  return selectedTitleAt(ctx, e);
+}
+
+/** The single selected title, if the press is inside its box. `hitTest` answers a group that has
+ *  not been entered, never the title inside it — yet the Layers panel selects a grouped title
+ *  directly, and a click on it must edit it rather than place a new title on top. Tested in the
+ *  title's own space, so a rotated title's box is its own, not its larger world bounds. */
+function selectedTitleAt(ctx: ToolContext, e: ToolEvent): string | null {
+  const sel = ctx.selection();
+  if (sel.length !== 1) return null;
+  const found = findNode(ctx.doc(), sel[0]);
+  const n = found?.node;
+  if (!found || !n || n.kind !== "path" || !n.text) return null;
+  const inv = invert(multiply(found.parent, n.transform));
+  if (!inv) return null; // invariant 26
+  const q = applyMat(inv, e.doc);
+  const box = nodeBounds({ ...n, transform: IDENTITY }, IDENTITY);
+  return box && q.x >= box.x && q.x <= box.x + box.w && q.y >= box.y && q.y <= box.y + box.h
+    ? n.id
+    : null;
 }
 
 /** The Text tool (spec M10 §6, M22 §3). A click on a title edits it on the canvas — caret at the

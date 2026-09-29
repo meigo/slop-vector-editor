@@ -422,6 +422,38 @@ function setSession(s: Session): void {
       if (kept.length !== app.nodeSel.length) app.nodeSel = kept;
     }
   }
+  if (app.textEdit && !editStillValid()) queueEditCheck();
+}
+
+/** The text edit session outlives nothing it edits (spec M22 §3): `setSession` can prune the
+ *  edited title from the selection (its layer locked or hidden, the title dragged into one) or
+ *  bake its text away without `setSelection` ever running. True while the session still has its
+ *  title, selected alone and still a title. */
+function editStillValid(): boolean {
+  const edit = app.textEdit;
+  if (!edit) return true;
+  if (app.selection.length !== 1 || app.selection[0] !== edit.id) return false;
+  const n = findNode(app.doc, edit.id)?.node;
+  return !!n && n.kind === "path" && !!n.text;
+}
+
+/** Deferred to a microtask, and re-checked there, rather than leaving inside `setSession`: the
+ *  leave closes the typing bracket (`endDocGesture` → `setSession` again) and blurs the field, and
+ *  `setSession` runs in the middle of other store actions — `beginDocGesture` would have the
+ *  gesture it is opening closed under it, and `beginTextEdit`'s re-entry passes through a moment
+ *  where the selection is not yet the title. After the caller's whole synchronous action, only a
+ *  session that is still invalid ends; no event (a keystroke) can run in between. */
+let editCheckQueued = false;
+
+function queueEditCheck(): void {
+  if (editCheckQueued) return;
+  editCheckQueued = true;
+  queueMicrotask(() => {
+    editCheckQueued = false;
+    // Whichever session is open now — the one that went invalid, or one entered since — ends only
+    // if it is invalid now. `leaveTextEdit` does nothing with no session.
+    if (!editStillValid()) leaveTextEdit();
+  });
 }
 
 export function commitDoc(next: Doc): void {
@@ -1681,8 +1713,10 @@ export async function placeTitle(at: Vec): Promise<void> {
     commitDoc(r.doc);
     setSelection([r.id]);
     // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
-    // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap.
-    beginTextEdit(r.id, "all");
+    // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap. Only while the
+    // Text tool is still active: a tool changed during the font load ended editing, and the
+    // `finally` below lets the field go.
+    if (app.toolId === "text") beginTextEdit(r.id, "all");
   } finally {
     if (!app.textEdit) textBlur?.();
   }
@@ -1777,7 +1811,9 @@ async function reshapeTitle(
     return;
   }
   if (app.doc !== before || app.selection !== beforeSel) {
-    notify("info", "The selection changed while the font loaded — try that again.");
+    // Quiet for a live keystroke, like the queued drop in `reshapeTitleDraining`: the burst's own
+    // commit (`endTextEdit`, the panel field's blur) writes the whole text and reports.
+    if (!quiet) notify("info", "The selection changed while the font loaded — try that again.");
     return;
   }
   if (subpaths.length === 0) {
@@ -2353,12 +2389,15 @@ export function endTextEdit(): Promise<void> {
 }
 
 /** The one leave both paths share. Synchronous, for the store-driven leaves (selection, undo, redo,
- *  replace, tool change) that must end the session BEFORE the store acts: every keystroke was
- *  already committed live, so there is nothing left to write. The bracket closes now, so an undo
- *  that follows removes the whole session as one step. A keystroke whose outline is still in
- *  flight at that moment lands after the bracket closed, as an undo step of its own — accepted:
- *  it needs a keystroke and an undo within one outline. `textEdit` is cleared before the blur, so
- *  the field's blur handler finds no session and does not start a second leave. */
+ *  replace, tool change, and `setSession` finding the title gone from the selection) that must end
+ *  the session BEFORE the store acts: every keystroke already went to the live path, so there is
+ *  nothing left to write. The bracket closes now, so an undo that follows removes the whole session
+ *  as one step. A keystroke whose outline is still in flight (or queued) at that moment is dropped
+ *  by `reshapeTitle`'s own check, since the selection or document moved under it — quietly, as a
+ *  live keystroke is: it needs a keystroke and a leave within one outline, and a store-driven leave
+ *  deliberately reports nothing (a refused text, too, goes unreported here; only `endTextEdit`, the
+ *  committing path, reports). `textEdit` is cleared before the blur, so the field's blur handler
+ *  finds no session and does not start a second leave. */
 function leaveTextEdit(): void {
   if (!app.textEdit) return;
   app.textEdit = null;

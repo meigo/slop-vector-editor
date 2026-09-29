@@ -69,7 +69,12 @@
     const toScreen = (x: number, y: number) => docToScreen(view, applyMat(world, { x, y }));
     // A minimum width in title-local units, so an empty line's zero-width rect stays visible.
     const minLocal = MIN_SEL_PX / (view.zoom * (Math.hypot(world[0], world[1]) || 1));
-    const rects = selectionRects(stops, edit.anchor, edit.focus).map((r) => {
+    // The document trails the field during a burst, so the stops can be one keystroke short:
+    // clamp, as `TextEditField.caretRect` does, rather than let the caret blink out.
+    const last = stops.length - 1;
+    const anchor = Math.min(edit.anchor, last);
+    const focus = Math.min(edit.focus, last);
+    const rects = selectionRects(stops, anchor, focus).map((r) => {
       const x1 = Math.max(r.x1, r.x0 + minLocal);
       return [
         toScreen(r.x0, r.top),
@@ -78,7 +83,7 @@
         toScreen(r.x0, r.bottom),
       ];
     });
-    const stop = stops[edit.focus];
+    const stop = stops[focus];
     if (!stop) return null;
     return {
       rects,

@@ -13,6 +13,8 @@
     setView,
     typeTextEdit,
   } from "../state/appState.svelte";
+  import { runCommand } from "../state/commands";
+  import { commandForKey } from "../state/keys";
   import { docToScreen, revealPan } from "../state/viewport";
   import { toCodePoint, toUtf16, verticalMove } from "../text/edit";
 
@@ -209,6 +211,14 @@
         e.preventDefault();
         void endTextEdit();
         el.blur();
+      }
+      // ⌘S / ⌘⇧S (Ctrl on other systems) are the app's Save and Save As, not the browser's Save
+      // Page: the window's shortcut handler skips a focused field, and this one is focused for the
+      // whole session. The same command path as the window's (`commandForKey` → `runCommand`).
+      const cmd = commandForKey(e);
+      if ((cmd === "save" || cmd === "saveAs") && !e.isComposing) {
+        e.preventDefault();
+        runCommand(cmd);
       }
       // ⌘A and everything else: the field's own.
       return;
