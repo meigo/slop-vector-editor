@@ -2865,7 +2865,8 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   3. Properties counts the Brush tool as content: `propsHasContent()` in the store, read by
      `Sidebar.svelte` and `togglePropsPanel`. This extends invariant 23's Properties exception.
   4. With Taper on, the taper runs over the whole stroke length (`taper: true`, slop-paint's look),
-     so it dominates pressure while on.
+     so it dominates pressure while on — but only once the stroke is longer than its own width;
+     shorter strokes and taps keep round caps (spec M21 §3), which is what makes a tap a round dot.
   5. A stroke that fails to land raises "Brush — the stroke could not be added."; if Paper fails to
      load the stroke is kept unsimplified, with one error notice per session.
   6. `BRUSH_TOL_PX` = 0.5 screen px at the stroke's zoom. Measured on a 200-point wavy 100×10

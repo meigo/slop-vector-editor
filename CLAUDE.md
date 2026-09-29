@@ -889,7 +889,9 @@ every user-visible change.
     — the stroke could not be added." and never rejects the chain. Pressure is read only from
     `pointerType === "pen"`; a mouse's flat 0.5 and a finger's 0/1 would otherwise make a mouse
     stroke thin. With Taper on, the taper runs over the whole stroke length (perfect-freehand
-    `taper: true`, slop-paint's look). The style is the default **stroke** paint as the fill (then
+    `taper: true`, slop-paint's look), but only once the stroke is longer than its own width;
+    shorter strokes and taps keep round caps (spec M21 §3) — don't remove that guard
+    (`length > o.size` in `outline.ts`), or a tap becomes a sliver. The style is the default **stroke** paint as the fill (then
     the fill, then black), no stroke (the Blob Brush convention).
 
 ## Current state
