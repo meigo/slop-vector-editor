@@ -6,7 +6,7 @@ import {
   DEFAULT_BRUSH,
   sanitizeBrush,
 } from "../brush/settings";
-import { app, setBrushPrefs } from "../state/appState.svelte";
+import { app, setBrushPrefs, setPrefs } from "../state/appState.svelte";
 import { DEFAULT_PREFS, sanitizePrefs, SECTION_IDS } from "../persist/preferences";
 
 describe("brush settings", () => {
@@ -47,7 +47,12 @@ describe("prefs.brush", () => {
     expect(SECTION_IDS).toContain("brush");
   });
   it("setBrushPrefs clamps what it writes", () => {
-    setBrushPrefs({ size: 0, pressure: 9.3, smooth: 150 });
-    expect(app.prefs.brush).toMatchObject({ size: 0.5, pressure: 8, smooth: 100 });
+    const before = app.prefs;
+    try {
+      setBrushPrefs({ size: 0, pressure: 9.3, stream: -5, smooth: 150 });
+      expect(app.prefs.brush).toMatchObject({ size: 0.5, pressure: 8, stream: 0, smooth: 100 });
+    } finally {
+      setPrefs(before);
+    }
   });
 });

@@ -358,32 +358,28 @@
 
       {#if app.toolId === "brush"}
         <FieldSection id="brush" title="Brush">
-          <div class="contents" title="Brush width in document px">
-            <NumberField
-              onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
-              label="Size"
-              value={brush.size}
-              min={0.5}
-              max={500}
-              step={0.5}
-              suffix="px"
-              onchange={(v) => setBrushPrefs({ size: v })}
-            />
-          </div>
-          <div class="contents" title="How much Pencil pressure changes the width (1 = constant)">
-            <NumberField
-              onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
-              label="Pressure"
-              value={brush.pressure}
-              min={1}
-              max={8}
-              step={0.5}
-              suffix="×"
-              onchange={(v) => setBrushPrefs({ pressure: v })}
-            />
-          </div>
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Size"
+            value={brush.size}
+            min={0.5}
+            max={500}
+            step={0.5}
+            suffix="px"
+            onchange={(v) => setBrushPrefs({ size: v })}
+          />
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Pressure"
+            value={brush.pressure}
+            min={1}
+            max={8}
+            step={0.5}
+            suffix="×"
+            onchange={(v) => setBrushPrefs({ pressure: v })}
+          />
           <div class="field-full">
             <ToggleButton
               label="Taper"
@@ -392,30 +388,26 @@
               onchange={(taper) => setBrushPrefs({ taper })}
             />
           </div>
-          <div class="contents" title="Steady the line: it trails the pen on a string">
-            <NumberField
-              onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
-              label="Stream"
-              value={brush.stream}
-              min={0}
-              max={100}
-              suffix="%"
-              onchange={(v) => setBrushPrefs({ stream: Math.round(v) })}
-            />
-          </div>
-          <div class="contents" title="Smooth the path; a pause keeps a corner">
-            <NumberField
-              onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
-              label="Smooth"
-              value={brush.smooth}
-              min={0}
-              max={100}
-              suffix="%"
-              onchange={(v) => setBrushPrefs({ smooth: Math.round(v) })}
-            />
-          </div>
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Stream"
+            value={brush.stream}
+            min={0}
+            max={100}
+            suffix="%"
+            onchange={(v) => setBrushPrefs({ stream: Math.round(v) })}
+          />
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Smooth"
+            value={brush.smooth}
+            min={0}
+            max={100}
+            suffix="%"
+            onchange={(v) => setBrushPrefs({ smooth: Math.round(v) })}
+          />
         </FieldSection>
       {/if}
 
