@@ -2846,3 +2846,48 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   source right now", keeping "check your connection" for a fetch that throws; (4) CLAUDE.md's build
   bar counts four chunks, the lazy catalogue included.
 - 1158 tests in 75 files.
+
+## 2026-09-29 — M21: a pressure-sensitive Brush tool
+
+- **What shipped**: a Brush tool (B, tool strip) that paints variable-width strokes. Each stroke is
+  a filled outline from `perfect-freehand`, simplified through Paper, landing as an ordinary path in
+  the current stroke colour (no stroke of its own) and one undo step; a tap makes a round dot. Five
+  settings in a Brush section of Properties, kept in `prefs.brush`: Size (0.5–500), Pressure (1–8),
+  Taper, Stream (rope steadying) and Smooth. A size ring follows the hover; a live preview draws
+  while the stroke is in progress. Pure code in `src/brush/` (`smoothing.ts` ported from
+  slop-paint, `outline.ts`, `settings.ts`, `commit.ts`), the tool in `tools/brush-tool.ts`, and
+  the store's `commitBrushStroke` — CLAUDE.md invariant 48. Spec:
+  `docs/superpowers/specs/2026-09-29-m21-brush-tool-design.md`.
+- **Rulings** made while building it:
+  1. Each point is mapped to document space when it is accepted, through the view at that moment,
+     so a pan or zoom mid-stroke keeps the ink under the pen.
+  2. A mid-stroke tool switch discards the stroke, as Escape and `pointercancel` do.
+  3. Properties counts the Brush tool as content: `propsHasContent()` in the store, read by
+     `Sidebar.svelte` and `togglePropsPanel`. This extends invariant 23's Properties exception.
+  4. With Taper on, the taper runs over the whole stroke length (`taper: true`, slop-paint's look),
+     so it dominates pressure while on.
+  5. A stroke that fails to land raises "Brush — the stroke could not be added."; if Paper fails to
+     load the stroke is kept unsimplified, with one error notice per session.
+  6. `BRUSH_TOL_PX` = 0.5 screen px at the stroke's zoom. Measured on a 200-point wavy 100×10
+     outline at zoom 1: 0.25 px gave 23 nodes, 0.5 px gave 20 nodes (max deviation 0.314 px), 1 px
+     gave 19 nodes — so 1 px saves one node and 0.5 px stays well inside a pixel.
+  7. Pressure is read only for `pointerType === "pen"`; strokes chain so they land in drawing order,
+     and `replaceDocument` bumps `brushEpoch` so a late stroke never lands in a new document.
+- **Build**: the four chunks are unchanged — `paper-core` (72.4 KB gzipped), `opentype` (67.7 KB)
+  and `google-fonts` (25.6 KB) stay separate, and `perfect-freehand` (`simulatePressure`) appears
+  only in the app chunk (117.5 KB gzipped). 0 errors, 0 warnings.
+- **Checked in the browser** (controller, desktop Chrome :5198, 2026-09-29): Brush from the tool
+  strip; mouse drags land as filled paths (#000000, the default stroke colour, stroke none), 13–22
+  nodes each after simplify; a tap lands a round dot (3 nodes); a cold Paper (fresh load, first
+  stroke) still lands the stroke; synthetic pen events with pressure 0.05→1 and Taper off gave a
+  half-width of 3.5 → 6.5 → 11.75 doc px along the stroke; Escape mid-stroke cleared the preview
+  and committed nothing; undo removes exactly one stroke; Stream 100 vs 0 on a ±6 px zig-zag gave a
+  committed height of 8.03 (the stroke width alone) vs 12.32; 400 pen moves with a full re-outline
+  each took 73 ms in total; the size ring follows hover; the Brush section renders in the panel grid
+  and Properties opens with the Brush tool and nothing selected.
+- **Not checked in the browser**: the B shortcut (automation drops keys after navigation; covered by
+  the keys map's unit test), the cursor ring hiding on `pointerleave`, a wheel pan mid-stroke
+  (unit-tested), and autosave/reload of a stroke.
+- **Owed**: iPad (real Pencil pressure, coalesced density at 240 Hz, palm rest, a pinch cancelling a
+  finger stroke, the Pencil's hover cursor) and Safari.
+- 1225 tests in 81 files.

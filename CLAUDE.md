@@ -12,7 +12,7 @@ entries supersede earlier ones — mark superseded entries).
 
 - `npm run dev` — Vite dev server. `npm run dev:lan` — HTTPS on the LAN for iPad testing.
 - `npm run build` — `svelte-check && tsc --noEmit && vite build`. Bar: **0 errors, 0 warnings.** The
-  build emits **four** chunks — the app's own, `paper-core`'s, `opentype`'s and the Google Fonts
+  build emits **four** chunks — the app's own (which holds `perfect-freehand` by design: it is small, and the brush needs it on the first stroke), `paper-core`'s, `opentype`'s and the Google Fonts
   catalogue's. The check is not a size bar on the app chunk (it grows with every feature) but that
   the two libraries stay in chunks of their own — paper in `dist/assets/paper-core-*.js` (~72 KB
   gzipped) and opentype in `dist/assets/opentype-*.js` (~68 KB gzipped) — and that the catalogue
@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1158 tests in 75 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1225 tests in 81 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -86,7 +86,7 @@ every user-visible change.
   `gradient-import.ts`).
 - `src/tools/` — `types.ts` (`ToolId`, `Mods`), `tool.ts` (`Tool` — incl. the optional `activate`/
   `settle` hooks (invariant 47) — `ToolContext` — incl. `setHoverCursor`, the per-part hover-cursor
-  slot — `ToolEvent`),
+  slot — `ToolEvent`, whose `pressure` and coalesced `samples` only the brush reads, and the `brush` overlay kind: the live outline plus the size cursor; strokes handed to the store but not yet landed sit in `app.brushPending`),
   `frame.ts` (rotated selection frame; a mirrored matrix's frame angle is folded into (−90°, 90°] so a flipped object's handles stay upright), `gizmo.ts` (resize/rotate handle geometry), `shape-tools.ts`
   (rect/ellipse/line/polygon/hand draw tools; `constrain45`, the shared 45°-snap helper the
   Gradient and Warp tools call), `select.ts` (the select tool: click, drag-select,
@@ -98,7 +98,7 @@ every user-visible change.
   the whole gradient, one rim stretches the circle into an ellipse, the other rotates and scales it
   (Shift 45°, or keeps the stretch perpendicular)), `gradient-handles.ts` (pure
   `gradientHandles`/`pickHandle` — handle geometry for both kinds, in document order back to front,
-  shared by the tool's hit-testing and the Overlay's drawing), `warp-tool.ts` (the Warp tool: seeds
+  shared by the tool's hit-testing and the Overlay's drawing), `brush-tool.ts` (the Brush tool: steadies the pointer, keeps its draft, previews it through the `brush` overlay, hands the finished outline to `ToolContext.commitBrushStroke`; invariant 48), `warp-tool.ts` (the Warp tool: seeds
   an identity cage over the selection's world bounds on activation or a selection change, drags a
   corner or handle — a corner carries its two adjacent handles — committing `warpNodes` from a
   lazily-opened gesture `base` on every frame; Enter/Escape/`settle` close it) with `cage-handles.ts`
@@ -117,6 +117,12 @@ every user-visible change.
   `exportSize`, `exportRefusal`, `sizeLabel`, `pngFileName`, `MAX_SIDE`, `MAX_PIXELS` — the pure
   half of PNG export), `appState.svelte.ts` (the `app` store + actions, incl. `exportPng` and
   `copyPng`).
+- `src/brush/` — the Brush tool's pure half (spec M21): `smoothing.ts` (a port of slop-paint's
+  `stroke-smoothing.ts`: `Steadier`, Stream's rope via `ropeLength`, `pathSmoothRadius`, `smoothPath`,
+  `pauseBreaks`), `outline.ts` (`brushOutline` — the steadied points through perfect-freehand to a
+  closed outline polygon; `outlineSubpath`, `polygonArea`), `settings.ts` (`BrushPrefs`,
+  `DEFAULT_BRUSH`, the clamps, `sanitizeBrush`) and `commit.ts` (`BRUSH_TOL_PX`, `brushTolerance`,
+  `brushStyle`). No DOM, no store; the tool and the store's `commitBrushStroke` call it.
 - `src/text/` — `font.ts` (the **only** importer of `opentype.js`, and only dynamically: font
   registry, `loadFont`/`loadFace` (a `FaceRequest` — font, weight, italic — spec M20 §3),
   `registerFontFile`, `registerGoogleFamily`, `previewFace`, `familyWeights`/`familyHasItalic`/
@@ -284,6 +290,10 @@ every user-visible change.
       deferred to a microtask and only the first "was empty" of a tick counts, so one user action is
       judged by its net effect: Unite and Ungroup both delete every selected id and select the
       result on the next statement, and per-assignment that reads as a flip to empty and back.
+      The Brush tool counts as content too (M21): its settings live in Properties, so
+      `propsHasContent()` in the store (`selection.length > 0 || toolId === "brush"`) is the one rule
+      `Sidebar.svelte` and `togglePropsPanel` both read — with the tool active and nothing selected the
+      panel opens rather than collapsing over its own settings.
       **That is why Properties sits BELOW Layers** (2026-09-26): above it, every flip moved the
       whole layer list — a row clicked with nothing selected jumped from 188px to 592px, away from
       the pointer. Below it, the exception moves only Layers' bottom edge, never a row, and the
@@ -863,9 +873,36 @@ every user-visible change.
     warped** (`warpNode` returns it as is): the cage is fitted to `nodeBounds`, which skips hidden
     children, so one outside the box would otherwise be wildly extrapolated.
 
+48. **A brush stroke is a draft until pen-up, then an ordered async insert** (spec M21). The tool
+    keeps the steadied centreline (`Steadier`, in screen px) and draws the perfect-freehand outline
+    in the `brush` overlay; nothing enters the document until pen-up, so a stroke is one undo step
+    and `cancel` (a palm, a pinch), Escape or a tool switch (`discard`) simply drops it. Each point
+    is mapped to document space through the view at the moment it was accepted, so a pan or zoom
+    mid-stroke keeps the ink under the pen. The store's `commitBrushStroke` simplifies through Paper
+    at `BRUSH_TOL_PX` (0.5) screen px **at the stroke's zoom**, and chains every stroke on the
+    previous one so they land in drawing order; its preview moves to `app.brushPending` until it
+    lands, so nothing flickers. It inserts and never commits from a stale base, so it does not
+    cancel the gesture in flight while the brush is the active tool — that gesture is the next
+    stroke. `replaceDocument` bumps `brushEpoch` and clears the pending list, so a stroke never
+    lands in a different document. If Paper fails to load, the exact outline is kept unsimplified
+    with one error notice per session — ink is never lost; a stroke that fails to land raises "Brush
+    — the stroke could not be added." and never rejects the chain. Pressure is read only from
+    `pointerType === "pen"`; a mouse's flat 0.5 and a finger's 0/1 would otherwise make a mouse
+    stroke thin. With Taper on, the taper runs over the whole stroke length (perfect-freehand
+    `taper: true`, slop-paint's look). The style is the default **stroke** paint as the fill (then
+    the fill, then black), no stroke (the Blob Brush convention).
+
 ## Current state
 
-**M20** (a Google Fonts library, weights and italic, 2026-09-28): browse the Google Fonts
+**M21** (a pressure-sensitive Brush tool, 2026-09-29): press B and draw; with a Pencil the width
+follows pressure, with a mouse or finger it is even. Five settings in a Brush section of Properties
+(Size, Pressure, Taper, Stream, Smooth — `prefs.brush`), a size ring for the cursor, and each stroke
+lands as one filled path in the stroke colour, simplified through Paper (invariant 48). Owed: an
+iPad pass (real Pencil pressure, coalesced density at 240 Hz, palm rest, a pinch cancelling a finger
+stroke, the Pencil's hover cursor) and Safari; the B key, the cursor's `pointerleave` hiding and
+autosave/reload of a stroke were not browser-checked — see CHANGELOG.
+
+Before that, **M20** (a Google Fonts library, weights and italic, 2026-09-28): browse the Google Fonts
 collection (≈2000 OFL/Apache-2.0/UFL families) in a search dialog (Add a font… ▸ From Google
 Fonts…), pick one to download and preview it, and Add to register it for good and switch the
 title — files come from jsDelivr, never Google or Fontsource, and only on that pick; a Weight
@@ -904,8 +941,8 @@ unit tests — including real-store tests — not the browser; iPad/Pencil cage-
 palm; performance on large selections, reasoned about but not measured; autosave mid-warp; a stale
 idle cage on touch or after a keyboard edit), and for Safari's rendering of a gradient under
 `gradientTransform` and of the warp cage — see CHANGELOG. Beyond M14, the post-v1 list (project
-design §10) now holds more gradient stops and focal points, a freehand tool, grid and smart guides,
-masks and image paste — **gradients have left the list** (and align and distribute, M19) (M15, M16, M17,
+design §10) now holds more gradient stops and focal points, grid and smart guides,
+masks and image paste — **gradients have left the list** (and freehand, M21, and align and distribute, M19) (M15, M16, M17,
 M18). **A light theme is no longer planned** (2026-09-19), and
 **multiple artboards are no longer planned** (2026-09-20) — the design doc still lists both, as a
 dated document that later decisions supersede rather than rewrite. **Text is done** (M10a-M10d), so
@@ -924,7 +961,9 @@ distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope war
 (`docs/superpowers/specs/2026-09-20-m14-envelope-warp-design.md`), M19 (align and distribute) and
 **M20** (a Google Fonts library, weights and italic,
 `docs/superpowers/specs/2026-09-28-m20-google-fonts-design.md`) are complete — see CHANGELOG.
-Nothing on the roadmap is currently specced and unbuilt.
+**M21** (a pressure-sensitive Brush tool,
+`docs/superpowers/specs/2026-09-29-m21-brush-tool-design.md`) is complete too, and freehand has left
+the post-v1 list. Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
