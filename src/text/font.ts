@@ -17,6 +17,7 @@ type OT = (typeof import("opentype.js"))["default"];
 type ParsedFont = import("opentype.js").Font;
 type Glyph = import("opentype.js").Glyph;
 type PathCommand = import("opentype.js").PathCommand;
+type Path = import("opentype.js").Path;
 
 /** `id` is the font id, not the face: every face of a family shares it. `wght` is the weight
  *  axis's range, present only on a variable Google face — the one kind that draws other weights. */
@@ -419,7 +420,8 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
     // substFormat 2 is not yet supported"). One character at a time happened to be safe, but the
     // glyph route avoids that code entirely and is the one variable-font weights need (a variation
     // transforms a glyph, not a string). It is the very glyph the layout measured.
-    const d = pathDataOf(p.glyph.getPath(p.penX, p.penY, m.size).commands);
+    const path = p.glyph.getPath(p.penX, p.penY, m.size);
+    const d = pathDataOf(path.commands);
     // The outlines are quadratic; `parsePathData` already converts them to our cubics exactly.
     const glyph = parsePathData(d).filter((sp) => sp.nodes.length > 0);
     const t = transformFor(m, p.index);
@@ -427,7 +429,8 @@ export function outlineText(f: LoadedFont, m: TextMeta): Subpath[] {
       out.push(...glyph);
       continue;
     }
-    out.push(...transformSubpaths(glyph, charMatrix(t, centreOf(p, m.size), p.penY)));
+    const c = pivotOf(p, m, path, f.font);
+    out.push(...transformSubpaths(glyph, charMatrix(t, c.x, c.y)));
   }
   return out;
 }
@@ -452,9 +455,10 @@ export function charHits(f: LoadedFont, m: TextMeta): CharHit[] {
       { x: p.penX, y: p.penY + bottom },
     ];
     const t = transformFor(m, p.index);
-    const quad = isIdentityChar(t)
-      ? corners
-      : corners.map((c) => applyMat(charMatrix(t, centreOf(p, m.size), p.penY), c));
+    if (isIdentityChar(t)) return { index: p.index, quad: corners };
+    const o = pivotOf(p, m, p.glyph.getPath(p.penX, p.penY, m.size), font);
+    const matrix = charMatrix(t, o.x, o.y);
+    const quad = corners.map((c) => applyMat(matrix, c));
     return { index: p.index, quad };
   });
 }
@@ -493,9 +497,21 @@ export function charQuads(f: LoadedFont, m: TextMeta): Vec[][] {
   return charHits(f, m).map((h) => h.quad);
 }
 
-/** The centre of a glyph's own advance box, on its own baseline — the anchor every per-character
- *  transform turns about (spec M10 §4). `advance` is in em units, so it scales with the size. */
-const centreOf = (p: Placed, size: number): number => p.penX + (p.advance * size) / 2;
+/** The point every per-character transform turns, scales and skews about: the centre of the
+ *  glyph's own outline bounds (2026-09-29). It was the advance box's centre ON THE BASELINE (spec
+ *  M10 §4), so a rotated tall letter swung its top sideways into its neighbours and a scaled one
+ *  grew upwards only. A glyph with no outline (a space) falls back to its advance box's centre —
+ *  the middle of the box `charHits` tests clicks against. `advance` is in em units, so it scales
+ *  with the size; the path is the glyph as drawn at this pen position and size. */
+function pivotOf(p: Placed, m: TextMeta, path: Path, font: ParsedFont): Vec {
+  const b = path.getBoundingBox();
+  if ([b.x1, b.y1, b.x2, b.y2].every(Number.isFinite) && (b.x2 > b.x1 || b.y2 > b.y1)) {
+    return { x: (b.x1 + b.x2) / 2, y: (b.y1 + b.y2) / 2 };
+  }
+  const upm = font.unitsPerEm;
+  const mid = ((-font.ascender - font.descender) / 2 / upm) * m.size;
+  return { x: p.penX + (p.advance * m.size) / 2, y: p.penY + mid };
+}
 
 const RAD = Math.PI / 180;
 

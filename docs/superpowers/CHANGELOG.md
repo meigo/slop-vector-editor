@@ -3011,3 +3011,18 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   (`rowLabel`, invariant 43) is the kind name and stays "Title". Considered and not done: a
   Figma-style draft title that exists only once the first character is typed.
 
+## 2026-09-29 — Per-character transforms pivot on the glyph's centre
+
+- **Reported:** rotated characters overlapped at the top — the pivot was at the bottom.
+- **Was:** every per-character rotation, scale and skew (the randomiser and hand overrides) turned
+  about the character's advance-box centre **on the baseline** (spec M10 §4), so a tall letter's
+  top swung sideways into its neighbours and a scaled letter grew upwards only.
+- **Now:** about the centre of each glyph's own outline bounds (`pivotOf` in `src/text/font.ts`);
+  a space (no outline) falls back to its advance box's centre. Outlines and click quads share it.
+- **Existing documents:** outlines are stored, so a saved randomised title looks unchanged until
+  it is next re-outlined (typing, a slider, a re-roll); its letters then shift once to the new
+  pivot. Accepted in brainstorming rather than a format flag that would keep the old pivot forever.
+- 3 new tests (rotation and scale keep the glyph centre; a space stays finite); 1296 tests in 84
+  files. Browser-checked: "Lighthouse" in Anton at ±35° rotation — each letter turns about its own
+  middle and stays on the line (tall, narrow letters with no spacing can still touch at that angle).
+
