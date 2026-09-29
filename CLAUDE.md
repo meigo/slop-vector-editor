@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1225 tests in 81 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1227 tests in 81 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -466,7 +466,7 @@ every user-visible change.
     handles being pulled, and only Escape, a finish or a tool change ends a stroke.
 34. **A tool may take Escape, Enter and Backspace through `Tool.keydown` while `busy()`.**
     `runEditAction` (`state/commands.ts`) asks the active tool before its own clear/commit/delete
-    handling; only the pen implements `keydown`/`busy` today. `hover` is every pointer move
+    handling; the pen, the Warp tool and the Brush implement `keydown`/`busy` today. `hover` is every pointer move
     `Canvas.svelte` sees while no gesture is running — usually a plain hover, but also a held
     right-button drag or a pointer the router ignored. The canvas already tracked movement for the
     cursor readout and now calls `hover` from the same place, which is what drives the pen's rubber
@@ -876,14 +876,19 @@ every user-visible change.
 48. **A brush stroke is a draft until pen-up, then an ordered async insert** (spec M21). The tool
     keeps the steadied centreline (`Steadier`, in screen px) and draws the perfect-freehand outline
     in the `brush` overlay; nothing enters the document until pen-up, so a stroke is one undo step
-    and `cancel` (a palm, a pinch), Escape or a tool switch (`discard`) simply drops it. Each point
+    and `cancel` (a palm, a pinch) or Escape simply drops it, as does `discard` (the store's replace,
+    undo and redo). A tool switch mid-stroke does **not**: `setTool`'s finish sends Enter, the brush
+    declines it, the canvas keeps driving `gesture.tool`, and the stroke lands at pen-up. Each point
     is mapped to document space through the view at the moment it was accepted, so a pan or zoom
     mid-stroke keeps the ink under the pen. The store's `commitBrushStroke` simplifies through Paper
     at `BRUSH_TOL_PX` (0.5) screen px **at the stroke's zoom**, and chains every stroke on the
     previous one so they land in drawing order; its preview moves to `app.brushPending` until it
     lands, so nothing flickers. It inserts and never commits from a stale base, so it does not
-    cancel the gesture in flight while the brush is the active tool — that gesture is the next
-    stroke. `replaceDocument` bumps `brushEpoch` and clears the pending list, so a stroke never
+    cancel a running **brush** gesture — that is the next stroke — but cancels any other tool's
+    (invariant 15). It keys on the tool that owns the running gesture (`registerGestureCancel`'s
+    second argument, passed by `Canvas.svelte`), never on `app.toolId`: a key press mid-drag makes
+    the two differ, and either mismatch loses work — a select drag left running erases the stroke on
+    its next move, and a brush stroke cancelled because V was pressed loses its ink. `replaceDocument` bumps `brushEpoch` and clears the pending list, so a stroke never
     lands in a different document. If Paper fails to load, the exact outline is kept unsimplified
     with one error notice per session — ink is never lost; a stroke that fails to land raises "Brush
     — the stroke could not be added." and never rejects the chain. Pressure is read only from

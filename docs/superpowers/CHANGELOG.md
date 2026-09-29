@@ -2861,7 +2861,11 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - **Rulings** made while building it:
   1. Each point is mapped to document space when it is accepted, through the view at that moment,
      so a pan or zoom mid-stroke keeps the ink under the pen.
-  2. A mid-stroke tool switch discards the stroke, as Escape and `pointercancel` do.
+  2. A mid-stroke tool switch lets the stroke finish: `setTool`'s finish sends Enter, the brush
+     declines it, the canvas keeps driving the stroke's own tool, and it lands at pen-up — ink is
+     never lost. Escape and `pointercancel` discard it; the store's `discard` (replace, undo, redo)
+     drops it too. (Corrected in the final review: an earlier draft of this ruling said a tool
+     switch discards.)
   3. Properties counts the Brush tool as content: `propsHasContent()` in the store, read by
      `Sidebar.svelte` and `togglePropsPanel`. This extends invariant 23's Properties exception.
   4. With Taper on, the taper runs over the whole stroke length (`taper: true`, slop-paint's look),
@@ -2890,5 +2894,14 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   the keys map's unit test), the cursor ring hiding on `pointerleave`, a wheel pan mid-stroke
   (unit-tested), and autosave/reload of a stroke.
 - **Owed**: iPad (real Pencil pressure, coalesced density at 240 Hz, palm rest, a pinch cancelling a
-  finger stroke, the Pencil's hover cursor) and Safari.
-- 1225 tests in 81 files.
+  finger stroke, the Pencil's hover cursor) and Safari. With the default Taper (on, over the whole
+  stroke length) pen pressure barely shows; judge it on the device — a fixed taper length is a
+  one-line change in `outline.ts`.
+- **Final-review fix**: a landing stroke cancelled the running gesture unless `app.toolId` was
+  `brush`, but a key press mid-drag makes the active tool and the running gesture's tool differ, and
+  both mismatches lost work — B pressed during a select drag left that drag running, whose next move
+  committed from its base and erased the pending stroke; V pressed during a stroke cancelled it when
+  the previous stroke landed. `registerGestureCancel` now takes the owning tool's id (Canvas passes
+  `tool.id`), and `commitBrushStroke` skips the cancel only for a running brush gesture. Two new
+  store tests, each failing against the old guard.
+- 1227 tests in 81 files.
