@@ -100,11 +100,12 @@ import { outlineSubpath, polygonArea } from "../brush/outline";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
-import { remapIndex, remapOverrides } from "../text/edit";
+import { remapIndex, remapOverrides, type CaretStop } from "../text/edit";
 import { newSeed } from "../text/random";
 import { serializeDoc } from "../svg/serialize";
 import {
   loadFace,
+  caretStops,
   charHits,
   familyHasItalic,
   familyWeights,
@@ -250,6 +251,8 @@ class AppState {
   charQuads = $state.raw<Vec[][]>([]);
   /** String index of each quad. The quad list skips newlines, so slot and index disagree. */
   charAt = $state.raw<number[]>([]);
+  /** A caret position for every index of the selected title, plus the end (spec M22 §2). */
+  caretStops = $state.raw<CaretStop[]>([]);
   /** Which paint the Gradient tool edits (spec M15 §6). Not saved, not undoable; kept for the
    *  session. */
   gradientTarget = $state<PaintSlot>("fill");
@@ -2103,6 +2106,7 @@ $effect.root(() => {
     if (!t?.text) {
       if (app.charQuads.length > 0) app.charQuads = [];
       if (app.charAt.length > 0) app.charAt = [];
+      if (app.caretStops.length > 0) app.caretStops = [];
       return;
     }
     const id = t.id;
@@ -2115,11 +2119,13 @@ $effect.root(() => {
         const hits = charHits(f, meta);
         app.charQuads = hits.map((h) => h.quad);
         app.charAt = hits.map((h) => h.index);
+        app.caretStops = caretStops(f, meta);
       })
       .catch(() => {
         if (gen !== quadGen) return;
         app.charQuads = [];
         app.charAt = [];
+        app.caretStops = [];
       });
   });
 });
