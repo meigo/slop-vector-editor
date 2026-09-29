@@ -21,6 +21,7 @@ import {
   setTool,
   textIndexAt,
   titleInFlight,
+  toggleLayerLocked,
   typeTextEdit,
   undo,
 } from "../state/appState.svelte";
@@ -261,8 +262,36 @@ describe("the text edit session (spec M22 §2-§3)", () => {
     expect(placed.text?.text).toBe("Title");
     expect(app.selection).toEqual([placed.id]);
     expect(app.textEdit).toEqual({ id: placed.id, anchor: 0, focus: 5 });
-    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledTimes(2);
     await endTextEdit();
+  });
+
+  it("placing focuses the field before the font resolves", async () => {
+    const focus = vi.fn();
+    const blur = vi.fn();
+    registerTextFocus(focus);
+    registerTextBlur(blur);
+    const placing = placeTitle({ x: 50, y: 60 });
+    // Still inside the tap: iOS raises the keyboard only for a synchronous focus (spec §1).
+    expect(focus).toHaveBeenCalledTimes(1);
+    await placing;
+    expect(app.textEdit).not.toBeNull();
+    expect(blur).not.toHaveBeenCalled();
+    await endTextEdit();
+  });
+
+  it("a placement refused after the font loads lets the field go", async () => {
+    const focus = vi.fn();
+    const blur = vi.fn();
+    registerTextFocus(focus);
+    registerTextBlur(blur);
+    const placing = placeTitle({ x: 50, y: 60 });
+    expect(focus).toHaveBeenCalledTimes(1);
+    toggleLayerLocked("L0");
+    await placing;
+    expect(app.textEdit).toBeNull();
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(app.doc.layers[0].children).toHaveLength(2);
   });
 });
 

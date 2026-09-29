@@ -1643,39 +1643,49 @@ export async function placeTitle(at: Vec): Promise<void> {
     notify("info", blockMessage(b, "draw"));
     return;
   }
-  const before = app.doc;
-  const meta = defaultMeta("Title");
-  titleRunning = true;
-  const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
-    titleRunning = false;
-  });
-  if (!subpaths || subpaths.length === 0) return;
-  if (app.doc !== before) {
-    notify("info", "The document changed while the font loaded — try placing the title again.");
-    return;
+  // Focus the canvas text field now, inside the tap (spec M22 §1): iOS raises the keyboard only
+  // for a focus made synchronously there, and the outline below awaits the font. `beginTextEdit`
+  // focuses it again; any way out that does not reach it lets the field go, so the keyboard does
+  // not stay up (with the app's shortcuts off) over a placement that never happened. A focused
+  // field with no session ignores input and blur.
+  textFocus?.();
+  try {
+    const before = app.doc;
+    const meta = defaultMeta("Title");
+    titleRunning = true;
+    const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
+      titleRunning = false;
+    });
+    if (!subpaths || subpaths.length === 0) return;
+    if (app.doc !== before) {
+      notify("info", "The document changed while the font loaded — try placing the title again.");
+      return;
+    }
+    // Re-checked after the await: the layer may have been locked, and a canvas drag may have begun
+    // (invariant 15 — the first `cancelActiveGesture` was before the fetch, which is too early).
+    const again = layerBlock(app.doc, layerId);
+    if (again) {
+      notify("info", blockMessage(again, "draw"));
+      return;
+    }
+    cancelActiveGesture();
+    const shape: PathShape = {
+      kind: "path",
+      id: "",
+      transform: [1, 0, 0, 1, at.x, at.y],
+      style: { ...app.prefs.style },
+      subpaths,
+      text: meta,
+    };
+    const r = addShape(app.doc, layerId, shape);
+    commitDoc(r.doc);
+    setSelection([r.id]);
+    // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
+    // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap.
+    beginTextEdit(r.id, "all");
+  } finally {
+    if (!app.textEdit) textBlur?.();
   }
-  // Re-checked after the await: the layer may have been locked, and a canvas drag may have begun
-  // (invariant 15 — the first `cancelActiveGesture` was before the fetch, which is too early).
-  const again = layerBlock(app.doc, layerId);
-  if (again) {
-    notify("info", blockMessage(again, "draw"));
-    return;
-  }
-  cancelActiveGesture();
-  const shape: PathShape = {
-    kind: "path",
-    id: "",
-    transform: [1, 0, 0, 1, at.x, at.y],
-    style: { ...app.prefs.style },
-    subpaths,
-    text: meta,
-  };
-  const r = addShape(app.doc, layerId, shape);
-  commitDoc(r.doc);
-  setSelection([r.id]);
-  // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
-  // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap.
-  beginTextEdit(r.id, "all");
 }
 
 /** The single selected title, or null. */

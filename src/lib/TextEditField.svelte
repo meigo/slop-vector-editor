@@ -43,6 +43,9 @@
   let composing = false;
   /** ↑/↓'s remembered x in the title's own space, kept across consecutive vertical moves. */
   let goalX: number | null = null;
+  /** The focus index the last vertical move set: any other caret position means something else
+   *  moved it (a click, a drag, the field's own keys), so the goal x no longer applies. */
+  let goalAt: number | null = null;
 
   const MARGIN = 24;
 
@@ -217,8 +220,10 @@
     // than a caret on the wrong character.
     if (edit.focus >= stops.length) return;
     e.preventDefault();
+    if (edit.focus !== goalAt) goalX = null;
     goalX ??= stops[edit.focus].x;
     const i = verticalMove(stops, edit.focus, e.key === "ArrowUp" ? -1 : 1, goalX);
+    goalAt = i;
     setTextSelection(e.shiftKey ? edit.anchor : i, i);
   }
 
