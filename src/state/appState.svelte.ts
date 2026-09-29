@@ -100,6 +100,7 @@ import { outlineSubpath, polygonArea } from "../brush/outline";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
+import { remapIndex, remapOverrides } from "../text/edit";
 import { newSeed } from "../text/random";
 import { serializeDoc } from "../svg/serialize";
 import {
@@ -1707,9 +1708,16 @@ async function reshapeTitle(
   // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
   // still records an undo step for a change that is not there.
   const len = [...meta.text].length;
-  meta.overrides = Object.fromEntries(
-    Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
-  );
+  if (patch.text !== undefined) {
+    // An edit to the string moves characters: overrides and the picked character follow theirs
+    // (spec M22 §4), rather than staying at the same index.
+    meta.overrides = remapOverrides(target.text.text, meta.text, meta.overrides);
+    if (app.charSel !== null) app.charSel = remapIndex(target.text.text, meta.text, app.charSel);
+  } else {
+    meta.overrides = Object.fromEntries(
+      Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
+    );
+  }
   if (app.charSel !== null && app.charSel >= len) app.charSel = null;
   // Invariant 1: an edit that changes nothing must not outline, commit or push an undo step.
   // Re-picking the current font, or tapping the alignment button already on, reached here.

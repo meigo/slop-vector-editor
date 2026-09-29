@@ -1,3 +1,4 @@
+import type { Box } from "../geom/box";
 import { dist, mid, type Vec } from "../geom/vec";
 
 /** screen = doc · zoom + (x, y); screen is CSS px relative to the canvas element. */
@@ -64,4 +65,20 @@ export function wheelView(v: View, e: WheelLike, at: Vec): View {
   const dy = e.deltaY * unit;
   if (e.ctrlKey || e.metaKey) return zoomAt(v, at, Math.exp(-dy * 0.01));
   return panBy(v, -dx, -dy);
+}
+
+/** The smallest pan that brings `rect` (screen px), grown by `margin`, inside `visible` (screen
+ *  px); the same view object when it is already inside. Where it cannot fit, top/left win. */
+export function revealPan(view: View, rect: Box, visible: Box, margin: number): View {
+  const axis = (pos: number, size: number, vPos: number, vSize: number): number => {
+    const lo = pos - margin;
+    const hi = pos + size + margin;
+    let d = 0;
+    if (hi > vPos + vSize) d = vPos + vSize - hi;
+    if (lo + d < vPos) d = vPos - lo;
+    return d;
+  };
+  const dx = axis(rect.x, rect.w, visible.x, visible.w);
+  const dy = axis(rect.y, rect.h, visible.y, visible.h);
+  return dx === 0 && dy === 0 ? view : panBy(view, dx, dy);
 }
