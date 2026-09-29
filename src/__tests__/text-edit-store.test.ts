@@ -1,8 +1,25 @@
 import * as fs from "node:fs";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type PathShape } from "../doc/document";
-import { IDENTITY } from "../geom/mat";
-import { app, replaceDocument, setSelection, setTitleText } from "../state/appState.svelte";
+import { applyMat, IDENTITY } from "../geom/mat";
+import {
+  app,
+  beginTextEdit,
+  endTextEdit,
+  registerTextBlur,
+  registerTextFocus,
+  replaceDocument,
+  setCaretStops,
+  setSelection,
+  setTextSelection,
+  setTitleText,
+  setTool,
+  textIndexAt,
+  titleInFlight,
+  typeTextEdit,
+  undo,
+} from "../state/appState.svelte";
+import { caretStops, loadFace } from "../text/font";
 
 /** Overrides follow their characters when text is inserted before them (spec M22 §4). */
 const title = (): PathShape => ({
@@ -48,7 +65,10 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  registerTextFocus(null);
+  registerTextBlur(null);
   replaceDocument(docWith(), "Untitled.svg", null, true);
+  setCaretStops(null, []);
   app.notices = [];
 });
 
@@ -68,5 +88,163 @@ describe("setTitleText keeps overrides on their characters", () => {
     await setTitleText("Tainn");
     expect(node().text?.overrides).toEqual({});
     expect(app.charSel).toBeNull();
+  });
+});
+
+/** Two titles and a caller-chosen text/transform for the first (spec M22 §2-§3). */
+const twoTitles = (text = "Tallinn", transform = IDENTITY, font = "anton"): Doc => {
+  const d = createDoc(400, 400);
+  const t = title();
+  const first: PathShape = { ...t, transform, text: { ...t.text!, text, font, overrides: {} } };
+  const second: PathShape = {
+    ...t,
+    id: "t2",
+    transform: [1, 0, 0, 1, 0, 200],
+    text: { ...t.text!, text: "Tartu", overrides: {} },
+  };
+  return { ...d, layers: [{ ...d.layers[0], id: "L0", children: [first, second] }] };
+};
+
+const textOf = (id: string): string | undefined =>
+  (app.doc.layers[0].children.find((n) => n.id === id) as PathShape | undefined)?.text?.text;
+
+describe("the text edit session (spec M22 §2-§3)", () => {
+  beforeEach(() => replaceDocument(twoTitles(), "Untitled.svg", null, true));
+
+  it("entering with 'all' selects the whole text and focuses synchronously", () => {
+    const focus = vi.fn();
+    registerTextFocus(focus);
+    beginTextEdit("t", "all");
+    // Before any await: iOS raises the keyboard only for a focus inside the tap (spec §1).
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(app.textEdit).toEqual({ id: "t", anchor: 0, focus: 7 });
+    expect(app.selection).toEqual(["t"]);
+  });
+
+  it("three keystrokes and the end are one undo step", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("X");
+    typeTextEdit("XY");
+    typeTextEdit("XYZ");
+    await endTextEdit();
+    expect(textOf("t")).toBe("XYZ");
+    expect(app.textEdit).toBeNull();
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.canUndo).toBe(false);
+  });
+
+  it("a one-character selection is the picked character, and nothing else is", () => {
+    beginTextEdit("t", "all");
+    setTextSelection(2, 3);
+    expect(app.charSel).toBe(2);
+    setTextSelection(4, 3);
+    expect(app.charSel).toBe(3);
+    setTextSelection(2, 4);
+    expect(app.charSel).toBeNull();
+    setTextSelection(5, 5);
+    expect(app.charSel).toBeNull();
+  });
+
+  it("a selection of the newline does not pick it", () => {
+    replaceDocument(twoTitles("Ta\nll"), "Untitled.svg", null, true);
+    beginTextEdit("t", "all");
+    setTextSelection(2, 3);
+    expect(app.charSel).toBeNull();
+    setTextSelection(3, 4);
+    expect(app.charSel).toBe(3);
+  });
+
+  it("selecting another object ends the session; the text stays on the edited title", async () => {
+    const blur = vi.fn();
+    registerTextBlur(blur);
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn");
+    await titleInFlight();
+    setSelection(["t2"]);
+    expect(app.textEdit).toBeNull();
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(textOf("t")).toBe("XTallinn");
+    expect(textOf("t2")).toBe("Tartu");
+    // The bracket closed with the leave: the session is one undo step.
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+  });
+
+  it("a keystroke still queued when the selection changes never lands on the new selection", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("A1");
+    typeTextEdit("A12");
+    setSelection(["t2"]);
+    await titleInFlight();
+    expect(textOf("t2")).toBe("Tartu");
+  });
+
+  it("re-selecting exactly the edited title does not end the session", () => {
+    beginTextEdit("t", "all");
+    setTextSelection(2, 3);
+    setSelection(["t"]);
+    expect(app.textEdit).not.toBeNull();
+    expect(app.charSel).toBe(2);
+  });
+
+  it("undo during a session ends it and removes the whole session in one step", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("Ab");
+    typeTextEdit("Abc");
+    await titleInFlight();
+    expect(textOf("t")).toBe("Abc");
+    undo();
+    expect(app.textEdit).toBeNull();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.canUndo).toBe(false);
+  });
+
+  it("switching to the Text tool keeps the session; any other tool ends it", () => {
+    beginTextEdit("t", "all");
+    setTool("text");
+    expect(app.textEdit).not.toBeNull();
+    setTool("select");
+    expect(app.textEdit).toBeNull();
+  });
+
+  it("textIndexAt maps a document point through a rotated title's world matrix", async () => {
+    const rot: [number, number, number, number, number, number] = [0, 1, -1, 0, 200, 100];
+    replaceDocument(twoTitles("Tallinn", rot), "Untitled.svg", null, true);
+    const t = app.doc.layers[0].children[0] as PathShape;
+    const stops = caretStops(await loadFace(t.text!), t.text!);
+    beginTextEdit("t", "all");
+    setCaretStops("t", stops);
+    // Just right of character 3's leading edge, mid-line, in the title's own space.
+    const local = { x: stops[3].x + 1, y: (stops[3].top + stops[3].bottom) / 2 };
+    expect(textIndexAt(applyMat(rot, local))).toBe(3);
+    // Unrotated, the same document point is nowhere near that character.
+    expect(textIndexAt(local)).not.toBe(3);
+  });
+
+  it("textIndexAt is null when stops are for another title", async () => {
+    const t2 = app.doc.layers[0].children[1] as PathShape;
+    const stops = caretStops(await loadFace(t2.text!), t2.text!);
+    beginTextEdit("t", "all");
+    setCaretStops("t2", stops);
+    expect(textIndexAt({ x: 10, y: 10 })).toBeNull();
+  });
+
+  it("a click point that arrives before the stops is resolved when they do", async () => {
+    const t = app.doc.layers[0].children[0] as PathShape;
+    const stops = caretStops(await loadFace(t.text!), t.text!);
+    beginTextEdit("t", { x: stops[4].x + 1, y: stops[4].baseline - 10 });
+    setCaretStops("t", stops);
+    expect(app.textEdit).toEqual({ id: "t", anchor: 4, focus: 4 });
+  });
+
+  it("a title whose font is unavailable refuses with a notice", () => {
+    replaceDocument(twoTitles("Tallinn", IDENTITY, "gf:no-such-font"), "Untitled.svg", null, true);
+    const focus = vi.fn();
+    registerTextFocus(focus);
+    beginTextEdit("t", "all");
+    expect(app.textEdit).toBeNull();
+    expect(focus).not.toHaveBeenCalled();
+    expect(app.notices.map((n) => n.text).join()).toMatch(/Needs the font/);
   });
 });

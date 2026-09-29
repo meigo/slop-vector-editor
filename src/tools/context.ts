@@ -1,6 +1,11 @@
 import {
   app,
   beginDocGesture,
+  beginTextEdit,
+  endTextEdit,
+  setTextSelection,
+  textIndexAt,
+  textWordAt,
   commitDoc,
   endDocGesture,
   finishCharDrag,
@@ -63,6 +68,12 @@ export const storeContext: ToolContext = {
   setGradientStop,
   forgetGradients,
   setHoverCursor,
+  textEdit: () => app.textEdit,
+  beginTextEdit,
+  setTextSelection,
+  textIndexAt,
+  endTextEdit: () => void endTextEdit(),
+  textWordAt,
 };
 
 // A tool that still holds a draft finishes when the user picks another tool (spec M4b §3).

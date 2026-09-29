@@ -3,6 +3,10 @@
 
 export type CaretStop = { x: number; baseline: number; top: number; bottom: number; line: number };
 
+/** A title being edited on the canvas (spec M22 §2). Indices are code points into the raw string,
+ *  newlines included; `anchor === focus` is a caret. */
+export type TextEdit = { id: string; anchor: number; focus: number };
+
 /** UTF-16 offset → code-point index (an offset inside a surrogate pair rounds DOWN). */
 export function toCodePoint(text: string, utf16: number): number {
   let cp = 0;

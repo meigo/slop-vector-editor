@@ -3,13 +3,13 @@
   import type { PathShape } from "../doc/document";
   import {
     addFontFile,
+    abandonTitleTyping,
     addGoogleFamily,
     beginUiGesture,
+    endTitleTyping,
     finishCharDrag,
-    endDocGesture,
-    titleGestureEpoch,
-    titleInFlight,
     fontsChangedTick,
+    startTitleTyping,
     app,
     clearCharOverride,
     rerollTitle,
@@ -121,34 +121,31 @@
 
   /** Typing is a live drag by another name (invariant 41): the whole burst is bracketed in one
    *  document gesture, so undo steps back over the word you typed rather than the letter. The
-   *  bracket must close on every way typing can end — the blur, and destruction of this component,
-   *  because clearing the selection removes the panel mid-burst and a gesture left open silently
-   *  stops recording undo history for everything after it. */
+   *  bracket is the store's, shared with the canvas text session (spec M22 §3). It must close on
+   *  every way typing can end — the blur, and destruction of this component, because clearing the
+   *  selection removes the panel mid-burst and a gesture left open silently stops recording undo
+   *  history for everything after it. `typing` says whether THIS field is in the burst, so an
+   *  unmount (Properties collapsed) never closes a bracket the canvas session opened. */
   let typing = false;
-  let typingEpoch = 0;
 
   function startTyping() {
-    if (typing) return;
     typing = true;
-    typingEpoch = beginUiGesture();
+    startTitleTyping();
   }
 
   function endTyping() {
     if (!typing) return;
     typing = false;
-    endDocGesture();
+    endTitleTyping();
   }
 
   // Unmount is the usual end of a burst (the selection changed). Closing the gesture before the
-  // outline drain finishes splits the word into extra undo steps. Wait for that drain, and only
-  // close the bracket if a newer gesture has not started.
+  // outline drain finishes splits the word into extra undo steps, so the store waits for that
+  // drain, and closes the bracket only if a newer gesture has not started.
   $effect(() => () => {
     if (!typing) return;
     typing = false;
-    const epoch = typingEpoch;
-    void titleInFlight().then(() => {
-      if (titleGestureEpoch() === epoch) endDocGesture();
-    });
+    abandonTitleTyping();
   });
 
   /** Spec M10 §6 sketches sliders; this app has no range input anywhere, and `NumberField` is the
