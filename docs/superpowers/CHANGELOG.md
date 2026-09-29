@@ -2905,3 +2905,74 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   `tool.id`), and `commitBrushStroke` skips the cancel only for a running brush gesture. Two new
   store tests, each failing against the old guard.
 - 1227 tests in 81 files.
+
+## 2026-09-29 — M22: on-canvas text editing
+
+- **What shipped**: a title is edited in place. Double-click one with the Select tool or click it
+  with the Text tool and a caret appears where you clicked; placing a title enters editing with the
+  whole text selected, so typing replaces “Title”. Click, Shift-click, drag, double-click a word,
+  the arrow keys, ↑/↓ across lines (with a remembered x), ⌘A and paste over a selection all work; a
+  selection of exactly one character is the Character block's `charSel`, and dragging it moves it.
+  Escape, a click on empty canvas, a tool change, a selection change, undo/redo/replace or losing
+  focus end the session, and a whole session is **one undo step**. The Properties panel's text field
+  stays and edits the same string. Pure code in `src/text/edit.ts` (`TextEdit`, `toCodePoint`/
+  `toUtf16`, `remapOverrides`, `indexAt`, `verticalMove`, `wordAt`, `selectionRects`), `caretStops`
+  in `text/font.ts`, `revealPan` in `state/viewport.ts`; the mirror is `lib/TextEditField.svelte`;
+  the store gains `app.textEdit`, `app.caretStops`/`editCaretStops`, `beginTextEdit`/`endTextEdit`/
+  `leaveTextEdit` and the shared typing bracket — CLAUDE.md invariant 49. Spec:
+  `docs/superpowers/specs/2026-09-29-m22-on-canvas-text-design.md`.
+- **User-visible changes**: placing a title no longer focuses the panel's text field, and below
+  900px no longer opens the Properties drawer — the editing is on the canvas. The Text tool's click
+  on a title now edits it rather than picking a character (a character is picked by selecting one
+  letter). This supersedes M10's “type it in the properties panel” as the default route (the panel
+  field remains).
+- **Rulings** made while building it:
+  1. Overrides follow their characters (`remapOverrides`: common prefix and suffix bound the edited
+     span). Ambiguous for a deletion inside a run of identical characters (“ll”): the override lands
+     on the surviving twin, visually identical.
+  2. A character drag inside an edit session must not close the typing bracket, so the session stays
+     one undo step (`endToolGesture` leaves it open while `insideTyping()`).
+  3. The queued title patch is replaced per target, a dropped queued patch raises a notice, and
+     re-entering bumps `editSeq` so an `endTextEdit` still awaiting its commit cannot end the newer
+     session; the selection is clamped to the session's text.
+  4. Canvas's `pointerdown` `preventDefault` suppresses `mousedown`, so a mousedown guard cannot hold
+     focus. The field takes back a blur during or within 500 ms of a canvas press (browser-verified),
+     and Canvas's `pointerdown` blur skips the edit field while a session runs.
+  5. `placeTitle` pre-focuses the field synchronously, before the font await, and releases it on
+     every failure path — iOS raises the keyboard only for a focus made inside the tap.
+  6. `selectionRects` makes adjacent line rectangles meet at the midpoint of their overlap, in the
+     pure function: a font's ascent + descent can exceed the line pitch (Anton does), which double-
+     tinted a band. On tight line spacing the highlight covers less of tall glyphs.
+  7. The page-scroll reset on `focusout`, `visualViewport` `resize` and window `scroll` (App.svelte)
+     is the mitigation every sibling slop app keeps; Chrome for iPad's leftover shift after the
+     keyboard closes is unfixable from the page — Safari or the Home Screen app.
+  8. `ToolContext` lost `pickCharacter`/`titleId` and gained `charAtPoint` and the text-session
+     methods; tools still never import the store.
+- **Fixed along the way** (pre-existing): typing in the panel's title field before a character with
+  a per-character override left the override on the wrong letter, because `reshapeTitle` only
+  dropped keys past the new length. It now remaps through `remapOverrides`, for both routes.
+- **Checked in the browser** (controller, desktop Chrome :5198, 2026-09-29): Text tool click places a
+  title and enters editing with “Title” selected (0..5), the field focused; real typing replaces it
+  and the canvas re-outlines live; a click inside the title while editing moves the caret and the
+  session and focus survive; Shift+← makes a selection and a one-character one sets `charSel`; Return
+  makes a second line and ↑ from its end reaches line 1; Escape ends editing (title stays selected,
+  Text tool stays); undo after a session restores “Title” in one step and redo restores the text;
+  Select-tool double-click on a title switches to Text with the caret at the click; drag across the
+  title selects text; an override on character 3 moves to 4 when a character is inserted at the
+  front; a click on empty canvas while editing only leaves, and the next click places; the caret is
+  drawn at the clicked index and blinks; a multi-line selection highlights each line in the accent
+  tint (after the overlap fix, no double-tinted band); ⌘A while editing selects the text (0..13),
+  not every object.
+- **Not checked in the browser**: auto-pan (needs a keyboard-shrunk visual viewport), paste over a
+  selection (would touch the real clipboard), emoji (unit-tested), IME.
+- **Owed**: the iPad pass — focus from the tap (whether WebKit accepts a focus made from
+  `pointerup`; the fallback is refocusing from the following `click`), the keyboard appearing,
+  auto-pan, dictation and long-press accents, a hardware-keyboard iPad, Chrome's keyboard shift, the
+  500 ms refocus tail possibly re-raising the keyboard after a quick dismiss, whether a tap on a
+  non-focusable button leaves the textarea focused so the session points at a pruned title — and
+  Safari.
+- **Deferred minors**: caret-stop tests lack `AB\nCD`, astral and centred/letter-spaced cases; a
+  refused keystroke still moves `charSel`; a drag back inside the threshold keeps the extended
+  selection; auto-pan also runs during a drag-select near the edge; `textWordAt` reads the document's
+  text, which can lag the field by an outline; the goal x is not reset across sessions.
+- 1282 tests in 84 files.

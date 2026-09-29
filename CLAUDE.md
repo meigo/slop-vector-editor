@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1227 tests in 81 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1282 tests in 84 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -111,7 +111,7 @@ every user-visible change.
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
   `double-tap.ts` (pure double-tap/double-click detection).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
-  `viewport.ts`, `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
+  `viewport.ts` (incl. `revealPan`, the pure smallest pan that brings the caret's rectangle into the visible area, spec M22 §6), `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
   planning: cascade, centring, errors), `export-plan.ts` (`ExportRegion`, `exportBox`,
   `exportSize`, `exportRefusal`, `sizeLabel`, `pngFileName`, `MAX_SIDE`, `MAX_PIXELS` — the pure
@@ -127,8 +127,11 @@ every user-visible change.
   registry, `loadFont`/`loadFace` (a `FaceRequest` — font, weight, italic — spec M20 §3),
   `registerFontFile`, `registerGoogleFamily`, `previewFace`, `familyWeights`/`familyHasItalic`/
   `familyLicense`, `outlineText`, the unshaped-script and no-glyph guards; `pathDataOf`/`num` format
-  a glyph's path commands by hand — see invariant 40's NaN note), `layout.ts` (pure: pen positions,
-  kerning, letter-spacing, alignment), `attrs.ts` (pure: the `data-sv-text-*` format, 8/9/11 fields
+  a glyph's path commands by hand — see invariant 40's NaN note), `caretStops` (spec M22 §2: for every index `0…length` a `CaretStop` `{ x, baseline, top, bottom, line }` in
+  the title's own space, from the un-jittered layout), `layout.ts` (pure: pen positions,
+  kerning, letter-spacing, alignment), `edit.ts` (spec M22, pure: `TextEdit`, `CaretStop`, `toCodePoint`/`toUtf16`
+  — code points vs the textarea's UTF-16 units — `remapIndex`/`remapOverrides`, `indexAt` (nearest
+  stop), `verticalMove` (↑/↓ with a goal x), `wordAt`, `selectionRects`; see invariant 49), `attrs.ts` (pure: the `data-sv-text-*` format, 8/9/11 fields
   — see invariant 40), `opentype.d.ts` (hand-written types — see the invariant), `fonts/` (four SIL
   OFL faces + their `OFL.txt`, imported through Vite `?url`), `google-catalogue.ts` (the Google
   Fonts catalogue, spec M20 §2: `GoogleFamily`, `loadCatalogue` — a lazy dynamic `import()` of the
@@ -161,7 +164,7 @@ every user-visible change.
   never at build time or runtime — that fetches Fontsource's API and writes the committed
   `src/text/google-fonts.json` snapshot `google-catalogue.ts` loads).
 - `src/lib/` — `Canvas` (also shows the tool's hover cursor, `app.hoverCursor`, in place of its
-  static cursor when set), `NodeView`, `Overlay` (marquee/handles/gizmo/guides drawing; every mark sits on a contrast halo — white under lines, a dark ring then a white one under knobs — so it reads on artwork of the accent's own hue), `TopBar`,
+  static cursor when set), `NodeView`, `TextEditField` (spec M22: the hidden textarea mirror of the title being edited, always mounted in `Canvas`; invariant 49), `Overlay` (marquee/handles/gizmo/guides drawing, and the text caret and selection rectangles from `app.textEdit`/`app.caretStops`; every mark sits on a contrast halo — white under lines, a dark ring then a white one under knobs — so it reads on artwork of the accent's own hue), `TopBar`,
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
@@ -596,7 +599,11 @@ every user-visible change.
       do, so a character's hit box and its glyph can never drift apart; if they did, clicking a
       letter would select a different one. They are cached by an `$effect.root` **in the store**,
       not an effect in `TextPanel`, because M8 put that panel behind `{#if expanded}` and a
-      collapsed Properties panel would have silently stopped character picking working. The Overlay
+      collapsed Properties panel would have silently stopped character picking working. Since M22
+      **`charSel` is derived while a text session runs** (invariant 49): a one-character text
+      selection sets it; outside a session it behaves as here. The Text tool's click no longer
+      picks a character (`pickCharacter`/`titleId` left `ToolContext`; `charAtPoint` is what the
+      tools ask now). The Overlay
       draws the highlight from that state directly, never through the single `app.overlay` slot
       that the marquee, the snap guides and the pen draft already share.
     - **`NumberField` never goes in a fixed-width cell.** It is a label, an input and a suffix that
@@ -652,7 +659,14 @@ every user-visible change.
       the single-line days.
     - **Character indices are indices into the raw string, newlines included.** `runLayout` skips
       the newlines (they have no glyph) but never renumbers what follows, which is what keeps
-      M10c's per-character overrides pointing at the characters they were made for.
+      M10c's per-character overrides pointing at the characters they were made for. They are
+      **code points**, not UTF-16 units (M22): the hidden textarea speaks UTF-16, so every crossing
+      goes through `toCodePoint`/`toUtf16` in `src/text/edit.ts`, and an emoji never splits.
+      **Overrides follow their characters** (M22): `reshapeTitle` runs `remapOverrides` whenever the
+      text changes — the common prefix and suffix bound the one edited span; an override before it
+      keeps its index, one inside it is dropped, one after it shifts — replacing the old "drop keys
+      past the new length", which left an override on the wrong letter after a panel keystroke
+      (a pre-existing bug, fixed for the panel field too).
     - **Alignment is not a position — it is which edge stays put when the title changes.** The
       click point is the anchor and the outlines are re-derived from it, so left grows rightwards,
       right grows leftwards and centre grows both ways. Its buttons use flush-line icons
@@ -899,9 +913,81 @@ every user-visible change.
     (`length > o.size` in `outline.ts`), or a tap becomes a sliver. The style is the default **stroke** paint as the fill (then
     the fill, then black), no stroke (the Blob Brush convention).
 
+49. **On-canvas text editing is a hidden-textarea mirror** (spec M22). `TextEditField.svelte` is one
+    `<textarea>` in `Canvas`, always mounted, opacity 0, never `display: none` (neither can take
+    focus, and iOS raises the keyboard only for a focus made inside the tap). While editing it holds
+    the title's string and **its selection is the caret and the selection** — so the keyboard, IME,
+    autocorrect, dictation, word/line movement, clipboard and the field's own undo are the
+    browser's. The app draws the caret and highlight (Overlay, from `app.textEdit` and
+    `app.caretStops`, through the title's world matrix; `selectionRects` makes adjacent line rects
+    meet at the midpoint, since a font's ascent + descent can exceed the line pitch), maps clicks to
+    indices (`indexAt`) and handles ↑/↓ itself (`verticalMove`, a goal x kept across consecutive
+    vertical moves, reset when the caret is anywhere else).
+    - **Store state.** `app.textEdit: { id, anchor, focus } | null` (code points; not saved, not
+      undoable). `beginTextEdit(id, at | "all")` selects the title, sets the selection, calls the
+      registered `registerTextFocus` function **synchronously** (the tap) and opens the typing bracket;
+      `endTextEdit` commits with reporting (`setTitleText`) and leaves; `leaveTextEdit` is the
+      store-driven leave (Escape, a click on empty canvas, a tool change, the selection changing to
+      anything but the edited title, undo/redo/replace, blur) and clears `textEdit` **before**
+      blurring the field so nothing ends twice. Entering while the stops are not loaded keeps the
+      click point (`pendingAt`) and resolves it when they arrive. `app.caretStops` is cached beside
+      `charQuads`; `editCaretStops()` returns them only when they belong to the edited title.
+    - **`charSel` is derived**: a selection of exactly one character (not a newline) sets it, so the
+      Character block edits it and a press on it drags it (`setCharOffset`); anything else sets it
+      to null. A character drag inside a session **keeps the session's one undo step** — the
+      shared typing bracket (`startTitleTyping`/`endTitleTyping`, moved into the store from
+      `TextPanel`, used by the panel field and the canvas alike) is not closed by `endToolGesture`
+      while `insideTyping()`.
+    - **Entry.** Select tool double-click on a title (on pointer-up, invariant 32) switches to the
+      Text tool and edits with the caret at the click; Text tool click on a title edits it (Shift
+      extends, double tap selects the word, a drag selects from the press); Text tool click on empty
+      canvas places a title — `placeTitle` **pre-focuses the field before the font await**, releasing
+      it on every failure path, and enters editing with the text fully selected — or, while editing,
+      only leaves (the next click places). Placing no longer focuses the panel's field or opens the
+      Properties drawer below 900px: the editing is on the canvas. A title whose font is
+      unavailable (invariant 40) does not enter editing.
+    - **Focus.** The field's font is **16px** (iOS zooms the page on a smaller field), it sits at the
+      caret so the browser has nothing to scroll to, and focus uses `{ preventScroll: true }`.
+      Canvas's `pointerdown` blur of `document.activeElement` **skips the edit field while
+      `app.textEdit` is set** (or every click in the title would end the session), and its
+      `preventDefault` suppresses the `mousedown`, so a guard there cannot hold focus: the field's
+      `onblur` **takes a blur during or just after a canvas press back** (the `pressing` prop, ~500 ms
+      tail) and the press itself decides, through the tool, whether the session goes on. A blur
+      outside that window ends the session (the iPad keyboard's dismiss key).
+    - **Typing** is live and quiet, invariant 41: `input` → `typeTextEdit` → `typeTitleText`. The
+      title's queued patch is replaced **per target**, so a burst on one title cannot drop another
+      title's pending patch, and a dropped queued patch raises a notice. The document trails the
+      field by an outline; the field is the source from its first `input`.
+    - **One undo step per session**, from `beginTextEdit` to the leave. ⌘Z inside the field is the
+      field's own text undo (invariant 41). ⌘A selects the text, not every object.
+    - **Auto-pan.** After entering and after each caret change (and as the stops load) the view
+      pans by `revealPan(view, caretRect, visible, margin)` — `visible` is the canvas host
+      intersected with `visualViewport` — and is not restored. The view is read untracked so a hand
+      pan while editing stays until the caret next moves.
+    - **The page never scrolls.** `App.svelte` snaps the page scroll to 0 on `focusout`, on
+      `visualViewport` `resize` and on window `scroll` — the mitigation every sibling slop app keeps
+      (`../CLAUDE.md`). It undoes the real page scroll, **not** Chrome for iPad's leftover shift
+      after the keyboard closes, which is unfixable from the page: Safari or the Home Screen app.
+    - **Tools stay store-free** (invariant 12): `ToolContext` gained `textEdit`, `beginTextEdit`,
+      `setTextSelection`, `textIndexAt`, `textWordAt`, `endTextEdit` and `charAtPoint`; `pickCharacter`
+      and `titleId` are gone.
+
 ## Current state
 
-**M21** (a pressure-sensitive Brush tool, 2026-09-29): press B and draw; with a Pencil the width
+**M22** (on-canvas text editing, 2026-09-29): a title is edited where it is. Double-click one with
+the Select tool or click it with the Text tool and a caret appears at the click; placing a title
+enters editing with its text selected. Type, drag-select, Shift and the arrows, ↑/↓ across lines,
+⌘A, paste over a selection; a one-character selection is the Character block's `charSel` and drags.
+A whole session is one undo step, and overrides now follow their characters when text is inserted or
+deleted before them — a pre-existing panel-typing bug, fixed. iPad: the on-screen keyboard through
+the hidden textarea mirror, and the view auto-pans to keep the caret above it (invariant 49). Owed:
+the iPad pass (spec §8: focus from the tap, the keyboard, auto-pan, dictation and accents, the
+hardware-keyboard iPad, Chrome's keyboard shift, the 500 ms refocus tail re-raising the keyboard
+after a quick dismiss), Safari, IME, and emoji in the browser (unit-tested only); paste over a
+selection was not browser-checked — see CHANGELOG. Paragraph text and shaping for complex scripts
+remain unspecced.
+
+Before that, **M21** (a pressure-sensitive Brush tool, 2026-09-29): press B and draw; with a Pencil the width
 follows pressure, with a mouse or finger it is even. Five settings in a Brush section of Properties
 (Size, Pressure, Taper, Stream, Smooth — `prefs.brush`), a size ring for the cursor, and each stroke
 lands as one filled path in the stroke colour, simplified through Paper (invariant 48). Owed: an
@@ -970,7 +1056,9 @@ distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope war
 `docs/superpowers/specs/2026-09-28-m20-google-fonts-design.md`) are complete — see CHANGELOG.
 **M21** (a pressure-sensitive Brush tool,
 `docs/superpowers/specs/2026-09-29-m21-brush-tool-design.md`) is complete too, and freehand has left
-the post-v1 list. Nothing on the roadmap is currently specced and unbuilt.
+the post-v1 list. **M22** (on-canvas text editing,
+`docs/superpowers/specs/2026-09-29-m22-on-canvas-text-design.md`) is complete as well; paragraph text
+and shaping for complex scripts remain unspecced. Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
