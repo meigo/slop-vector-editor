@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1293 tests in 84 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1296 tests in 84 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -590,9 +590,15 @@ every user-visible change.
       every machine. A title that re-rolled itself because it was opened elsewhere would be a data
       bug. A negative roll times an amount of zero is `-0`, which `===` calls `0` but `Object.is`
       does not, so the amounts are normalised with `+ 0`.
-    - The jitter is baked **about the centre of each character's own advance box, on the baseline**;
-      about the origin, distant letters would swing out of the line. An identity transform is
-      skipped rather than applied, so an unjittered title's outlines stay byte-identical.
+    - The jitter is baked **about the centre of each glyph's own outline bounds** (`pivotOf`,
+      2026-09-29) — about the origin, distant letters would swing out of the line, and about the
+      baseline (M10 to 2026-09-29) a rotated tall letter swung its top into its neighbours and a
+      scaled one grew upwards only. A glyph with no outline (a space) falls back to its advance
+      box's centre. Outlines, click quads (`charHits`) and the character highlight all go through
+      the same `pivotOf` + `charMatrix`, so they cannot disagree. Titles saved before the change
+      keep their baked outlines until next re-outlined, when their letters shift once. An identity
+      transform is skipped rather than applied, so an unjittered title's outlines stay
+      byte-identical.
     - **`charSel` and `charQuads` are store state** — not saved, not undoable, cleared whenever the
       selection changes, like `nodeSel` (invariant 31). Escape lets the character go **before** the
       node selection or the object selection. The quads come from the same `runLayout` the outlines

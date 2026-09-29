@@ -505,3 +505,31 @@ describe("outlines at every pen position", () => {
     expect(new Set(scan(f, "Tallinn")).size).toBe(1);
   });
 });
+
+/** Per-character transforms pivot on the glyph's own visual centre (2026-09-29): about the
+ *  baseline, a rotated tall letter swung its top into its neighbours. */
+describe("per-character pivot", () => {
+  const centre = (b: { x: number; y: number; w: number; h: number }) => ({
+    x: b.x + b.w / 2,
+    y: b.y + b.h / 2,
+  });
+
+  it("a rotated character keeps its visual centre", () => {
+    const plain = centre(boxOf("A"));
+    const turned = centre(boxOf("A", { overrides: { 0: { r: 90 } } }));
+    expect(turned.x).toBeCloseTo(plain.x, 0);
+    expect(turned.y).toBeCloseTo(plain.y, 0);
+  });
+
+  it("a scaled character grows about its visual centre", () => {
+    const plain = centre(boxOf("g"));
+    const big = centre(boxOf("g", { overrides: { 0: { s: 1.5 } } }));
+    expect(big.x).toBeCloseTo(plain.x, 0);
+    expect(big.y).toBeCloseTo(plain.y, 0);
+  });
+
+  it("a space (no outline) still transforms without NaN", () => {
+    const hits = charHits(f, meta("A B", { overrides: { 1: { r: 45 } } }));
+    for (const h of hits) for (const q of h.quad) expect(Number.isFinite(q.x + q.y)).toBe(true);
+  });
+});
