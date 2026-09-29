@@ -36,6 +36,8 @@ export type FakeState = {
   forgotten: { ids: readonly string[]; which: PaintSlot }[];
   /** Set by `setHoverCursor` (spec M17 §6). */
   hoverCursor: string | null;
+  /** Each `commitBrushStroke` call's outline (spec M21 §4.2), recorded rather than committed. */
+  brushStrokes: Vec[][];
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -65,6 +67,7 @@ export function fakeContext(
     gradientStop: null,
     forgotten: [],
     hoverCursor: null,
+    brushStrokes: [],
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -108,6 +111,9 @@ export function fakeContext(
     placeTitle: (at) => {
       state.titlesPlaced.push(at);
     },
+    commitBrushStroke: (o) => {
+      state.brushStrokes.push([...o]);
+    },
     pickCharacter: (at) => {
       state.charsPicked.push(at);
     },
@@ -150,6 +156,14 @@ export function ev(
   mods: Partial<Mods> = {},
   pointerType = "mouse",
   time = (clock += 1000),
+  pressure = 0.5,
 ): ToolEvent {
-  return { doc: { x, y }, screen: { x, y }, pointerType, mods: { ...NO_MODS, ...mods }, time };
+  return {
+    doc: { x, y },
+    screen: { x, y },
+    pointerType,
+    mods: { ...NO_MODS, ...mods },
+    time,
+    pressure,
+  };
 }

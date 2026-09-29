@@ -114,11 +114,25 @@
   function toolEvent(e: PointerEvent): ToolEvent {
     const screen = local(e);
     const dock = dockMods();
+    const coalesced = e.type === "pointermove" ? e.getCoalescedEvents?.() : undefined;
     return {
       doc: screenToDoc(app.view, screen),
       screen,
       pointerType: e.pointerType,
       time: e.timeStamp,
+      pressure: e.pressure,
+      samples:
+        coalesced && coalesced.length > 0
+          ? coalesced.map((c) => {
+              const s = local(c);
+              return {
+                doc: screenToDoc(app.view, s),
+                screen: s,
+                pressure: c.pressure,
+                time: c.timeStamp,
+              };
+            })
+          : undefined,
       mods: {
         shift: e.shiftKey || dock.shift,
         alt: e.altKey || dock.alt,

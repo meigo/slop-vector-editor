@@ -12,6 +12,7 @@ import {
   type Paint,
   type PathShape,
   type Style,
+  type Subpath,
   type TextMeta,
   withItalic,
   withWeight,
@@ -92,7 +93,10 @@ import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
 import type { CharOverride } from "../text/attrs";
-import { applyMat, invert as invertMat, multiply as multiplyMat } from "../geom/mat";
+import { applyMat, IDENTITY, invert as invertMat, multiply as multiplyMat } from "../geom/mat";
+import { simplifyOf } from "../geom/simplify";
+import { brushStyle, brushTolerance } from "../brush/commit";
+import { outlineSubpath, polygonArea } from "../brush/outline";
 import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
@@ -224,6 +228,11 @@ class AppState {
   dock = $state.raw<DockState>({ shift: "off", alt: "off" });
   spaceHeld = $state(false);
   overlay = $state.raw<Overlay>(null);
+  /** Brush strokes drawn but not yet in the document — Paper is simplifying them (spec M21 §5).
+   *  Store state, not the tool's overlay: they outlive the gesture and may outlive the tool. Each
+   *  is dropped when its commit settles, so a stroke never flickers out between pen-up and commit.
+   *  Replaced, never mutated. */
+  brushPending = $state.raw<{ outline: Vec[]; fill: Paint; opacity: number }[]>([]);
   contextMenu = $state.raw<ContextMenuState>(null);
   /** The properties drawer on narrow screens. */
   propertiesOpen = $state(false);
@@ -464,6 +473,8 @@ export function replaceDocument(
   app.nodeTarget = null;
   app.nodeSel = [];
   app.gradientMemory.clear();
+  brushEpoch++;
+  app.brushPending = [];
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
@@ -1505,6 +1516,60 @@ async function withFont<T>(req: FaceRequest, run: (f: LoadedFont) => T): Promise
     notify("error", text);
     return null;
   }
+}
+
+/** Spec M21 §4. Strokes are chained so they land in drawing order; `brushEpoch` is bumped by
+ *  `replaceDocument`, so a stroke drawn on a document that was since replaced never lands in the
+ *  new one. A stroke INSERTS a node and never commits from a stale base, so the document moving
+ *  during the await is harmless (invariant 15 does not apply). */
+let brushChain: Promise<void> = Promise.resolve();
+let brushEpoch = 0;
+let brushFallbackWarned = false;
+
+export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
+  const epoch = brushEpoch;
+  const zoom = app.view.zoom;
+  const layerId = app.currentLayerId;
+  const style = brushStyle(app.prefs.style);
+  const pending = { outline: [...outline], fill: style.fill as Paint, opacity: style.opacity };
+  app.brushPending = [...app.brushPending, pending];
+  const land = async () => {
+    try {
+      const exact = outlineSubpath(outline);
+      if (!exact || polygonArea(outline) < 1e-6) return;
+      let subpaths: Subpath[];
+      try {
+        subpaths = await simplifyOf([exact], brushTolerance(zoom));
+      } catch {
+        subpaths = [exact];
+        if (!brushFallbackWarned) {
+          brushFallbackWarned = true;
+          notify(
+            "error",
+            "Brush — the simplifier could not load, so strokes are kept unsimplified (heavier files). Check your connection, then reload the page.",
+          );
+        }
+      }
+      if (epoch !== brushEpoch) return;
+      if (subpaths.reduce((n, s) => n + s.nodes.length, 0) < 2) return;
+      const target = app.doc.layers.some((l) => l.id === layerId) ? layerId : app.currentLayerId;
+      const block = layerBlock(app.doc, target);
+      if (block) {
+        notify("info", blockMessage(block, "draw"));
+        return;
+      }
+      // The next brush stroke may already be in progress; it is a draft, not a drag committing
+      // from a base document, and cancelling it would throw away what the user is drawing.
+      // (The cast goes once M21 Task 5 adds "brush" to `ToolId`.)
+      if ((app.toolId as string) !== "brush") cancelActiveGesture();
+      const shape: PathShape = { kind: "path", id: "", transform: IDENTITY, style, subpaths };
+      commitDoc(addShape(app.doc, target, shape).doc);
+    } finally {
+      app.brushPending = app.brushPending.filter((p) => p !== pending);
+    }
+  };
+  brushChain = brushChain.then(land, land);
+  return brushChain;
 }
 
 /** Only one outline job at a time (invariant 37): these all await a lazy-chunk fetch, and two in

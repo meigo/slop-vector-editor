@@ -1,4 +1,4 @@
-import type { Doc } from "../doc/document";
+import type { Doc, Paint } from "../doc/document";
 import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
 import type { Box } from "../geom/box";
@@ -8,7 +8,17 @@ import type { Prefs } from "../persist/preferences";
 import type { View } from "../state/viewport";
 import type { Mods, ToolId } from "./types";
 
-export type ToolEvent = { doc: Vec; screen: Vec; pointerType: string; mods: Mods; time: number };
+export type ToolEvent = {
+  doc: Vec;
+  screen: Vec;
+  pointerType: string;
+  mods: Mods;
+  time: number;
+  /** Pen pressure, 0–1; read only for `pointerType === "pen"` (spec M21 §2). */
+  pressure: number;
+  /** The coalesced samples of a move (spec M21 §2) — only the brush reads them. */
+  samples?: { doc: Vec; screen: Vec; pressure: number; time: number }[];
+};
 
 /** Transient drawing that is not part of the document (doc-space coordinates). */
 export type Overlay =
@@ -25,6 +35,17 @@ export type Overlay =
       closeHint: boolean;
     }
   | { kind: "cage"; cage: Cage }
+  | {
+      kind: "brush";
+      /** The stroke's real paint (spec M21 §5); `opacity` is the style opacity, and the preview
+       *  multiplies it with `fill.opacity`. */
+      fill: Paint;
+      opacity: number;
+      /** The stroke being drawn, as a closed document-space outline. */
+      live: Vec[] | null;
+      /** The size cursor: a circle of radius `r` (document px) at the hovering pointer. */
+      cursor: { at: Vec; r: number } | null;
+    }
   | null;
 
 /** Everything a tool may read or change. The app binds it to the store; tests use a fake. */
@@ -53,6 +74,9 @@ export interface ToolContext {
    *  needs the font, which is an async lazy-chunk load — a tool's `up` is synchronous, and
    *  invariant 12 keeps tools out of the store. */
   placeTitle(at: Vec): void;
+  /** Commits a finished brush stroke's outline (spec M21 §4.2). The store owns it for the same
+   *  reason as `placeTitle`: simplifying awaits Paper's lazy chunk. */
+  commitBrushStroke(outline: readonly Vec[]): void;
   /** Selects the character of the selected title under a document point (spec M10 §6). */
   pickCharacter(at: Vec): void;
   /** The selected character's current offset, read once when a drag begins. */
