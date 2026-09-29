@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Trash2 } from "@lucide/svelte";
   import { DEFAULT_STYLE, type LineCap, type LineJoin, type Paint } from "../doc/document";
   import type { PaintSlot } from "../doc/paint-edit";
   import { gradientHandles } from "../tools/gradient-handles";
@@ -8,6 +9,7 @@
     endDocGesture,
     applyGeometry,
     moveSelectedNodes,
+    deleteSelectedNodes,
     setGradientTarget,
     setGradientType,
     setBrushPrefs,
@@ -421,6 +423,19 @@
                 onchange={() => setSelectedNodeType(t.type)}
               />
             {/each}
+          </div>
+          <!-- The touch route to deleting nodes: iPad without a keyboard has no ⌫, and the right-click
+               menu opens for a mouse only. -->
+          <div class="field-full">
+            <button
+              type="button"
+              class="btn w-full justify-center gap-1.5"
+              title="Delete selected node{app.nodeSel.length > 1 ? 's' : ''} (⌫)"
+              onclick={deleteSelectedNodes}
+            >
+              <Trash2 size={14} />
+              Delete node{app.nodeSel.length > 1 ? "s" : ""}
+            </button>
           </div>
           {#if nodeSummary.point}
             {@const pt = nodeSummary.point}

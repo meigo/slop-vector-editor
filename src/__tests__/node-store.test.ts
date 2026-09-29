@@ -14,6 +14,8 @@ import {
   clearOrLeaveGroup,
   commitDoc,
   deleteSelectedNodes,
+  deleteSelectionOrNodes,
+  deletesNodes,
   invertSelection,
   nudgeSelection,
   redo,
@@ -455,5 +457,38 @@ describe("selection commands", () => {
     expect(app.selection).toEqual(["p", "r"]);
     runEditAction({ kind: "invertSelection" });
     expect(app.selection).toEqual([]);
+  });
+});
+
+/** The top-bar Delete and the Node section's Delete (touch: no ⌫ key) follow ⌫'s routing. The
+ *  top-bar button used to delete the whole path even with nodes selected in the Node tool. */
+describe("deleteSelectionOrNodes", () => {
+  it("with the Node tool and nodes selected, deletes just those nodes", () => {
+    setSelection(["p"]);
+    setTool("node");
+    setNodeTarget("p");
+    setNodeSel([{ sub: 0, i: 0 }]);
+    expect(deletesNodes()).toBe(true);
+    deleteSelectionOrNodes();
+    expect(pathNodeCount()).toBe(2);
+    expect(findNode(app.doc, "p")).not.toBeNull();
+  });
+
+  it("with no nodes selected, deletes the selected object", () => {
+    setSelection(["p"]);
+    setTool("node");
+    setNodeTarget("p");
+    setNodeSel([]);
+    expect(deletesNodes()).toBe(false);
+    deleteSelectionOrNodes();
+    expect(findNode(app.doc, "p")).toBeNull();
+  });
+
+  it("with another tool, deletes the selected object", () => {
+    setTool("select");
+    setSelection(["r"]);
+    expect(deletesNodes()).toBe(false);
+    deleteSelectionOrNodes();
+    expect(findNode(app.doc, "r")).toBeNull();
   });
 });

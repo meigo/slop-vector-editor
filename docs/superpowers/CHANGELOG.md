@@ -3041,3 +3041,16 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   with a two-finger palm tap during it landed and was not undone. **Owed:** real fingers on the iPad
   (timing and slop of real taps; iOS's own three-finger gestures may take the three-finger tap).
 
+## 2026-09-29 — Deleting nodes on touch
+
+- **Was:** nodes could be deleted only with ⌫ or the right-click menu (mouse only), so an iPad
+  without a keyboard had no route — and the top bar's Delete deleted the **whole path** even with
+  nodes selected in the Node tool.
+- **Now:** one rule, `deletesNodes()` (Node tool + nodes selected), behind `deleteSelectionOrNodes()`,
+  which ⌫ (`runEditAction`) and the top bar's Delete both call; the top-bar button reads "Delete
+  nodes" / "Delete selected nodes (⌫)" while it applies. The Node section gains a full-width
+  **Delete node(s)** button. The Layers trash still deletes objects (that panel is about objects).
+- 3 new store tests; 1309 tests in 85 files. Browser-checked (desktop Chrome): the top-bar button
+  and the panel button each removed one node and kept the path; with no nodes selected the top-bar
+  button is plain "Delete" again. **Owed:** a real tap on iPad.
+
