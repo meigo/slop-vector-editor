@@ -88,19 +88,13 @@ describe("commitBrushStroke", () => {
 
   it("drops pending strokes when the document is replaced", async () => {
     const p = commitBrushStroke(wavy());
-    replaceDocument(
-      {
-        ...app.doc,
-        layers: app.doc.layers.map((l) => (l.id === "L1" ? { ...l, locked: true } : l)),
-      },
-      "Untitled.svg",
-      null,
-      true,
-    );
+    // Nothing locked or hidden in the new document: only the epoch can keep the stroke out.
+    replaceDocument(twoLayers(), "Untitled.svg", null, true);
     await p;
     // replaceDocument drops pending strokes: nothing lands, nothing is thrown.
     expect(paths()).toHaveLength(0);
     expect(app.brushPending).toEqual([]);
+    expect(app.notices).toEqual([]);
   });
 
   it("lands in the current layer when its own layer was deleted meanwhile", async () => {
@@ -119,5 +113,27 @@ describe("commitBrushStroke", () => {
     await p;
     expect(paths()).toHaveLength(0);
     expect(app.notices.map((n) => n.text)).toContain("“Front” is locked — unlock it to draw.");
+  });
+
+  it("reports a stroke that fails to land, and the next stroke still lands", async () => {
+    // A point whose coordinate throws on read: `land` reads it after the call returns.
+    const bad: Vec[] = [
+      {
+        get x(): number {
+          throw new Error("boom");
+        },
+        y: 0,
+      },
+      ...wavy(20, 30),
+    ];
+    const a = commitBrushStroke(bad);
+    const b = commitBrushStroke(wavy(20, 120));
+    await expect(a).resolves.toBeUndefined();
+    await b;
+    expect(paths()).toHaveLength(1);
+    expect(app.brushPending).toEqual([]);
+    expect(app.notices.map((n) => [n.kind, n.text])).toEqual([
+      ["error", "Brush — the stroke could not be added."],
+    ]);
   });
 });

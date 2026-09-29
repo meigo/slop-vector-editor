@@ -1535,8 +1535,9 @@ export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
   app.brushPending = [...app.brushPending, pending];
   const land = async () => {
     try {
-      const exact = outlineSubpath(outline);
-      if (!exact || polygonArea(outline) < 1e-6) return;
+      // The copy, not the caller's array: this runs after the call has returned.
+      const exact = outlineSubpath(pending.outline);
+      if (!exact || polygonArea(pending.outline) < 1e-6) return;
       let subpaths: Subpath[];
       try {
         subpaths = await simplifyOf([exact], brushTolerance(zoom));
@@ -1564,6 +1565,9 @@ export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
       if ((app.toolId as string) !== "brush") cancelActiveGesture();
       const shape: PathShape = { kind: "path", id: "", transform: IDENTITY, style, subpaths };
       commitDoc(addShape(app.doc, target, shape).doc);
+    } catch {
+      // Never reject: the context calls this with `void`, and the next stroke must still land.
+      notify("error", "Brush — the stroke could not be added.");
     } finally {
       app.brushPending = app.brushPending.filter((p) => p !== pending);
     }
