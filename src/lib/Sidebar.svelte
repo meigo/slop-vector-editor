@@ -1,7 +1,7 @@
 <script lang="ts">
   import { clampSidebarWidth, resizedSidebarWidth } from "./panel-layout";
   import { clampRatio, MIN_PANEL_PX, propsOpen, ratioFromDrag, STRIP_PX } from "./split";
-  import { app, setPrefs, togglePropsPanel } from "../state/appState.svelte";
+  import { app, propsHasContent, setPrefs, togglePropsPanel } from "../state/appState.svelte";
   import LayersPanel from "./LayersPanel.svelte";
   import PropertiesPanel from "./PropertiesPanel.svelte";
 
@@ -12,9 +12,7 @@
    *  Layers sits on top (spec 2026-09-26) so that Properties opening and closing with the
    *  selection moves only Layers' bottom edge, never its rows. The Brush tool counts as content:
    *  strokes never select, and the brush settings live in Properties. */
-  const showProps = $derived(
-    propsOpen(app.propsOverride, app.selection.length > 0 || app.toolId === "brush"),
-  );
+  const showProps = $derived(propsOpen(app.propsOverride, propsHasContent()));
   const showLayers = $derived(app.prefs.layersOpen);
   const split = $derived(showProps && showLayers);
 

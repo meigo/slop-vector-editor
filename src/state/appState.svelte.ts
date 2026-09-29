@@ -703,13 +703,20 @@ export function setPrefs(p: Prefs): void {
   savePrefs(clean);
 }
 
+/** Whether Properties has anything to say: a selection, or the Brush tool, whose settings live
+ *  there and which never selects. The sidebar and the header toggle both read this. */
+export function propsHasContent(): boolean {
+  return app.selection.length > 0 || app.toolId === "brush";
+}
+
 /** The Properties panel's header chevron (spec M8 §5). It records the opposite of what is showing,
  *  and every path that assigns the selection drops it again when the selection's emptiness flips.
  *  Unlike `prefs.dockExpanded`, this never returns to `null` by toggling: "undecided" is the state
- *  the selection puts it in, not one the user can ask for, and the two agree in every case a click
- *  can reach (`propsOpen(false, false) === propsOpen(null, false)`). */
+ *  the content puts it in, not one the user can ask for. Both override values agree with `null`
+ *  in the state a click can reach them from: `propsOpen(false, c) === propsOpen(null, c)` only when
+ *  `c` is false, and an override is set only from what is showing, so it always flips the view. */
 export function togglePropsPanel(): void {
-  app.propsOverride = !propsOpen(app.propsOverride, app.selection.length > 0);
+  app.propsOverride = !propsOpen(app.propsOverride, propsHasContent());
 }
 
 export function setPolygonPrefs(patch: Partial<PolygonPrefs>): void {

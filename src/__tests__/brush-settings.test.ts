@@ -6,7 +6,15 @@ import {
   DEFAULT_BRUSH,
   sanitizeBrush,
 } from "../brush/settings";
-import { app, setBrushPrefs, setPrefs } from "../state/appState.svelte";
+import {
+  app,
+  propsHasContent,
+  setBrushPrefs,
+  setPrefs,
+  setTool,
+  togglePropsPanel,
+} from "../state/appState.svelte";
+import { propsOpen } from "../lib/split";
 import { DEFAULT_PREFS, sanitizePrefs, SECTION_IDS } from "../persist/preferences";
 
 describe("brush settings", () => {
@@ -53,6 +61,21 @@ describe("prefs.brush", () => {
       expect(app.prefs.brush).toMatchObject({ size: 0.5, pressure: 8, stream: 0, smooth: 100 });
     } finally {
       setPrefs(before);
+    }
+  });
+});
+
+describe("Properties header with the Brush tool", () => {
+  it("one click closes the panel that the Brush tool holds open", () => {
+    setTool("brush");
+    try {
+      expect(app.selection).toHaveLength(0);
+      expect(propsOpen(app.propsOverride, propsHasContent())).toBe(true);
+      togglePropsPanel();
+      expect(propsOpen(app.propsOverride, propsHasContent())).toBe(false);
+    } finally {
+      app.propsOverride = null;
+      setTool("select");
     }
   });
 });
