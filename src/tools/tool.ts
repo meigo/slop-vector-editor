@@ -78,10 +78,8 @@ export interface ToolContext {
   /** Commits a finished brush stroke's outline (spec M21 §4.2). The store owns it for the same
    *  reason as `placeTitle`: simplifying awaits Paper's lazy chunk. */
   commitBrushStroke(outline: readonly Vec[]): void;
-  /** Selects the character of the selected title under a document point (spec M10 §6). */
-  pickCharacter(at: Vec): void;
-  /** The index of the selected title's character under a document point, or null — the same test
-   *  as `pickCharacter`, with no side effects (spec M22 §3: a press on the selected character). */
+  /** The index of the selected title's character under a document point, or null (spec M22 §3:
+   *  the Text tool asks whether a press is on the selected character). */
   charAtPoint(at: Vec): number | null;
   /** The selected character's current offset, read once when a drag begins. */
   charOffset(): { dx: number; dy: number };
@@ -89,9 +87,6 @@ export interface ToolContext {
   setCharOffset(dx: number, dy: number): void;
   /** Closes the character-drag bracket after its outline commit, which is async. */
   finishCharDrag(): void;
-  /** The selected title's id, or null — the tool needs it to tell "click inside a title I am
-   *  already editing" from "click on empty canvas, place a new one". */
-  titleId(): string | null;
   charSel(): number | null;
   notify(kind: "info" | "error", text: string): void;
   setOverlay(o: Overlay): void;

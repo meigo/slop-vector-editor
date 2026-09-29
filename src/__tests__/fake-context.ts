@@ -14,9 +14,7 @@ import { NO_MODS, type Mods, type ToolId } from "../tools/types";
 export type FakeState = {
   /** Where the Text tool asked for a title (spec M10 §6). */
   titlesPlaced: Vec[];
-  charsPicked: Vec[];
   charNudges: Vec[];
-  fakeTitleId: string | null;
   fakeCharSel: number | null;
   fakeCharOffset: { dx: number; dy: number };
   session: Session;
@@ -61,9 +59,7 @@ export function fakeContext(
 ): { ctx: ToolContext; state: FakeState } {
   const state: FakeState = {
     titlesPlaced: [],
-    charsPicked: [],
     charNudges: [],
-    fakeTitleId: null,
     fakeCharSel: null,
     fakeCharOffset: { dx: 0, dy: 0 },
     session: newSession(doc, true),
@@ -132,15 +128,11 @@ export function fakeContext(
     commitBrushStroke: (o) => {
       state.brushStrokes.push([...o]);
     },
-    pickCharacter: (at) => {
-      state.charsPicked.push(at);
-    },
     charAtPoint: (at) => state.fakeCharAt(at),
     charOffset: () => state.fakeCharOffset,
     setCharOffset: (dx, dy) => {
       state.charNudges.push({ x: dx, y: dy });
     },
-    titleId: () => state.fakeTitleId,
     charSel: () => state.fakeCharSel,
     notify: (_kind, text) => {
       state.notices.push(text);

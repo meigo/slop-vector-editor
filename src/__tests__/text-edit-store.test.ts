@@ -8,6 +8,7 @@ import {
   beginTextEdit,
   endTextEdit,
   finishCharDrag,
+  placeTitle,
   registerTextBlur,
   registerTextFocus,
   replaceDocument,
@@ -250,6 +251,18 @@ describe("the text edit session (spec M22 §2-§3)", () => {
     expect(app.textEdit).toBeNull();
     expect(focus).not.toHaveBeenCalled();
     expect(app.notices.map((n) => n.text).join()).toMatch(/Needs the font/);
+  });
+
+  it("placing a title enters editing with its whole text selected", async () => {
+    const focus = vi.fn();
+    registerTextFocus(focus);
+    await placeTitle({ x: 50, y: 60 });
+    const placed = app.doc.layers[0].children.at(-1) as PathShape;
+    expect(placed.text?.text).toBe("Title");
+    expect(app.selection).toEqual([placed.id]);
+    expect(app.textEdit).toEqual({ id: placed.id, anchor: 0, focus: 5 });
+    expect(focus).toHaveBeenCalledTimes(1);
+    await endTextEdit();
   });
 });
 

@@ -20,6 +20,7 @@
   import { pointerTolerance, type Tool, type ToolEvent } from "../tools/tool";
   import NodeView from "./NodeView.svelte";
   import Overlay from "./Overlay.svelte";
+  import TextEditField from "./TextEditField.svelte";
 
   let { oncursor }: { oncursor: (p: Vec | null) => void } = $props();
 
@@ -38,6 +39,15 @@
   const pointers = new Map<number, Vec>();
   /** Each active pointer's `pointerType`, alongside `pointers`. */
   const pointerTypes = new Map<number, string>();
+  /** When the last canvas pointer lifted (`performance.now()`), for `pressing`. */
+  let lastPointerEnd = -Infinity;
+
+  /** A canvas press is running or ended a moment ago — the text field's blur asks, so a press on
+   *  the canvas does not end on-canvas text editing by moving focus to nothing. The tail covers a
+   *  touch, whose compatibility mouse events (and the focus change with them) follow the lift. */
+  function pressing(): boolean {
+    return pointers.size > 0 || performance.now() - lastPointerEnd < 500;
+  }
 
   const ready = $derived(width > 0 && height > 0);
   const view = $derived(app.view);
@@ -183,7 +193,11 @@
     }
     // No native text selection or drag; keep keyboard shortcuts working after a click here.
     e.preventDefault();
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    // Except the on-canvas text field while editing (spec M22 §1): a press inside the title moves
+    // the caret, and blurring the field would end the session. It is the only focusable thing in
+    // the host.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && !(app.textEdit && host.contains(active))) active.blur();
     try {
       host.setPointerCapture(e.pointerId);
     } catch {
@@ -251,6 +265,7 @@
     pointers.delete(e.pointerId);
     pointerTypes.delete(e.pointerId);
     if (pointers.size === 0) gesture = null;
+    lastPointerEnd = performance.now();
   }
 
   function oncontextmenu(e: MouseEvent) {
@@ -291,10 +306,19 @@
       setView(zoomAt(app.view, local(g), g.scale / lastScale));
       lastScale = g.scale;
     };
+    // While editing text, a click must not move focus off the text field (spec M22 §1):
+    // pointerdown's preventDefault does not stop the focus change, mousedown's does. Where a
+    // cancelled pointerdown suppresses the mousedown, the field's blur handler takes the focus back.
+    // Added by hand: a mouse handler on this non-interactive element is an a11y warning in markup.
+    const onMouseDown = (e: MouseEvent) => {
+      if (app.textEdit) e.preventDefault();
+    };
+    host.addEventListener("mousedown", onMouseDown);
     host.addEventListener("wheel", onWheel, { passive: false });
     host.addEventListener("gesturestart", onGestureStart);
     host.addEventListener("gesturechange", onGestureChange);
     return () => {
+      host.removeEventListener("mousedown", onMouseDown);
       host.removeEventListener("wheel", onWheel);
       host.removeEventListener("gesturestart", onGestureStart);
       host.removeEventListener("gesturechange", onGestureChange);
@@ -375,4 +399,5 @@
     />
     <Overlay />
   </svg>
+  <TextEditField {width} {height} {pressing} />
 </div>

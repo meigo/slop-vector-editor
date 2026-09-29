@@ -1673,24 +1673,9 @@ export async function placeTitle(at: Vec): Promise<void> {
   const r = addShape(app.doc, layerId, shape);
   commitDoc(r.doc);
   setSelection([r.id]);
-  // Spec §6: placing a title is immediately followed by typing it. On iPad this is the difference
-  // between the keyboard appearing and hunting for the field in a panel that just re-laid out.
-  // The control is a textarea. Below 900px the sidebar is a drawer and is not mounted until opened,
-  // and a wide window can have a hidden copy of it first in the document.
-  queueMicrotask(() => {
-    if (window.matchMedia("(max-width: 899px)").matches) app.propertiesOpen = true;
-    requestAnimationFrame(() => {
-      const fields = document.querySelectorAll<HTMLTextAreaElement>(
-        'textarea[aria-label="Title text"]',
-      );
-      for (const el of fields) {
-        if (el.getClientRects().length > 0) {
-          el.focus();
-          return;
-        }
-      }
-    });
-  });
+  // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
+  // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap.
+  beginTextEdit(r.id, "all");
 }
 
 /** The single selected title, or null. */
@@ -2063,15 +2048,9 @@ export function setCharSel(i: number | null): void {
   app.charSel = i;
 }
 
-/** Picks the character under a document point. Synchronous on purpose: the quads are kept up to
+/** The selected title's character under a document point, or null (spec M22 §3: the Text tool
+ *  asks whether a press is on the selected one). Synchronous on purpose: the quads are kept up to
  *  date as the selection changes, because loading the font is async and a tool's `down` is not. */
-export function pickCharacter(at: Vec): void {
-  const i = charHit(at);
-  if (i !== undefined) app.charSel = i;
-}
-
-/** The selected title's character under a document point, or null — `pickCharacter`'s test with
- *  no side effects (spec M22 §3: the Text tool asks whether a press is on the selected one). */
 export function charAtPoint(at: Vec): number | null {
   return charHit(at) ?? null;
 }
@@ -2248,7 +2227,14 @@ export function setCaretStops(id: string | null, stops: CaretStop[]): void {
 
 /** Enter editing `id` (selects it). `at` is a document point (caret there, resolved when stops
  *  arrive if they are not loaded yet), or "all" (select the whole text). Calls the registered
- *  focus function synchronously. Refuses (notice) when the title's font is unavailable. */
+ *  focus function synchronously. Refuses (notice) when the title's font is unavailable.
+ *
+ *  Why on the canvas and not in the panel (this replaces M10's focus of the panel's field after
+ *  placing): on iPad, entering a title is immediately followed by typing it, and the keyboard
+ *  appears only for a focus made synchronously inside the tap. Below 900px the sidebar is a drawer
+ *  that is not mounted until opened, and a wide window can have a hidden copy of it first in the
+ *  document, so the panel field meant a deferred focus — and hunting for a field in a panel that
+ *  had just re-laid out. The canvas textarea is always mounted, so the focus can be synchronous. */
 export function beginTextEdit(id: string, at: Vec | "all"): void {
   const n = findNode(app.doc, id)?.node;
   if (!n || n.kind !== "path" || !n.text) return;
@@ -2314,6 +2300,15 @@ export function textIndexAt(at: Vec): number | null {
   if (!inv) return null; // invariant 26
   const i = indexAt(app.caretStops, applyMat(inv, at));
   return i < 0 ? null : i;
+}
+
+/** The caret stops, when they belong to the edited title — else null (not editing, or the stops
+ *  are still the previous title's or not loaded). Reactive through `app.textEdit` and
+ *  `app.caretStops`, which `setCaretStops` always assigns together with `caretStopsFor`. */
+export function editCaretStops(): CaretStop[] | null {
+  const edit = app.textEdit;
+  const stops = app.caretStops;
+  return edit && caretStopsFor === edit.id && stops.length > 0 ? stops : null;
 }
 
 /** The word around `index` in the edited title (the tool's double tap). */
