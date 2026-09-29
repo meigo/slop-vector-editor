@@ -80,6 +80,9 @@ export interface ToolContext {
   commitBrushStroke(outline: readonly Vec[]): void;
   /** Selects the character of the selected title under a document point (spec M10 §6). */
   pickCharacter(at: Vec): void;
+  /** The index of the selected title's character under a document point, or null — the same test
+   *  as `pickCharacter`, with no side effects (spec M22 §3: a press on the selected character). */
+  charAtPoint(at: Vec): number | null;
   /** The selected character's current offset, read once when a drag begins. */
   charOffset(): { dx: number; dy: number };
   /** Sets that offset absolutely — see the note on `setCharOffset` in the store. */

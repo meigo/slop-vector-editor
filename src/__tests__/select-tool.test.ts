@@ -552,4 +552,79 @@ describe("select tool: node-tool handoff", () => {
     expect(state.nodeTarget).toBe("p");
     expect(state.selection).toEqual(["p"]);
   });
+
+  const lineShape = (text?: string): Node => ({
+    kind: "path",
+    id: "p",
+    transform: IDENTITY,
+    style: DEFAULT_STYLE,
+    subpaths: [
+      {
+        closed: false,
+        nodes: [
+          { p: { x: 0, y: 50 }, in: null, out: null, type: "corner" },
+          { p: { x: 100, y: 50 }, in: null, out: null, type: "corner" },
+        ],
+      },
+    ],
+    ...(text === undefined
+      ? {}
+      : {
+          text: {
+            text,
+            font: "anton",
+            size: 50,
+            letterSpacing: 0,
+            lineHeight: 1.2,
+            align: "left" as const,
+            seed: 1,
+            amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
+            overrides: {},
+          },
+        }),
+  });
+
+  it("a double-click on a title enters text editing and switches to the Text tool", () => {
+    const d = createDoc(200, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [lineShape("Tallinn")] }],
+    });
+    const order: string[] = [];
+    const setTool = ctx.setTool;
+    ctx.setTool = (id) => {
+      order.push(`tool:${id}`);
+      setTool(id);
+    };
+    const begin = ctx.beginTextEdit;
+    ctx.beginTextEdit = (id, at) => {
+      order.push(`begin:${id}`);
+      begin(id, at);
+    };
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(50, 50, {}, "mouse", 0));
+    tool.up(ctx, ev(50, 50, {}, "mouse", 0));
+    tool.down(ctx, ev(50, 50, {}, "mouse", 100));
+    expect(state.textEdits).toEqual([]);
+    tool.up(ctx, ev(50, 50, {}, "mouse", 100));
+    expect(order).toEqual(["tool:text", "begin:p"]);
+    expect(state.toolId).toBe("text");
+    expect(state.textEdits).toEqual([{ op: "begin", id: "p", at: { x: 50, y: 50 } }]);
+    expect(state.nodeTarget).toBeNull();
+  });
+
+  it("a double-click on a plain path still goes to the node tool", () => {
+    const d = createDoc(200, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [lineShape()] }],
+    });
+    const tool: Tool = createSelectTool();
+    tool.down(ctx, ev(50, 50, {}, "mouse", 0));
+    tool.up(ctx, ev(50, 50, {}, "mouse", 0));
+    tool.down(ctx, ev(50, 50, {}, "mouse", 100));
+    tool.up(ctx, ev(50, 50, {}, "mouse", 100));
+    expect(state.toolId).toBe("node");
+    expect(state.textEdits).toEqual([]);
+  });
 });

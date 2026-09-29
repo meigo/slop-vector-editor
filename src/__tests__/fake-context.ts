@@ -50,6 +50,8 @@ export type FakeState = {
   fakeTextEdit: TextEdit | null;
   /** What `textIndexAt` answers. */
   fakeIndexAt: (at: Vec) => number | null;
+  /** What `charAtPoint` answers. */
+  fakeCharAt: (at: Vec) => number | null;
 };
 
 /** A ToolContext over a plain session, mirroring the real store's semantics. */
@@ -83,6 +85,7 @@ export function fakeContext(
     textEdits: [],
     fakeTextEdit: null,
     fakeIndexAt: () => null,
+    fakeCharAt: () => null,
   };
   const ctx: ToolContext = {
     doc: () => state.session.doc,
@@ -132,6 +135,7 @@ export function fakeContext(
     pickCharacter: (at) => {
       state.charsPicked.push(at);
     },
+    charAtPoint: (at) => state.fakeCharAt(at),
     charOffset: () => state.fakeCharOffset,
     setCharOffset: (dx, dy) => {
       state.charNudges.push({ x: dx, y: dy });

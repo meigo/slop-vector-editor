@@ -2066,23 +2066,33 @@ export function setCharSel(i: number | null): void {
 /** Picks the character under a document point. Synchronous on purpose: the quads are kept up to
  *  date as the selection changes, because loading the font is async and a tool's `down` is not. */
 export function pickCharacter(at: Vec): void {
+  const i = charHit(at);
+  if (i !== undefined) app.charSel = i;
+}
+
+/** The selected title's character under a document point, or null — `pickCharacter`'s test with
+ *  no side effects (spec M22 §3: the Text tool asks whether a press is on the selected one). */
+export function charAtPoint(at: Vec): number | null {
+  return charHit(at) ?? null;
+}
+
+/** The character index under `at`, null for a miss, or undefined when there is nothing to test
+ *  against (no selected title, no quads yet, a singular matrix). */
+function charHit(at: Vec): number | null | undefined {
   const t = selectedTitle();
   const quads = app.charQuads;
-  if (!t || quads.length === 0) return;
+  if (!t || quads.length === 0) return undefined;
   const found = findNode(app.doc, t.id);
-  if (!found) return;
+  if (!found) return undefined;
   const world = multiplyMat(found.parent, t.transform);
   const inv = invertMat(world);
-  if (!inv) return; // a singular matrix has no inside (invariant 26)
+  if (!inv) return undefined; // a singular matrix has no inside (invariant 26)
   const p = applyMat(inv, at);
   // Last match wins: later characters are drawn on top, so that is what the eye picked.
   for (let i = quads.length - 1; i >= 0; i--) {
-    if (pointInQuad(p, quads[i])) {
-      app.charSel = app.charAt[i] ?? i;
-      return;
-    }
+    if (pointInQuad(p, quads[i])) return app.charAt[i] ?? i;
   }
-  app.charSel = null;
+  return null;
 }
 
 function pointInQuad(p: Vec, q: readonly Vec[]): boolean {
