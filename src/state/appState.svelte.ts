@@ -1691,7 +1691,7 @@ export async function placeTitle(at: Vec): Promise<void> {
   textFocus?.();
   try {
     const before = app.doc;
-    const meta = defaultMeta("Title");
+    const meta = defaultMeta("Text");
     titleRunning = true;
     const subpaths = await withFont(meta, (f) => outlineText(f, meta)).finally(() => {
       titleRunning = false;
@@ -1721,7 +1721,7 @@ export async function placeTitle(at: Vec): Promise<void> {
     commitDoc(r.doc);
     setSelection([r.id]);
     // Spec M22 §3: placing a title enters editing with its whole text selected, so typing replaces
-    // "Title". Synchronously, in this same call: see `beginTextEdit` on the tap. Only while the
+    // "Text". Synchronously, in this same call: see `beginTextEdit` on the tap. Only while the
     // Text tool is still active: a tool changed during the font load ended editing, and the
     // `finally` below lets the field go.
     if (app.toolId === "text") beginTextEdit(r.id, "all");

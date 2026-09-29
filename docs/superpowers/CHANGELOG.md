@@ -3002,3 +3002,12 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - **Browser-checked** (desktop Chrome): place → ⌘A → Backspace shows only the caret (no old text,
   no frame); typing shows exactly what is typed; emptying then Escape removes the title with no
   notice; one undo restores it. **Owed:** the same on iPad with the on-screen keyboard.
+
+## 2026-09-29 — A placed title's dummy text is "Text"
+
+- A newly placed title reads **"Text"** instead of "Title" (`placeTitle`'s `defaultMeta`). It is
+  fully selected, so typing replaces it; the word only shows when you click away without typing,
+  and "Text" is the neutral name for that. The Layers row fallback for a whitespace-only title
+  (`rowLabel`, invariant 43) is the kind name and stays "Title". Considered and not done: a
+  Figma-style draft title that exists only once the first character is typed.
+
