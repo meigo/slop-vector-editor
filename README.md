@@ -93,6 +93,8 @@ What works today:
 - Node editing: double-click a path with the Select tool, or press N, to edit its nodes — move
   nodes and handles, add and delete nodes, change node type and close a path. Corner retracts a
   node's handles into a sharp point; Smooth and Symmetric line them up, growing any the node lacks.
+  Delete selected nodes with ⌫, the top bar's Delete (which deletes nodes, not the path, while
+  nodes are selected), or the Delete node button in the Node section — the touch route.
 - Pen: draw paths node by node (P) — click for corners, drag for curves, click the first node to
   close, or pick up an open path where you left it.
 - Installs to the Home Screen and runs standalone (web app manifest + icon).

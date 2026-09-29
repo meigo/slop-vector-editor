@@ -37,7 +37,8 @@
     copyPng,
     copyToSystem,
     cutToSystem,
-    deleteSelection,
+    deleteSelectionOrNodes,
+    deletesNodes,
     duplicateSelection,
     flattenSelection,
     flipSelection,
@@ -76,6 +77,7 @@
   const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
 
   const none = $derived(app.selection.length === 0);
+  const nodesDelete = $derived(deletesNodes());
   const actions = $derived(selectionActions(app.doc, app.selection));
   const anySelected = $derived(app.selection.length > 0);
 
@@ -670,13 +672,15 @@
     disabledTitle="Duplicate — nothing selected"
     onclick={duplicateSelection}
   />
+  <!-- Follows ⌫ (`deleteSelectionOrNodes`): with the Node tool and nodes selected it deletes those
+       nodes, not the whole path — on touch it is the only Delete there is. -->
   <IconButton
-    label="Delete"
-    title="Delete (⌫)"
+    label={nodesDelete ? "Delete nodes" : "Delete"}
+    title={nodesDelete ? "Delete selected nodes (⌫)" : "Delete (⌫)"}
     icon={Trash2}
     disabled={none}
     disabledTitle="Delete — nothing selected"
-    onclick={deleteSelection}
+    onclick={deleteSelectionOrNodes}
   />
   <span class="bar-sep"></span>
   <IconButton

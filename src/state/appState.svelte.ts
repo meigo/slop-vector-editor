@@ -1477,6 +1477,18 @@ export function deleteSelectedNodes(): void {
   app.nodeSel = [];
 }
 
+/** Whether Delete means "these nodes" rather than "this object": the Node tool with nodes selected.
+ *  The one rule behind ⌫, the top bar's Delete and the Node section's Delete (touch has no ⌫). */
+export function deletesNodes(): boolean {
+  return app.toolId === "node" && app.nodeSel.length > 0;
+}
+
+/** Delete, routed like ⌫: the selected nodes in the Node tool, otherwise the selected objects. */
+export function deleteSelectionOrNodes(): void {
+  if (deletesNodes()) deleteSelectedNodes();
+  else deleteSelection();
+}
+
 export function setSelectedNodeType(type: NodeType): void {
   cancelActiveGesture();
   const path = targetPath();

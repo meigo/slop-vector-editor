@@ -6,8 +6,7 @@ import {
   bringSelectionForward,
   bringSelectionToFront,
   clearOrLeaveGroup,
-  deleteSelectedNodes,
-  deleteSelection,
+  deleteSelectionOrNodes,
   duplicateSelection,
   fitArtboard,
   groupSelection,
@@ -72,10 +71,7 @@ export function runEditAction(a: EditAction): boolean {
       setTool(a.tool);
       return true;
     case "delete":
-      if (!toolTook("backspace")) {
-        if (app.toolId === "node" && app.nodeSel.length > 0) deleteSelectedNodes();
-        else deleteSelection();
-      }
+      if (!toolTook("backspace")) deleteSelectionOrNodes();
       return true;
     case "duplicate":
       duplicateSelection();
