@@ -37,6 +37,7 @@ describe("preferences", () => {
     layersOpen: false,
     closedSections: ["geometry"],
     sidebarPx: 300,
+    brush: { size: 12, pressure: 4.5, taper: false, stream: 20, smooth: 60 },
   };
 
   it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {

@@ -29,6 +29,7 @@
     | { t: "circle"; c: Vec; r: number };
 
   const view = $derived(app.view);
+  const brush = $derived(app.overlay?.kind === "brush" ? app.overlay : null);
 
   /** The character being tweaked (spec M10 §6). Derived from store state, exactly as the selection
    *  frame is — deliberately NOT put in the single `app.overlay` slot, which the marquee, the snap
@@ -225,6 +226,30 @@
 {/snippet}
 
 <g pointer-events="none">
+  {#each app.brushPending as p, i (i)}
+    <polygon
+      points={points(p.outline.map((v) => docToScreen(view, v)))}
+      style="fill: {p.fill.color}; fill-opacity: {p.fill.opacity * p.opacity}; stroke: none"
+    />
+  {/each}
+  {#if brush}
+    {#if brush.live}
+      <polygon
+        points={points(brush.live.map((v) => docToScreen(view, v)))}
+        style="fill: {brush.fill.color}; fill-opacity: {brush.fill.opacity *
+          brush.opacity}; stroke: none"
+      />
+    {/if}
+    {#if brush.cursor}
+      {@const c = {
+        t: "circle" as const,
+        c: docToScreen(view, brush.cursor.at),
+        r: Math.max(brush.cursor.r * view.zoom, 1),
+      }}
+      {@render mark(c, HALO_LIGHT, 3)}
+      {@render mark(c, LINE, 1)}
+    {/if}
+  {/if}
   {#if enteredOutline}
     {@render lineHalo({ t: "poly", pts: enteredOutline, closed: true }, "4 3")}
     <polygon

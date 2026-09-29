@@ -9,6 +9,7 @@
     dockMods,
     fitArtboard,
     registerGestureCancel,
+    setOverlay,
     setSelection,
     setView,
     setViewportSize,
@@ -114,11 +115,25 @@
   function toolEvent(e: PointerEvent): ToolEvent {
     const screen = local(e);
     const dock = dockMods();
+    const coalesced = e.type === "pointermove" ? e.getCoalescedEvents?.() : undefined;
     return {
       doc: screenToDoc(app.view, screen),
       screen,
       pointerType: e.pointerType,
       time: e.timeStamp,
+      pressure: e.pressure,
+      samples:
+        coalesced && coalesced.length > 0
+          ? coalesced.map((c) => {
+              const s = local(c);
+              return {
+                doc: screenToDoc(app.view, s),
+                screen: s,
+                pressure: c.pressure,
+                time: c.timeStamp,
+              };
+            })
+          : undefined,
       mods: {
         shift: e.shiftKey || dock.shift,
         alt: e.altKey || dock.alt,
@@ -196,7 +211,7 @@
         gesture.tool.cancel(storeContext);
         gesture = null;
       }
-    });
+    }, tool.id);
   }
 
   function onpointermove(e: PointerEvent) {
@@ -305,6 +320,9 @@
   {oncontextmenu}
   onpointerleave={() => {
     if (pointers.size === 0) oncursor(null);
+    // The brush's size cursor follows hover; take it away when the pointer leaves (spec M21 §5).
+    if (pointers.size === 0 && app.overlay?.kind === "brush")
+      setOverlay({ ...app.overlay, cursor: null });
   }}
 >
   <svg class="absolute inset-0" {width} {height}>

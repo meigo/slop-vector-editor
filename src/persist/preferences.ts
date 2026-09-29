@@ -1,3 +1,4 @@
+import { DEFAULT_BRUSH, sanitizeBrush, type BrushPrefs } from "../brush/settings";
 import { clampSidebarWidth, DEFAULT_SIDEBAR_PX } from "../lib/panel-layout";
 import {
   DEFAULT_STYLE,
@@ -29,6 +30,8 @@ export type Prefs = {
   /** The sidebar's width in CSS px (spec M10e §3). Clamped, never rejected, on load and on every
    *  window resize — a width saved on a wide monitor must not strand the panel on a laptop. */
   sidebarPx: number;
+  /** The Brush tool's settings (spec M21 §6). */
+  brush: BrushPrefs;
 };
 
 /** Every collapsible section in the properties panel. `randomise` is the one closed by default
@@ -43,6 +46,7 @@ export const SECTION_IDS = [
   "gradient",
   "node",
   "geometry",
+  "brush",
 ] as const;
 export type SectionId = (typeof SECTION_IDS)[number];
 export const DEFAULT_CLOSED: readonly SectionId[] = ["randomise"];
@@ -57,6 +61,7 @@ export const DEFAULT_PREFS: Prefs = {
   layersOpen: true,
   closedSections: [...DEFAULT_CLOSED],
   sidebarPx: DEFAULT_SIDEBAR_PX,
+  brush: DEFAULT_BRUSH,
 };
 
 const KEY = "slop-vector-editor:prefs";
@@ -125,6 +130,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
       typeof r.sidebarPx === "number" && Number.isFinite(r.sidebarPx)
         ? clampSidebarWidth(r.sidebarPx, Number.MAX_SAFE_INTEGER)
         : d.sidebarPx,
+    brush: sanitizeBrush(r.brush),
   };
 }
 

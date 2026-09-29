@@ -36,7 +36,9 @@ export function ratioFromDrag(
 }
 
 /** Properties is open when the user has said so, and otherwise whenever something is selected —
- *  the panel's whole content is about the selection, so with none it has nothing to say. */
+ *  the panel's whole content is about the selection, so with none it has nothing to say.
+ *  Callers also pass true while a tool whose settings live there is active (the Brush tool today),
+ *  because that tool never selects and would otherwise hide its own settings. */
 export function propsOpen(override: boolean | null, hasSelection: boolean): boolean {
   return override ?? hasSelection;
 }

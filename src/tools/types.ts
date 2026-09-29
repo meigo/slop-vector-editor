@@ -5,6 +5,7 @@ export type ToolId =
   | "line"
   | "polygon"
   | "pen"
+  | "brush"
   | "text"
   | "node"
   | "hand"

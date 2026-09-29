@@ -10,6 +10,7 @@ const ev = (x: number, y: number) => ({
   pointerType: "mouse",
   mods: { shift: false, alt: false, shiftLatched: false },
   time: 0,
+  pressure: 0.5,
 });
 
 const tap = (t: Tool, ctx: ReturnType<typeof fakeContext>["ctx"], x: number, y: number) => {

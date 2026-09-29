@@ -10,6 +10,7 @@
     moveSelectedNodes,
     setGradientTarget,
     setGradientType,
+    setBrushPrefs,
     setPolygonPrefs,
     setSelectedNodeType,
     setSelectionGradientMid,
@@ -91,6 +92,7 @@
   const rects = $derived(hasSelection ? summarizeRects(app.doc, app.selection) : null);
   const polygons = $derived(hasSelection ? summarizePolygons(app.doc, app.selection) : null);
   const poly = $derived(app.prefs.polygon);
+  const brush = $derived(app.prefs.brush);
   /** Spec M10 §6: the Text section appears for a single selected title. */
   const title = $derived(selectedTitle());
   /** Review finding 7: which stop's row is highlighted, for the given paint slot only — gated on
@@ -351,6 +353,61 @@
               onchange={(v) => setPolygonPrefs({ innerRatio: v / 100 })}
             />
           {/if}
+        </FieldSection>
+      {/if}
+
+      {#if app.toolId === "brush"}
+        <FieldSection id="brush" title="Brush">
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Size"
+            value={brush.size}
+            min={0.5}
+            max={500}
+            step={0.5}
+            suffix="px"
+            onchange={(v) => setBrushPrefs({ size: v })}
+          />
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Pressure"
+            value={brush.pressure}
+            min={1}
+            max={8}
+            step={0.5}
+            suffix="×"
+            onchange={(v) => setBrushPrefs({ pressure: v })}
+          />
+          <div class="field-full">
+            <ToggleButton
+              label="Taper"
+              title="Taper both ends to a point"
+              value={brush.taper}
+              onchange={(taper) => setBrushPrefs({ taper })}
+            />
+          </div>
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Stream"
+            value={brush.stream}
+            min={0}
+            max={100}
+            suffix="%"
+            onchange={(v) => setBrushPrefs({ stream: Math.round(v) })}
+          />
+          <NumberField
+            onlivestart={beginUiGesture}
+            onliveend={endDocGesture}
+            label="Smooth"
+            value={brush.smooth}
+            min={0}
+            max={100}
+            suffix="%"
+            onchange={(v) => setBrushPrefs({ smooth: Math.round(v) })}
+          />
         </FieldSection>
       {/if}
 

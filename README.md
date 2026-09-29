@@ -123,6 +123,12 @@ What works today:
   undo step; Esc cancels. Shift snaps a drag to 45°. The result is ordinary paths — polygons,
   rectangles, ellipses and titles stop being live, and a notice says which — and gradients move
   with the shape. A heavy warp can add nodes; Path ▸ Simplify sheds them.
+- **Brush**: press B (or the tool strip's brush icon) and draw. With an Apple Pencil the stroke's
+  width follows pressure; a mouse or a finger draws an even line. Each stroke is a filled shape
+  in the current stroke colour, simplified to a few nodes, and one undo step. Esc drops a stroke in
+  progress. The Properties panel shows the Brush settings while the tool is active: **Size**,
+  **Pressure** (how far pressure swings the width), **Taper** (thin ends), **Stream** (a rope that
+  lags behind the pen to steady it) and **Smooth** (rounds the path off).
 
 ## Keyboard
 
@@ -149,12 +155,13 @@ What works today:
 | Text                                            | T                                     |
 | Gradient tool                                   | G                                     |
 | Warp tool                                       | W                                     |
+| Brush tool                                      | B                                     |
 | Flip horizontal / vertical                      | ⇧H / ⇧V                               |
 | Finish a path                                   | Enter                                 |
 
 ## Roadmap
 
-Unplanned: gradients with more than three stops, focal points; a freehand pencil/brush tool; grid and smart guides;
+Unplanned: gradients with more than three stops, focal points; grid and smart guides;
 masks/clipping; system-clipboard image paste; paragraph text, on-canvas text editing and text
 shaping for complex scripts (bold/italic weight and style are done).
 
@@ -164,7 +171,7 @@ shaping for complex scripts (bold/italic weight and style are done).
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1158 unit tests
+npm test          # 1227 unit tests
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
