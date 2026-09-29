@@ -85,15 +85,20 @@
     });
     const stop = stops[focus];
     if (!stop) return null;
+    // An emptied field still has the old text's stops; an empty run anchors at x = 0 for every
+    // alignment, so the caret goes there rather than to the old text's first letter.
+    const x = app.editEmpty ? 0 : stop.x;
     return {
-      rects,
-      a: toScreen(stop.x, stop.top),
-      b: toScreen(stop.x, stop.bottom),
+      rects: app.editEmpty ? [] : rects,
+      a: toScreen(x, stop.top),
+      b: toScreen(x, stop.bottom),
       key: `${identity(edit)}:${identity(stops)}`,
     };
   });
   const outlines = $derived(
     app.selection
+      // An emptied title is hidden (`NodeView`); its frame would outline text that is not there.
+      .filter((id) => !(app.editEmpty && app.textEdit?.id === id))
       .map((id) => selectionFrame(app.doc, [id]))
       .filter((f) => f !== null)
       .map((f) => frameOutline(f, view)),

@@ -2,10 +2,14 @@
 
 <script lang="ts">
   import type { Node } from "../doc/document";
+  import { app } from "../state/appState.svelte";
   import { gradientDefs, groupAttrs, shapeAttrs } from "../svg/attrs";
   import NodeView from "./NodeView.svelte";
 
   let { node }: { node: Node } = $props();
+  // A title whose editing field is empty keeps its old text in the document (an empty title cannot
+  // be saved), so it is hidden here until it has text again or the session removes it.
+  const emptied = $derived(app.editEmpty && app.textEdit?.id === node.id);
 </script>
 
 <!-- Renders through the same attribute functions the SVG exporter uses. -->
@@ -15,7 +19,7 @@
       <NodeView node={child} />
     {/each}
   </g>
-{:else}
+{:else if !emptied}
   {@const s = shapeAttrs(node)}
   {@const defs = gradientDefs(node)}
   <!-- Spec M15 §3: a shape's gradients sit right before it; SVG allows <defs> anywhere, and ids are
