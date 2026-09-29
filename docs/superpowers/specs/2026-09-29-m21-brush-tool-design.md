@@ -71,7 +71,7 @@ Lifecycle — like the pen, the stroke is a **draft that never enters the docume
   the outline, and publish it in the overlay.
 - **up:** the rope catches up to the pen (as a lift does in slop-paint); the final outline is built
   with `last: true` and handed to `ctx.commitBrushStroke(outline)`. The draft ends; the preview
-  moves to the overlay's `pending` list until the store commits it.
+  moves to the store's pending list (`app.brushPending`, §5) until it lands.
 - **cancel** (`pointercancel`, a palm, a pinch taking over): **discard** — a brush stroke is one
   gesture, so there is nothing worth keeping, unlike the pen's multi-click draft.
 - **Escape** while drawing discards it (`keydown` while `busy()`); **`discard`** (undo, redo,
@@ -122,7 +122,7 @@ of the stroke), exactly as `placeTitle` is — tools never import the store (inv
   await; `cancelActiveGesture()` runs immediately before the commit, as in `placeTitle`.
 - **Strokes commit in order:** the store chains each commit on the previous one's promise, so
   strokes drawn while Paper is still downloading land in drawing order.
-- The pending preview is removed from the overlay when its commit settles (landed, refused or
+- The pending preview is removed from `app.brushPending` when its commit settles (landed, refused or
   dropped), so a stroke never flickers out between pen-up and commit.
 - `replaceDocument` (open/new/restore) during a pending commit: the stroke is dropped (it belonged
   to the previous document). Undo/redo during one: it still lands — it was drawn after.
