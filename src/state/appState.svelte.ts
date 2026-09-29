@@ -1868,7 +1868,7 @@ function reshapeTitleDraining(
 export const setTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text });
 
 /** A keystroke in the text field (spec M10e §5). The canvas follows the typing, and the whole
- *  burst is one undo step because `TextPanel` brackets it in a document gesture (invariant 41) —
+ *  burst is one undo step because the shared typing bracket (`startTitleTyping`, invariants 41 and 49) wraps it —
  *  the same shape as dragging the colour picker. `quiet`, so the states a burst passes through
  *  raise nothing. */
 export const typeTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text }, true);

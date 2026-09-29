@@ -33,8 +33,8 @@
   import FieldSection from "./FieldSection.svelte";
   import NumberField from "./NumberField.svelte";
 
-  /** Spec (M10) §6. Typing happens here rather than on the canvas so the iPad keyboard never
-   *  covers the artwork, and so this reuses the panel machinery instead of inventing a caret. */
+  /** Spec (M10) §6. Since M22 the canvas is the primary route for typing (invariant 49); this
+   *  field is the secondary one, editing the same string through the same store bracket. */
   let { title }: { title: PathShape } = $props();
 
   type CharT = ReturnType<typeof charTransform>;

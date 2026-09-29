@@ -681,9 +681,10 @@ every user-visible change.
       with its text lost for good.
 
 41. **The title field is live, and a typing burst is one undo step** (M10e §5). `oninput` calls
-    `typeTitleText` (quiet), `blur` calls `setTitleText` (reporting) and `TextPanel` brackets the
-    burst in `beginDocGesture`/`endDocGesture`, exactly as `PaintField` does for a picker drag
-    (invariant 41). Three things this needs, each of which was a bug first:
+    `typeTitleText` (quiet), `blur` calls `setTitleText` (reporting) and the burst is
+    bracketed by the store's shared typing bracket (`startTitleTyping`/`endTitleTyping`), used by
+    both the panel field and the canvas session (invariant 49), in the manner of `PaintField`'s
+    picker drag (invariant 42). Three things this needs, each of which was a bug first:
     - **Quiet.** A live keystroke is a state the user is passing _through_ — an empty field on the
       way to retyping, a half-typed word with no glyph in this font. `reshapeTitle` takes a `quiet`
       flag that suppresses the notices and `refuseUnshaped`'s; without it, typing raised an error
