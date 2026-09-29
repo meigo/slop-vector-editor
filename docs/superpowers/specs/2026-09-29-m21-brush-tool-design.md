@@ -132,10 +132,12 @@ of the stroke), exactly as `placeTitle` is — tools never import the store (inv
 A new overlay kind:
 
 ```ts
-{ kind: "brush"; fill: Paint; live: Vec[] | null; pending: Vec[][]; cursor: { at: Vec; r: number } | null }
+{ kind: "brush"; fill: Paint; opacity: number; live: Vec[] | null; cursor: { at: Vec; r: number } | null }
 ```
 
-- `live` and each `pending` outline are drawn as filled polygons in the stroke's **real colour and
+- Pending (simplifying) strokes are **store** state, `app.brushPending`, not part of the tool's
+  overlay slot — they outlive the gesture, and may outlive the tool being active.
+- `live` and each pending outline are drawn as filled polygons in the stroke's **real colour and
   opacity** (`fill`), not the accent — what you see is what lands.
 - The **size cursor** is a circle of diameter Size at the hovering pointer (mouse, or a Pencil
   hovering on a supporting iPad), drawn on the overlay's usual contrast halo (a white line
