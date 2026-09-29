@@ -4,14 +4,18 @@ import { createDoc, DEFAULT_STYLE, type Doc, type PathShape } from "../doc/docum
 import { applyMat, IDENTITY } from "../geom/mat";
 import {
   app,
+  beginDocGesture,
   beginTextEdit,
   endTextEdit,
+  finishCharDrag,
   registerTextBlur,
   registerTextFocus,
   replaceDocument,
   setCaretStops,
+  setCharOffset,
   setSelection,
   setTextSelection,
+  setTitleOpts,
   setTitleText,
   setTool,
   textIndexAt,
@@ -246,5 +250,100 @@ describe("the text edit session (spec M22 §2-§3)", () => {
     expect(app.textEdit).toBeNull();
     expect(focus).not.toHaveBeenCalled();
     expect(app.notices.map((n) => n.text).join()).toMatch(/Needs the font/);
+  });
+});
+
+const sizeOf = (id: string): number | undefined =>
+  (app.doc.layers[0].children.find((n) => n.id === id) as PathShape | undefined)?.text?.size;
+
+describe("the text edit session — fix round 1", () => {
+  beforeEach(() => replaceDocument(twoTitles(), "Untitled.svg", null, true));
+
+  it("a character drag inside a session does not close the session's bracket", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn");
+    await titleInFlight();
+    setTextSelection(1, 2);
+    expect(app.charSel).toBe(1);
+    // What the Text tool does for a drag of the picked character.
+    beginDocGesture();
+    void setCharOffset(3, 4);
+    finishCharDrag();
+    await titleInFlight();
+    await Promise.resolve();
+    typeTextEdit("XYTallinn");
+    await titleInFlight();
+    await endTextEdit();
+    expect(textOf("t")).toBe("XYTallinn");
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.canUndo).toBe(false);
+  });
+
+  it("a queued patch for one title is replaced, not merged, by one for another", async () => {
+    setSelection(["t"]);
+    void setTitleText("A1");
+    void setTitleOpts({ size: 80 });
+    setSelection(["t2"]);
+    void setTitleText("Tartu!");
+    await titleInFlight();
+    expect(textOf("t2")).toBe("Tartu!");
+    expect(sizeOf("t2")).toBe(50);
+  });
+
+  it("a dropped queued patch says so, unless it was a live keystroke", async () => {
+    setSelection(["t"]);
+    void setTitleText("A1");
+    void setTitleText("A12");
+    setSelection(["t2"]);
+    await titleInFlight();
+    const said = () => app.notices.filter((n) => /selection changed/.test(n.text)).length;
+    // One for the outline in flight, one for the queued patch.
+    expect(said()).toBe(2);
+    app.notices = [];
+    beginTextEdit("t", "all");
+    typeTextEdit("B1");
+    typeTextEdit("B12");
+    setSelection(["t2"]);
+    await titleInFlight();
+    expect(said()).toBe(1);
+  });
+
+  it("re-entering the title while its end is awaiting keeps the new session", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn");
+    const ending = endTextEdit();
+    beginTextEdit("t", "all");
+    await ending;
+    expect(app.textEdit).toEqual({ id: "t", anchor: 0, focus: 8 });
+    await endTextEdit();
+    expect(app.textEdit).toBeNull();
+  });
+
+  it("the selection is clamped to the text being typed, not the lagging document", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("Tallinn!!");
+    setTextSelection(9, 9);
+    expect(app.textEdit).toEqual({ id: "t", anchor: 9, focus: 9 });
+    await endTextEdit();
+  });
+
+  it("entering a second title while editing the first ends the first as one step", async () => {
+    const focus = vi.fn();
+    const blur = vi.fn();
+    registerTextFocus(focus);
+    registerTextBlur(blur);
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn");
+    await titleInFlight();
+    beginTextEdit("t2", "all");
+    expect(app.textEdit).toEqual({ id: "t2", anchor: 0, focus: 5 });
+    expect(app.selection).toEqual(["t2"]);
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledTimes(2);
+    expect(textOf("t")).toBe("XTallinn");
+    undo();
+    expect(textOf("t")).toBe("Tallinn");
+    expect(app.canUndo).toBe(false);
   });
 });

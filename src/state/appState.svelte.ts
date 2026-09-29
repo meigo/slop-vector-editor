@@ -457,8 +457,15 @@ export function endDocGesture(): void {
 export function finishCharDrag(): void {
   const epoch = gestureEpoch;
   void titleInFlight().then(() => {
-    if (gestureEpoch === epoch) endDocGesture();
+    if (gestureEpoch === epoch && !insideTyping()) endDocGesture();
   });
+}
+
+/** A tool's own `endGesture` (through `ToolContext`). A tool gesture inside the typing bracket —
+ *  a character drag while editing on the canvas — opened nothing (`beginDocGesture` inside an open
+ *  gesture is a no-op), so it must not close the bracket that the typing session owns. */
+export function endToolGesture(): void {
+  if (!insideTyping()) endDocGesture();
 }
 
 export function undo(): void {
@@ -1704,6 +1711,15 @@ let queuedPatch: Partial<TextMeta> | null = null;
  *  on is dropped, never applied to whatever title is selected by then — a keystroke typed into one
  *  title would otherwise land on the next (spec M22 §3, leaving on a selection change). */
 let queuedTarget: string | null = null;
+
+/** Newest wins, merged — but only for the same title: a patch meant for another title replaces
+ *  the queue, or one title's pending change would be applied to the next. */
+function enqueueTitlePatch(patch: Partial<TextMeta>): void {
+  const target = selectedTitle()?.id ?? null;
+  queuedPatch =
+    queuedPatch !== null && queuedTarget === target ? { ...queuedPatch, ...patch } : { ...patch };
+  queuedTarget = target;
+}
 /** True while the text field is being typed in (spec M10e §5). A live keystroke is a state the
  *  user is passing THROUGH, not one they asked for: an empty field on the way to retyping, or a
  *  half-typed word the font has no glyph for, are both ordinary. So a live reshape fails silently
@@ -1719,8 +1735,7 @@ async function reshapeTitle(
   keepGesture = false,
 ): Promise<void> {
   if (titleRunning) {
-    queuedPatch = { ...queuedPatch, ...patch };
-    queuedTarget = selectedTitle()?.id ?? null;
+    enqueueTitlePatch(patch);
     // A burst that ends on a live keystroke must stay quiet when it drains, and one that ends on
     // the commit must not — so the flag follows the newest arrival, like the patch itself.
     titleQuiet = quiet;
@@ -1828,8 +1843,7 @@ function reshapeTitleDraining(
 ): Promise<void> {
   if (titleRunning) {
     // Queued onto the running drain; awaiting *that* is what makes the caller wait for this patch.
-    queuedPatch = { ...queuedPatch, ...patch };
-    queuedTarget = selectedTitle()?.id ?? null;
+    enqueueTitlePatch(patch);
     titleQuiet = quiet;
     titleKeepGesture = keepGesture;
     return titleWork ?? Promise.resolve();
@@ -1841,7 +1855,13 @@ function reshapeTitleDraining(
     while (queuedPatch !== null && !titleRunning) {
       const next = queuedPatch;
       queuedPatch = null;
-      if (queuedTarget !== (selectedTitle()?.id ?? null)) break;
+      if (queuedTarget !== (selectedTitle()?.id ?? null)) {
+        // Said out loud like the in-flight case, except for a live keystroke (quiet): the burst's
+        // own commit reports.
+        if (!titleQuiet)
+          notify("info", "The selection changed while the font loaded — try that again.");
+        break;
+      }
       await reshapeTitle(next, titleQuiet, titleKeepGesture);
     }
   })().finally(() => {
@@ -2154,9 +2174,16 @@ let titleTyping = false;
 let titleTypingEpoch = 0;
 
 export function startTitleTyping(): void {
-  if (titleTyping) return;
+  // Reopened when something closed the gesture under the flag, so the rest of a burst is still
+  // bracketed rather than one undo step per keystroke.
+  if (titleTyping && app.session.gestureBase !== null) return;
   titleTyping = true;
   titleTypingEpoch = beginUiGesture();
+}
+
+/** True while the open document gesture is the typing bracket itself. */
+function insideTyping(): boolean {
+  return titleTyping && app.session.gestureBase !== null && gestureEpoch === titleTypingEpoch;
 }
 
 /** Closes the bracket now — after an awaited commit, or when a leave must not wait. */
@@ -2222,15 +2249,20 @@ export function beginTextEdit(id: string, at: Vec | "all"): void {
   // Re-entering the title being edited keeps its session — and its bracket, so it stays one undo
   // step. Any other session ends first; its keystrokes are already committed live.
   if (app.textEdit && app.textEdit.id !== id) leaveTextEdit();
+  // An `endTextEdit` still awaiting its commit must not end the session entered now.
+  editSeq++;
+  endingEdit = null;
   cancelActiveGesture();
   setSelection([id]);
   // A hidden or locked title cannot be selected (invariant 39), so it cannot be edited either.
   if (app.selection.length !== 1 || app.selection[0] !== id) return;
-  const len = [...n.text.text].length;
   if (app.textEdit?.id !== id) {
-    app.textEdit = { id, anchor: len, focus: len };
     editText = n.text.text;
+    const end = [...editText].length;
+    app.textEdit = { id, anchor: end, focus: end };
   }
+  // Re-entering measures the session's text, which the document may still trail.
+  const len = [...(editText ?? n.text.text)].length;
   pendingAt = null;
   if (at === "all") {
     setTextSelection(0, len);
@@ -2248,7 +2280,8 @@ export function beginTextEdit(id: string, at: Vec | "all"): void {
  *  the picked character, unless that character is a newline; anything else picks nothing. */
 export function setTextSelection(anchor: number, focus: number): void {
   const edit = app.textEdit;
-  const text = editedTitle()?.text?.text;
+  // The textarea's text, which the document trails by an outline during a typing burst.
+  const text = editText ?? editedTitle()?.text?.text;
   if (!edit || text === undefined) return;
   const chars = [...text];
   const clamp = (i: number) => Math.min(Math.max(Math.round(i), 0), chars.length);
@@ -2293,14 +2326,15 @@ export function endTextEdit(): Promise<void> {
   if (endingEdit) return endingEdit;
   const seq = editSeq;
   const text = editText ?? editedTitle()?.text?.text ?? "";
-  endingEdit = (async () => {
+  const ending: Promise<void> = (async () => {
     await setTitleText(text);
-    // A store-driven leave may already have run while the commit awaited its outline.
+    // A store-driven leave, or a re-entry, may have run while the commit awaited its outline.
     if (seq === editSeq) leaveTextEdit();
   })().finally(() => {
-    endingEdit = null;
+    if (endingEdit === ending) endingEdit = null;
   });
-  return endingEdit;
+  endingEdit = ending;
+  return ending;
 }
 
 /** The one leave both paths share. Synchronous, for the store-driven leaves (selection, undo, redo,
