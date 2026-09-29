@@ -136,6 +136,7 @@ import {
   type Prefs,
   type SectionId,
 } from "../persist/preferences";
+import { clampPercent, clampPress, clampSize, type BrushPrefs } from "../brush/settings";
 import { deliverFile, type DeliverResult } from "../persist/deliver";
 import { errorMessage } from "../persist/errors";
 import { downloadBlob, writePngFile } from "../persist/file-io";
@@ -713,6 +714,16 @@ export function togglePropsPanel(): void {
 
 export function setPolygonPrefs(patch: Partial<PolygonPrefs>): void {
   setPrefs({ ...app.prefs, polygon: { ...app.prefs.polygon, ...patch } });
+}
+
+export function setBrushPrefs(patch: Partial<BrushPrefs>): void {
+  const cur = app.prefs.brush;
+  const next: BrushPrefs = { ...cur, ...patch };
+  if (patch.size !== undefined) next.size = clampSize(patch.size);
+  if (patch.pressure !== undefined) next.pressure = clampPress(patch.pressure);
+  if (patch.stream !== undefined) next.stream = clampPercent(patch.stream, cur.stream);
+  if (patch.smooth !== undefined) next.smooth = clampPercent(patch.smooth, cur.smooth);
+  setPrefs({ ...app.prefs, brush: next });
 }
 
 export function toggleSnap(): void {
