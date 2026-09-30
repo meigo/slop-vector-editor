@@ -3104,3 +3104,8 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - **`docs/superpowers/IPAD-CHECKLIST.md`**: every device item owed since M5, from this file's
   "Owed" lines, grouped by what you do on the iPad and prioritised P1–P3.
 
+## 2026-09-30 — iPad: long press confirmed
+
+- Confirmed on the iPad by the user: the long-press context menu works with a finger and with the
+  Pencil. Ticked in `IPAD-CHECKLIST.md`.
+
