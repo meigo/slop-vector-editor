@@ -59,6 +59,7 @@
     ungroupSelection,
   } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
+  import { importDocument } from "../persist/project-io";
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
   import { alignTargetCount } from "../doc/align";
@@ -249,6 +250,17 @@
         <button class="menu-item" role="menuitem" onclick={() => dialog("new")}>New…</button>
         <button class="menu-item" role="menuitem" onclick={() => command("open")}>
           Open… <span class="kbd">{mod}O</span>
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          title="Add an SVG file's drawing to the current layer"
+          onclick={() => {
+            menuOpen = false;
+            void importDocument();
+          }}
+        >
+          Import SVG…
         </button>
         <button class="menu-item" role="menuitem" onclick={() => command("save")}>
           Save <span class="kbd">{mod}S</span>

@@ -2,6 +2,7 @@ import { createDoc } from "../doc/document";
 import {
   app,
   askConfirm,
+  importSvgText,
   markDocSaved,
   notify,
   replaceDocument,
@@ -34,6 +35,19 @@ export async function openDocument(): Promise<void> {
     return;
   }
   if (picked) openText(picked.text, picked.name, picked.handle);
+}
+
+/** File ▸ Import SVG… (2026-09-30): adds a file's drawing to the open document rather than
+ *  replacing it, so there is nothing to discard and no save-in-place handle to keep. */
+export async function importDocument(): Promise<void> {
+  let picked;
+  try {
+    picked = await pickSvgFile();
+  } catch (err) {
+    notify("error", `Could not open the file: ${errorMessage(err)}`);
+    return;
+  }
+  if (picked) importSvgText(picked.text);
 }
 
 /** Parses fully BEFORE touching the open document, so a bad file leaves it intact. */

@@ -12,9 +12,11 @@ import { applyMat, IDENTITY, translate } from "../geom/mat";
 import {
   clipboardText,
   EMPTY,
+  EMPTY_FILE,
   isPasteError,
   looksLikeSvg,
   NOT_SVG,
+  NOT_SVG_FILE,
   planPaste,
   type Clip,
   type PastePlan,
@@ -218,5 +220,29 @@ describe("planPaste", () => {
     expect(planPaste(source, "<svg/>", null, view, "L0")).toEqual({ error: EMPTY });
     expect(looksLikeSvg("just text")).toBe(false);
     expect(looksLikeSvg("<SVG width='1'/>")).toBe(true);
+  });
+});
+
+/** File ▸ Import SVG… and a dropped file reuse the paste plan with `source: "file"`: placed in the
+ *  current layer, centred in the view, and never treated as our own clipboard copy. */
+describe("planPaste for an imported file", () => {
+  const source = doc([{ children: [rect("a", 10, 10)] }]);
+  const text = clipboardText(source, ["a"])!;
+
+  it("centres the drawing in the view even when it equals the in-app clipboard", () => {
+    const clip: Clip = { text, pastes: 3 };
+    const r = plan(planPaste(source, text, clip, view, "L0", "file"));
+    expect(r.clip).toBe(clip);
+    const pasted = plan(planPaste(source, text, null, view, "L0"));
+    expect(originOf(r.doc, r.ids[0])).toEqual(originOf(pasted.doc, pasted.ids[0]));
+  });
+
+  it("speaks of the file, not the clipboard, when it refuses", () => {
+    expect(planPaste(source, "not svg", null, view, "L0", "file")).toEqual({ error: NOT_SVG_FILE });
+    const empty = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>';
+    expect(planPaste(source, empty, null, view, "L0", "file")).toEqual({ error: EMPTY_FILE });
+    const locked = doc([{ locked: true, children: [rect("a", 10, 10)] }]);
+    const r = planPaste(locked, text, null, view, "L0", "file");
+    expect(isPasteError(r) && r.error).toMatch(/unlock it to import/);
   });
 });

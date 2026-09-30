@@ -1303,6 +1303,24 @@ export function pasteText(text: string): void {
   }
 }
 
+/** File ▸ Import SVG… and a file dropped on the canvas (2026-09-30): the file's drawing goes into
+ *  the current layer through the paste plan — centred in the view, one undo step, selected, with
+ *  anything unsupported reported. The in-app clipboard is left alone: an import is not a paste of
+ *  our own copy, so it neither cascades nor resets the next paste's cascade. */
+export function importSvgText(text: string): void {
+  cancelActiveGesture();
+  const r = planPaste(app.doc, text, clip, visibleDocBox(), app.currentLayerId, "file");
+  if (isPasteError(r)) {
+    notify("error", r.error);
+    return;
+  }
+  commitDoc(r.doc);
+  setSelection(r.ids);
+  if (r.dropped.length > 0) {
+    notify("info", `Some content was not imported: ${r.dropped.join(", ")}`);
+  }
+}
+
 /** For buttons and menu items. Keyboard paste uses the window `paste` event instead. */
 export async function pasteFromClipboard(): Promise<void> {
   cancelActiveGesture();

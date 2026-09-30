@@ -25,6 +25,9 @@ What works today:
   listed when you open the file, and such files
   always open as a copy (Save asks where to write them) so the original is never overwritten with
   a lossy re-export.
+- Import an SVG into the open document — File ▸ Import SVG…, or drop `.svg` files on the canvas.
+  The drawing goes into the current layer, centred in the view and selected, as one undo step;
+  unsupported content is listed, as when opening.
 - New document with size presets; artboard size and background (or transparent).
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
