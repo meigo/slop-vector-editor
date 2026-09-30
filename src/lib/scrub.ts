@@ -46,6 +46,7 @@ export function scrubbedValue({
   const anchor = Number.isFinite(min) ? min : 0;
   const raw = startValue + steps * step;
   const snapped = anchor + Math.round((raw - anchor) / step) * step;
-  const clamped = Math.max(min, Math.min(max, snapped));
-  return Number(clamped.toFixed(stepDecimals(step)));
+  // Rounded first, then clamped: the other way round took a 0.01 minimum to 0 (review L18).
+  const rounded = Number(snapped.toFixed(stepDecimals(step)));
+  return Math.max(min, Math.min(max, rounded));
 }

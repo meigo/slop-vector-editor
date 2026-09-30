@@ -1,6 +1,6 @@
 /** Multi-finger taps: two fingers undo, three redo (iPad). Pure, so it is unit-tested; Canvas feeds
- *  it every touch pointer BEFORE routing, because a third finger is routed to "ignore" and never
- *  tracked as a gesture.
+ *  it every touch pointer BEFORE routing, which can return early ("ignore", "menu") before the
+ *  canvas tracks a pointer; a second or third finger is routed to "pinch" and joins the pinch.
  *
  *  Ported from slop-paint's `src/touch-gestures.ts` (the same rules, carry fixes both ways): a tap
  *  is reported only when the LAST finger lifts; no finger may have moved more than

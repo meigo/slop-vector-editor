@@ -20,6 +20,29 @@ describe("parseColor", () => {
     });
   });
 
+  /** Review L9 (2026-09-30): these read as "no colour", so the paint fell back to the inherited
+   *  one — a green shape came in black. */
+  it("parses hsl()/hsla() and hwb(), legacy and modern", () => {
+    expect(parseColor("hsl(120, 100%, 25%)")).toEqual({
+      kind: "color",
+      color: "#008000",
+      alpha: 1,
+    });
+    expect(parseColor("hsla(0 100% 50% / 0.5)")).toEqual({
+      kind: "color",
+      color: "#ff0000",
+      alpha: 0.5,
+    });
+    expect(parseColor("hsl(0.5turn 100% 50%)")).toEqual({
+      kind: "color",
+      color: "#00ffff",
+      alpha: 1,
+    });
+    expect(parseColor("hwb(240 0% 0%)")).toEqual({ kind: "color", color: "#0000ff", alpha: 1 });
+    expect(parseColor("hwb(0 50% 50%)")).toEqual({ kind: "color", color: "#808080", alpha: 1 });
+    expect(parseColor("hsl(nope)")).toBeNull();
+  });
+
   it("parses names, none, currentColor and url()", () => {
     expect(parseColor(" RebeccaPurple ")).toEqual({ kind: "color", color: "#663399", alpha: 1 });
     expect(parseColor("none")).toEqual({ kind: "none" });

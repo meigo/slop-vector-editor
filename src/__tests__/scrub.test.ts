@@ -21,6 +21,12 @@ describe("scrubbedValue (drag-adjustable number fields)", () => {
     expect(scrubbedValue({ ...base, dx: 4000 })).toBe(100);
   });
 
+  /** Review L18 (2026-09-30): clamping before rounding took W's 0.01 minimum to 0. */
+  it("never rounds below the minimum", () => {
+    expect(scrubbedValue({ ...base, startValue: 5, min: 0.01, dx: -400 })).toBe(0.01);
+    expect(scrubbedValue({ ...base, startValue: 5, min: 0.01, dx: 0 })).toBe(5);
+  });
+
   it("snaps to the step grid anchored at min, and cleans float noise", () => {
     expect(scrubbedValue({ ...base, startValue: 1, step: 0.05, min: 0.5, max: 4, dx: 4 })).toBe(
       1.05,

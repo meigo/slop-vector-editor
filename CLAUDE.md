@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1377 tests in 91 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1389 tests in 91 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -121,7 +121,8 @@ every user-visible change.
   reported on the last lift, no finger past 15 px, the last finger down under 300 ms, 100 ms
   debounce; plus `spoil()`, which `Canvas.svelte` calls when a Pencil or mouse is involved, so a
   resting palm lifted mid-stroke never undoes it. Canvas feeds it every pointer **before**
-  routing, because a third finger is routed to "ignore" and never tracked; undo/redo run after
+  routing, which can return early ("ignore", "menu") before the tracking; a second or third finger
+  is routed to "pinch" and joins the pinch; undo/redo run after
   `endPointer`, once a pinch has cancelled the first finger's tool action).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
   `viewport.ts` (incl. `revealPan`, the pure smallest pan that brings the caret's rectangle into the visible area, spec M22 §6), `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
@@ -164,7 +165,9 @@ every user-visible change.
   paste plan with `source: "file"` through the store's `importSvgText`; a file dropped on the
   canvas takes the same route), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
   (localStorage: style + polygon defaults for new shapes — the style is also updated by every style edit on a selection, flat paints only, through the store's `rememberStyle` (2026-09-28) — snap, the dock's expanded state, the
-  sidebar's split ratio and the Layers panel's collapse),
+  sidebar's split ratio and width (`sidebarPx`), the Layers panel's collapse, the Properties
+  sections the user closed (`closedSections`), the Brush settings (`brush`), "Fingers select"
+  (`fingerSelect`) and whether a Pencil has been seen on this device (`pencilSeen`)),
   `tab-presence.ts`
   (`BroadcastChannel` "another tab is open" warning), `system-clipboard.ts` (never-throwing
   `navigator.clipboard` wrapper), `png.ts` (`rasterise`, `writeClipboardPng` — the impure half of
@@ -417,7 +420,8 @@ every user-visible change.
       `touch-none` — without it iPadOS reads the drag as a scroll and cancels the pointer stream.
       Travel **left** widens, because the panel is docked right. An out-of-range stored width is
       **clamped, never rejected**; the ceiling needs a viewport, so `sanitizePrefs` enforces only
-      the floor and the real clamp runs on mount and on every window resize. One pref write per
+      the floor, and the viewport ceiling clamps only the width **shown** (review M18, 2026-09-30:
+      saving the clamp made a portrait turn shrink the chosen width for good). One pref write per
       drag, on release. The grip is a real `<button>`, so Tab reaches it and Arrow/Shift-Arrow step
       it by 8/24px — the only keyboard route to a width.
     - **The panel pairs rows two-up once it is 320px wide** (M10e §4), through a **container
@@ -577,7 +581,8 @@ every user-visible change.
     the ids: one shape named twice is one shape, and combining it with itself would delete it).
     **The load can fail** — it is a network fetch — so the loader caches the _promise_ and clears
     it on rejection, and `booleanSelection` catches, leaves the document alone and raises an
-    **error** notice telling the user to try again. Because the action is async even when paper is
+    **error** notice telling the user to check the connection and reload the page (the cached
+    rejection is cleared, but a failed lazy chunk stays failed in some browsers until a reload). Because the action is async even when paper is
     cached, it also refuses to run twice at once, and hands the result the selection only if the
     user hasn't moved it meanwhile.
 

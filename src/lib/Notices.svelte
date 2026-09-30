@@ -28,6 +28,7 @@
       <button
         class="text-muted hover:text-text"
         aria-label="Dismiss"
+        title="Dismiss"
         onclick={() => dismissNotice(n.id)}
       >
         <X size={14} />

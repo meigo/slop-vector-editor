@@ -74,6 +74,10 @@ polish.
       cancels the stroke and pinches.
 - [ ] **P1** Hold the Pencil still for a second mid-stroke with **Brush** and **Pen**: the stroke
   survives (no context menu, no lost ink). A long press with Select/Node still opens the menu.
+- [ ] **P2** Before the Pencil is used (or with Fingers select on): a two-finger pinch that starts
+  with the Pen leaves no stray node; with the Text tool it neither ends nor switches the edit;
+  inside an entered group it doesn't leave the group. A finger tap on a title with the Text tool
+  still raises the keyboard (the enter now happens on the lift).
 - [ ] **P2** Rectangle, ellipse, line, polygon, pen: draw by Pencil and finger; the pen's
       click/drag nodes and closing on the first node.
 - [ ] **P2** Node tool: pick a path, drag nodes and handles, double-tap a segment to add a node,

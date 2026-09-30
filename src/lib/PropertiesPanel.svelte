@@ -427,8 +427,8 @@
               />
             {/each}
           </div>
-          <!-- The touch route to deleting nodes: iPad without a keyboard has no ⌫, and the right-click
-               menu opens for a mouse only. -->
+          <!-- The touch route to deleting nodes: iPad without a keyboard has no ⌫, and the context
+               menu needs a long press there, which few people find. -->
           <div class="field-full">
             <button
               type="button"

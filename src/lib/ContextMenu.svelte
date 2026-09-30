@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MOD, SHIFT_MOD } from "./mod-keys";
   import { allIds } from "../doc/select-match";
   import { findNode } from "../doc/tree";
   import {
@@ -92,14 +93,14 @@
   >
     {#if app.selection.length > 0}
       <button class="menu-item" role="menuitem" onclick={() => run(cutToSystem)}>
-        Cut <span class="kbd">⌘X</span>
+        Cut <span class="kbd">{MOD}X</span>
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(copyToSystem)}>
-        Copy <span class="kbd">⌘C</span>
+        Copy <span class="kbd">{MOD}C</span>
       </button>
     {/if}
     <button class="menu-item" role="menuitem" onclick={() => run(() => void pasteFromClipboard())}>
-      Paste <span class="kbd">⌘V</span>
+      Paste <span class="kbd">{MOD}V</span>
     </button>
     {#if app.toolId === "node" && app.nodeSel.length > 0}
       <div class="my-1 h-px bg-line"></div>
@@ -140,14 +141,14 @@
     {#if app.selection.length > 0}
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(duplicateSelection)}>
-        Duplicate <span class="kbd">⌘D</span>
+        Duplicate <span class="kbd">{MOD}D</span>
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(groupSelection)}>
-        Group <span class="kbd">⌘G</span>
+        Group <span class="kbd">{MOD}G</span>
       </button>
       {#if actions.canUngroup}
         <button class="menu-item" role="menuitem" onclick={() => run(ungroupSelection)}>
-          Ungroup <span class="kbd">⇧⌘G</span>
+          Ungroup <span class="kbd">{SHIFT_MOD}G</span>
         </button>
       {/if}
       {#if actions.canConvert}
@@ -168,16 +169,16 @@
       </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionToFront)}>
-        Bring to front <span class="kbd">⇧⌘]</span>
+        Bring to front <span class="kbd">{SHIFT_MOD}]</span>
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionForward)}>
-        Bring forward <span class="kbd">⌘]</span>
+        Bring forward <span class="kbd">{MOD}]</span>
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(sendSelectionBackward)}>
-        Send backward <span class="kbd">⌘[</span>
+        Send backward <span class="kbd">{MOD}[</span>
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(sendSelectionToBack)}>
-        Send to back <span class="kbd">⇧⌘[</span>
+        Send to back <span class="kbd">{SHIFT_MOD}[</span>
       </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(deleteSelection)}>
@@ -199,11 +200,11 @@
     <div class="my-1 h-px bg-line"></div>
     {#if allIds(app.doc, app.enteredGroupId).length > 0}
       <button class="menu-item" role="menuitem" onclick={() => run(selectAll)}>
-        Select All <span class="kbd">⌘A</span>
+        Select All <span class="kbd">{MOD}A</span>
       </button>
     {/if}
     <button class="menu-item" role="menuitem" onclick={() => run(invertSelection)}>
-      Invert Selection <span class="kbd">⇧⌘A</span>
+      Invert Selection <span class="kbd">{SHIFT_MOD}A</span>
     </button>
     {#if app.selection.length > 0}
       <button class="menu-item" role="menuitem" onclick={() => run(deselectAll)}>

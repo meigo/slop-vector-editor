@@ -199,13 +199,16 @@
 <FieldSection id="text" title="Text">
   <!-- A textarea, not an input: Return must insert a line break, so it is deliberately NOT
        intercepted. The canvas follows every keystroke (spec M10e §5); `blur` is the commit, and
-       the only place a refusal is reported or the field put back. -->
+       the only place a refusal is reported or the field put back. Read-only while the font is
+       missing (review L17): typing there could be neither applied nor put back. Not `disabled`,
+       which would hide its reason (invariant 24). -->
   <textarea
     class="field field-full resize-y py-1 leading-snug"
     rows="2"
     aria-label="Title text"
     value={meta.text}
     aria-disabled={!ready}
+    readonly={!ready}
     title={ready ? "Change the text" : missing}
     oninput={(e) => {
       if (!ready) return;

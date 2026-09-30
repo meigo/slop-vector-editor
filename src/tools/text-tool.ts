@@ -5,8 +5,10 @@ import { applyMat, IDENTITY, invert, multiply } from "../geom/mat";
 import { isDoubleTap, type Tap } from "../input/double-tap";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
-/** The title under a press, or null (spec M22 §3: hit-tested as the select tool does). */
-function titleAt(ctx: ToolContext, e: ToolEvent): string | null {
+/** The title under a press, or null (spec M22 §3: hit-tested as the select tool does). Also the
+ *  canvas's screen for a "Fingers select" tap with the Text tool, so the two agree on a selected
+ *  title inside a group (review L23). */
+export function titleAt(ctx: ToolContext, e: ToolEvent): string | null {
   const doc = ctx.doc();
   const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
   const id = hitTest(doc, e.doc, tol, ctx.enteredGroupId())?.nodeId ?? null;

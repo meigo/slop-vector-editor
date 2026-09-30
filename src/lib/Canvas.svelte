@@ -4,8 +4,7 @@
   import { createFingerTap } from "../input/finger-tap";
   import { createLongPress, opensContextMenu } from "../input/long-press";
   import { fingerPicks, isFingerTap } from "../input/finger-pick";
-  import { findNode } from "../doc/tree";
-  import { hitTest } from "../geom/hit";
+  import { errorMessage } from "../persist/errors";
   import { routePointerDown } from "../input/route";
   import {
     app,
@@ -25,7 +24,8 @@
   import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
   import { storeContext } from "../tools/context";
   import { TOOLS } from "../tools/registry";
-  import { pointerTolerance, type Tool, type ToolEvent } from "../tools/tool";
+  import { titleAt } from "../tools/text-tool";
+  import type { Tool, ToolEvent } from "../tools/tool";
   import NodeView from "./NodeView.svelte";
   import Overlay from "./Overlay.svelte";
   import TextEditField from "./TextEditField.svelte";
@@ -54,8 +54,9 @@
     const t = (performance.now() / 1000).toFixed(2);
     pointerLog = [`${t} ${line}`, ...pointerLog].slice(0, 14);
   }
-  /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
-   *  a third finger is routed to "ignore" and never tracked below. */
+  /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing,
+   *  which can return early ("ignore", "menu") before the tracking below; a second or third finger
+   *  is routed to "pinch" and joins the pinch. */
   const fingerTap = createFingerTap();
   /** A still finger or Pencil held on the canvas opens the context menu (touch has no right-click;
    *  the right-click route stays mouse-only, invariant 16). Firing cancels the tool action the press
@@ -351,16 +352,9 @@
     if (app.view !== pick.view) setView(pick.view);
     const tool = TOOLS[app.toolId];
     const down = toolEvent(pick.down);
-    if (app.toolId === "text" && !app.textEdit) {
-      const hit = hitTest(
-        app.doc,
-        down.doc,
-        pointerTolerance("touch") / app.view.zoom,
-        app.enteredGroupId,
-      );
-      const n = hit ? findNode(app.doc, hit.nodeId)?.node : null;
-      if (!(n?.kind === "path" && n.text)) return;
-    }
+    // A finger never creates: with the Text tool it only enters a title — by the tool's own rule,
+    // which also counts a press inside the selected title's box (review L23).
+    if (app.toolId === "text" && !app.textEdit && titleAt(storeContext, down) === null) return;
     tool.down(storeContext, down);
     tool.up(storeContext, toolEvent(e));
   }
@@ -414,7 +408,17 @@
       notify("info", "Only SVG files can be dropped here.");
       return;
     }
-    for (const f of svgs) importSvgText(await f.text());
+    // One unreadable file is reported and skipped; the others still import (review L7).
+    for (const f of svgs) {
+      let text: string;
+      try {
+        text = await f.text();
+      } catch (err) {
+        notify("error", `${f.name} could not be read: ${errorMessage(err)}`);
+        continue;
+      }
+      importSvgText(text);
+    }
   }
 
   function oncontextmenu(e: MouseEvent) {

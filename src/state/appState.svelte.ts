@@ -1306,10 +1306,17 @@ export async function copyPng(): Promise<void> {
     typeof out === "string" ? Promise.reject(new Error(out)) : out.blob,
   );
   const ok = await writeClipboardPng(pending);
+  if (ok) return notify("info", `Copied ${w} × ${h} to the clipboard.`);
+  // The render can fail as well as the clipboard; blaming the clipboard for it pointed at the
+  // wrong fix (review L8).
+  const rendered = await pending.then(
+    () => null,
+    (e: unknown) => errorMessage(e),
+  );
   notify(
-    ok ? "info" : "error",
-    ok
-      ? `Copied ${w} × ${h} to the clipboard.`
+    "error",
+    rendered !== null
+      ? `Copy as PNG — the picture could not be made: ${rendered}`
       : "Copy as PNG — this browser refused the clipboard. Use File ▸ Export PNG… instead.",
   );
 }
@@ -2332,11 +2339,11 @@ export function charOffset(): { dx: number; dy: number } {
 
 /** Sets the selected character's offset **absolutely** (spec M10 §6).
  *
- *  Deliberately not an increment. Every call re-outlines, which is async, and `reshapeTitle`'s
- *  re-entrancy guard drops a call that arrives while one is in flight — during a drag that is most
- *  of them. An increment loses each dropped delta for good, so the character crawled along at a
+ *  Deliberately not an increment. Every call re-outlines, which is async, and calls that arrive
+ *  while one is in flight are coalesced — only the newest lands — which during a drag is most of
+ *  them. An increment would lose each skipped delta for good, so the character crawled along at a
  *  fraction of the pointer's speed. An absolute value makes every call carry the whole drag, so a
- *  dropped one costs nothing and the next one lands the character exactly where the pointer is. */
+ *  skipped one costs nothing and the next one lands the character exactly where the pointer is. */
 export function setCharOffset(dx: number, dy: number): Promise<void> {
   const t = selectedTitle();
   const i = app.charSel;
