@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1317 tests in 86 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1324 tests in 87 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -109,7 +109,7 @@ every user-visible change.
   `registerToolDiscard`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
-  `double-tap.ts` (pure double-tap/double-click detection), `finger-tap.ts` (`createFingerTap`:
+  `double-tap.ts` (pure double-tap/double-click detection), `long-press.ts` (`createLongPress`, the touch/Pencil context menu), `finger-tap.ts` (`createFingerTap`:
   two-finger tap = undo, three = redo — ported from slop-paint's `touch-gestures.ts`, same rules:
   reported on the last lift, no finger past 15 px, the last finger down under 300 ms, 100 ms
   debounce; plus `spoil()`, which `Canvas.svelte` calls when a Pencil or mouse is involved, so a
@@ -258,7 +258,12 @@ every user-visible change.
     Pencil. `Canvas.svelte` ends any running pan/pinch gesture first (nothing to roll back) and
     drops the superseded pointers from its own bookkeeping, so they don't keep counting toward
     `activeTouches` or re-anchor a pinch on a stale coordinate once the Pencil lifts. The
-    right-click menu opens only for mouse input. A plain tap on a member of a multi-selection
+    right-click menu opens only for mouse input; touch and Pencil get a **long press** instead
+    (2026-09-30, `input/long-press.ts`: 500 ms still within 10 px; a move, a lift, a second finger
+    or a pinch cancels it). Both routes call the store's `openContextMenu`, so they select alike.
+    Firing cancels the tool action the press began and swallows the lift's click — any new press
+    clears that swallow, so a deliberate tap on a menu item is never the one eaten. A plain tap on
+    a member of a multi-selection
     narrows the selection to it; a new pointer-down cancels an active drag.
 17. **Ellipse hit-testing (`geom/hit.ts`) measures outline distance against a sampled 64-point
     polyline** (nearest point), not along the radius.
@@ -1121,4 +1126,6 @@ measurement caching, `collectTargets` recomputing every bounds per pointer-down,
 ## Verification debt
 
 Canvas/touch/Pencil behavior is not unit-testable. Record in CHANGELOG what was checked in the
-browser and what still needs an iPad pass.
+browser and what still needs an iPad pass. The owed device items are collected, by priority, in
+`docs/superpowers/IPAD-CHECKLIST.md` — add a line there whenever a CHANGELOG entry owes one, and
+tick or remove lines as the device pass confirms them.
