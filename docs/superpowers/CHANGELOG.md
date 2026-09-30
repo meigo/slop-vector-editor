@@ -3054,3 +3054,18 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   and the panel button each removed one node and kept the path; with no nodes selected the top-bar
   button is plain "Delete" again. **Owed:** a real tap on iPad.
 
+## 2026-09-30 — Import an SVG into the open document
+
+- **File ▸ Import SVG…** (`importDocument`, `src/persist/project-io.ts`) and **dropping `.svg`
+  files on the canvas** (`Canvas.svelte`) add a file's drawing to the open document instead of
+  replacing it. Both go through the store's `importSvgText`, which runs the paste plan with
+  `source: "file"`: current layer, centred in the view, selected, one undo step, dropped content
+  reported — and never counted as our own clipboard copy, so it neither cascades nor disturbs the
+  next paste's cascade. Refusals name the file ("The file isn't an SVG drawing.", "…unlock it to
+  import"). The file's own layers merge into the current layer, as a paste does. A non-SVG drop
+  says "Only SVG files can be dropped here."; before this, a file dropped on the canvas made the
+  browser open it in place of the app.
+- 6 new tests; 1315 tests in 86 files. Browser-checked (desktop Chrome): the menu entry; a dropped
+  `shapes.svg` landed centred and selected; a dropped `.txt` was refused with the notice. **Not
+  checked:** the picker itself (a native dialog), and on iPad the Files picker.
+

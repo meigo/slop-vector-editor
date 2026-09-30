@@ -9,6 +9,8 @@
     cancelActiveGesture,
     dockMods,
     fitArtboard,
+    importSvgText,
+    notify,
     registerGestureCancel,
     setOverlay,
     setSelection,
@@ -282,6 +284,28 @@
     lastPointerEnd = performance.now();
   }
 
+  /** A file dropped on the canvas is imported like File ▸ Import SVG… (2026-09-30). Without these,
+   *  the browser's default opened the dropped file in place of the app. */
+  const isSvgFile = (f: File) => f.type === "image/svg+xml" || /\.svg$/i.test(f.name);
+
+  function ondragover(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  async function ondrop(e: DragEvent) {
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (files.length === 0) return;
+    e.preventDefault();
+    const svgs = files.filter(isSvgFile);
+    if (svgs.length === 0) {
+      notify("info", "Only SVG files can be dropped here.");
+      return;
+    }
+    for (const f of svgs) importSvgText(await f.text());
+  }
+
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
     if (app.lastPointerType !== "mouse") return;
@@ -348,6 +372,8 @@
   style="touch-action: none; cursor: {cursor}"
   role="application"
   aria-label="Drawing canvas"
+  {ondragover}
+  {ondrop}
   {onpointerdown}
   {onpointermove}
   onpointerup={(e) => {

@@ -31,7 +31,7 @@ export function layerBlock(doc: Doc, id: string): LayerBlock | null {
   return null;
 }
 
-export function blockMessage(block: LayerBlock, verb: "draw" | "paste"): string {
+export function blockMessage(block: LayerBlock, verb: "draw" | "paste" | "import"): string {
   const fix = block.reason === "hidden" ? "show it" : "unlock it";
   return `“${block.name}” is ${block.reason} — ${fix} to ${verb}.`;
 }

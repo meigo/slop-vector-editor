@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1309 tests in 85 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1315 tests in 86 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -151,7 +151,9 @@ every user-visible change.
   `preview.ts` (`previewOutline`/`PREVIEW_SAMPLE` — the Google Fonts dialog's sample line, "Tallinn
   — šž õäöü", through the exact same `outlineText` pipeline a title uses).
 - `src/persist/` — `file-io.ts` (File System Access / fallback), `project-io.ts`
-  (new/open/save/restore), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
+  (new/open/save/restore, and `importDocument` — File ▸ Import SVG…, 2026-09-30, which runs the
+  paste plan with `source: "file"` through the store's `importSvgText`; a file dropped on the
+  canvas takes the same route), `autosave.ts` (IndexedDB, SVG text, 3 s debounce), `preferences.ts`
   (localStorage: style + polygon defaults for new shapes — the style is also updated by every style edit on a selection, flat paints only, through the store's `rememberStyle` (2026-09-28) — snap, the dock's expanded state, the
   sidebar's split ratio and the Layers panel's collapse),
   `tab-presence.ts`

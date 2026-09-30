@@ -11,6 +11,8 @@ import { serializeDoc } from "../svg/serialize";
 export const PASTE_STEP = 10;
 export const NOT_SVG = "The clipboard doesn't contain an SVG drawing.";
 export const EMPTY = "The clipboard drawing is empty.";
+export const NOT_SVG_FILE = "The file isn't an SVG drawing.";
+export const EMPTY_FILE = "The file's drawing is empty.";
 
 /** The in-app copy: what we last copied, and how many times it has been pasted since. */
 export type Clip = { text: string; pastes: number };
@@ -70,30 +72,34 @@ function intersects(a: Box, b: Box): boolean {
 }
 
 /** Spec (M2b) §2.3, M3a §2. `view` is the visible canvas area in document coordinates; `layerId`
- *  is the current layer, which receives the pasted nodes. */
+ *  is the current layer, which receives the pasted nodes. `source: "file"` is File ▸ Import SVG…
+ *  and a dropped file (2026-09-30): the same placement, never counted as our own clipboard copy
+ *  (so never cascaded, and `clip` is handed back untouched), and refusals that name the file. */
 export function planPaste(
   doc: Doc,
   text: string,
   clip: Clip | null,
   view: Box,
   layerId: string,
+  source: "clipboard" | "file" = "clipboard",
 ): PastePlan | PasteError {
+  const file = source === "file";
   let parsed: ParseResult;
   try {
     parsed = parseSvg(text);
   } catch {
-    return { error: NOT_SVG };
+    return { error: file ? NOT_SVG_FILE : NOT_SVG };
   }
   const nodes = parsed.doc.layers.flatMap((l) => l.children);
   const bounds = boundsOf(nodes);
-  if (nodes.length === 0 || !bounds) return { error: EMPTY };
+  if (nodes.length === 0 || !bounds) return { error: file ? EMPTY_FILE : EMPTY };
   const block = layerBlock(doc, layerId);
-  if (block) return { error: blockMessage(block, "paste") };
+  if (block) return { error: blockMessage(block, file ? "import" : "paste") };
 
   // A system clipboard round-trip (e.g. on Windows) can turn \n into \r\n, so compare with line
   // endings normalised or our own copy looks external.
   const normalizeEol = (s: string) => s.replace(/\r\n/g, "\n");
-  const own = clip !== null && normalizeEol(text) === normalizeEol(clip.text);
+  const own = !file && clip !== null && normalizeEol(text) === normalizeEol(clip.text);
   const n = own ? clip.pastes + 1 : 0;
   const vc = boxCenter(view);
   const bc = boxCenter(bounds);
