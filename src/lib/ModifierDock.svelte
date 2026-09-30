@@ -18,6 +18,15 @@
   });
 
   function toggleExpanded() {
+    // Hiding the keys releases them (review M2): a latched Shift or Alt left on with no button on
+    // screen silently turned every drag into a duplicate or a free stretch, and a key held while its
+    // button unmounted never saw its pointerup and stayed "held" until a reload.
+    if (expanded) {
+      for (const key of KEYS) {
+        delete presses[key];
+        if (app.dock[key] !== "off") setDock(key, "off");
+      }
+    }
     setPrefs({ ...app.prefs, dockExpanded: !expanded });
   }
 
@@ -104,8 +113,12 @@
     class="flex h-10 w-6 items-center justify-center rounded text-muted hover:bg-raised"
     style="touch-action: none"
     aria-expanded={expanded}
-    title={expanded ? "Hide the Shift and Alt keys" : "Show the Shift and Alt keys"}
-    aria-label={expanded ? "Hide the Shift and Alt keys" : "Show the Shift and Alt keys"}
+    title={expanded
+      ? "Hide the Shift and Alt keys and Fingers select (releases Shift and Alt)"
+      : "Show the Shift and Alt keys and Fingers select"}
+    aria-label={expanded
+      ? "Hide the Shift and Alt keys and Fingers select"
+      : "Show the Shift and Alt keys and Fingers select"}
     onclick={toggleExpanded}
     onpointerdown={(e) => e.preventDefault()}
   >

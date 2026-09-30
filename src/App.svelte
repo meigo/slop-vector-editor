@@ -29,7 +29,7 @@
     restoreGoogleFonts,
   } from "./state/appState.svelte";
   import { runCommand, runEditAction } from "./state/commands";
-  import { commandForKey, editActionForKey } from "./state/keys";
+  import { commandForKey, editActionForKey, fieldPassesKey, type FieldScope } from "./state/keys";
 
   let cursor = $state<Vec | null>(null);
 
@@ -142,10 +142,21 @@
     );
   }
 
+  /** Where a key press starts, for `fieldPassesKey` (review M20/M21): a text field, a non-text
+   *  control (slider, swatch, checkbox, select), or neither. */
+  function fieldScope(t: EventTarget | null): FieldScope | null {
+    if (isTextField(t)) return t instanceof HTMLSelectElement ? "control" : "text";
+    return isEditable(t) ? "control" : null;
+  }
+
   function onkeydown(e: KeyboardEvent) {
+    // Already handled by the element (the sidebar grip's arrows, the canvas text field's ⌘S): the
+    // app must not act on it a second time (review M22).
+    if (e.defaultPrevented) return;
     // Modals and menus own the keyboard (they handle Escape themselves).
-    if (app.dialog || app.confirm || app.shareReady || app.contextMenu || isEditable(e.target))
-      return;
+    if (app.dialog || app.confirm || app.shareReady || app.contextMenu) return;
+    const scope = fieldScope(e.target);
+    if (scope && !fieldPassesKey(scope, e)) return;
     if (e.key === " ") {
       e.preventDefault();
       app.spaceHeld = true;

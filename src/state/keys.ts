@@ -36,6 +36,26 @@ export function commandForKey(e: KeyLike): Command | null {
   return null;
 }
 
+/** What kind of focused element a key press starts in: a text field (text inputs, textarea,
+ *  contentEditable) or a non-text control (slider, colour swatch, checkbox, select, …). */
+export type FieldScope = "text" | "control";
+
+const FILE_COMMANDS: readonly Command[] = ["save", "saveAs", "open"];
+const CONTROL_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "]);
+
+/** Whether an app shortcut should run although a field has focus (review M20/M21, 2026-09-30).
+ *  A text field keeps its own keys — ⌘Z is its text undo, letters are typing — but not the file
+ *  commands, which otherwise reached the browser as Save Page / Open File. A non-text control keeps
+ *  only the keys it acts on (arrows step a slider or a select, Space toggles); everything else is
+ *  the app's, where before a slider or swatch left focused swallowed every shortcut. */
+export function fieldPassesKey(scope: FieldScope, e: KeyLike): boolean {
+  if (scope === "text") {
+    const cmd = commandForKey(e);
+    return cmd !== null && FILE_COMMANDS.includes(cmd);
+  }
+  return !CONTROL_KEYS.has(e.key);
+}
+
 export type ZOrderOp = "forward" | "backward" | "front" | "back";
 
 export type EditAction =

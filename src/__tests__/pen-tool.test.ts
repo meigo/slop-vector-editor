@@ -215,6 +215,22 @@ describe("pen: drawing a new path", () => {
     expect(two.state.selection).toEqual([layers[1].children[0].id]);
   });
 
+  /** Review L5 (2026-09-30): the layer was checked only at the first press, so a layer locked or
+   *  hidden while the draft was open still received the path. */
+  it("refuses to commit into a layer blocked while the draft was open", () => {
+    const { ctx, state } = fakeContext(blank(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 10, 10);
+    click(tool, ctx, 50, 10);
+    const doc = state.session.doc;
+    ctx.commit({ ...doc, layers: [{ ...doc.layers[0], locked: true }] });
+    const before = state.session.doc;
+    tool.keydown?.(ctx, "enter");
+    expect(state.session.doc).toBe(before);
+    expect(state.notices).toEqual(["“Layer 1” is locked — unlock it to draw."]);
+    expect(tool.busy?.()).toBe(false);
+  });
+
   it("commits into the current layer when the draft's own layer is gone", () => {
     const { ctx, state } = fakeContext(twoLayers(), noSnap);
     state.currentLayerId = "L1";
@@ -409,6 +425,19 @@ describe("pen: resuming an open path", () => {
       { x: 40, y: 0 },
       { x: 80, y: 0 },
     ]);
+  });
+
+  it("refuses to extend a path hidden or locked while the draft was open", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 140, 0);
+    click(tool, ctx, 180, 0);
+    ctx.commit(mapNodes(state.session.doc, ["p"], (n) => ({ ...n, locked: true })));
+    const before = state.session.doc;
+    tool.keydown?.(ctx, "enter");
+    expect(state.session.doc).toBe(before);
+    expect(state.notices).toHaveLength(1);
+    expect(tool.busy?.()).toBe(false);
   });
 
   it("reverses the subpath as it is now, not the copy taken at resume", () => {

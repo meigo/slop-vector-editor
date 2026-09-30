@@ -3220,3 +3220,29 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   a hidden rectangle renamed by a real double-click, still hidden and unselected.
 - Also confirmed on the iPad: checklist §1 is complete.
 
+
+## 2026-09-30 — Review fixes, batch 1 (input, keyboard, locked targets)
+
+From `REVIEW-2026-09-30.md` (marked fixed there):
+
+- **H1:** a long press is armed only with Select and Node, the tools that have a context menu
+  (`opensContextMenu`). A Pencil or finger held still for half a second no longer cancels a Brush,
+  Pen, shape, Gradient, Warp or Text stroke.
+- **M1:** switching tools mid-stroke no longer throws a brush stroke away. It lands at pen-up, as
+  invariant 48 already said.
+- **M2 + L22:** collapsing the dock releases a latched or held Shift/Alt. The chevron's hint now
+  names Fingers select as well.
+- **M20/M21/M22:** the keyboard now has one gate for focused fields (`fieldPassesKey`, invariant
+  50).
+  - ⌘S/⇧⌘S/⌘O in a panel text field save or open instead of opening the browser's dialogs.
+  - Shortcuts keep working after a slider, colour swatch or select is used.
+  - The sidebar grip's arrows no longer also nudge the selection.
+- **M19:** the Layers panel no longer drops objects into a locked or hidden group, both in the
+  drop preview and in the store.
+- **M7:** Document settings' Apply settles a running Warp first (`applyArtboard`), so the next
+  cage drag can't revert the artboard.
+- **L5:** the Pen no longer writes into a layer or a resumed path that was locked or hidden while
+  its draft was open. The draft is dropped with the same notice a press on a blocked layer gives.
+- 9 new tests; 1343 tests in 88 files. `npm run build` reports 0 errors and 0 warnings. Not
+  browser-checked yet. Owed on the iPad: a still Pencil mid-stroke with Brush and Pen, and the
+  long-press menu with Select and Node (unchanged).

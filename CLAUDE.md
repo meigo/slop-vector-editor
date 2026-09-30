@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1334 tests in 88 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1343 tests in 88 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -277,6 +277,9 @@ every user-visible change.
     right-click menu opens only for mouse input; touch and Pencil get a **long press** instead
     (2026-09-30, `input/long-press.ts`: 500 ms still within 10 px; a move, a lift, a second finger
     or a pinch cancels it). Both routes call the store's `openContextMenu`, so they select alike.
+    **It is armed only for Select and Node** (`opensContextMenu`, review H1): armed with any tool,
+    half a second of stillness cancelled the stroke or drag before finding no menu, and a careful
+    Brush or Pen stroke lost its ink.
     Firing cancels the tool action the press began and swallows the lift's click — any new press
     clears that swallow, so a deliberate tap on a menu item is never the one eaten. A plain tap on
     a member of a multi-selection
@@ -1030,6 +1033,15 @@ every user-visible change.
     - **Tools stay store-free** (invariant 12): `ToolContext` gained `textEdit`, `beginTextEdit`,
       `setTextSelection`, `textIndexAt`, `textWordAt`, `endTextEdit` and `charAtPoint`; `pickCharacter`
       and `titleId` are gone.
+
+50. **The window keydown handler has one gate for focused fields** (`fieldPassesKey`,
+    `state/keys.ts`, review M20/M21, 2026-09-30). A **text** field (text-like `<input>`,
+    `<textarea>`, contenteditable) keeps every key except ⌘S, ⇧⌘S and ⌘O, which the app runs —
+    otherwise the browser opens Save Page / Open File. A **control** (a slider, colour swatch,
+    select, checkbox) keeps only the arrows and Space, which it uses itself; every other shortcut
+    runs, so ⌘Z or a tool key is not dead after touching one. A handler that consumes a key calls
+    `preventDefault()`, and the window handler skips any event already prevented — which is how the
+    sidebar grip's arrows no longer also nudge the selection.
 
 ## Current state
 

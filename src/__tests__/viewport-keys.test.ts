@@ -92,3 +92,36 @@ describe("commandForKey", () => {
     expect(k("a", { metaKey: true })).toBeNull();
   });
 });
+
+/** Review M20/M21 (2026-09-30): which app keys a focused field lets through. A text field keeps its
+ *  keys (⌘Z is its own text undo) but not ⌘S/⌘O — those opened the browser's Save Page / Open File.
+ *  A non-text control (slider, swatch, select, checkbox) keeps only arrows and Space; before, it
+ *  swallowed every shortcut until focus moved. */
+describe("keys a focused field lets through", () => {
+  const k = (key: string, mods: { meta?: boolean; shift?: boolean } = {}) => ({
+    key,
+    metaKey: !!mods.meta,
+    ctrlKey: false,
+    shiftKey: !!mods.shift,
+  });
+  it("a text field passes only the file commands", async () => {
+    const { fieldPassesKey } = await import("../state/keys");
+    expect(fieldPassesKey("text", k("s", { meta: true }))).toBe(true);
+    expect(fieldPassesKey("text", k("S", { meta: true, shift: true }))).toBe(true);
+    expect(fieldPassesKey("text", k("o", { meta: true }))).toBe(true);
+    expect(fieldPassesKey("text", k("z", { meta: true }))).toBe(false);
+    expect(fieldPassesKey("text", k("Backspace"))).toBe(false);
+    expect(fieldPassesKey("text", k("v"))).toBe(false);
+    expect(fieldPassesKey("text", k("+"))).toBe(false);
+  });
+  it("a non-text control passes everything but arrows and Space", async () => {
+    const { fieldPassesKey } = await import("../state/keys");
+    expect(fieldPassesKey("control", k("z", { meta: true }))).toBe(true);
+    expect(fieldPassesKey("control", k("Backspace"))).toBe(true);
+    expect(fieldPassesKey("control", k("v"))).toBe(true);
+    expect(fieldPassesKey("control", k("Escape"))).toBe(true);
+    for (const a of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "]) {
+      expect(fieldPassesKey("control", k(a))).toBe(false);
+    }
+  });
+});

@@ -5,6 +5,7 @@ import {
   isGradient,
   isHidden,
   isLocked,
+  type Artboard,
   type Doc,
   type FlatStyle,
   type Node,
@@ -27,6 +28,7 @@ import {
   setNodeLocked,
   setNodeOpacity,
   setPolygon,
+  setArtboard,
   setRectRadius,
   setStyle,
   translateNodes,
@@ -156,6 +158,7 @@ import { saveToFilesAvailable, shareFile } from "../persist/share";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
 import { pointerTolerance, type Overlay } from "../tools/tool";
 import { hitTest } from "../geom/hit";
+import { opensContextMenu } from "../input/long-press";
 import type { Mods, ToolId } from "../tools/types";
 import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
 import { canRedo, canUndo } from "./history";
@@ -815,6 +818,15 @@ export function toggleSnap(): void {
 
 // ----- selection actions (keyboard, top bar, context menu) -----
 
+/** Document settings' Apply (review M7, 2026-09-30): settles any running tool first, as every store
+ *  edit does (invariant 15). The dialog committed directly, so a Warp session left open folded the
+ *  artboard change into its step, and its next cage drag — committing from its pre-warp base —
+ *  put the old artboard back. */
+export function applyArtboard(artboard: Artboard): void {
+  cancelActiveGesture();
+  commitDoc(setArtboard(app.doc, artboard));
+}
+
 export function deleteSelection(): void {
   cancelActiveGesture();
   if (app.selection.length > 0) commitDoc(deleteNodes(app.doc, app.selection));
@@ -1408,6 +1420,7 @@ export function moveNodesTo(ids: readonly string[], parentId: string, index: num
     ? parentId
     : findNode(app.doc, parentId)?.layer.id;
   if (layerId === undefined || layerBlock(app.doc, layerId)) return;
+  if (parentId !== layerId && blocked(app.doc, parentId)) return; // review M19, as `dropTarget`
   const next = moveNodes(app.doc, ids, parentId, index);
   if (next === app.doc) return;
   commitDoc(next);
@@ -1506,7 +1519,7 @@ export function openContextMenu(
   client: { x: number; y: number },
   pointerType: string,
 ): boolean {
-  if (app.toolId !== "select" && app.toolId !== "node") return false;
+  if (!opensContextMenu(app.toolId)) return false;
   cancelActiveGesture();
   if (app.toolId === "select") {
     const tol = pointerTolerance(pointerType) / app.view.zoom;
