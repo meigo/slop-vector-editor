@@ -36,8 +36,12 @@ polish.
       _Known iPadOS limitation, accepted: with a finger already down the Pencil's touch never
       reaches the page (Safari and Chrome; `?debug` showed no event at all), so a finger-first
       stroke does not start. The Pencil first, then a finger or palm, draws fine._
-- [ ] **P2** Double tap (finger and Pencil) enters a group / opens a path in the Node tool / enters
-      text editing on a title.
+- [x] **P2** Double tap (finger and Pencil) opens a path in the Node tool / enters text editing on
+      a title.
+- [ ] **P2** Double tap a **group** on the canvas enters it (select two objects, Object ▸ Group or
+      ⌘G, then double-tap one of them: the object inside gets selected, the group frame dashed).
+- [ ] **P1** Double-tapping anything outside the canvas (a layer's name, a panel, the top bar) no
+      longer zooms the whole page; double-tapping a layer's name still starts renaming it.
 - [ ] **P3** The Hand tool pans with a finger and with the Pencil.
 
 ## 2. Selecting and transforming

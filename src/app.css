@@ -59,6 +59,20 @@ body {
   inset: 0;
 }
 
+/* No double-tap-to-zoom (2026-09-30): double-tapping a layer's name zoomed the whole page on iPad —
+   the viewport's `user-scalable=no` is ignored by modern iOS. `manipulation` keeps panning and
+   scrolling and drops only the double-tap zoom (and the old tap delay), as slop-paint and
+   slop-animator set on `#app`. Here on every element, not just the root: the layer list and the
+   Properties panel scroll, and a touch-action above a scroll container does not reach inside it.
+   In the base layer, so the `touch-none` / `touch-pan-y` utilities (the grips, NumberField) and
+   the canvas's inline `touch-action: none` still win. */
+@layer base {
+  #app,
+  #app * {
+    touch-action: manipulation;
+  }
+}
+
 /* Control height (spec M2d §5, amended M10e §2). 32px is the touch size this app chose over the
    guide's 24px, and it is right wherever a finger can reach the screen. On a machine that has no
    touch input at all it is only wasted room — the properties panel stacks 21 of these, and 8px

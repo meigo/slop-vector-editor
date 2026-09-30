@@ -3188,3 +3188,16 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   known limitation) and the shared slop notes. The page-wide logging is removed again; the
   canvas-level `?debug` panel stays.
 
+## 2026-09-30 — No double-tap zoom on the page
+
+- **Reported on the iPad:** double-tapping a layer's name zoomed the whole page (iOS double-tap
+  zoom; the viewport's `user-scalable=no` is ignored by modern iOS, and only the canvas had opted
+  out with `touch-action: none`).
+- **Fix:** `touch-action: manipulation` on `#app` and every element in it (`src/app.css`, base
+  layer) — as slop-paint and slop-animator set on `#app`, but on every element because the layer
+  list and Properties are scroll containers, which an ancestor's `touch-action` does not reach.
+  In the base layer so the `touch-none`/`touch-pan-y` utilities and the canvas's inline `none` still
+  win — checked computed: a layer name `manipulation`, the canvas `none`, a NumberField `pan-y`, the
+  sidebar grip `none`. **Owed:** the iPad (checklist §1).
+- Also confirmed on the iPad: double tap opens a path in the Node tool and enters title editing.
+
