@@ -3174,4 +3174,10 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   `routePointerDown` decided, the pointers already down, the running gesture and the tool; each
   pointer's first move; ups and cancels with the DOM event that ended them. No effect without the
   parameter.
+- **First result from the iPad** (Chrome, Brush, finger first): the canvas saw only the finger —
+  `down touch → pan`, then its up — and **no event at all for the Pencil** pressed meanwhile. So it
+  is not routing: the Pencil's pointer event never reached the canvas. The `?debug` log now also
+  records, page-wide and in the capture phase, every `pointerdown` (with its target) and every raw
+  `touchstart`/`touchend` with each touch's `touchType` (`stylus` for the Pencil) — to see whether
+  the Pencil arrives as a raw touch only, somewhere else, or not at all.
 
