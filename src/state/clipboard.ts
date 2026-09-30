@@ -90,7 +90,16 @@ export function planPaste(
   } catch {
     return { error: file ? NOT_SVG_FILE : NOT_SVG };
   }
-  const nodes = parsed.doc.layers.flatMap((l) => l.children);
+  // The source's layers merge into one: each carries its state onto its objects, or a file's
+  // hidden layers would appear and its locked ones unlock (review M12). A flag is only ever
+  // added in its `true` state (invariant 39).
+  const nodes = parsed.doc.layers.flatMap((l) =>
+    l.children.map((n) => ({
+      ...n,
+      ...(!l.visible && { hidden: true as const }),
+      ...(l.locked && { locked: true as const }),
+    })),
+  );
   const bounds = boundsOf(nodes);
   if (nodes.length === 0 || !bounds) return { error: file ? EMPTY_FILE : EMPTY };
   const block = layerBlock(doc, layerId);

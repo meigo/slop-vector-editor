@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1348 tests in 89 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1357 tests in 90 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -212,7 +212,16 @@ every user-visible change.
    and `visibility="hidden"` all become `hidden: true`, and a hidden group keeps its children. It can throw
    `XmlError` (malformed XML), `SvgError` (non-SVG root) or, for a pathologically deep file,
    `RangeError` (recursion) — callers (`openText`, `restoreAutosave`) catch every error, not just
-   the named ones. `openText` parses fully before replacing the document.
+   the named ones. `openText` parses fully before replacing the document. **A property the model
+   cannot draw is reported, never ignored** (`UNREPRESENTABLE` in `parse.ts`, review H2,
+   2026-09-30): `fill-rule: evenodd`, `stroke-dasharray`, markers, `transform-origin` and a CSS
+   `transform` in `style`, each only when set to something other than a value that draws the same
+   as leaving it out. An ignored one left `dropped` empty, so invariant 10 kept the handle and ⌘S
+   wrote it away. A layer's own `transform`/`opacity` becomes a group around its children in our
+   own format too (review M11): our export never writes them, but another editor may add them.
+   **Import, drop and paste merge the source's layers into the current one, carrying each layer's
+   state onto its objects** (`planPaste`, review M12): a hidden layer's objects arrive `hidden`, a
+   locked one's `locked`.
 5. **No native dialogs.** Use `askConfirm` (in-app). Native `confirm` blocks the page and browser
    automation.
 6. **Drag surfaces need `touch-action: none`** and must treat `pointercancel` like `pointerup`
@@ -226,7 +235,9 @@ every user-visible change.
    rejected the same way non-finite values are — `fmt`'s 6-decimal rounding overflows to
    `Infinity` well before that.
 9. **Autosave is skipped for the rest of the session when IndexedDB is unavailable**, with a
-   single notice — it does not retry on every edit.
+   single notice — it does not retry on every edit. **It is also off when the stored copy cannot
+   be read** (`restoreAutosave` returns false, review M10, 2026-09-30): autosaving the blank
+   startup document would overwrite what may be the only copy 3 s later. A reload tries again.
 10. **A file is only kept as the Save-in-place target when it round-trips losslessly**: `openText`
     keeps the File System Access handle only when `ParseResult.native` is true (the root `<svg>`
     has `data-sv-version`, i.e. our own export) and nothing was dropped. Otherwise the document
@@ -719,6 +730,10 @@ every user-visible change.
       inverted. The titles say what is pinned, not "Align left".
     - **The panel shows ranges for the title and absolute values for a character.** `±12°` and
       `−12°` are different quantities, so they never share a field.
+    - **A title is at most `MAX_TEXT_LENGTH` (2000) characters** (review M4, 2026-09-30):
+      `reshapeTitle` refuses longer text — quietly while typing, with a notice on the commit —
+      because the importer reads a title back only up to that length, and a longer one saved but
+      reopened as a plain path with its text lost.
     - **The seed is an id, not a length.** `parseTextOpts` measures sizes and amounts against
       `MAX_TEXT_NUM` but checks the seed as a 32-bit integer: measuring it as a coordinate rejected
       every seed above 1e9, and a re-rolled title then came back from a reload as an ordinary path

@@ -95,7 +95,7 @@ import { ancestorIds, blocked, findNode, mapNodes, pruneSelection, shapesOf } fr
 import { BOOL_LABEL, BOOL_REASON, type BoolOp } from "../geom/boolean";
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
-import type { CharOverride } from "../text/attrs";
+import { MAX_TEXT_LENGTH, type CharOverride } from "../text/attrs";
 import { applyMat, IDENTITY, invert as invertMat, multiply as multiplyMat } from "../geom/mat";
 import { simplifyOf } from "../geom/simplify";
 import { brushStyle, brushTolerance } from "../brush/commit";
@@ -1878,6 +1878,12 @@ async function reshapeTitle(
   // Re-picking the current font, or tapping the alignment button already on, reached here.
   if (sameMeta(meta, target.text)) return;
   if (refuseUnshaped(meta.text, quiet)) return;
+  // The importer reads a title back only up to `MAX_TEXT_LENGTH` characters; a longer one saved
+  // but reopened as a plain path with its text lost (review M4).
+  if (len > MAX_TEXT_LENGTH) {
+    if (!quiet) notify("error", `A title can be at most ${MAX_TEXT_LENGTH} characters long.`);
+    return;
+  }
   const before = app.doc;
   const beforeSel = app.selection;
   const id = target.id;

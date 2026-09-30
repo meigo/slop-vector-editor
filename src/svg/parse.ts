@@ -93,6 +93,21 @@ const SILENT = new Set([
   "radialGradient",
   "pattern",
 ]);
+/** Properties the model can't represent (review H2, 2026-09-30): each is reported by its label when
+ *  set to anything but a value that draws the same as leaving it out. Reporting also releases the
+ *  save-in-place handle (invariant 10), so ⌘S cannot write the property away. `transform` counts
+ *  only as a CSS declaration: the attribute is the one the importer reads. */
+const UNREPRESENTABLE: readonly { key: string; label: string; plain: readonly string[] }[] = [
+  { key: "fill-rule", label: "even-odd fill", plain: ["nonzero"] },
+  { key: "stroke-dasharray", label: "dashed strokes", plain: ["none"] },
+  { key: "marker", label: "markers", plain: ["none"] },
+  { key: "marker-start", label: "markers", plain: ["none"] },
+  { key: "marker-mid", label: "markers", plain: ["none"] },
+  { key: "marker-end", label: "markers", plain: ["none"] },
+  { key: "transform-origin", label: "transform-origin", plain: ["0 0", "0px 0px", "left top"] },
+];
+const CSS_TRANSFORM = { key: "transform", label: "CSS transforms", plain: ["none"] };
+
 const CAPS: readonly string[] = ["butt", "round", "square"];
 const JOINS: readonly string[] = ["miter", "round", "bevel"];
 
@@ -204,6 +219,20 @@ export function parseSvg(src: string): ParseResult {
         .trim();
       if ((key === "fill" || key === "stroke") && parseColor(value) === null) continue;
       out[key as (typeof PROPS)[number]] = value;
+    }
+    const plain = (v: string, ok: readonly string[]) =>
+      ok.includes(v.trim().replace(/\s+/g, " ").toLowerCase());
+    for (const u of UNREPRESENTABLE) {
+      const v = el.attrs[u.key];
+      if (v !== undefined && !plain(v, u.plain)) drop(u.label);
+    }
+    for (const decl of (el.attrs.style ?? "").split(";")) {
+      const colon = decl.indexOf(":");
+      if (colon < 0) continue;
+      const key = decl.slice(0, colon).trim().toLowerCase();
+      const u = key === "transform" ? CSS_TRANSFORM : UNREPRESENTABLE.find((x) => x.key === key);
+      const value = decl.slice(colon + 1).replace(/\s*!important\s*$/i, "");
+      if (u && !plain(value, u.plain)) drop(u.label);
     }
     if (el.attrs.class !== undefined) drop("CSS classes");
     if (out.filter && out.filter !== "none") drop("filters");
@@ -547,7 +576,8 @@ export function parseSvg(src: string): ParseResult {
     let kids = children(el, inh);
     const t = parseTransform(el.attrs.transform ?? "");
     const opacity = opacityValue(p.opacity, 1);
-    if (!ownFormat && kids.length > 0 && (!isIdentity(t) || opacity !== 1)) {
+    // Our own export writes neither, but another editor may add them (review M11).
+    if (kids.length > 0 && (!isIdentity(t) || opacity !== 1)) {
       kids = [{ kind: "group", id: newId(), transform: t, opacity, children: kids }];
     }
     if (
