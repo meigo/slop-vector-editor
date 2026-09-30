@@ -172,8 +172,9 @@ describe("select tool: transforms", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();
     tap(t, ctx, 20, 20);
+    // A corner keeps the proportions (2026-09-30): 1.25 and 1.5 — the larger ratio wins.
     drag(t, ctx, [40, 40], [50, 60]);
-    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 50, h: 60 });
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 60 });
     expect(node(state.session.doc, "a").transform).toEqual(IDENTITY);
     expect(state.selection).toEqual(["a"]);
     expect(state.session.history.past).toHaveLength(1);
@@ -239,7 +240,8 @@ describe("select tool: transforms", () => {
     t.down(ctx, ev(37, 37));
     t.move(ctx, ev(39, 37));
     t.up(ctx, ev(39, 37));
-    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 42, h: 40 });
+    // 42, not 44: the 3px grab offset carried the corner, not the finger. Uniform, so 42 × 42.
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 42, h: 42 });
     expect(state.session.history.past).toHaveLength(1);
   });
 
@@ -354,8 +356,9 @@ describe("select tool: snapping", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();
     tap(t, ctx, 20, 20);
+    // x snaps to 60 (the other rect's edge); the corner then keeps the proportions.
     drag(t, ctx, [40, 40], [57, 43]);
-    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 40 });
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 60, h: 60 });
   });
 
   it("cancel during a snapped move clears the guides overlay and restores the doc", () => {
@@ -626,5 +629,15 @@ describe("select tool: node-tool handoff", () => {
     tool.up(ctx, ev(50, 50, {}, "mouse", 100));
     expect(state.toolId).toBe("node");
     expect(state.textEdits).toEqual([]);
+  });
+});
+
+describe("select tool: a corner with Shift stretches", () => {
+  it("resizes freely with Shift held (2026-09-30: the default keeps proportions)", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    const t = createSelectTool();
+    tap(t, ctx, 20, 20);
+    drag(t, ctx, [40, 40], [50, 60], { shift: true });
+    expect(node(state.session.doc, "a")).toMatchObject({ x: 0, y: 0, w: 50, h: 60 });
   });
 });

@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1315 tests in 86 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1317 tests in 86 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -755,9 +755,10 @@ every user-visible change.
     are degrees and ratios — scaling those would rotate and skew the characters as the title is
     resized. A **flip** is not uniform for this purpose: it mirrors the outlines, and re-outlining
     at `|k|` comes back un-mirrored.
-    - **The non-uniform case is the common one, not the exotic one.** `dragHandle` constrains the
-      proportions only while **Shift** is held, so a plain corner drag stretches and costs the
-      title its text; W and H in the geometry fields are non-uniform by construction and always do.
+    - **A plain corner drag is uniform** (2026-09-30; before that `dragHandle` kept proportions
+      only while Shift was held, so the common gesture stretched a title and cost its text). A
+      non-uniform resize now takes an edge handle or a Shift-held corner; W and H in the geometry
+      fields are non-uniform by construction and always cost the text.
       Both warn — `droppedTitle` is the shared predicate, and it compares the documents **before
       and after** rather than re-deriving the rule from the matrix, because a second copy of "is
       this uniform, in the node's own space, through its parent" is one that can drift from

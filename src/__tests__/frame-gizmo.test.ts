@@ -231,15 +231,35 @@ describe("small-object handle policy", () => {
 
 describe("dragHandle", () => {
   const start = { x: 0, y: 0, w: 100, h: 50 };
+  const SHIFT = { shift: true, alt: false, shiftLatched: false };
+  const ALT = { shift: false, alt: true, shiftLatched: false };
 
-  it("moves a corner with the opposite corner fixed", () => {
-    expect(dragHandle("se", start, { x: 150, y: 100 }, NO_MODS)).toEqual({
+  /** Corners keep proportions by default (2026-09-30): on iPad, holding Shift meant latching it in
+   *  the dock, and a plain corner drag silently turned a title into a path. Shift stretches. */
+  it("scales a corner uniformly, the larger ratio winning, with the opposite corner fixed", () => {
+    expect(dragHandle("se", start, { x: 200, y: 60 }, NO_MODS)).toEqual({
+      x: 0,
+      y: 0,
+      w: 200,
+      h: 100,
+    });
+    // nw to (10, 20): ratios 0.9 and 0.6 — 0.9 wins, so the height is 45 and the top moves to 5.
+    expect(dragHandle("nw", start, { x: 10, y: 20 }, NO_MODS)).toEqual({
+      x: 10,
+      y: 5,
+      w: 90,
+      h: 45,
+    });
+  });
+
+  it("stretches a corner freely with Shift", () => {
+    expect(dragHandle("se", start, { x: 150, y: 100 }, SHIFT)).toEqual({
       x: 0,
       y: 0,
       w: 150,
       h: 100,
     });
-    expect(dragHandle("nw", start, { x: 10, y: 20 }, NO_MODS)).toEqual({
+    expect(dragHandle("nw", start, { x: 10, y: 20 }, SHIFT)).toEqual({
       x: 10,
       y: 20,
       w: 90,
@@ -247,7 +267,7 @@ describe("dragHandle", () => {
     });
   });
 
-  it("moves an edge on one axis only", () => {
+  it("moves an edge on one axis only, with or without Shift", () => {
     expect(dragHandle("w", start, { x: -20, y: 30 }, NO_MODS)).toEqual({
       x: -20,
       y: 0,
@@ -260,10 +280,18 @@ describe("dragHandle", () => {
       w: 100,
       h: 80,
     });
+    expect(dragHandle("e", start, { x: 200, y: 60 }, SHIFT)).toEqual({ x: 0, y: 0, w: 200, h: 50 });
   });
 
   it("mirrors when dragged past the fixed side", () => {
+    // Uniform: ratios −0.5 and 0.4 — 0.5 wins, each axis keeping its own sign.
     expect(dragHandle("se", start, { x: -50, y: 20 }, NO_MODS)).toEqual({
+      x: 0,
+      y: 0,
+      w: -50,
+      h: 25,
+    });
+    expect(dragHandle("se", start, { x: -50, y: 20 }, SHIFT)).toEqual({
       x: 0,
       y: 0,
       w: -50,
@@ -277,30 +305,19 @@ describe("dragHandle", () => {
     });
   });
 
-  it("resizes from the centre with Alt and keeps proportions with Shift", () => {
-    expect(
-      dragHandle("se", start, { x: 150, y: 75 }, { shift: false, alt: true, shiftLatched: false }),
-    ).toEqual({
+  it("resizes from the centre with Alt, uniformly from a corner", () => {
+    expect(dragHandle("se", start, { x: 150, y: 75 }, ALT)).toEqual({
       x: -50,
       y: -25,
       w: 200,
       h: 100,
     });
-    expect(
-      dragHandle("se", start, { x: 200, y: 60 }, { shift: true, alt: false, shiftLatched: false }),
-    ).toEqual({
-      x: 0,
-      y: 0,
+    // (150, 60): half-sizes 100 and 35 → ratios 2 and 1.4 — 2 wins.
+    expect(dragHandle("se", start, { x: 150, y: 60 }, ALT)).toEqual({
+      x: -50,
+      y: -25,
       w: 200,
       h: 100,
-    });
-    expect(
-      dragHandle("e", start, { x: 200, y: 60 }, { shift: true, alt: false, shiftLatched: false }),
-    ).toEqual({
-      x: 0,
-      y: 0,
-      w: 200,
-      h: 50,
     });
   });
 
@@ -311,7 +328,8 @@ describe("dragHandle", () => {
       w: 150,
       h: 0,
     });
-    expect(dragHandle("se", start, { x: 0.001, y: -0.001 }, NO_MODS)).toEqual({
+    // The clamp itself, so a free stretch (Shift): a uniform drag would scale the clamped sizes.
+    expect(dragHandle("se", start, { x: 0.001, y: -0.001 }, SHIFT)).toEqual({
       x: 0,
       y: 0,
       w: 0.01,
