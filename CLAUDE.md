@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1333 tests in 88 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1334 tests in 88 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -582,7 +582,11 @@ every user-visible change.
     `isLocked` from `src/doc/document.ts`. They are ordinary document data — saved, and undoable.
     A hidden or locked node **cannot be selected at all** (Illustrator's behaviour, and what a
     locked layer already does here), which is why its row's own eye and lock stay live while the
-    row is blocked: that row is the only way back.
+    row is blocked: that row is the only way back. **Renaming stays live too** (2026-09-30): a double-click on a blocked
+    row's name renames it — renaming does not touch the drawing (Figma and Illustrator allow it) —
+    and its hint says why the row is greyed ("“Logo” is hidden — double-click to rename"; a block
+    from a hidden or locked group, which `nodeBlockedTitle` does not name, reads "Inside a hidden or
+    locked group"). A single tap still does not select it.
 
 40. **A title is a path that remembers it was text** (spec M10 §3). `PathShape.text` is optional
     metadata; absent means an ordinary path, which is why the 23 places that test `kind === "path"`
