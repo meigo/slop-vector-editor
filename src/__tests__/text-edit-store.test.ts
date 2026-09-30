@@ -522,3 +522,65 @@ describe("an emptied title", () => {
     expect(textOf("t")).toBe("Tartu");
   });
 });
+
+describe("review batch 3 (2026-09-30)", () => {
+  const overridesOf = () => node().text?.overrides;
+
+  it("M5: the caret decides which twin of a doubled letter was deleted", async () => {
+    // "Tallinn" carries its override on the first "l" (2).
+    beginTextEdit("t", "all");
+    typeTextEdit("Talinn", 2); // Backspace after the first "l"
+    await titleInFlight();
+    expect(overridesOf()).toEqual({});
+    replaceDocument(docWith(), "Untitled.svg", null, true);
+    beginTextEdit("t", "all");
+    typeTextEdit("Talinn", 3); // Backspace after the second "l"
+    await titleInFlight();
+    expect(overridesOf()).toEqual({ 2: { dx: 5 } });
+  });
+
+  it("M6: a face that can't load is quiet while typing and reported on the commit", async () => {
+    replaceDocument(twoTitles("Tallinn", IDENTITY, "not-a-font"), "Untitled.svg", null, true);
+    setSelection(["t"]);
+    await typeTitleText("X");
+    expect(app.notices).toEqual([]);
+    await setTitleText("X");
+    expect(app.notices).toHaveLength(1);
+  });
+
+  it("M8: a patch queued behind an outline dropped by an undo does not land after it", async () => {
+    setSelection(["t"]);
+    await setTitleText("Tartu");
+    void setTitleText("A1");
+    void setTitleText("A12");
+    undo();
+    await titleInFlight();
+    expect(node().text?.text).toBe("Tallinn");
+    expect(app.canRedo).toBe(true);
+  });
+
+  it("M9: an edit made while a title is being placed is not left for a later edit to apply", async () => {
+    setTool("text");
+    setSelection(["t"]);
+    const placing = placeTitle({ x: 200, y: 300 });
+    void setTitleOpts({ size: 80 });
+    await placing;
+    await titleInFlight();
+    // The placement selected the new title, so the queued edit for "t" was dropped — out loud.
+    expect(app.notices.some((n) => /selection changed/.test(n.text))).toBe(true);
+    setSelection(["t"]);
+    await setTitleText("Q");
+    expect(node().text?.size).toBe(50);
+    setTool("select");
+  });
+
+  it("L2: a queued keystroke does not remap the character the field already picked", async () => {
+    beginTextEdit("t", "all");
+    typeTextEdit("XTallinn", 1);
+    typeTextEdit("XYTallinn", 2);
+    setTextSelection(3, 4); // the "a" of the field's text
+    expect(app.charSel).toBe(3);
+    await titleInFlight();
+    expect(app.charSel).toBe(3);
+  });
+});

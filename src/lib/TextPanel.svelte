@@ -21,6 +21,7 @@
     setTitleText,
     typeTitleText,
   } from "../state/appState.svelte";
+  import { toCodePoint } from "../text/edit";
   import { familyHasItalic, familyWeights, fontAvailable, fontChoices } from "../text/font";
   import {
     familyIdOf,
@@ -209,7 +210,9 @@
     oninput={(e) => {
       if (!ready) return;
       startTyping();
-      void typeTitleText(e.currentTarget.value);
+      const el = e.currentTarget;
+      // The caret after the edit tells a doubled letter's twins apart (review M5).
+      void typeTitleText(el.value, toCodePoint(el.value, el.selectionStart ?? el.value.length));
     }}
     onblur={async (e) => {
       if (!ready) return;

@@ -41,6 +41,21 @@ describe("remapOverrides", () => {
   it("counts code points", () => {
     expect(remapOverrides("a😀b", "Xa😀b", { 2: "B" })).toEqual({ 3: "B" });
   });
+  /** Review M5 (2026-09-30): with a doubled letter the edit is ambiguous from the strings alone;
+   *  the caret after the edit says which twin changed. */
+  it("uses the caret to tell twins apart", () => {
+    // "Tallinn": the first "l" (2) carries the override; Backspace after it leaves the caret at 2.
+    expect(remapOverrides("Tallinn", "Talinn", { 2: "L" })).toEqual({ 2: "L" }); // strings alone
+    expect(remapOverrides("Tallinn", "Talinn", { 2: "L" }, 2)).toEqual({});
+    expect(remapOverrides("Tallinn", "Talinn", { 3: "l" }, 2)).toEqual({ 2: "l" });
+    // Typing a second "l" before the first: the caret is at 3, after the new one.
+    expect(remapOverrides("Talinn", "Tallinn", { 2: "L" }, 3)).toEqual({ 3: "L" });
+    expect(remapIndex("Tallinn", "Talinn", 3, 2)).toBe(2);
+  });
+  it("ignores a caret the edit can't have ended at", () => {
+    expect(remapOverrides("abcde", "abXcde", o, 99)).toEqual({ 0: "A", 3: "C", 5: "E" });
+    expect(remapOverrides("abcde", "abXcde", o, -1)).toEqual({ 0: "A", 3: "C", 5: "E" });
+  });
   it("remapIndex matches", () => {
     expect(remapIndex("abcde", "abXcde", 2)).toBe(3);
     expect(remapIndex("abcde", "abde", 2)).toBeNull();
@@ -87,6 +102,14 @@ describe("selectionRects", () => {
       { x0: 0, x1: 0, top: 5, bottom: 25 },
       { x0: 0, x1: 10, top: 25, bottom: 45 },
     ]);
+  });
+  /** Review L3 (2026-09-30): ending at a line's first stop drew a sliver on that line. */
+  it("draws nothing on the line a selection ends at the start of", () => {
+    expect(selectionRects(stops, 1, 4)).toEqual([
+      { x0: 10, x1: 20, top: -15, bottom: 5 },
+      { x0: 0, x1: 0, top: 5, bottom: 25 },
+    ]);
+    expect(selectionRects(stops, 4, 1)).toHaveLength(2);
   });
 });
 

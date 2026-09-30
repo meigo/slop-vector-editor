@@ -1670,7 +1670,11 @@ function refuseUnshaped(text: string, quiet = false): boolean {
 }
 
 /** Loads the face a title asks for — font, weight and italic (spec M20 §3). */
-async function withFont<T>(req: FaceRequest, run: (f: LoadedFont) => T): Promise<T | null> {
+async function withFont<T>(
+  req: FaceRequest,
+  run: (f: LoadedFont) => T,
+  quiet = false,
+): Promise<T | null> {
   try {
     return run(await loadFace(req));
   } catch (e) {
@@ -1682,7 +1686,9 @@ async function withFont<T>(req: FaceRequest, run: (f: LoadedFont) => T): Promise
       e instanceof Woff2Error || e instanceof FontUnavailableError || e instanceof FontDownloadError
         ? e.message
         : "The font couldn't be loaded. Reload the page and try again — a failed download is cached until you do.";
-    notify("error", text);
+    // Quiet for a live keystroke (review M6): offline with an uncached weight, every keystroke
+    // raised the same error. The burst's own commit reports it once.
+    if (!quiet) notify("error", text);
     return null;
   }
 }
@@ -1751,7 +1757,21 @@ export function commitBrushStroke(outline: readonly Vec[]): Promise<void> {
 let titleRunning = false;
 
 export async function placeTitle(at: Vec): Promise<void> {
-  if (titleRunning) return;
+  // A title job, reshape or placement, is in flight: a tap now does nothing, as before.
+  if (titleRunning || titleWork) return;
+  // Placement holds `titleRunning` across its font load like a reshape, so it is a drain too
+  // (review M9): a panel edit queued meanwhile is applied — or dropped with a notice — when the
+  // placement settles, never left for a later reshape to apply over a newer edit.
+  const work: Promise<void> = placeTitleNow(at)
+    .then(drainTitleQueue)
+    .finally(() => {
+      if (titleWork === work) titleWork = null;
+    });
+  titleWork = work;
+  return work;
+}
+
+async function placeTitleNow(at: Vec): Promise<void> {
   cancelActiveGesture();
   const layerId = app.currentLayerId;
   const b = layerBlock(app.doc, layerId);
@@ -1774,6 +1794,8 @@ export async function placeTitle(at: Vec): Promise<void> {
     });
     if (!subpaths || subpaths.length === 0) return;
     if (app.doc !== before) {
+      // A patch queued meanwhile was made against the document that moved (review M8).
+      dropTitleQueue();
       notify("info", "The document changed while the font loaded — try placing the title again.");
       return;
     }
@@ -1833,6 +1855,20 @@ function enqueueTitlePatch(patch: Partial<TextMeta>): void {
     queuedPatch !== null && queuedTarget === target ? { ...queuedPatch, ...patch } : { ...patch };
   queuedTarget = target;
 }
+/** Where the caret stood after the newest queued text edit (code points in its new text), so
+ *  overrides follow the right twin of a doubled letter (review M5). Follows the newest arrival. */
+let titleCaret: number | undefined;
+
+/** Drops the queued patch — said out loud unless it was a live keystroke, whose burst's own
+ *  commit reports. */
+function dropTitleQueue(): void {
+  if (queuedPatch !== null && !titleQuiet) {
+    notify("info", "The document changed while the font loaded — try that again.");
+  }
+  queuedPatch = null;
+  queuedTarget = null;
+}
+
 /** True while the text field is being typed in (spec M10e §5). A live keystroke is a state the
  *  user is passing THROUGH, not one they asked for: an empty field on the way to retyping, or a
  *  half-typed word the font has no glyph for, are both ordinary. So a live reshape fails silently
@@ -1842,17 +1878,21 @@ let titleQuiet = false;
 /** A character drag is itself the tool gesture. Cancelling it aborts the drag on the first move. */
 let titleKeepGesture = false;
 
+/** Resolves "stale" when the outline was dropped because the document moved while the font
+ *  loaded: a patch queued behind it was made against that same moved document. */
 async function reshapeTitle(
   patch: Partial<TextMeta>,
   quiet = false,
   keepGesture = false,
-): Promise<void> {
+  caret?: number,
+): Promise<"stale" | undefined> {
   if (titleRunning) {
     enqueueTitlePatch(patch);
     // A burst that ends on a live keystroke must stay quiet when it drains, and one that ends on
     // the commit must not — so the flag follows the newest arrival, like the patch itself.
     titleQuiet = quiet;
     titleKeepGesture = keepGesture;
+    titleCaret = caret;
     return;
   }
   if (!keepGesture) cancelActiveGesture();
@@ -1866,8 +1906,12 @@ async function reshapeTitle(
   if (patch.text !== undefined) {
     // An edit to the string moves characters: overrides and the picked character follow theirs
     // (spec M22 §4), rather than staying at the same index.
-    meta.overrides = remapOverrides(target.text.text, meta.text, meta.overrides);
-    if (app.charSel !== null) app.charSel = remapIndex(target.text.text, meta.text, app.charSel);
+    meta.overrides = remapOverrides(target.text.text, meta.text, meta.overrides, caret);
+    // In a canvas session `charSel` is derived from the field's selection, which is already in
+    // the new text: remapping it again moved it onto the neighbour (review L2).
+    if (app.charSel !== null && app.textEdit?.id !== target.id) {
+      app.charSel = remapIndex(target.text.text, meta.text, app.charSel, caret);
+    }
   } else {
     meta.overrides = Object.fromEntries(
       Object.entries(meta.overrides).filter(([k]) => Number(k) < len),
@@ -1889,10 +1933,14 @@ async function reshapeTitle(
   const id = target.id;
   titleRunning = true;
   let noGlyphs = false;
-  const subpaths = await withFont(meta, (f) => {
-    noGlyphs = noGlyphsFor(f, meta.text);
-    return noGlyphs ? [] : outlineText(f, meta);
-  }).finally(() => {
+  const subpaths = await withFont(
+    meta,
+    (f) => {
+      noGlyphs = noGlyphsFor(f, meta.text);
+      return noGlyphs ? [] : outlineText(f, meta);
+    },
+    quiet,
+  ).finally(() => {
     titleRunning = false;
   });
   if (!subpaths) return;
@@ -1904,7 +1952,10 @@ async function reshapeTitle(
     // Quiet for a live keystroke, like the queued drop in `reshapeTitleDraining`: the burst's own
     // commit (`endTextEdit`, the panel field's blur) writes the whole text and reports.
     if (!quiet) notify("info", "The selection changed while the font loaded — try that again.");
-    return;
+    // Only a moved DOCUMENT takes the queue with it (review M8). A moved selection alone does not:
+    // a patch queued for the newly selected title is still good, and the drain's target check
+    // drops one meant for the old title.
+    return app.doc !== before ? "stale" : undefined;
   }
   if (subpaths.length === 0) {
     // The importer drops a path with no subpaths (the M2 constraint), so an empty title may not
@@ -1957,38 +2008,53 @@ export function titleInFlight(): Promise<void> {
   return titleWork ?? Promise.resolve();
 }
 
+/** Applies whatever arrived while a title job ran, newest wins. A job dropped because the
+ *  document moved takes the queue with it (review M8): the queued patch was made against the
+ *  same moved state, and applying it after an undo committed onto the undone document and wiped
+ *  redo. The field keeps the text, so a typing burst's own commit still writes it. */
+async function drainTitleQueue(): Promise<void> {
+  while (queuedPatch !== null && !titleRunning) {
+    const next = queuedPatch;
+    queuedPatch = null;
+    if (queuedTarget !== (selectedTitle()?.id ?? null)) {
+      // Said out loud like the in-flight case, except for a live keystroke (quiet): the burst's
+      // own commit reports.
+      if (!titleQuiet)
+        notify("info", "The selection changed while the font loaded — try that again.");
+      break;
+    }
+    if ((await reshapeTitle(next, titleQuiet, titleKeepGesture, titleCaret)) === "stale") {
+      dropTitleQueue();
+      break;
+    }
+  }
+}
+
 function reshapeTitleDraining(
   patch: Partial<TextMeta>,
   quiet = false,
   keepGesture = false,
+  caret?: number,
 ): Promise<void> {
   if (titleRunning) {
     // Queued onto the running drain; awaiting *that* is what makes the caller wait for this patch.
     enqueueTitlePatch(patch);
     titleQuiet = quiet;
     titleKeepGesture = keepGesture;
+    titleCaret = caret;
     return titleWork ?? Promise.resolve();
   }
   titleQuiet = quiet;
   titleKeepGesture = keepGesture;
-  titleWork = (async () => {
-    await reshapeTitle(patch, quiet, keepGesture);
-    while (queuedPatch !== null && !titleRunning) {
-      const next = queuedPatch;
-      queuedPatch = null;
-      if (queuedTarget !== (selectedTitle()?.id ?? null)) {
-        // Said out loud like the in-flight case, except for a live keystroke (quiet): the burst's
-        // own commit reports.
-        if (!titleQuiet)
-          notify("info", "The selection changed while the font loaded — try that again.");
-        break;
-      }
-      await reshapeTitle(next, titleQuiet, titleKeepGesture);
-    }
+  titleCaret = caret;
+  const work = (async () => {
+    if ((await reshapeTitle(patch, quiet, keepGesture, caret)) === "stale") dropTitleQueue();
+    else await drainTitleQueue();
   })().finally(() => {
-    titleWork = null;
+    if (titleWork === work) titleWork = null;
   });
-  return titleWork;
+  titleWork = work;
+  return work;
 }
 
 export const setTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text });
@@ -1997,7 +2063,8 @@ export const setTitleText = (text: string): Promise<void> => reshapeTitleDrainin
  *  burst is one undo step because the shared typing bracket (`startTitleTyping`, invariants 41 and 49) wraps it —
  *  the same shape as dragging the colour picker. `quiet`, so the states a burst passes through
  *  raise nothing. */
-export const typeTitleText = (text: string): Promise<void> => reshapeTitleDraining({ text }, true);
+export const typeTitleText = (text: string, caret?: number): Promise<void> =>
+  reshapeTitleDraining({ text }, true, false, caret);
 export const setTitleOpts = (patch: Partial<TextMeta>): Promise<void> =>
   reshapeTitleDraining(patch);
 
@@ -2453,12 +2520,12 @@ export function textWordAt(index: number): { start: number; end: number } {
 }
 
 /** Live keystroke from the textarea: typeTitleText + bracket start (idempotent). */
-export function typeTextEdit(text: string): void {
+export function typeTextEdit(text: string, caret?: number): void {
   if (!app.textEdit) return;
   editText = text;
   app.editEmpty = text === "";
   startTitleTyping();
-  void typeTitleText(text);
+  void typeTitleText(text, caret);
 }
 
 /** Leave editing: commit the textarea's text (setTitleText — reporting), close the bracket. The

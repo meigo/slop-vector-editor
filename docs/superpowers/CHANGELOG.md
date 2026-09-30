@@ -3285,3 +3285,30 @@ From `REVIEW-2026-09-30.md` (marked fixed there):
 - 9 new tests; 1357 tests in 90 files. `npm run build` reports 0 errors and 0 warnings. Not
   browser-checked: these are importer, store and paste-plan changes, all covered by unit tests
   against the real modules.
+
+## 2026-09-30 — Review fixes, batch 3 (text and async)
+
+From `REVIEW-2026-09-30.md` (marked fixed there):
+
+- **M5:** deleting or typing next to a doubled letter now keeps a per-character override on the
+  right twin. Both text fields pass the caret after the edit, and `editSpan` uses it. Deleting the
+  jittered first "l" of "Tallinn" no longer jitters the second.
+- **M6:** a face that can't load (offline, a Google weight not yet cached) no longer raises an
+  error on every keystroke. The commit reports it once. Still true: the session shows no caret for
+  such a face, since the caret stops need the face.
+- **M8:** a title edit queued behind one dropped by an undo no longer lands on the undone
+  document and wipes redo. A job dropped because the document moved takes the queue with it
+  (reported unless it was a live keystroke).
+- **M9:** a panel edit made while a new title's font loads is applied or dropped, with a notice,
+  when the placement settles. Before, it was lost silently, or applied later over a newer edit.
+- **L1:** Escape during an in-session character drag ends the drag first, so later moves are not
+  undo steps of their own.
+- **L2:** a queued keystroke no longer moves the character the field has just picked onto its
+  neighbour.
+- **L3:** a text selection ending at a line's start no longer draws a sliver on that line.
+- **L4:** a Text-tool press on a title that refuses editing (font missing) no longer drag-selects
+  in the title being edited.
+- 10 new tests; 1367 tests in 90 files. Each store test was confirmed to fail without the fix.
+  `npm run build` reports 0 errors and 0 warnings. Browser-checked (desktop Chrome): placing a
+  title, typing, arrows and Backspace on the canvas. Not browser-checked: M5's override visually,
+  and L3's selection sliver.
