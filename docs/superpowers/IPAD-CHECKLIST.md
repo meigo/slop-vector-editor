@@ -32,9 +32,10 @@ polish.
       off (the default), fingers only navigate. The choice survives a reload. _Both confirmed (off after a reload since `32beada`)._
 - [x] **P1** Palm: rest the side of your hand on the glass while drawing with the Pencil — the
       stroke is not interrupted, the view does not jump, and lifting the palm does not undo.
-- [ ] **P2** A Pencil press over resting fingers takes over (the stroke starts, no pinch).
-      _Reported: draws on a fresh reload, but after the first Pencil touch it does not draw with
-      finger(s) down — not reproduced in desktop Chrome; which tool, and what happens instead?_
+- [x] **P2** A Pencil press over resting fingers takes over (the stroke starts, no pinch).
+      _Known iPadOS limitation, accepted: with a finger already down the Pencil's touch never
+      reaches the page (Safari and Chrome; `?debug` showed no event at all), so a finger-first
+      stroke does not start. The Pencil first, then a finger or palm, draws fine._
 - [ ] **P2** Double tap (finger and Pencil) enters a group / opens a path in the Node tool / enters
       text editing on a title.
 - [ ] **P3** The Hand tool pans with a finger and with the Pencil.

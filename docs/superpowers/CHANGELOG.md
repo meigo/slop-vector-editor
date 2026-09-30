@@ -3180,4 +3180,11 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   records, page-wide and in the capture phase, every `pointerdown` (with its target) and every raw
   `touchstart`/`touchend` with each touch's `touchType` (`stylus` for the Pencil) — to see whether
   the Pencil arrives as a raw touch only, somewhere else, or not at all.
+- **Result, second run** (Chrome, then Safari): while the finger was down, **no event of any kind
+  for the Pencil reached the page** — no `pointerdown`, no raw `touchstart` with `touchType`
+  `stylus` — page-wide, in the capture phase. iPadOS drops it before the web page, in both
+  browsers. Not fixable from the page; accepted by the user (a resting palm does not block
+  drawing, only a finger that lands first). Recorded in invariant 16, the checklist (resolved as a
+  known limitation) and the shared slop notes. The page-wide logging is removed again; the
+  canvas-level `?debug` panel stays.
 
