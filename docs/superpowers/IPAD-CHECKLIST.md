@@ -54,6 +54,8 @@ polish.
       freely; edge handles stretch one way. Handles are easy to hit with a finger (14 px reach).
 - [ ] **P1** A title resized from a corner stays **editable text**.
 - [ ] **P2** Small objects: handles move outside so the middle is still draggable.
+- [ ] **P1** A thin line or bar: a corner drag scales it smoothly with the finger (it used to jump
+  to several times its length); near another object's edge the corner snaps onto the guide.
 - [ ] **P1** Handles on a small title/object no longer hide it: smaller knobs (same reach), no
       side midpoints on a short side — drag that edge line instead; zoom in and they return.
 - [ ] **P2** Rotate knob by finger and Pencil; Shift latched snaps to 15°.

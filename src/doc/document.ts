@@ -214,6 +214,27 @@ export function mapStyle(s: Style, m: Mat): Style {
   return { ...s, fill: mapFill(s.fill, m), stroke: mapFill(s.stroke, m) };
 }
 
+/** A matrix that scales every direction alike (any rotation, mirror or translation): the only
+ *  kind under which a stroke of one width can be baked exactly. */
+export function isUniformMat(m: Mat): boolean {
+  const eps = 1e-9 * Math.max(1, Math.abs(m[0]), Math.abs(m[1]), Math.abs(m[2]), Math.abs(m[3]));
+  return (
+    (Math.abs(m[0] - m[3]) <= eps && Math.abs(m[1] + m[2]) <= eps) ||
+    (Math.abs(m[0] + m[3]) <= eps && Math.abs(m[1] - m[2]) <= eps)
+  );
+}
+
+/** The style a bake of `m` into geometry must carry for the stroke to look the same (review M17):
+ *  drawn under `m`, it was `√|det m|` times wider on screen. Exact for a uniform `m`; for a stretch
+ *  or skew no single width is, and this one keeps the stroke's area. A resize is different — it
+ *  bakes a scale the stroke was never drawn under (invariant 11) — so only the bakes of a node's
+ *  own matrix call this: Flatten, Combine and the booleans. The same style when nothing changes. */
+export function bakeStroke(s: Style, m: Mat): Style {
+  const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+  if (s.stroke === null || !Number.isFinite(k) || k === 0 || Math.abs(k - 1) < 1e-12) return s;
+  return { ...s, strokeWidth: s.strokeWidth * k };
+}
+
 export type NodeType = "corner" | "smooth" | "symmetric";
 
 /** Handles are absolute document coordinates (in the shape's own space); null = no handle. */

@@ -359,6 +359,51 @@ describe("node tool: editing", () => {
     expect(state.overlay).toBeNull();
   });
 
+  /** Review M15 (2026-09-30): the pointer snapped, not the node, so a node grabbed off-centre
+   *  landed a grab offset away from the guide it showed. */
+  it("snaps the dragged node, not the pointer", () => {
+    const seg = (
+      id: string,
+      a: { x: number; y: number },
+      b: { x: number; y: number },
+    ): PathShape => ({
+      kind: "path",
+      id,
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: { color: "#000000", opacity: 1 } },
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: a, in: null, out: null, type: "corner" },
+            { p: b, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    });
+    const d = createDoc(300, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          children: [
+            seg("p", { x: 20, y: 37 }, { x: 40, y: 37 }),
+            seg("q", { x: 70, y: 13 }, { x: 70, y: 61 }),
+          ],
+        },
+      ],
+    });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    state.nodeSel = [{ sub: 0, i: 0 }];
+    tool.down(ctx, ev(24, 37)); // 4 px right of the node
+    tool.move(ctx, ev(73, 37));
+    tool.up(ctx, ev(73, 37));
+    const n = (state.session.doc.layers[0].children[0] as PathShape).subpaths[0].nodes[0];
+    expect(n.p.x).toBe(70);
+  });
+
   it("keeps a Shift-constrained node drag exact even when a target sits near the locked axis", () => {
     // "p" (the drag target) sits at y 37 — away from the artboard's own snap lines (0/100/200)
     // so those can't mask the effect. "q" offers a node point at y 39, two pixels off — within

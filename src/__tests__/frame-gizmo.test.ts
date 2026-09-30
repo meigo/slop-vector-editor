@@ -12,6 +12,7 @@ import {
 import {
   activeHandles,
   dragHandle,
+  uniformBoxAt,
   frameOutline,
   handleAt,
   handlePositions,
@@ -235,23 +236,38 @@ describe("dragHandle", () => {
   const start = { x: 0, y: 0, w: 100, h: 50 };
   const SHIFT = { shift: true, alt: false, shiftLatched: false };
   const ALT = { shift: false, alt: true, shiftLatched: false };
+  const near = (b: { x: number; y: number; w: number; h: number }, e: typeof b) => {
+    for (const k of ["x", "y", "w", "h"] as const) expect(b[k]).toBeCloseTo(e[k], 9);
+  };
 
   /** Corners keep proportions by default (2026-09-30): on iPad, holding Shift meant latching it in
    *  the dock, and a plain corner drag silently turned a title into a path. Shift stretches. */
-  it("scales a corner uniformly, the larger ratio winning, with the opposite corner fixed", () => {
-    expect(dragHandle("se", start, { x: 200, y: 60 }, NO_MODS)).toEqual({
+  it("scales a corner uniformly by the pointer projected on the diagonal, opposite corner fixed", () => {
+    expect(dragHandle("se", start, { x: 200, y: 100 }, NO_MODS)).toEqual({
       x: 0,
       y: 0,
       w: 200,
       h: 100,
     });
-    // nw to (10, 20): ratios 0.9 and 0.6 — 0.9 wins, so the height is 45 and the top moves to 5.
-    expect(dragHandle("nw", start, { x: 10, y: 20 }, NO_MODS)).toEqual({
-      x: 10,
-      y: 5,
-      w: 90,
-      h: 45,
-    });
+    // se to (200, 60): (200·100 + 60·50) / (100² + 50²) = 1.84.
+    near(dragHandle("se", start, { x: 200, y: 60 }, NO_MODS), { x: 0, y: 0, w: 184, h: 92 });
+    // nw to (10, 20): sizes 90 × 30 → (9000 + 1500) / 12500 = 0.84; the top-left moves to (16, 8).
+    near(dragHandle("nw", start, { x: 10, y: 20 }, NO_MODS), { x: 16, y: 8, w: 84, h: 42 });
+  });
+
+  /** Review M14 (2026-09-30): with the larger ratio winning, a thin object's short axis ruled —
+   *  a 200×2 line's corner moved by (5, 3) made it 500 long. */
+  it("uniformBoxAt puts the snapped coordinate of the moving corner exactly on its value", () => {
+    expect(uniformBoxAt("se", start, "x", 150, false)).toEqual({ x: 0, y: 0, w: 150, h: 75 });
+    expect(uniformBoxAt("nw", start, "y", -50, false)).toEqual({ x: -100, y: -50, w: 200, h: 100 });
+    expect(uniformBoxAt("se", start, "x", 150, true)).toEqual({ x: -50, y: -25, w: 200, h: 100 });
+  });
+
+  it("a thin object follows its long axis", () => {
+    const line = { x: 0, y: 0, w: 200, h: 2 };
+    const r = dragHandle("se", line, { x: 205, y: 5 }, NO_MODS);
+    expect(r.w).toBeCloseTo(205.03, 1);
+    expect(r.h).toBeCloseTo(2.05, 2);
   });
 
   it("stretches a corner freely with Shift", () => {
@@ -286,13 +302,8 @@ describe("dragHandle", () => {
   });
 
   it("mirrors when dragged past the fixed side", () => {
-    // Uniform: ratios −0.5 and 0.4 — 0.5 wins, each axis keeping its own sign.
-    expect(dragHandle("se", start, { x: -50, y: 20 }, NO_MODS)).toEqual({
-      x: 0,
-      y: 0,
-      w: -50,
-      h: 25,
-    });
+    // Uniform: sizes −50 × 20 → (5000 + 1000) / 12500 = 0.48, each axis keeping its own sign.
+    near(dragHandle("se", start, { x: -50, y: 20 }, NO_MODS), { x: 0, y: 0, w: -48, h: 24 });
     expect(dragHandle("se", start, { x: -50, y: 20 }, SHIFT)).toEqual({
       x: 0,
       y: 0,
@@ -314,13 +325,8 @@ describe("dragHandle", () => {
       w: 200,
       h: 100,
     });
-    // (150, 60): half-sizes 100 and 35 → ratios 2 and 1.4 — 2 wins.
-    expect(dragHandle("se", start, { x: 150, y: 60 }, ALT)).toEqual({
-      x: -50,
-      y: -25,
-      w: 200,
-      h: 100,
-    });
+    // (150, 60): sizes 200 × 70 → (20000 + 3500) / 12500 = 1.88, about the centre.
+    near(dragHandle("se", start, { x: 150, y: 60 }, ALT), { x: -44, y: -22, w: 188, h: 94 });
   });
 
   it("keeps a zero-size axis and clamps tiny sizes", () => {

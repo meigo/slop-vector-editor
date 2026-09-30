@@ -1,5 +1,7 @@
 import {
+  bakeStroke,
   idFor,
+  isUniformMat,
   isValidArtboardSize,
   mapStyle,
   MAX_INNER,
@@ -27,7 +29,7 @@ import {
 } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
 import type { Vec } from "../geom/vec";
-import { mapShapes, mapNodes } from "./tree";
+import { findNode, mapShapes, mapNodes } from "./tree";
 
 /** Pure document edits: `(doc, args) => doc`. An edit that changes nothing returns the SAME
  *  reference, which is how the undo session knows not to record a step. */
@@ -220,15 +222,30 @@ export function convertToPath(doc: Doc, ids: readonly string[]): Doc {
   );
 }
 
+/** A stroked path whose matrix stretches or skews: its stroke would need a different width in
+ *  each direction, which one `strokeWidth` cannot hold, so Flatten leaves it alone (review M17). */
+function flattenKeeps(n: Node): boolean {
+  return n.kind === "path" && n.style.stroke !== null && !isUniformMat(n.transform);
+}
+
+/** How many of `ids` Flatten would leave alone, for its notice. */
+export function flattenSkips(doc: Doc, ids: readonly string[]): number {
+  return ids.filter((id) => {
+    const n = findNode(doc, id)?.node;
+    return n !== undefined && !isIdentity(n.transform) && flattenKeeps(n);
+  }).length;
+}
+
 export function flattenTransform(doc: Doc, ids: readonly string[]): Doc {
   return mapNodes(doc, ids, (n) =>
-    n.kind === "path" && !isIdentity(n.transform)
+    n.kind === "path" && !isIdentity(n.transform) && !flattenKeeps(n)
       ? // Flatten moves the outlines and resets the matrix; a title re-typed afterwards would be
         // re-outlined at the baseline origin and jump off the artboard, so it stops being a title.
-        // Spec M15 §5: the gradient's own space moves with the geometry, so it is mapped the same way.
+        // Spec M15 §5: the gradient's own space moves with the geometry, so it is mapped the same way;
+        // and the stroke was drawn under the matrix, so it keeps its width on screen (review M17).
         {
           ...withBakedSubpaths(n, transformSubpaths(n.subpaths, n.transform)),
-          style: mapStyle(n.style, n.transform),
+          style: bakeStroke(mapStyle(n.style, n.transform), n.transform),
           transform: IDENTITY,
         }
       : n,

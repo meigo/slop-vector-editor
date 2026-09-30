@@ -3312,3 +3312,29 @@ From `REVIEW-2026-09-30.md` (marked fixed there):
   `npm run build` reports 0 errors and 0 warnings. Browser-checked (desktop Chrome): placing a
   title, typing, arrows and Backspace on the canvas. Not browser-checked: M5's override visually,
   and L3's selection sliver.
+
+## 2026-09-30 — Review fixes, batch 4 (geometry)
+
+From `REVIEW-2026-09-30.md` (marked fixed there):
+
+- **M14:** a uniform corner drag now takes its scale from the pointer projected on the box's
+  diagonal, in the pointer's quadrant, so each axis still mirrors on its own. Before, the larger of
+  the two ratios won, so a thin object's short axis ruled: a 200×2 line's corner moved by (5, 3)
+  made it 500 long. A uniform corner also snaps where it lands, along its diagonal, with the nearer
+  snapped edge exact (`uniformBoxAt`). Before, the pointer was snapped and the corner then missed
+  the guide it showed.
+- **M15:** node-tool snapping aligns the dragged node, not the pointer, so a node grabbed off-centre
+  lands on the guide instead of a grab offset away from it.
+- **M16:** a Gradient-tool draw that ends back within the drag threshold of its start changes
+  nothing and forgets nothing. Before, it drew a zero-length line, which collapses to a transparent
+  fill.
+- **M17:** Flatten, Combine and the booleans scale the stroke with the matrix they bake (`√|det|`,
+  exact for a uniform scale), so an imported `scale(2)` path's stroke no longer halves. Flatten
+  leaves a stroked path under a stretch or skew alone, with a notice, since one width can't hold
+  it.
+- **L15:** a hidden child of a selected group no longer shows gradient knobs.
+- 10 new tests, and 6 existing ones updated to the diagonal rule; 1377 tests in 91 files.
+  `npm run build` reports 0 errors and 0 warnings. **Not browser-checked:** the corner drag could
+  not be driven through the automation (its drag sends no moves, and synthetic pointer events did
+  not reach the handle), so M14 is covered by unit tests through the real select tool only. Owed on
+  the iPad: checklist §2's new thin-object line.

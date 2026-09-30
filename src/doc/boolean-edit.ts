@@ -1,7 +1,14 @@
 import { booleanOf, type BoolOp } from "../geom/boolean";
 import { invert, multiply, IDENTITY } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import { mapStyle, type Doc, type Node, type PathShape, type Subpath } from "./document";
+import {
+  bakeStroke,
+  mapStyle,
+  type Doc,
+  type Node,
+  type PathShape,
+  type Subpath,
+} from "./document";
 import { deleteNodes } from "./edits";
 import { findNode, isAfter, mapNodes, paintKey } from "./tree";
 
@@ -68,16 +75,15 @@ export async function booleanShapes(
   // Subtract's front shape is the knife: only the backmost shape's area survives, so its style is
   // the one still on screen (spec M7 §4).
   const styleFrom = op === "subtract" ? back : front;
+  const into = multiply(toParent, multiply(styleFrom.found.parent, styleFrom.path.transform));
   const shape: PathShape = {
     kind: "path",
     id: front.path.id,
     transform: IDENTITY,
     // Spec M15 §5: the surviving style's gradient is in its own space; map it through that shape's
     // world matrix and then into the result's space (the frontmost input's parent space).
-    style: mapStyle(
-      styleFrom.path.style,
-      multiply(toParent, multiply(styleFrom.found.parent, styleFrom.path.transform)),
-    ),
+    // The stroke was drawn under the same matrix, so it is scaled with it (review M17).
+    style: bakeStroke(mapStyle(styleFrom.path.style, into), into),
     subpaths: transformSubpaths(result, toParent),
   };
   // The name follows the style, not the place: it is a label on the shape whose area survived, and
