@@ -3112,4 +3112,6 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   and the no-false-undo cases stay open until tried.
 - Also confirmed: the three-finger tap redoes (iPadOS did not take it for its own edit menu).
 - Also confirmed: a two-finger pinch that zooms does not undo.
+- Also confirmed: a slow two-finger tap and one with sliding fingers do not undo. The finger-tap
+  rules (ported from slop-paint) hold on the device.
 

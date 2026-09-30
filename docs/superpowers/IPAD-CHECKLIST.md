@@ -20,7 +20,7 @@ polish.
 - [x] **P1** Three-finger tap redoes. (Watch for iPadOS taking three fingers for its own edit
       menu.)
 - [x] **P2** A two-finger pinch that zooms never undoes.
-- [ ] **P2** A slow two-finger tap (held ~½ s), or one where the fingers slide a little, does
+- [x] **P2** A slow two-finger tap (held ~½ s), or one where the fingers slide a little, does
       nothing (no undo).
 - [x] **P1** **Long press** (hold still ~½ s) on an object with the Select tool opens the context
       menu with that object selected; lifting the finger does **not** trigger a menu item; a tap on
