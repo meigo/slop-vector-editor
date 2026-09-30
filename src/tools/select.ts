@@ -356,12 +356,12 @@ export function createSelectTool(): Tool {
       if (m.kind === "marquee") return;
       // Once per drag, not per move: a non-uniform resize silently turns a title into an ordinary
       // path (spec M10e §7), and that is the one thing about a resize the user cannot see happen.
-      // Note this is the COMMON case, not the exotic one — `dragHandle` only constrains the
-      // proportions when Shift is held, so a plain corner drag stretches and costs the text.
+      // Since 2026-09-30 a plain corner drag keeps the proportions (`dragHandle`), so this is an edge
+      // handle or a Shift-held corner — both deliberate stretches, but still quiet data loss.
       if (m.kind === "resize" && droppedTitle(m.original, ctx.doc(), m.ids)) {
         ctx.notify(
           "info",
-          "Resized out of proportion, so the text is no longer editable — undo and hold Shift to keep it.",
+          "Stretched out of proportion, so the text is no longer editable — undo, and drag a corner without Shift to keep it.",
         );
       }
       if (

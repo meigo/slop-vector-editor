@@ -3069,3 +3069,21 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   `shapes.svg` landed centred and selected; a dropped `.txt` was refused with the notice. **Not
   checked:** the picker itself (a native dialog), and on iPad the Files picker.
 
+## 2026-09-30 — Corner handles keep proportions; Shift stretches
+
+- **Was:** the Figma/Illustrator convention — a corner stretched freely and Shift kept the
+  proportions. On iPad Shift is a latch in the modifier dock (set, then unset again), so the usual
+  gesture needed a modifier; and a plain corner drag silently turned a title into a plain path
+  (only a uniform resize keeps it text, invariant 44).
+- **Now:** a corner scales uniformly (the larger of the two ratios wins, each axis keeping its own
+  sign, so dragging past the far side still mirrors); **Shift** stretches it freely; edge handles
+  are unchanged (one axis). Alt still resizes from the centre, uniformly from a corner. The
+  touch-first convention — Keynote, Procreate and Affinity on iPad — chosen for every input
+  rather than only touch, so a handle never behaves differently by device.
+- The title warning now says "Stretched out of proportion … drag a corner without Shift to keep
+  it". 4 existing tests updated to the new default (baking, grab offset and snapping now run
+  through the uniform path; the size clamp holds Shift), 5 new; 1317 tests in 86 files.
+- Known: a resize snaps each axis before the proportions are applied, so with a corner the
+  snapped axis can lose to the other one (the larger ratio wins) — the guide may then show a
+  line the edge does not sit on. **Owed:** the feel on iPad with a finger and a Pencil.
+

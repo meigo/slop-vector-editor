@@ -34,7 +34,8 @@ What works today:
   and three to redo.
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
-- Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width),
+- Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width;
+  corner handles keep the proportions, Shift stretches freely, edge handles stretch one way),
   rotating (Shift snaps to 15°) and Alt-duplicating. On an object too small to hold them, the
   resize handles move outside it, so its middle stays grabbable.
 - The properties panel: fill, stroke, width, cap, join, opacity, and X/Y/W/H/rotation, with

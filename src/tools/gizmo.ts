@@ -99,12 +99,17 @@ function nearEdge(s0: number, size: number, dir: -1 | 0 | 1, s: number, alt: boo
   return dir === 1 ? s0 : s0 + size - s;
 }
 
+/** A corner keeps the proportions unless Shift is held; an edge moves its own axis only
+ *  (2026-09-30 — it was the other way round, the Figma/Illustrator convention). On iPad Shift is a
+ *  latch in the dock, so the common gesture has to be the one that needs no modifier; Keynote,
+ *  Procreate and Affinity on iPad scale corners uniformly for the same reason. It also keeps a
+ *  title a title: only a uniform resize survives as text (invariant 44). */
 export function dragHandle(h: ResizeHandle, start: Box, p: Vec, mods: Mods): Box {
   const dx: -1 | 0 | 1 = h.includes("e") ? 1 : h.includes("w") ? -1 : 0;
   const dy: -1 | 0 | 1 = h.includes("s") ? 1 : h.includes("n") ? -1 : 0;
   let w = signedSize(start.x, start.w, dx, p.x, mods.alt);
   let hh = signedSize(start.y, start.h, dy, p.y, mods.alt);
-  if (mods.shift && dx !== 0 && dy !== 0 && start.w !== 0 && start.h !== 0) {
+  if (!mods.shift && dx !== 0 && dy !== 0 && start.w !== 0 && start.h !== 0) {
     const kx = w / start.w;
     const ky = hh / start.h;
     const k = Math.max(Math.abs(kx), Math.abs(ky));
