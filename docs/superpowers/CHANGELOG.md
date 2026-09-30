@@ -3204,4 +3204,5 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   page either — only the canvas zooms, and it zooms the drawing. (A stuck zoom reported right after
   turned out to be iPadOS's own accessibility Zoom, toggled by a three-finger double tap — outside
   the page, easy to hit while testing the three-finger redo; noted in the checklist.)
+- Confirmed on the iPad: the page no longer zooms (pinch or double tap outside the canvas).
 
