@@ -70,6 +70,8 @@ polish.
 - [ ] **P2** Brush size cursor follows the Pencil while hovering (iPad Pro with M2 or later).
 - [ ] **P2** Brush with a finger (before the Pencil is used): constant width; a second finger
       cancels the stroke and pinches.
+- [ ] **P1** Hold the Pencil still for a second mid-stroke with **Brush** and **Pen**: the stroke
+  survives (no context menu, no lost ink). A long press with Select/Node still opens the menu.
 - [ ] **P2** Rectangle, ellipse, line, polygon, pen: draw by Pencil and finger; the pen's
       click/drag nodes and closing on the first node.
 - [ ] **P2** Node tool: pick a path, drag nodes and handles, double-tap a segment to add a node,
