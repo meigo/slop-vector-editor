@@ -3110,4 +3110,5 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   Pencil. Ticked in `IPAD-CHECKLIST.md`.
 - Also confirmed: the two-finger tap undoes. The checklist line is split so the three-finger redo
   and the no-false-undo cases stay open until tried.
+- Also confirmed: the three-finger tap redoes (iPadOS did not take it for its own edit menu).
 

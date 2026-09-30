@@ -17,7 +17,7 @@ polish.
 
 - [ ] **P1** Two-finger pinch zooms and pans smoothly; letting go leaves nothing selected or moved.
 - [x] **P1** Two-finger **tap** undoes.
-- [ ] **P1** Three-finger tap redoes. (Watch for iPadOS taking three fingers for its own edit
+- [x] **P1** Three-finger tap redoes. (Watch for iPadOS taking three fingers for its own edit
       menu.)
 - [ ] **P2** A slow two-finger tap, or one where the fingers slide, does nothing (no undo); a
       two-finger pinch that zooms never undoes.
