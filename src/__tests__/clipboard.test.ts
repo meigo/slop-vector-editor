@@ -156,6 +156,23 @@ describe("planPaste", () => {
   const source = doc([{ children: [rect("a", 10, 10)] }]);
   const text = clipboardText(source, ["a"])!;
 
+  /** Review M12 (2026-09-30): layers were merged into the current one with their state dropped,
+   *  so a file's hidden layers appeared and its locked ones unlocked. */
+  it("a file's hidden and locked layers arrive as hidden and locked objects", () => {
+    const file = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <g id="shown"><rect x="1" y="1" width="5" height="5"/></g>
+      <g id="off" style="display:none"><rect x="10" y="10" width="5" height="5"/></g>
+      <g id="fixed" sodipodi:insensitive="true"><rect x="20" y="20" width="5" height="5"/></g>
+    </svg>`;
+    const r = plan(planPaste(source, file, null, view, "L0", "file"));
+    const added = r.doc.layers[0].children.slice(-3);
+    expect(added.map((n) => [n.hidden ?? false, n.locked ?? false])).toEqual([
+      [false, false],
+      [true, false],
+      [false, true],
+    ]);
+  });
+
   it("cascades repeated pastes of our own copy by 10", () => {
     const clip: Clip = { text, pastes: 0 };
     const first = plan(planPaste(source, text, clip, view, "L0"));

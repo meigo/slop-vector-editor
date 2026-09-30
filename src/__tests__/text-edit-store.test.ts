@@ -21,10 +21,12 @@ import {
   setTool,
   textIndexAt,
   titleInFlight,
+  typeTitleText,
   toggleLayerLocked,
   typeTextEdit,
   undo,
 } from "../state/appState.svelte";
+import { MAX_TEXT_LENGTH } from "../text/attrs";
 import { caretStops, loadFace } from "../text/font";
 
 /** Overrides follow their characters when text is inserted before them (spec M22 §4). */
@@ -86,6 +88,23 @@ describe("setTitleText keeps overrides on their characters", () => {
     expect(node().text?.text).toBe("XTallinn");
     expect(node().text?.overrides).toEqual({ 3: { dx: 5 } });
     expect(app.charSel).toBe(3);
+  });
+
+  /** Review M4 (2026-09-30): a title longer than the importer's cap saved but reopened as a plain
+   *  path, its text lost. */
+  it("refuses a title longer than a file can reopen: quiet while typing, a notice on commit", async () => {
+    setSelection(["t"]);
+    const long = "a".repeat(MAX_TEXT_LENGTH + 1);
+    await typeTitleText(long);
+    expect(node().text?.text).toBe("Tallinn");
+    expect(app.notices).toEqual([]);
+    await setTitleText(long);
+    expect(node().text?.text).toBe("Tallinn");
+    expect(app.notices.map((n) => n.text)).toEqual([
+      `A title can be at most ${MAX_TEXT_LENGTH} characters long.`,
+    ]);
+    await setTitleText("a".repeat(MAX_TEXT_LENGTH));
+    expect([...(node().text?.text ?? "")].length).toBe(MAX_TEXT_LENGTH);
   });
 
   it("replacing the overridden character drops it and clears the selection", async () => {

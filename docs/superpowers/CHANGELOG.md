@@ -3263,3 +3263,25 @@ From `REVIEW-2026-09-30.md` (marked fixed there):
   dialog, "Poster: v2" became `Poster v2.svg`, and it survived a reload. Not checked: the New
   document field in the browser, and the desktop save picker's suggested name after a rename. Owed:
   the iPad Save to Files name (checklist §5).
+
+## 2026-09-30 — Review fixes, batch 2 (file safety)
+
+From `REVIEW-2026-09-30.md` (marked fixed there):
+
+- **H2:** the importer now reports properties it can't draw instead of ignoring them: even-odd
+  fill, dashed strokes, markers, `transform-origin` and a CSS `transform` in `style`. Default values
+  that draw the same stay quiet. Because they are reported, a file of ours edited elsewhere to add
+  one no longer keeps its save-in-place link, so ⌘S can't write it away (invariants 4 and 10).
+- **M11:** in our own format, a layer's `transform` and `opacity` (Inkscape writes layer opacity)
+  become a group around its children, as they already did for a foreign file, instead of being
+  discarded.
+- **M4:** a title is refused beyond 2000 characters, the length the importer reads back. It is
+  quiet while typing and gives a notice on the commit. A longer one saved but reopened as a plain
+  path with its text lost.
+- **M10:** an autosave that can't be read turns autosave off for the session, with a notice.
+  Before, the blank startup document overwrote it 3 s later. A reload tries again.
+- **M12:** Import, drop and paste carry each source layer's state onto its objects. A hidden
+  layer's objects arrive hidden and a locked one's locked, instead of all appearing and unlocking.
+- 9 new tests; 1357 tests in 90 files. `npm run build` reports 0 errors and 0 warnings. Not
+  browser-checked: these are importer, store and paste-plan changes, all covered by unit tests
+  against the real modules.

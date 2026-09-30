@@ -521,3 +521,54 @@ describe("closing a path after a save round trip", () => {
     expect(far.nodes).toHaveLength(4);
   });
 });
+
+/** Review H2 (2026-09-30): properties the model can't draw were ignored with `dropped` empty, so a
+ *  file of ours edited elsewhere kept its save-in-place handle and ⌘S wrote them away. */
+describe("properties the model can't represent", () => {
+  const one = (attrs: string) =>
+    parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" data-sv-version="1">
+      <path d="M0 0L10 0L10 10Z" ${attrs}/></svg>`);
+
+  it("reports each by name, as an attribute or in style", () => {
+    expect(one(`fill-rule="evenodd"`).dropped).toEqual(["even-odd fill"]);
+    expect(one(`style="fill-rule: evenodd"`).dropped).toEqual(["even-odd fill"]);
+    expect(one(`stroke-dasharray="4 2"`).dropped).toEqual(["dashed strokes"]);
+    expect(one(`marker-end="url(#a)"`).dropped).toEqual(["markers"]);
+    expect(one(`style="marker: url(#a)"`).dropped).toEqual(["markers"]);
+    expect(one(`transform-origin="5 5"`).dropped).toEqual(["transform-origin"]);
+    expect(one(`style="transform: rotate(45deg)"`).dropped).toEqual(["CSS transforms"]);
+  });
+
+  it("stays quiet about the defaults, which draw the same", () => {
+    for (const a of [
+      `fill-rule="nonzero"`,
+      `stroke-dasharray="none"`,
+      `marker-start="none"`,
+      `transform-origin="0 0"`,
+      `style="transform: none"`,
+    ]) {
+      expect(one(a).dropped).toEqual([]);
+    }
+  });
+
+  it("counts on a group too, since fill-rule and markers inherit", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <g fill-rule="evenodd"><rect width="5" height="5"/></g></svg>`);
+    expect(r.dropped).toEqual(["even-odd fill"]);
+  });
+});
+
+/** Review M11 (2026-09-30): our own file with a layer transform or opacity added elsewhere (Inkscape
+ *  writes layer opacity) lost both on import, with the save-in-place handle kept. */
+it("keeps an own-format layer's transform and opacity in a group, as for a foreign file", () => {
+  const r =
+    parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" data-sv-version="1">
+    <g data-sv-layer="" data-sv-name="A" opacity="0.5" transform="translate(3 4)">
+      <rect width="5" height="5"/></g></svg>`);
+  const [g] = r.doc.layers[0].children;
+  expect(r.doc.layers[0].name).toBe("A");
+  expect(g.kind).toBe("group");
+  expect(g.kind === "group" && g.opacity).toBe(0.5);
+  expect(g.transform).toEqual([1, 0, 0, 1, 3, 4]);
+  expect(r.dropped).toEqual([]);
+});

@@ -97,8 +97,9 @@ export function autosaveRecord(): AutosaveRecord {
   return { svg: serializeDoc(app.doc), fileName: app.fileName, dirty: app.dirty };
 }
 
-/** Resolves false only when storage itself is unavailable, so the caller can skip scheduling
- *  autosaves in that case rather than trying (and failing) to write to it moments later. */
+/** Resolves false when storage is unavailable, or when the stored copy could not be read, so the
+ *  caller skips scheduling autosaves: in the first case they would fail moments later, in the
+ *  second they would overwrite the unreadable copy. */
 export async function restoreAutosave(): Promise<boolean> {
   let rec: AutosaveRecord | null;
   try {
@@ -112,7 +113,13 @@ export async function restoreAutosave(): Promise<boolean> {
     const { doc } = parseSvg(rec.svg);
     replaceDocument(doc, rec.fileName, null, !rec.dirty);
   } catch (err) {
-    notify("error", `The autosaved document could not be restored: ${errorMessage(err)}`);
+    // The stored copy may be the only one: autosaving the blank startup document would overwrite
+    // it 3 s later (review M10). Autosave stays off until a reload, which tries it again.
+    notify(
+      "error",
+      `The autosaved document could not be restored (${errorMessage(err)}). Autosave is off for this session so that copy is kept — save your work manually.`,
+    );
+    return false;
   }
   return true;
 }
