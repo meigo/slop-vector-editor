@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import type { Vec } from "../geom/vec";
   import { createFingerTap } from "../input/finger-tap";
-  import { createLongPress } from "../input/long-press";
+  import { createLongPress, opensContextMenu } from "../input/long-press";
   import { fingerPicks, isFingerTap } from "../input/finger-pick";
   import { findNode } from "../doc/tree";
   import { hitTest } from "../geom/hit";
@@ -74,6 +74,9 @@
     down: PointerEvent;
   } | null = null;
   const longPress = createLongPress((client) => {
+    // Checked again at firing: the tool may have changed during the hold, and cancelling a stroke
+    // with no menu to open would only lose it (review H1).
+    if (!opensContextMenu(app.toolId)) return;
     const r = host.getBoundingClientRect();
     const at = screenToDoc(app.view, { x: client.x - r.left, y: client.y - r.top });
     if (gesture?.kind === "tool") {
@@ -150,11 +153,13 @@
     if (ready) untrack(fitArtboard);
   });
 
-  // Switching tools mid-gesture cancels the running gesture.
+  // Switching tools mid-gesture cancels the running gesture — except a brush stroke, which the
+  // canvas keeps driving so it lands at pen-up (invariant 48, review M1): a tool key pressed with
+  // the other hand must not throw the ink away. Any other drag rolls back as before.
   $effect(() => {
     void app.toolId;
     untrack(() => {
-      if (gesture?.kind === "tool") {
+      if (gesture?.kind === "tool" && gesture.tool.id !== "brush") {
         gesture.tool.cancel(storeContext);
         gesture = null;
         registerGestureCancel(null);
@@ -289,11 +294,13 @@
         fingerPicks(app.toolId)
           ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, view: app.view, down: e }
           : null;
-      if (fingerPick) longPress.start(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (fingerPick && opensContextMenu(app.toolId)) {
+        longPress.start(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
       return;
     }
     const tool = TOOLS[app.toolId];
-    if (e.pointerType !== "mouse" && pointers.size === 1) {
+    if (e.pointerType !== "mouse" && pointers.size === 1 && opensContextMenu(app.toolId)) {
       longPress.start(e.pointerId, { x: e.clientX, y: e.clientY });
     }
     gesture = { kind: "tool", pointerId: e.pointerId, tool };

@@ -10,7 +10,7 @@ import {
 import { addShape } from "../doc/edits";
 import { blockMessage, layerBlock } from "../doc/layers";
 import { appendNode, reverseSubpath } from "../doc/path-edit";
-import { findNode, mapNodes } from "../doc/tree";
+import { blocked, findNode, mapNodes } from "../doc/tree";
 import { flattenSubpath } from "../geom/bezier";
 import { applyMat, IDENTITY, invert, multiply, type Mat } from "../geom/mat";
 import { collectTargets, SNAP_PX, snapPoint, type Axes, type SnapTargets } from "../geom/snap";
@@ -151,6 +151,13 @@ export function createPenTool(): Tool {
         doc.layers.some((l) => l.id === id),
       );
       if (layerId === undefined) return;
+      // The layer was checked at the first press only; it may have been locked or hidden since
+      // (review L5). The draft can't be kept for a layer that may never come back, so it is dropped.
+      const block = layerBlock(doc, layerId);
+      if (block) {
+        ctx.notify("info", blockMessage(block, "draw"));
+        return;
+      }
       const shape: PathShape = {
         kind: "path",
         id: "",
@@ -167,6 +174,16 @@ export function createPenTool(): Tool {
     // copies taken at resume are stale — the path may have moved, or been edited, since.
     const found = findNode(ctx.doc(), d.pathId);
     if (!found || found.node.kind !== "path") return;
+    if (blocked(ctx.doc(), d.pathId)) {
+      const block = layerBlock(ctx.doc(), found.layer.id);
+      ctx.notify(
+        "info",
+        block
+          ? blockMessage(block, "draw")
+          : "The path is hidden or locked — show or unlock it to draw.",
+      );
+      return;
+    }
     const path = found.node;
     const current = path.subpaths[d.sub];
     if (!current || current.closed) return;

@@ -1,6 +1,6 @@
 import type { Doc, Node } from "../doc/document";
 import { layerBlock, moveLayer, moveNodes } from "../doc/layers";
-import { ancestorIds, findNode } from "../doc/tree";
+import { ancestorIds, blocked, findNode } from "../doc/tree";
 
 /** Spec (M3a) §5: where a row dragged in the layers panel would land. Rows are in display order
  *  (top first) with their on-screen top/bottom; `line` is where to draw the drop indicator. */
@@ -61,6 +61,9 @@ export function dropTarget(doc: Doc, rows: readonly RowBox[], y: number, drag: D
     }
   }
   if (layerBlock(doc, layerId)) return null;
+  // A hidden or locked group (or one inside such a group) takes no drop either, as a locked layer
+  // doesn't (review M19): the object would become content that cannot be selected or seen.
+  if (parentId !== layerId && blocked(doc, parentId)) return null;
   if (moving.has(parentId)) return null;
   if (ancestorIds(doc, parentId).some((a) => moving.has(a))) return null;
   // A group whose entire subtree is moving is removed by `moveNodes`, so it must not count as a

@@ -4,7 +4,16 @@
  *  times and measures; `Canvas.svelte` decides when to start it and what firing does. Timers are
  *  the global ones, so tests drive it with fake timers. */
 
+import type { ToolId } from "../tools/types";
+
 type Pt = { x: number; y: number };
+
+/** The tools that have a canvas context menu — the only ones a long press is for (review H1,
+ *  2026-09-30). Armed with any other tool, a still Pencil cancelled the stroke before finding no
+ *  menu, and the ink was lost. The store's `openContextMenu` asks the same question. */
+export function opensContextMenu(tool: ToolId): boolean {
+  return tool === "select" || tool === "node";
+}
 
 export const LONG_PRESS_MS = 500;
 /** How far a held finger may drift and still be "still" (screen px, either axis): the touch reach

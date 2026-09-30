@@ -521,3 +521,18 @@ describe("openContextMenu", () => {
     expect(app.contextMenu).toBeNull();
   });
 });
+
+/** Review M7 (2026-09-30): Document settings committed without settling a running tool, so a
+ *  Warp session's next cage drag (committing from its pre-warp base) put the old artboard back. */
+describe("applyArtboard", () => {
+  it("settles a running tool gesture before changing the artboard, as one undo step", async () => {
+    const { applyArtboard, registerGestureCancel, undo } = await import("../state/appState.svelte");
+    const order: string[] = [];
+    registerGestureCancel(() => order.push("cancel"), "warp");
+    applyArtboard({ w: 500, h: 400, background: null });
+    order.push(`artboard ${app.doc.artboard.w}`);
+    expect(order).toEqual(["cancel", "artboard 500"]);
+    undo();
+    expect(app.doc.artboard.w).toBe(100);
+  });
+});

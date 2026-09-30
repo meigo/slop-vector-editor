@@ -58,3 +58,27 @@ describe("long press (touch and Pencil context menu)", () => {
     expect(fired).toEqual([{ x: 5, y: 5 }]);
   });
 });
+
+/** Review H1 (2026-09-30): the long press used to arm with every tool and cancel the running
+ *  stroke before finding the tool had no menu — half a second of stillness lost the ink. */
+describe("which tools a long press is for", () => {
+  it("only the tools with a context menu", async () => {
+    const { opensContextMenu } = await import("../input/long-press");
+    expect(opensContextMenu("select")).toBe(true);
+    expect(opensContextMenu("node")).toBe(true);
+    for (const t of [
+      "brush",
+      "pen",
+      "rect",
+      "ellipse",
+      "line",
+      "polygon",
+      "gradient",
+      "warp",
+      "text",
+      "hand",
+    ] as const) {
+      expect(opensContextMenu(t)).toBe(false);
+    }
+  });
+});

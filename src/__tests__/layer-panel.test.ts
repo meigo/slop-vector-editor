@@ -249,3 +249,40 @@ describe("the Layers header trash", () => {
     expect(trashAction(0, 1)).toBe("disabled");
   });
 });
+
+/** Review M19 (2026-09-30): a drop into a locked or hidden group was allowed while one into a
+ *  locked layer was refused — the object became locked/invisible content and left the selection. */
+describe("no drop into a blocked group", () => {
+  const group = (id: string, kids: Node[], over: object = {}): Node =>
+    ({ kind: "group", id, transform: IDENTITY, children: kids, ...over }) as Node;
+  const rows: RowBox[] = [
+    { kind: "layer", id: "A", top: 0, bottom: 20 },
+    { kind: "node", id: "g", top: 20, bottom: 40 },
+    { kind: "node", id: "c", top: 40, bottom: 60 },
+    { kind: "node", id: "a", top: 60, bottom: 80 },
+  ];
+  const drag = { kind: "node", ids: ["a"] } as const;
+
+  for (const flag of ["locked", "hidden"] as const) {
+    it(`refuses a drop onto a ${flag} group's row, or among its children`, () => {
+      const d = doc(layer("A", [], {}));
+      const withGroup = deepFreeze({
+        ...d,
+        layers: [
+          { ...d.layers[0], children: [group("g", [rect("c")], { [flag]: true }), rect("a")] },
+        ],
+      });
+      expect(dropTarget(withGroup, rows, 30, drag)).toBeNull(); // onto the group row
+      expect(dropTarget(withGroup, rows, 45, drag)).toBeNull(); // beside its child
+    });
+  }
+
+  it("still allows a drop into an ordinary group", () => {
+    const d = doc(layer("A", []));
+    const withGroup = deepFreeze({
+      ...d,
+      layers: [{ ...d.layers[0], children: [group("g", [rect("c")]), rect("a")] }],
+    });
+    expect(dropTarget(withGroup, rows, 30, drag)).toMatchObject({ kind: "node", parentId: "g" });
+  });
+});

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { isValidArtboardSize, MAX_ARTBOARD } from "../doc/document";
-  import { setArtboard } from "../doc/edits";
-  import { app, commitDoc } from "../state/appState.svelte";
+  import { app, applyArtboard } from "../state/appState.svelte";
   import Modal from "./Modal.svelte";
   import ToggleButton from "./ToggleButton.svelte";
 
@@ -20,7 +19,7 @@
   function apply() {
     if (!isValidArtboardSize(w) || !isValidArtboardSize(h)) return;
     const background = hasBackground ? { color, opacity: initial.background?.opacity ?? 1 } : null;
-    commitDoc(setArtboard(app.doc, { w, h, background }));
+    applyArtboard({ w, h, background });
     close();
   }
 </script>
