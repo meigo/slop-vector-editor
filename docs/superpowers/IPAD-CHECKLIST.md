@@ -19,8 +19,9 @@ polish.
 - [x] **P1** Two-finger **tap** undoes.
 - [x] **P1** Three-finger tap redoes. (Watch for iPadOS taking three fingers for its own edit
       menu.)
-- [ ] **P2** A slow two-finger tap, or one where the fingers slide, does nothing (no undo); a
-      two-finger pinch that zooms never undoes.
+- [x] **P2** A two-finger pinch that zooms never undoes.
+- [ ] **P2** A slow two-finger tap (held ~½ s), or one where the fingers slide a little, does
+      nothing (no undo).
 - [x] **P1** **Long press** (hold still ~½ s) on an object with the Select tool opens the context
       menu with that object selected; lifting the finger does **not** trigger a menu item; a tap on
       an item then works. Same with the Node tool (Delete node(s) in the menu). Same with the Pencil.
