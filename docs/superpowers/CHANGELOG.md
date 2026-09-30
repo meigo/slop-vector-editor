@@ -3108,4 +3108,6 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 
 - Confirmed on the iPad by the user: the long-press context menu works with a finger and with the
   Pencil. Ticked in `IPAD-CHECKLIST.md`.
+- Also confirmed: the two-finger tap undoes. The checklist line is split so the three-finger redo
+  and the no-false-undo cases stay open until tried.
 
