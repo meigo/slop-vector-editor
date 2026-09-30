@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1367 tests in 90 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1377 tests in 91 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -311,7 +311,11 @@ every user-visible change.
 20. **Snapping is per gesture.** Tools collect targets at pointer-down (`collectTargets`,
     excluding what moves) and put guides in the overlay; they must clear the overlay on up/cancel.
     Resize snaps only unrotated frames; rotation and marquee never snap. The threshold is
-    `SNAP_PX / zoom`.
+    `SNAP_PX / zoom`. **A uniform corner snaps where it lands, along its diagonal** (review M14,
+    2026-09-30): the corner is projected first (`dragHandle`), then snapped, then `uniformBoxAt`
+    scales from the nearer snapped axis so that edge lands exactly — snapping the pointer first
+    showed a guide the corner then missed. The node tool snaps the grabbed node (pointer + grab
+    offset), not the pointer (review M15).
 21. **Polygons are live shapes saved as paths** (spec M2c). A polygon is written as
     `<path d … data-sv-polygon="sides star inner cx cy rx ry">`, with `d` built from the numbers
     _as written_ (`polygonD`). The importer restores a polygon only when the attribute validates
@@ -813,7 +817,10 @@ every user-visible change.
     resized. A **flip** is not uniform for this purpose: it mirrors the outlines, and re-outlining
     at `|k|` comes back un-mirrored.
     - **A plain corner drag is uniform** (2026-09-30; before that `dragHandle` kept proportions
-      only while Shift was held, so the common gesture stretched a title and cost its text). A
+      only while Shift was held, so the common gesture stretched a title and cost its text). The
+      scale is the pointer **projected on the box's diagonal** in its quadrant (review M14), not the
+      larger of the two ratios — with the larger ratio a thin object's short axis ruled, and 3 px
+      on a 2 px side made a 200 px line 500 long. A
       non-uniform resize now takes an edge handle or a Shift-held corner; W and H in the geometry
       fields are non-uniform by construction and always cost the text.
       Both warn — `droppedTitle` is the shared predicate, and it compares the documents **before
@@ -829,7 +836,11 @@ every user-visible change.
     unavoidable — a PNG render — do not attempt the direct path at all, but go straight to a dialog
     whose button supplies a fresh tap.
 
-46. **A gradient lives in its shape's own space, so every geometry bake calls `mapStyle`**
+46. **A bake of a node's own matrix scales its stroke too** (`bakeStroke`, review M17,
+    2026-09-30): Flatten, Combine and the booleans fold a matrix the stroke was drawn under, so
+    its width is multiplied by `√|det|` — exact for a uniform matrix. Flatten leaves a stroked path
+    under a stretch or skew alone and says how many (`flattenSkips`): one width can't hold it.
+    A resize is not such a bake (invariant 11). **A gradient lives in its shape's own space, so every geometry bake calls `mapStyle`**
     (`document.ts`) — `resize.ts`'s `bakeShape` (all four kinds), `edits.ts`'s
     `flattenTransform`, `path-ops.ts`'s `combine` and `boolean-edit.ts`'s `booleanShapes` today;
     a new bake site must too, exactly as it must use `withBakedSubpaths` for titles (invariant

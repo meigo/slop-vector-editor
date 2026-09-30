@@ -1,6 +1,14 @@
 import { IDENTITY, invert, multiply } from "../geom/mat";
 import { toPath, transformSubpaths } from "../geom/shapes";
-import { idFor, mapStyle, type Doc, type Node, type PathShape, type Subpath } from "./document";
+import {
+  bakeStroke,
+  idFor,
+  mapStyle,
+  type Doc,
+  type Node,
+  type PathShape,
+  type Subpath,
+} from "./document";
 import { deleteNodes } from "./edits";
 import { reversePath, subdividePath } from "./path-edit";
 import { findNode, isAfter, mapNodes, paintKey, replaceNode, type Found } from "./tree";
@@ -169,7 +177,8 @@ export function combine(doc: Doc, ids: readonly string[]): { doc: Doc; id: strin
     transform: IDENTITY,
     // Spec M15 §5: the result has identity transform in the front shape's parent space, which is
     // exactly what `front.path.transform` maps its own-space gradient into.
-    style: mapStyle(front.path.style, front.path.transform),
+    // The stroke was drawn under that matrix too (review M17).
+    style: bakeStroke(mapStyle(front.path.style, front.path.transform), front.path.transform),
     subpaths,
   };
   if (front.path.name !== undefined) shape.name = front.path.name;

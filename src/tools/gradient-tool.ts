@@ -24,7 +24,7 @@ type Mode =
   | { kind: "knob"; base: Doc; h: GradientHandle; part: HandlePart }
   | { kind: "line"; base: Doc; h: GradientHandle; start: Vec }
   | { kind: "mid"; base: Doc; h: GradientHandle }
-  | { kind: "draw"; base: Doc; ids: readonly string[]; start: Vec };
+  | { kind: "draw"; base: Doc; ids: readonly string[]; start: Vec; startScreen: Vec };
 
 const sub = (p: Vec, q: Vec) => ({ x: p.x - q.x, y: p.y - q.y });
 const add = (p: Vec, q: Vec) => ({ x: p.x + q.x, y: p.y + q.y });
@@ -89,11 +89,18 @@ function toOwnGradient(h: GradientHandle, g: Gradient): Gradient | null {
 }
 
 /** Applies the drag's current geometry and commits it; returns whether it actually committed —
- *  `false` only when a knob/line drag's own-space conversion is singular (`toOwnGradient`), which
- *  is also why `up()` must check this before forgetting anything (fix M16 review finding 1). */
+ *  `false` when a knob/line drag's own-space conversion is singular (`toOwnGradient`), or a draw
+ *  is back at its start, which is also why `up()` must check this before forgetting anything
+ *  (fix M16 review finding 1). */
 function apply(ctx: ToolContext, m: Exclude<Mode, { kind: "pending" }>, e: ToolEvent): boolean {
   const which = ctx.gradientTarget();
   if (m.kind === "draw") {
+    // Back within the drag threshold of its start, a draw is no line at all (review M16): a
+    // zero-length line collapses to the end stop's paint, a transparent fill.
+    if (!movedEnough(m.startScreen, e.screen)) {
+      ctx.commit(m.base);
+      return false;
+    }
     const to = e.mods.shift ? constrain45(m.start, e.doc) : e.doc;
     ctx.commit(drawGradientLine(m.base, m.ids, which, m.start, to, ctx.gradientType()));
     return true;
@@ -213,7 +220,13 @@ export function createGradientTool(): Tool {
             ctx.setSelection([hit.nodeId]);
           }
           ctx.beginGesture();
-          mode = { kind: "draw", base: ctx.doc(), ids: ctx.selection(), start: start.doc };
+          mode = {
+            kind: "draw",
+            base: ctx.doc(),
+            ids: ctx.selection(),
+            start: start.doc,
+            startScreen: start.screen,
+          };
         }
       }
       apply(ctx, mode, e);

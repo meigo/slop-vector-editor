@@ -30,7 +30,10 @@ import {
   handleAt,
   handleFramePoint,
   handleSize,
+  isUniformCorner,
   rotateDelta,
+  uniformBoxAt,
+  uniformCornerLine,
   type Handle,
   type ResizeHandle,
 } from "./gizmo";
@@ -194,7 +197,32 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
       const p = docToFrame(m.frame, e.doc);
       let target = { x: p.x + m.grab.x, y: p.y + m.grab.y };
       let guides = NO_GUIDES;
-      if (m.targets) {
+      if (m.targets && isUniformCorner(m.handle, m.frame.box, e.mods)) {
+        // A uniform corner lands on the diagonal, not at the pointer: snap where it lands, then
+        // slide along the diagonal until the nearer snapped axis is exact (review M14). Snapping
+        // the pointer first showed a guide the corner then missed.
+        const { anchor, corner } = uniformCornerLine(
+          m.handle,
+          m.frame.box,
+          dragHandle(m.handle, m.frame.box, target, e.mods),
+          e.mods.alt,
+        );
+        const s = snapPoint(corner, m.targets, threshold(ctx), { x: true, y: true });
+        const ex = s.guides.xs.length > 0 ? Math.abs(s.p.x - corner.x) : Infinity;
+        const ey = s.guides.ys.length > 0 ? Math.abs(s.p.y - corner.y) : Infinity;
+        const useX = ex <= ey && ex < Infinity && corner.x !== anchor.x;
+        const useY = !useX && ey < Infinity && corner.y !== anchor.y;
+        if (useX || useY) {
+          showGuides(ctx, useX ? { xs: s.guides.xs, ys: [] } : { xs: [], ys: s.guides.ys });
+          const snapped = useX
+            ? uniformBoxAt(m.handle, m.frame.box, "x", s.p.x, e.mods.alt)
+            : uniformBoxAt(m.handle, m.frame.box, "y", s.p.y, e.mods.alt);
+          ctx.commit(
+            resizeNodes(m.original, m.ids, frameResizeMap(m.frame.angle, m.frame.box, snapped)),
+          );
+          return;
+        }
+      } else if (m.targets) {
         const axes = {
           x: m.handle.includes("e") || m.handle.includes("w"),
           y: m.handle.includes("n") || m.handle.includes("s"),

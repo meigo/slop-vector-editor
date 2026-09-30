@@ -159,15 +159,70 @@ export function dragHandle(h: ResizeHandle, start: Box, p: Vec, mods: Mods): Box
   let w = signedSize(start.x, start.w, dx, p.x, mods.alt);
   let hh = signedSize(start.y, start.h, dy, p.y, mods.alt);
   if (!mods.shift && dx !== 0 && dy !== 0 && start.w !== 0 && start.h !== 0) {
-    const kx = w / start.w;
-    const ky = hh / start.h;
-    const k = Math.max(Math.abs(kx), Math.abs(ky));
-    w = sgn(kx) * k * start.w;
-    hh = sgn(ky) * k * start.h;
+    // The pointer projected on the box's diagonal, in the quadrant the pointer is in (so each axis
+    // still mirrors on its own). The larger of the two ratios, as before (review M14), let a thin
+    // object's short axis rule: 3 px on a 2 px side made a 200 px line 500 long.
+    const W = Math.abs(start.w);
+    const H = Math.abs(start.h);
+    const k = (Math.abs(w) * W + Math.abs(hh) * H) / (W * W + H * H);
+    w = sgn(w / start.w) * k * start.w;
+    hh = sgn(hh / start.h) * k * start.h;
   }
   return {
     x: nearEdge(start.x, start.w, dx, w, mods.alt),
     y: nearEdge(start.y, start.h, dy, hh, mods.alt),
+    w,
+    h: hh,
+  };
+}
+
+/** Whether `dragHandle` scales this drag uniformly: a corner, without Shift, of a box with area. */
+export function isUniformCorner(h: ResizeHandle, start: Box, mods: Mods): boolean {
+  return !mods.shift && h.length === 2 && start.w !== 0 && start.h !== 0;
+}
+
+/** A uniform corner drag's line (review M14): `anchor` stays put — the opposite corner, or the
+ *  centre with Alt — and `corner` is where the moving corner of `box`, a `dragHandle` result, ended
+ *  up. Every uniform result lies on the line through the two, so a snap moves along it. */
+export function uniformCornerLine(
+  h: ResizeHandle,
+  start: Box,
+  box: Box,
+  alt: boolean,
+): { anchor: Vec; corner: Vec } {
+  const dx = h.includes("e") ? 1 : -1;
+  const dy = h.includes("s") ? 1 : -1;
+  const fixed = (s0: number, size: number, dir: number) =>
+    alt ? s0 + size / 2 : dir === 1 ? s0 : s0 + size;
+  return {
+    anchor: { x: fixed(start.x, start.w, dx), y: fixed(start.y, start.h, dy) },
+    corner: {
+      x: dx === 1 ? box.x + box.w : box.x,
+      y: dy === 1 ? box.y + box.h : box.y,
+    },
+  };
+}
+
+/** The uniform corner result whose moving corner has `axis` exactly at `value` — a snapped corner
+ *  (review M14). The scale comes from that one coordinate, so the snapped edge carries no float
+ *  noise from a projection. */
+export function uniformBoxAt(
+  h: ResizeHandle,
+  start: Box,
+  axis: "x" | "y",
+  value: number,
+  alt: boolean,
+): Box {
+  const dx: -1 | 1 = h.includes("e") ? 1 : -1;
+  const dy: -1 | 1 = h.includes("s") ? 1 : -1;
+  const size = axis === "x" ? start.w : start.h;
+  const s = signedSize(axis === "x" ? start.x : start.y, size, axis === "x" ? dx : dy, value, alt);
+  const k = s / size;
+  const w = axis === "x" ? s : k * start.w;
+  const hh = axis === "y" ? s : k * start.h;
+  return {
+    x: nearEdge(start.x, start.w, dx, w, alt),
+    y: nearEdge(start.y, start.h, dy, hh, alt),
     w,
     h: hh,
   };

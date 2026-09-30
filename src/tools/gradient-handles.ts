@@ -1,7 +1,17 @@
-import { isLinear, isRadial, midOf, midPaintOf, type Doc, type Paint } from "../doc/document";
+import {
+  isHidden,
+  isLinear,
+  isRadial,
+  midOf,
+  midPaintOf,
+  type Doc,
+  type Node,
+  type Paint,
+  type Shape,
+} from "../doc/document";
 import type { PaintSlot } from "../doc/paint-edit";
-import { ancestorIds, findNode, isAfter, paintKey, shapesWithWorld } from "../doc/tree";
-import { applyMat, type Mat } from "../geom/mat";
+import { ancestorIds, findNode, isAfter, paintKey } from "../doc/tree";
+import { applyMat, multiply, type Mat } from "../geom/mat";
 import type { Vec } from "../geom/vec";
 
 const lerp = (p: Vec, q: Vec, t: number): Vec => ({
@@ -44,6 +54,15 @@ export type GradientHandle =
  *  (invariant 14: it must agree with `hitTest`, which scans the reach in reverse). An id whose
  *  ancestor is also selected is dropped: the ancestor's own expansion into `shapesWithWorld`
  *  already reaches it, and keeping both would double its handle. */
+/** `shapesWithWorld` without hidden nodes or anything inside them (review L15): a hidden child of
+ *  a selected group has nothing on screen for its knobs to belong to. */
+function visibleShapes(node: Node, parent: Mat): { shape: Shape; world: Mat }[] {
+  if (isHidden(node)) return [];
+  const world = multiply(parent, node.transform);
+  if (node.kind !== "group") return [{ shape: node, world }];
+  return node.children.flatMap((c) => visibleShapes(c, world));
+}
+
 export function gradientHandles(
   doc: Doc,
   ids: readonly string[],
@@ -59,7 +78,7 @@ export function gradientHandles(
 
   const out: GradientHandle[] = [];
   for (const { found } of founds) {
-    for (const { shape, world } of shapesWithWorld(found.node, found.parent)) {
+    for (const { shape, world } of visibleShapes(found.node, found.parent)) {
       const f = shape.style[which];
       if (isLinear(f)) {
         const from = applyMat(world, f.from);

@@ -24,6 +24,7 @@ import {
   convertToPath,
   deleteNodes,
   duplicateNodes,
+  flattenSkips,
   flattenTransform,
   setNodeHidden,
   setNodeLocked,
@@ -885,7 +886,14 @@ export function distributeSelection(axis: DistributeAxis): void {
 
 export function flattenSelection(): void {
   cancelActiveGesture();
+  const kept = flattenSkips(app.doc, app.selection);
   commitDoc(flattenTransform(app.doc, app.selection));
+  if (kept > 0) {
+    notify(
+      "info",
+      `Flatten transform left ${kept === 1 ? "a stroked shape" : `${kept} stroked shapes`} as ${kept === 1 ? "it was" : "they were"}: a stretched or skewed stroke can't be baked into one width.`,
+    );
+  }
 }
 
 export function setSelectionRectRadius(rx: number): void {

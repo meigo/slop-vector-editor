@@ -66,6 +66,19 @@ describe("gradientHandles / pickHandle", () => {
     expect(pickHandle(hs, { x: 60, y: 60 }, 6)).toBeNull();
   });
 
+  /** Review L15 (2026-09-30): a hidden child of a selected group showed knobs that could be
+   *  dragged, repainting a shape nobody can see. */
+  it("offers no knobs for a hidden child of a selected group", () => {
+    const g: Node = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [rect("a", 0, lin), { ...rect("b", 0, lin), hidden: true } as Node],
+    };
+    expect(gradientHandles(doc([g]), ["g"], "fill").map((h) => h.id)).toEqual(["a"]);
+  });
+
   it("ignores shapes whose target paint is flat, and reads the stroke when asked", () => {
     const d = doc([
       rect("a", 0, red),
@@ -163,6 +176,21 @@ describe("the Gradient tool (spec M15 §7)", () => {
         end: { ...red, opacity: 0 },
       });
     }
+  });
+
+  /** Review M16 (2026-09-30): dragging out and back to the start drew a zero-length line, which
+   *  collapses to the end stop — a transparent fill — and forgot the shape's gradient memory. */
+  it("a draw that ends back at its start changes nothing and forgets nothing", () => {
+    const d = doc([rect("a", 0, red)]);
+    const { ctx, state } = fakeContext(d);
+    ctx.setSelection(["a"]);
+    drag(createGradientTool(), ctx, [
+      [10, 10],
+      [80, 10],
+      [11, 10],
+    ]);
+    expect(fillOf(ctx.doc(), "a")).toEqual(red);
+    expect(state.forgotten).toEqual([]);
   });
 
   it("with nothing selected, selects the shape under the press and draws its line", () => {

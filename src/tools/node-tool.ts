@@ -40,6 +40,9 @@ type Mode =
       startDoc: Vec;
       refs: readonly NodeRef[];
       targets: SnapTargets | null;
+      /** The grabbed node minus the press point, in the path's space: what snaps is where the
+       *  node lands, not the pointer (review M15). */
+      grab: Vec;
     }
   | { kind: "handle"; base: Doc; ref: NodeRef; which: "in" | "out" }
   /** The marquee is dragged and hit-tested in document space, like the select tool's own
@@ -153,10 +156,16 @@ function applyMove(
       axes = constrained.axes;
     }
     if (m.targets) {
-      const world = applyMat(t.world, to);
-      const snapped = snapPoint(world, m.targets, SNAP_PX / ctx.view().zoom, axes);
+      const node = { x: to.x + m.grab.x, y: to.y + m.grab.y };
+      const snapped = snapPoint(
+        applyMat(t.world, node),
+        m.targets,
+        SNAP_PX / ctx.view().zoom,
+        axes,
+      );
       ctx.setOverlay(hasGuides(snapped.guides) ? { kind: "guides", ...snapped.guides } : null);
-      to = applyMat(t.inv, snapped.p);
+      const landed = applyMat(t.inv, snapped.p);
+      to = { x: landed.x - m.grab.x, y: landed.y - m.grab.y };
     }
     replacePath(ctx, m.base, path, movePathNodes(path, m.refs, to.x - m.start.x, to.y - m.start.y));
     return;
@@ -287,10 +296,13 @@ export function createNodeTool(): Tool {
         } else if (pick?.kind === "node") {
           ctx.beginGesture();
           const refs = ctx.nodeSel();
+          const start = applyMat(t.inv, mode.start.doc);
+          const at = t.path.subpaths[pick.ref.sub]?.nodes[pick.ref.i]?.p ?? start;
           mode = {
             kind: "nodes",
             base: ctx.doc(),
-            start: applyMat(t.inv, mode.start.doc),
+            start,
+            grab: { x: at.x - start.x, y: at.y - start.y },
             startDoc: mode.start.doc,
             refs: refs.length > 0 ? refs : [pick.ref],
             targets: ctx.snapEnabled()
