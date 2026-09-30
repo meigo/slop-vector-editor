@@ -32,11 +32,23 @@ export function toUtf16(text: string, cp: number): number {
   return u;
 }
 
-/** The edited span of an edit, in code points of the old string, and the length change. */
-function editSpan(oldText: string, newText: string) {
+/** The edited span of an edit, in code points of the old string, and the length change. The
+ *  strings alone are ambiguous next to a repeated character — deleting either "l" of "Tallinn"
+ *  gives "Talinn" — so `caret`, where the caret stands in the new string after the edit, says
+ *  where the edit ended (review M5): the common suffix may not reach past it. A caret outside the
+ *  new string is ignored. */
+function editSpan(oldText: string, newText: string, caret?: number) {
   const a = Array.from(oldText);
   const b = Array.from(newText);
   const max = Math.min(a.length, b.length);
+  if (caret !== undefined && caret >= 0 && caret <= b.length) {
+    let suf = 0;
+    while (suf < Math.min(max, b.length - caret) && a[a.length - 1 - suf] === b[b.length - 1 - suf])
+      suf++;
+    let pre = 0;
+    while (pre < max - suf && a[pre] === b[pre]) pre++;
+    return { start: pre, end: a.length - suf, delta: b.length - a.length };
+  }
   let pre = 0;
   while (pre < max && a[pre] === b[pre]) pre++;
   let suf = 0;
@@ -45,22 +57,28 @@ function editSpan(oldText: string, newText: string) {
 }
 
 /** The same rule for one index; null when it was inside the edited span. */
-export function remapIndex(oldText: string, newText: string, i: number): number | null {
-  const { start, end, delta } = editSpan(oldText, newText);
+export function remapIndex(
+  oldText: string,
+  newText: string,
+  i: number,
+  caret?: number,
+): number | null {
+  const { start, end, delta } = editSpan(oldText, newText, caret);
   if (i < start) return i;
   if (i < end) return null;
   return i + delta;
 }
 
 /** Overrides after an edit: common prefix/suffix (code points) bound the edited span; keys before
- *  it stay, keys inside it are dropped, keys after it shift by the length change. Returns the SAME
- *  object when nothing moves or drops (invariant 1). */
+ *  it stay, keys inside it are dropped, keys after it shift by the length change. `caret` is
+ *  `editSpan`'s. Returns the SAME object when nothing moves or drops (invariant 1). */
 export function remapOverrides<T>(
   oldText: string,
   newText: string,
   o: Record<number, T>,
+  caret?: number,
 ): Record<number, T> {
-  const { start, end, delta } = editSpan(oldText, newText);
+  const { start, end, delta } = editSpan(oldText, newText, caret);
   let changed = false;
   const out: Record<number, T> = {};
   for (const [k, v] of Object.entries(o)) {
@@ -156,7 +174,8 @@ export function selectionRects(
   for (const idx of lineOf(stops).values()) {
     const first = idx[0];
     const last = idx[idx.length - 1];
-    if (last < lo || first > hi) continue;
+    // A selection that ends at a line's first stop selects nothing on it (review L3).
+    if (last < lo || first > hi || (first === hi && lo < hi)) continue;
     const s = stops[first];
     rects.push({
       x0: stops[Math.max(first, lo)].x,

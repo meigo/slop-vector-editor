@@ -102,7 +102,12 @@ export function createTextTool(): Tool {
       lastTap = second ? null : tap;
       if (!edit || edit.id !== id) {
         ctx.beginTextEdit(id, e.doc);
-        press = { kind: "text", start: e, index: ctx.textIndexAt(e.doc) };
+        // Refused (its font is missing): the press must not drag-select in the title still being
+        // edited (review L4).
+        press =
+          ctx.textEdit()?.id === id
+            ? { kind: "text", start: e, index: ctx.textIndexAt(e.doc) }
+            : null;
         return;
       }
       const index = ctx.textIndexAt(e.doc);
@@ -173,6 +178,10 @@ export function createTextTool(): Tool {
     keydown(ctx, key) {
       seen = ctx;
       if (key !== "escape" || !ctx.textEdit()) return false;
+      // A character drag ends first, inside the session's bracket; left running, each further
+      // move would be an undo step of its own once the leave closed the bracket (review L1).
+      if (press?.kind === "char") ctx.finishCharDrag();
+      press = null;
       ctx.endTextEdit();
       return true;
     },

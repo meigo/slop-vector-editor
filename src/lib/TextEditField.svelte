@@ -198,7 +198,8 @@
   function oninput() {
     if (!app.textEdit || mirroredId !== app.textEdit.id) return;
     typed = true;
-    typeTextEdit(el.value);
+    // The caret after the edit tells a doubled letter's twins apart (review M5).
+    typeTextEdit(el.value, toCodePoint(el.value, el.selectionStart));
     readSelection();
   }
 

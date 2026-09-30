@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1357 tests in 90 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1367 tests in 90 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -721,7 +721,11 @@ every user-visible change.
       text changes — the common prefix and suffix bound the one edited span; an override before it
       keeps its index, one inside it is dropped, one after it shifts — replacing the old "drop keys
       past the new length", which left an override on the wrong letter after a panel keystroke
-      (a pre-existing bug, fixed for the panel field too).
+      (a pre-existing bug, fixed for the panel field too). Next to a doubled letter the strings
+      alone are ambiguous — deleting either "l" of "Tallinn" gives "Talinn" — so both fields pass
+      the caret after the edit (`typeTextEdit`/`typeTitleText`'s `caret`), and `editSpan` does not
+      let the common suffix reach past it (review M5, 2026-09-30). In a canvas session `charSel`
+      is derived from the field and never remapped (review L2).
     - **Alignment is not a position — it is which edge stays put when the title changes.** The
       click point is the anchor and the outlines are re-derived from it, so left grows rightwards,
       right grows leftwards and centre grows both ways. Its buttons use flush-line icons
@@ -755,6 +759,14 @@ every user-visible change.
       still draining and `endDocGesture` closed the bracket early, leaving the last commits outside
       it as undo steps of their own. `reshapeTitleDraining` now keeps the in-flight drain in
       `titleWork` and hands it back to a caller that only queued, so awaiting it awaits the settle.
+    - **One title job at a time, and the queue follows it** (review M8/M9, 2026-09-30):
+      `placeTitle` is a drain like `reshapeTitleDraining` (it holds `titleRunning` across its font
+      load and sets `titleWork`), so a patch queued meanwhile is applied or dropped when it settles,
+      not by some later edit. A job dropped because the **document** moved takes the queue with it
+      (`dropTitleQueue`, reported unless quiet): the queued patch was made against the same moved
+      document, and applying it after an undo wiped redo. A moved selection alone does not — the
+      drain's target check handles that. A face that can't load is quiet while typing too
+      (`withFont`'s `quiet`, review M6).
     - **Cmd+Z inside the focused field is the browser's own text undo**, not the app's: it removes
       one typed chunk and fires `input`, which this handler then commits as an ordinary edit. That
       is standard text-field behaviour and is deliberately not fought. It also makes the app's undo

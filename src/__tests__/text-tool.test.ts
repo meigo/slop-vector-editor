@@ -100,6 +100,22 @@ describe("the Text tool: entering and driving an edit", () => {
     expect(state.textEdits).toEqual([{ op: "begin", id: "u", at: { x: 50, y: 150 } }]);
   });
 
+  /** Review L4 (2026-09-30): a title that refused editing (its font missing) left the press to
+   *  drag-select in the title still being edited. */
+  it("a press on a title that refuses editing starts no selection in the edited one", () => {
+    const { ctx, state } = editing();
+    const refuse = ctx.beginTextEdit;
+    ctx.beginTextEdit = (id, at) => {
+      refuse(id, at);
+      state.fakeTextEdit = { id: "t", anchor: 1, focus: 1 };
+    };
+    const t = createTextTool();
+    t.down(ctx, ev(10, 150));
+    t.move(ctx, ev(60, 150));
+    t.up(ctx, ev(60, 150));
+    expect(selects(state)).toEqual([]);
+  });
+
   it("a click inside the edited title puts the caret at the index", () => {
     const { ctx, state } = editing("Tallinn", 1);
     state.fakeIndexAt = () => 4;
@@ -207,6 +223,20 @@ describe("the Text tool: dragging the selected character", () => {
     ]);
     expect(state.textEdits).toEqual([]);
     expect(state.titlesPlaced).toEqual([]);
+  });
+
+  /** Review L1 (2026-09-30): Escape mid-drag closed the session's bracket while the drag ran on,
+   *  so each further move became an undo step of its own. */
+  it("Escape during a character drag ends the drag before the session", () => {
+    const { ctx, state } = onChar();
+    const t = createTextTool();
+    t.down(ctx, ev(10, 50));
+    t.move(ctx, ev(30, 54));
+    expect(t.keydown?.(ctx, "escape")).toBe(true);
+    t.move(ctx, ev(40, 60));
+    t.up(ctx, ev(40, 60));
+    expect(state.charNudges).toHaveLength(1);
+    expect(state.textEdits).toEqual([{ op: "end" }]);
   });
 
   it("survives a call being dropped mid-drag, because each one is absolute", () => {
