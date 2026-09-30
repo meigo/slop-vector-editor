@@ -28,7 +28,9 @@ What works today:
 - Import an SVG into the open document — File ▸ Import SVG…, or drop `.svg` files on the canvas.
   The drawing goes into the current layer, centred in the view and selected, as one undo step;
   unsupported content is listed, as when opening.
-- New document with size presets; artboard size and background (or transparent).
+- New document with a name and size presets; artboard size and background (or transparent).
+- A document name, set in New document or Document settings (tap the name in the top bar): Save,
+  Save to Files and Export PNG all use it, so a drawing keeps one file name across saves.
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
   and three to redo.

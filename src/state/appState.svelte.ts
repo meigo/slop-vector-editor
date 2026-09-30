@@ -1,4 +1,5 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
+import { svgFileName } from "./doc-name";
 import {
   createDoc,
   DEFAULT_WEIGHT,
@@ -547,6 +548,16 @@ export function replaceDocument(
   app.fileName = fileName;
   app.fileHandle = handle;
   app.fitNonce++;
+}
+
+/** Document settings' Name (2026-09-30). Not an undo step: it names the file, not the drawing. A
+ *  changed name drops the save-in-place link, so the next Save asks where to write the file under
+ *  its new name, rather than overwriting the old file and taking the old name back from it. */
+export function renameDocument(name: string): void {
+  const next = svgFileName(name);
+  if (next === app.fileName) return;
+  app.fileName = next;
+  app.fileHandle = null;
 }
 
 export function markDocSaved(

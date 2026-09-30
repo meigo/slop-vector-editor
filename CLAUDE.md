@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1343 tests in 88 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1348 tests in 89 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -128,8 +128,10 @@ every user-visible change.
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
   planning: cascade, centring, errors), `export-plan.ts` (`ExportRegion`, `exportBox`,
   `exportSize`, `exportRefusal`, `sizeLabel`, `pngFileName`, `MAX_SIDE`, `MAX_PIXELS` — the pure
-  half of PNG export), `appState.svelte.ts` (the `app` store + actions, incl. `exportPng` and
-  `copyPng`).
+  half of PNG export), `doc-name.ts` (`svgFileName`, `baseName` — the document name's rules: `app.fileName` is
+  always `<name>.svg`; `renameDocument` in the store drops the save-in-place handle on a real
+  change, so the next Save asks where to write, and is not an undo step), `appState.svelte.ts` (the
+  `app` store + actions, incl. `exportPng` and `copyPng`).
 - `src/brush/` — the Brush tool's pure half (spec M21): `smoothing.ts` (a port of slop-paint's
   `stroke-smoothing.ts`: `Steadier`, Stream's rope via `ropeLength`, `pathSmoothRadius`, `smoothPath`,
   `pauseBreaks`), `outline.ts` (`brushOutline` — the steadied points through perfect-freehand to a
@@ -456,9 +458,9 @@ every user-visible change.
     148px short of what it needed. **The bar now fits at every width down to 739px**, iPad portrait
     (768px) included; verified at each boundary. The
     bar is then stable at any given width, which is what the rule protects. Hiding a control
-    because of _state_ — a selection, a mode, a document — is still forbidden. The file name's
-    `title` (full name when truncated) is the one non-action title and also shows in the status
-    bar.
+    because of _state_ — a selection, a mode, a document — is still forbidden. The file name is
+    a button (2026-09-30): it opens Document settings, where the document is renamed, and its
+    `title` gives the full name (when truncated) and says so.
 25. **New objects go into the current layer** (`app.currentLayerId`, spec M3a). It is store state
     (not saved or undoable), re-resolved in `setSession`, set from the last selected object in
     `setSelection`, and reset by `replaceDocument`. Tools read it through

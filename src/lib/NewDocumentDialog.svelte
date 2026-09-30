@@ -2,6 +2,7 @@
   import { isValidArtboardSize, MAX_ARTBOARD } from "../doc/document";
   import { createNewDocument } from "../persist/project-io";
   import { app } from "../state/appState.svelte";
+  import { DEFAULT_NAME } from "../state/doc-name";
   import Modal from "./Modal.svelte";
 
   const PRESETS = [
@@ -12,6 +13,7 @@
     { label: "512 × 512", w: 512, h: 512 },
   ];
 
+  let name = $state(DEFAULT_NAME);
   let w = $state<number | null>(1920);
   let h = $state<number | null>(1080);
   const valid = $derived(isValidArtboardSize(w) && isValidArtboardSize(h));
@@ -23,11 +25,25 @@
   function create() {
     if (!isValidArtboardSize(w) || !isValidArtboardSize(h)) return;
     close();
-    createNewDocument(w, h);
+    createNewDocument(w, h, name);
   }
 </script>
 
 <Modal title="New document" onclose={close}>
+  <label class="mb-3 flex flex-col gap-1">
+    <span class="section-title">Name</span>
+    <span class="flex items-center gap-1 text-xs">
+      <input
+        class="field min-w-0 flex-1"
+        type="text"
+        bind:value={name}
+        spellcheck="false"
+        autocomplete="off"
+        title="Document name — used for the saved and exported file names"
+      />
+      <span class="text-muted">.svg</span>
+    </span>
+  </label>
   <div class="flex flex-wrap gap-1">
     {#each PRESETS as p (p.label)}
       <button
