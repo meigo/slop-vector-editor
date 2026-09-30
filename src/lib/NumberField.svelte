@@ -40,12 +40,18 @@
     dragging !== null ? fmt(dragging) : editing ? draft : value === null ? "" : fmt(value),
   );
 
+  /** The typed value, clamped; null when nothing new (or nothing numeric) was typed. */
+  function typedValue(): number | null {
+    if (draft === initial) return null;
+    const v = Number(draft);
+    if (draft.trim() === "" || !Number.isFinite(v)) return null;
+    return Math.min(max, Math.max(min, v));
+  }
+
   function commit() {
     editing = false;
-    if (draft === initial) return;
-    const v = Number(draft);
-    if (draft.trim() === "" || !Number.isFinite(v)) return;
-    onchange(Math.min(max, Math.max(min, v)));
+    const v = typedValue();
+    if (v !== null) onchange(v);
   }
 
   let input: HTMLInputElement | undefined;
@@ -76,6 +82,17 @@
     if (!scrub.moved) {
       if (Math.abs(dx) < SCRUB_THRESHOLD_PX) return;
       scrub.moved = true;
+      // A value typed but not yet committed is committed first, and the drag starts from it
+      // (review L19): the blur below skips the commit while dragging, which threw the typing away.
+      if (editing) {
+        const typed = typedValue();
+        editing = false;
+        if (typed !== null) {
+          onchange(typed);
+          scrub.startValue = typed;
+          scrub.last = typed;
+        }
+      }
       dragging = scrub.startValue;
       input?.blur(); // a caret blinking in a field being dragged is a lie; `dragging` skips commit
       onlivestart?.();

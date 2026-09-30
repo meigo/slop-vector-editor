@@ -21,6 +21,7 @@
     midAuto = null,
     midPaint = null,
     onchange,
+    onenable,
     onkind,
     onstop,
     onmid,
@@ -44,6 +45,9 @@
     midAuto?: Field<boolean> | null;
     midPaint?: Field<Paint> | null;
     onchange: (p: Paint | null) => void;
+    /** "On": paints only the shapes with nothing in this slot, so a mixed selection keeps the
+     *  paints it has (review M23). */
+    onenable: (p: Paint) => void;
     onkind: (k: "flat" | "linear" | "radial") => void;
     onstop: (stop: StopEnd, p: Paint) => void;
     onmid?: (mid: number) => void;
@@ -65,7 +69,7 @@
       label="On"
       ariaLabel={`${label} on`}
       value={present.mixed ? "mixed" : present.value}
-      onchange={(on) => onchange(on ? (paint ?? fallback) : null)}
+      onchange={(on) => (on ? onenable(paint ?? fallback) : onchange(null))}
     />
   </div>
   {#if present.mixed || present.value}

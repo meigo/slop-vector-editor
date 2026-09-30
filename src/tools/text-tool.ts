@@ -5,8 +5,10 @@ import { applyMat, IDENTITY, invert, multiply } from "../geom/mat";
 import { isDoubleTap, type Tap } from "../input/double-tap";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
-/** The title under a press, or null (spec M22 §3: hit-tested as the select tool does). */
-function titleAt(ctx: ToolContext, e: ToolEvent): string | null {
+/** The title under a press, or null (spec M22 §3: hit-tested as the select tool does). Also the
+ *  canvas's screen for a "Fingers select" tap with the Text tool, so the two agree on a selected
+ *  title inside a group (review L23). */
+export function titleAt(ctx: ToolContext, e: ToolEvent): string | null {
   const doc = ctx.doc();
   const tol = pointerTolerance(e.pointerType) / ctx.view().zoom;
   const id = hitTest(doc, e.doc, tol, ctx.enteredGroupId())?.nodeId ?? null;
@@ -44,6 +46,10 @@ export function createTextTool(): Tool {
     | { kind: "place"; start: ToolEvent }
     | { kind: "char"; start: ToolEvent; base: { dx: number; dy: number } }
     | { kind: "text"; start: ToolEvent; index: number | null }
+    /** A touch press that leaves the session, or enters a title, on the lift (review M3): the
+     *  first finger of a pinch reaches the tool before the second makes it a pinch. */
+    | { kind: "leave"; start: ToolEvent }
+    | { kind: "enter"; start: ToolEvent; id: string }
     | null = null;
   let lastTap: Tap | null = null;
   /** The context last seen — `busy()` takes none, and the session can be entered by the Select
@@ -89,7 +95,9 @@ export function createTextTool(): Tool {
       if (id === null) {
         lastTap = null;
         // Leaving is all a click outside does; the next click places (spec M22 §3).
-        if (edit) {
+        if (edit && e.pointerType === "touch") {
+          press = { kind: "leave", start: e };
+        } else if (edit) {
           press = null;
           ctx.endTextEdit();
         } else {
@@ -100,6 +108,10 @@ export function createTextTool(): Tool {
       const tap = { id, time: e.time };
       const second = isDoubleTap(lastTap, tap);
       lastTap = second ? null : tap;
+      if ((!edit || edit.id !== id) && e.pointerType === "touch") {
+        press = { kind: "enter", start: e, id };
+        return;
+      }
       if (!edit || edit.id !== id) {
         ctx.beginTextEdit(id, e.doc);
         // Refused (its font is missing): the press must not drag-select in the title still being
@@ -165,6 +177,14 @@ export function createTextTool(): Tool {
       }
       if (p.kind === "text") {
         dragSelect(ctx, p, e);
+        return;
+      }
+      if (p.kind === "leave") {
+        if (!moved) ctx.endTextEdit();
+        return;
+      }
+      if (p.kind === "enter") {
+        if (!moved) ctx.beginTextEdit(p.id, p.start.doc);
         return;
       }
       if (!moved) ctx.placeTitle(e.doc);

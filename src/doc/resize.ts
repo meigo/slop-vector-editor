@@ -87,7 +87,7 @@ function bakeShape(s: Shape, L: Mat): Shape {
       // would snap back to its old shape on the next keystroke.
       const k = s.text ? uniformScale(L) : null;
       if (k !== null && s.text) {
-        // Scale about the local origin only. A Shift-drag is a scale about a corner, so `L` also
+        // Scale about the local origin only. A corner drag is a scale about the opposite corner, so `L` also
         // carries a translation; baking that into the outlines makes the next re-outline (which
         // anchors the baseline at y = 0) jump the title. The translation belongs on the transform.
         const scaleOnly: Mat = [k, 0, 0, k, 0, 0];

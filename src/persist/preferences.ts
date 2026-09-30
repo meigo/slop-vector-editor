@@ -35,8 +35,10 @@ export type Prefs = {
    *  array. `SECTION_IDS` is the whole vocabulary; anything else is dropped on load, so a renamed
    *  section cannot leave a permanently closed ghost in the pref. */
   closedSections: string[];
-  /** The sidebar's width in CSS px (spec M10e §3). Clamped, never rejected, on load and on every
-   *  window resize — a width saved on a wide monitor must not strand the panel on a laptop. */
+  /** The sidebar's width in CSS px (spec M10e §3), as the user chose it. Clamped, never rejected,
+   *  on load; the viewport's ceiling clamps only what is shown (review M18), so a width saved on a
+   *  wide monitor cannot strand the panel on a laptop, and turning an iPad to portrait and back
+   *  does not shrink it for good. */
   sidebarPx: number;
   /** The Brush tool's settings (spec M21 §6). */
   brush: BrushPrefs;

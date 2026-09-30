@@ -3338,3 +3338,44 @@ From `REVIEW-2026-09-30.md` (marked fixed there):
   not be driven through the automation (its drag sends no moves, and synthetic pointer events did
   not reach the handle), so M14 is covered by unit tests through the real select tool only. Owed on
   the iPad: checklist §2's new thin-object line.
+
+## 2026-09-30 — Review fixes, batch 5 (the rest)
+
+From `REVIEW-2026-09-30.md`. Everything there is now fixed except L6 (a brush stroke landing
+inside a UI bracket), which stays parked as M21 left it.
+
+- **M3:** the first finger of a pinch (before a Pencil is seen, or with Fingers select on) no
+  longer acts on its own. A cancelled touch press takes back the Pen node it placed. The Select
+  tool restores the entered group along with the selection. With the Text tool, a touch press
+  enters, switches or ends a session on the lift, not the press.
+- **M13:** `<switch>` imports its first child whose conditions pass, as a browser does, so
+  Illustrator and draw.io files no longer import empty.
+- **M18:** the sidebar clamps its width to the viewport for display only. A portrait turn no longer
+  shrinks the chosen width for good.
+- **M23:** Fill/Stroke "On" on a mixed selection paints only the shapes with nothing in that slot
+  (`enablePaint`). Before, it repainted every shape with the default.
+- **L7:** a dropped file that can't be read is reported and skipped; the rest still import.
+- **L8:** Copy as PNG says when the picture couldn't be made, instead of blaming the clipboard.
+- **L9:** `hsl()`/`hsla()`/`hwb()` colours import.
+- **L10:** `currentColor` uses the inherited `color` property.
+- **L11/L12:** a shape length in CSS units, or out of range, is reported, as is a path whose
+  relative steps add up past the coordinate limit.
+- **L13:** the importer drops 1-node subpaths and merges a `<polygon>`'s repeated closing point,
+  as invariant 30 already said.
+- **L16:** the Layers trash's hint no longer claims "(⌫)" while the Node tool's ⌫ would delete
+  nodes.
+- **L17:** the title field is read-only while its font is missing.
+- **L18:** scrubbing W/H to the minimum shows 0.01, not 0 (round, then clamp).
+- **L19:** a scrub that starts on a field with typed but uncommitted text commits the typing first.
+- **L20:** context-menu shortcut labels use Ctrl on Windows and Linux (`lib/mod-keys.ts`, shared
+  with the top bar).
+- **L21:** the layer grips, collapse chevrons and a notice's Dismiss have titles, so a touch press
+  shows their hint.
+- **L23:** a Fingers select tap on a selected title inside a group enters it, by the Text tool's
+  own `titleAt`.
+- **Doc drift:** third-finger routing, `setCharOffset`'s coalescing, the booleans' load-failure
+  wording, `resize.ts`'s corner comment, the prefs list, and the context menu's touch route.
+- 12 new tests; 1389 tests in 91 files. `npm run build` reports 0 errors and 0 warnings. Not
+  browser-checked: the touch-only changes (M3, L23, L21's hints on touch) and M18's rotation. Owed
+  on the iPad: checklist §3's new pinch line. L7, L8, L17, L19 and L20 are UI wiring without unit
+  tests.

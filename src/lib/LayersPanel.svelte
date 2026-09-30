@@ -223,6 +223,7 @@
         class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
         style="touch-action: none"
         aria-label="Drag “{rowLabel(node)}”"
+        title="Drag to move “{rowLabel(node)}”"
         onpointerdown={(e) => {
           if (!blocked) startDrag(e, nodeDrag(node.id));
         }}
@@ -238,6 +239,7 @@
           type="button"
           class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
           aria-label={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
+          title={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           aria-expanded={open}
           onclick={() => (collapsed[node.id] = open)}
         >
@@ -324,7 +326,10 @@
       <IconButton
         label={trash === "selection" ? "Delete selection" : "Delete layer"}
         title={trash === "selection"
-          ? "Delete selection (⌫)"
+          ? // With nodes picked in the Node tool, ⌫ deletes those nodes, not the object (review L16).
+            app.toolId === "node" && app.nodeSel.length > 0
+            ? "Delete the selected object — ⌫ deletes just the selected nodes"
+            : "Delete selection (⌫)"
           : current
             ? `Delete layer “${current.name}”`
             : "Delete layer"}
@@ -360,6 +365,7 @@
                 class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
                 style="touch-action: none"
                 aria-label="Drag “{layer.name}”"
+                title="Drag to move “{layer.name}”"
                 onpointerdown={(e) => startDrag(e, { kind: "layer", id: layer.id })}
                 onpointermove={moveDrag}
                 onpointerup={(e) => endDrag(e, true)}
@@ -372,6 +378,7 @@
                 type="button"
                 class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
                 aria-label={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
+                title={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 aria-expanded={open}
                 onclick={() => (collapsed[layer.id] = open)}
               >

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MOD, SHIFT_MOD } from "./mod-keys";
   import {
     BringToFront,
     ClipboardPaste,
@@ -73,9 +74,8 @@
   let pathOpen = $state(false);
   let objectOpen = $state(false);
   let editOpen = $state(false);
-  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-  const mod = isMac ? "⌘" : "Ctrl+";
-  const shiftMod = isMac ? "⇧⌘" : "Ctrl+Shift+";
+  const mod = MOD;
+  const shiftMod = SHIFT_MOD;
 
   const none = $derived(app.selection.length === 0);
   const nodesDelete = $derived(deletesNodes());
@@ -214,7 +214,8 @@
 <!-- Tighter gutters and gaps below 900px, where the bar has 25 gaps and no room to spare: at a
      correct 16px root it needs 776px of fixed width, and an iPad portrait window is 768. This buys
      back ~58px without hiding a control, which matters because the context menu — the only other
-     route to most of these — is mouse-only. -->
+     route to most of these — needs a right-click, or on touch a long press with the Select or Node
+     tool, which few people find. -->
 <header
   class="flex h-11 shrink-0 items-center gap-0.5 border-b border-line bg-panel px-1 min-[900px]:gap-1 min-[900px]:px-2"
 >
@@ -734,8 +735,9 @@
   </span>
   <!-- Arrange, from the same list the Object menu renders. Hidden below the breakpoint like the
        boolean operations, which is only legal because the Object menu now carries these commands
-       at every width (invariant 24) — before it existed, the right-click menu was mouse-only and
-       these icons were the one route on a touch device. With everything but flip shown the
+       at every width (invariant 24) — before it existed, the context menu was mouse-only (the
+       touch long press came later, 2026-09-30) and these icons were the one route on a touch
+       device. With everything but flip shown the
        bar needs 1259px, so arrange appears at 1270. -->
   <span class="hidden min-[1270px]:contents">
     <span class="bar-sep"></span>

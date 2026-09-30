@@ -62,6 +62,54 @@ function alphaOf(s: string | undefined): number | null {
   return Math.min(1, Math.max(0, s.endsWith("%") ? v / 100 : v));
 }
 
+/** A hue in degrees: a bare number, or `deg`, `turn`, `rad` or `grad`. */
+function hueOf(s: string): number | null {
+  const m = /^(-?[\d.]+(?:e[-+]?\d+)?)(deg|turn|rad|grad)?$/.exec(s);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return null;
+  const deg =
+    m[2] === "turn"
+      ? n * 360
+      : m[2] === "rad"
+        ? (n * 180) / Math.PI
+        : m[2] === "grad"
+          ? n * 0.9
+          : n;
+  return ((deg % 360) + 360) % 360;
+}
+
+/** A percentage as 0-1 (a bare number is read as a percentage, as CSS Color 4 allows). */
+function fractionOf(s: string): number | null {
+  const v = parseFloat(s);
+  if (!Number.isFinite(v) || !/^-?[\d.]+(?:e[-+]?\d+)?%?$/.test(s)) return null;
+  return Math.min(1, Math.max(0, v / 100));
+}
+
+/** `hsl()`/`hsla()` or `hwb()` (review L9: they read as no colour, so a green shape imported as
+ *  its inherited black). Legacy commas or modern spaces, with an optional alpha after `/`. */
+function hueColor(hwb: boolean, body: string): ParsedColor | null {
+  const [main, slashAlpha] = body.split("/");
+  const parts = main.split(/[\s,]+/).filter(Boolean);
+  if (parts.length < 3 || parts.length > 4 || (hwb && parts.length === 4)) return null;
+  const h = hueOf(parts[0]);
+  const x = fractionOf(parts[1]);
+  const y = fractionOf(parts[2]);
+  const alpha = alphaOf(slashAlpha?.trim() ?? parts[3]);
+  if (h === null || x === null || y === null || alpha === null) return null;
+  const hsl = (sat: number, light: number) =>
+    [0, 8, 4].map((n) => {
+      const k = (n + h / 30) % 12;
+      const a = sat * Math.min(light, 1 - light);
+      return light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    });
+  let rgb: number[];
+  if (!hwb) rgb = hsl(x, y);
+  else if (x + y >= 1) rgb = [0, 0, 0].map(() => x / (x + y));
+  else rgb = hsl(1, 0.5).map((c) => c * (1 - x - y) + x);
+  return { kind: "color", color: `#${rgb.map((c) => hex2(c * 255)).join("")}`, alpha };
+}
+
 export function parseColor(value: string): ParsedColor | null {
   const v = value.trim().toLowerCase();
   if (v.startsWith("url(")) {
@@ -86,6 +134,9 @@ export function parseColor(value: string): ParsedColor | null {
     const alpha = h.length === 8 ? parseInt(h.slice(6), 16) / 255 : 1;
     return { kind: "color", color: `#${h.slice(0, 6)}`, alpha };
   }
+
+  const hm = /^(hsla?|hwb)\(([^)]*)\)$/.exec(v);
+  if (hm) return hueColor(hm[1] === "hwb", hm[2]);
 
   const m = /^rgba?\(([^)]*)\)$/.exec(v);
   if (m) {

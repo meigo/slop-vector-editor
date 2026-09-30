@@ -490,6 +490,20 @@ describe("entering a group", () => {
     expect(state.selection).toEqual(["z"]);
   });
 
+  /** Review M3 (2026-09-30): the first finger of a pinch reached the tool as a press outside the
+   *  group; the pinch cancelled it, but the group stayed left. */
+  it("a cancelled press puts the entered group back, with the selection", () => {
+    const { ctx, state } = fakeContext(groupDoc());
+    const tool: Tool = createSelectTool();
+    state.enteredGroupId = "g";
+    state.selection = ["a"];
+    tool.down(ctx, ev(130, 10, {}, "touch", 0));
+    expect(state.enteredGroupId).toBeNull();
+    tool.cancel(ctx);
+    expect(state.enteredGroupId).toBe("g");
+    expect(state.selection).toEqual(["a"]);
+  });
+
   it("stays inside when a click lands on another child", () => {
     const { ctx, state } = fakeContext(groupDoc());
     const tool: Tool = createSelectTool();

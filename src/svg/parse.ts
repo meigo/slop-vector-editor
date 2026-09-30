@@ -22,6 +22,7 @@ import { nodeBounds } from "../geom/bounds";
 import { IDENTITY, isIdentity, multiply, translate, type Mat } from "../geom/mat";
 import { polygonSubpath, rectPath } from "../geom/shapes";
 import type { PolygonGeometry } from "../geom/shapes";
+import type { Vec } from "../geom/vec";
 import { MAX_TEXT_LENGTH, parseOverrides, parseTextOpts } from "../text/attrs";
 import { parseColor } from "./colors";
 import { fmt } from "./fmt";
@@ -45,6 +46,8 @@ const isRef = (p: InheritedPaint): p is Ref => p !== null && "ref" in p;
 
 /** Inherited paint state while walking the tree. */
 type Inherited = {
+  /** The `color` property, which `currentColor` paints with (review L10); a CSS colour value. */
+  color: string;
   fill: InheritedPaint;
   fillOpacity: number;
   stroke: InheritedPaint;
@@ -55,6 +58,7 @@ type Inherited = {
 };
 
 const ROOT_INHERITED: Inherited = {
+  color: "black",
   fill: { color: "#000000", opacity: 1 },
   fillOpacity: 1,
   stroke: null,
@@ -65,6 +69,7 @@ const ROOT_INHERITED: Inherited = {
 };
 
 const PROPS = [
+  "color",
   "fill",
   "fill-opacity",
   "stroke",
@@ -190,6 +195,18 @@ export function parseSvg(src: string): ParseResult {
   const drop = (label: string) => {
     if (!dropped.includes(label)) dropped.push(label);
   };
+  /** A shape's length (reviews L11/L12): `num`, reporting what it silently misreads — a CSS unit
+   *  or percentage read as user units, and a value out of range read as the fallback. Not for the
+   *  root's width/height, whose units are ordinary beside a viewBox. */
+  const len = (v: string | undefined, fallback: number): number => {
+    if (v !== undefined) {
+      const t = v.trim();
+      if (/[a-z%]$/i.test(t) && !/px$/i.test(t)) drop("lengths in CSS units");
+      const n = parseFloat(t);
+      if (Number.isFinite(n) && Math.abs(n) > MAX_COORD) drop("invalid coordinates");
+    }
+    return num(v, fallback);
+  };
   let next = 1;
   const newId = () => idFor(next++);
   const servers = collectServers(root);
@@ -217,7 +234,8 @@ export function parseSvg(src: string): ParseResult {
         .trim()
         .replace(/\s*!important\s*$/i, "")
         .trim();
-      if ((key === "fill" || key === "stroke") && parseColor(value) === null) continue;
+      if ((key === "fill" || key === "stroke" || key === "color") && parseColor(value) === null)
+        continue;
       out[key as (typeof PROPS)[number]] = value;
     }
     const plain = (v: string, ok: readonly string[]) =>
@@ -264,12 +282,18 @@ export function parseSvg(src: string): ParseResult {
   function inherit(parent: Inherited, p: ReturnType<typeof props>): Inherited {
     const cap = p["stroke-linecap"];
     const join = p["stroke-linejoin"];
+    const own = p.color !== undefined ? parseColor(p.color) : null;
+    const color = own?.kind === "color" ? p.color! : parent.color;
+    // `currentColor` is this element's `color`, resolved here where the inherited value is known.
+    const current = (v: string | undefined) =>
+      v !== undefined && v.trim().toLowerCase() === "currentcolor" ? color : v;
     return {
-      fill: paint(p.fill, parent.fill),
+      color,
+      fill: paint(current(p.fill), parent.fill),
       fillOpacity: opacityValue(p["fill-opacity"], parent.fillOpacity),
-      stroke: paint(p.stroke, parent.stroke),
+      stroke: paint(current(p.stroke), parent.stroke),
       strokeOpacity: opacityValue(p["stroke-opacity"], parent.strokeOpacity),
-      strokeWidth: Math.max(0, num(p["stroke-width"], parent.strokeWidth)),
+      strokeWidth: Math.max(0, len(p["stroke-width"], parent.strokeWidth)),
       cap: cap && CAPS.includes(cap) ? (cap as LineCap) : parent.cap,
       join: join && JOINS.includes(join) ? (join as LineJoin) : parent.join,
     };
@@ -309,9 +333,18 @@ export function parseSvg(src: string): ParseResult {
     transform: Mat,
     st: Style,
   ): Node | null {
-    const nonEmpty = subpaths.filter((sp) => sp.nodes.length > 0);
-    if (nonEmpty.length === 0) return null;
-    return { kind: "path", id, name, transform, style: st, subpaths: nonEmpty };
+    // A 1-node subpath draws nothing, and no edit may leave one (invariant 30, review L13).
+    const kept = subpaths.filter((sp) => sp.nodes.length >= 2);
+    if (kept.length === 0) return null;
+    // Numbers are range-checked one by one as they are read, but relative steps can still add up
+    // past the limit (review L12); a coordinate that big overflows on the way back out.
+    const big = (v: Vec | null) =>
+      v !== null && !(Math.abs(v.x) <= MAX_COORD && Math.abs(v.y) <= MAX_COORD);
+    if (kept.some((sp) => sp.nodes.some((n) => big(n.p) || big(n.in) || big(n.out)))) {
+      drop("invalid coordinates");
+      return null;
+    }
+    return { kind: "path", id, name, transform, style: st, subpaths: kept };
   }
 
   /** Spec M9 §4: a node's own `display`/`visibility`, and the two spellings of locked. `props`
@@ -418,7 +451,7 @@ export function parseSvg(src: string): ParseResult {
       case "a":
       case "svg": {
         if (name === "svg") {
-          transform = multiply(transform, translate(num(a.x, 0), num(a.y, 0)));
+          transform = multiply(transform, translate(len(a.x, 0), len(a.y, 0)));
           if (a.viewBox !== undefined) drop("nested viewBox scaling");
         }
         // Allocate the group id before its children so ids follow document order.
@@ -427,16 +460,28 @@ export function parseSvg(src: string): ParseResult {
         if (kids.length === 0) return null;
         return { kind: "group", id, name: label, transform, opacity, children: kids };
       }
+      case "switch": {
+        // A browser renders only the first child whose conditions pass (review M13): Illustrator
+        // and draw.io put the whole drawing in one, after an alternative for their own
+        // extensions. We support no extension, so any `requiredExtensions` fails — an empty one
+        // too, per the spec — while `requiredFeatures` passes (SVG 2) and `systemLanguage` is
+        // taken as passing. The skipped alternatives are not content, so nothing is reported.
+        const id = newId();
+        const pick = el.children.find((c) => c.attrs.requiredExtensions === undefined);
+        const kid = pick ? convert(pick, i2) : null;
+        if (!kid) return null;
+        return { kind: "group", id, name: label, transform, opacity, children: [kid] };
+      }
       case "rect": {
-        const w = num(a.width, 0);
-        const h = num(a.height, 0);
+        const w = len(a.width, 0);
+        const h = len(a.height, 0);
         if (w <= 0 || h <= 0) return null;
-        let rx = a.rx !== undefined ? num(a.rx, 0) : a.ry !== undefined ? num(a.ry, 0) : 0;
-        let ry = a.ry !== undefined ? num(a.ry, 0) : rx;
+        let rx = a.rx !== undefined ? len(a.rx, 0) : a.ry !== undefined ? len(a.ry, 0) : 0;
+        let ry = a.ry !== undefined ? len(a.ry, 0) : rx;
         rx = Math.min(Math.max(0, rx), w / 2);
         ry = Math.min(Math.max(0, ry), h / 2);
-        const x = num(a.x, 0);
-        const y = num(a.y, 0);
+        const x = len(a.x, 0);
+        const y = len(a.y, 0);
         const st = style(i2, opacity);
         if (rx === ry) {
           return { kind: "rect", id: newId(), name: label, transform, style: st, x, y, w, h, rx };
@@ -445,8 +490,8 @@ export function parseSvg(src: string): ParseResult {
       }
       case "circle":
       case "ellipse": {
-        const rx = name === "circle" ? num(a.r, 0) : num(a.rx, 0);
-        const ry = name === "circle" ? rx : num(a.ry, 0);
+        const rx = name === "circle" ? len(a.r, 0) : len(a.rx, 0);
+        const ry = name === "circle" ? rx : len(a.ry, 0);
         if (rx <= 0 || ry <= 0) return null;
         return {
           kind: "ellipse",
@@ -454,8 +499,8 @@ export function parseSvg(src: string): ParseResult {
           name: label,
           transform,
           style: style(i2, opacity),
-          cx: num(a.cx, 0),
-          cy: num(a.cy, 0),
+          cx: len(a.cx, 0),
+          cy: len(a.cy, 0),
           rx,
           ry,
         };
@@ -469,7 +514,7 @@ export function parseSvg(src: string): ParseResult {
         });
         const sp: Subpath = {
           closed: false,
-          nodes: [corner(num(a.x1, 0), num(a.y1, 0)), corner(num(a.x2, 0), num(a.y2, 0))],
+          nodes: [corner(len(a.x1, 0), len(a.y1, 0)), corner(len(a.x2, 0), len(a.y2, 0))],
         };
         return pathNode([sp], newId(), label, transform, style(i2, opacity));
       }
@@ -479,6 +524,17 @@ export function parseSvg(src: string): ParseResult {
         const nodes = [];
         for (let i = 0; i + 1 < n.length; i += 2) {
           nodes.push({ p: { x: n[i], y: n[i + 1] }, in: null, out: null, type: "corner" as const });
+        }
+        // A closing point that repeats the first is the one `Z` makes implicit; a path's `Z`
+        // already merges it, and a polygon must too, or a reload would drop it (review L13).
+        const [first, last] = [nodes[0], nodes[nodes.length - 1]];
+        if (
+          name === "polygon" &&
+          nodes.length > 2 &&
+          Math.abs(first.p.x - last.p.x) <= 1e-6 &&
+          Math.abs(first.p.y - last.p.y) <= 1e-6
+        ) {
+          nodes.pop();
         }
         const sp: Subpath = { closed: name === "polygon", nodes };
         return pathNode([sp], newId(), label, transform, style(i2, opacity));

@@ -572,3 +572,75 @@ it("keeps an own-format layer's transform and opacity in a group, as for a forei
   expect(g.transform).toEqual([1, 0, 0, 1, 3, 4]);
   expect(r.dropped).toEqual([]);
 });
+
+/** Review M13 (2026-09-30): `<switch>` was an unknown element, so an Illustrator or draw.io file
+ *  whose whole drawing sits in one imported empty — while a browser renders it. */
+describe("<switch>", () => {
+  it("renders its first child whose conditions pass, as a browser does", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <switch opacity="0.5">
+        <foreignObject requiredExtensions="http://ns.adobe.com/AdobeIllustrator/10.0/"/>
+        <g><rect width="5" height="5"/></g>
+        <rect width="9" height="9"/>
+      </switch></svg>`);
+    expect(r.dropped).toEqual([]);
+    const [sw] = r.doc.layers[0].children;
+    expect(sw.kind).toBe("group");
+    if (sw.kind !== "group") return;
+    expect(sw.opacity).toBe(0.5);
+    expect(sw.children).toHaveLength(1);
+    expect(sw.children[0].kind).toBe("group");
+  });
+
+  it("an empty requiredExtensions fails too, and no passing child imports nothing", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <switch><rect requiredExtensions="" width="5" height="5"/></switch></svg>`);
+    expect(r.doc.layers[0].children).toEqual([]);
+    expect(r.dropped).toEqual([]);
+  });
+});
+
+/** Review L10 (2026-09-30): `currentColor` was always black; it is the inherited `color`. */
+it("resolves currentColor through the inherited color property", () => {
+  const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+    <g color="#ff0000"><rect width="5" height="5" fill="currentColor" style="color: blue"/>
+    <rect width="5" height="5" stroke="currentColor"/></g>
+    <rect width="5" height="5" fill="currentColor"/></svg>`);
+  const [g, top] = r.doc.layers[0].children;
+  if (g.kind !== "group") throw new Error("group expected");
+  expect(g.children[0].kind !== "group" && g.children[0].style.fill).toEqual({
+    color: "#0000ff",
+    opacity: 1,
+  });
+  expect(g.children[1].kind !== "group" && g.children[1].style.stroke).toEqual({
+    color: "#ff0000",
+    opacity: 1,
+  });
+  expect(top.kind !== "group" && top.style.fill).toEqual({ color: "#000000", opacity: 1 });
+});
+
+describe("review L11-L13 (2026-09-30)", () => {
+  const svg = (body: string) =>
+    parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">${body}</svg>`);
+
+  it("L11: reports a shape length in CSS units or a percentage; px and bare numbers are fine", () => {
+    expect(svg(`<rect width="5mm" height="5"/>`).dropped).toEqual(["lengths in CSS units"]);
+    expect(svg(`<circle r="10%"/>`).dropped).toEqual(["lengths in CSS units"]);
+    expect(svg(`<rect width="5px" height="5" x="1e2"/>`).dropped).toEqual([]);
+  });
+
+  it("L12: a path whose relative steps add up past the limit is dropped and reported", () => {
+    const r = svg(`<path d="M0 0 l9e8 0 l9e8 0"/>`);
+    expect(r.doc.layers[0].children).toEqual([]);
+    expect(r.dropped).toEqual(["invalid coordinates"]);
+    expect(svg(`<rect width="2e9" height="5"/>`).dropped).toEqual(["invalid coordinates"]);
+  });
+
+  it("L13: drops 1-node subpaths and merges a polygon's repeated closing point", () => {
+    const [p] = svg(`<path d="M0 0 L5 0 M7 7"/>`).doc.layers[0].children;
+    expect(p.kind === "path" && p.subpaths.map((s) => s.nodes.length)).toEqual([2]);
+    expect(svg(`<path d="M3 3"/>`).doc.layers[0].children).toEqual([]);
+    const [g] = svg(`<polygon points="0,0 10,0 10,10 0,0"/>`).doc.layers[0].children;
+    expect(g.kind === "path" && g.subpaths[0].nodes).toHaveLength(3);
+  });
+});
