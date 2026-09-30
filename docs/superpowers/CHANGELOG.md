@@ -3135,3 +3135,14 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   the menu with the rectangle selected; Brush and a Text tap on empty canvas created nothing.
   **Owed:** the iPad (checklist §1).
 
+## 2026-09-30 — The Pencil is remembered per device
+
+- **Reported on the iPad:** "Fingers select" works, but it seemed on initially although the button
+  showed off. Cause: "a Pencil has been seen" was page-local (`let pencilSeen` in `Canvas.svelte`),
+  so after every reload fingers were full tools until the Pencil touched the canvas again — the
+  pencil-seen rule, and so the toggle's "off", only applied from then on.
+- **Fix:** `prefs.pencilSeen`, set on the first Pencil press and remembered like the other prefs;
+  the rule applies from the first touch after a reload. A finger-only device never sets it. 1 new
+  test; 1328 tests in 88 files. Browser-checked: a Pencil press, a reload, then with the toggle off
+  a finger tap selected nothing and with it on the tap selected.
+

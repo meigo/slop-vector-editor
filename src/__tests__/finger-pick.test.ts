@@ -36,3 +36,14 @@ describe("finger picking", () => {
     expect(isFingerTap(at, { x: 100, y: 100, t: 1000 + FINGER_TAP_MS })).toBe(false);
   });
 });
+
+/** The Pencil is remembered per device (2026-09-30): the "Pencil seen" flag used to reset on every
+ *  reload, so until the Pencil touched the canvas again fingers were full tools, and the dock's
+ *  "Fingers select" toggle — shown off — did not describe what a finger did. */
+describe("pencilSeen preference", () => {
+  it("starts false and survives a reload once set", () => {
+    expect(DEFAULT_PREFS.pencilSeen).toBe(false);
+    expect(sanitizePrefs({ ...DEFAULT_PREFS, pencilSeen: true }).pencilSeen).toBe(true);
+    expect(sanitizePrefs({ pencilSeen: 1 }).pencilSeen).toBe(false);
+  });
+});
