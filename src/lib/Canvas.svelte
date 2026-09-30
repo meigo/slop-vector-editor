@@ -52,7 +52,7 @@
   function logPointer(line: string) {
     if (!debugPointers) return;
     const t = (performance.now() / 1000).toFixed(2);
-    pointerLog = [`${t} ${line}`, ...pointerLog].slice(0, 14);
+    pointerLog = [`${t} ${line}`, ...pointerLog].slice(0, 20);
   }
   /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
    *  a third finger is routed to "ignore" and never tracked below. */
@@ -305,6 +305,33 @@
       }
     }, tool.id);
   }
+
+  // `?debug`: the whole page, capture phase, raw touches too — whether a Pencil pressed while a
+  // finger is down produces any event at all, and of which kind.
+  $effect(() => {
+    if (!debugPointers) return;
+    const where = (t: EventTarget | null) =>
+      t instanceof Element ? `${t.tagName.toLowerCase()}${host.contains(t) ? "·canvas" : ""}` : "?";
+    const onDown = (e: PointerEvent) =>
+      logPointer(`page pointerdown ${e.pointerType}#${e.pointerId} on ${where(e.target)}`);
+    const touches = (e: TouchEvent, name: string) => {
+      const list = [...e.changedTouches]
+        .map((t) => `${(t as Touch & { touchType?: string }).touchType ?? "?"}#${t.identifier}`)
+        .join(",");
+      logPointer(`page ${name} [${list}] of ${e.touches.length} on ${where(e.target)}`);
+    };
+    const onTouchStart = (e: TouchEvent) => touches(e, "touchstart");
+    const onTouchEnd = (e: TouchEvent) => touches(e, "touchend");
+    const opts = { capture: true, passive: true } as const;
+    window.addEventListener("pointerdown", onDown, opts);
+    window.addEventListener("touchstart", onTouchStart, opts);
+    window.addEventListener("touchend", onTouchEnd, opts);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, opts);
+      window.removeEventListener("touchstart", onTouchStart, opts);
+      window.removeEventListener("touchend", onTouchEnd, opts);
+    };
+  });
 
   const movedLogged = new Set<number>();
   function onpointermove(e: PointerEvent) {
