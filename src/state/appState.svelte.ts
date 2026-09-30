@@ -24,6 +24,7 @@ import {
   convertToPath,
   deleteNodes,
   duplicateNodes,
+  enablePaint,
   flattenSkips,
   flattenTransform,
   setNodeHidden,
@@ -923,6 +924,14 @@ export function setSelectionStyle(patch: Partial<Style>): void {
   cancelActiveGesture();
   if (app.selection.length > 0) commitDoc(setStyle(app.doc, app.selection, patch));
   rememberStyle(patch);
+}
+
+/** Fill or Stroke "On" (review M23): the shapes with no paint in `slot` get `paint`; the others
+ *  keep theirs. */
+export function enableSelectionPaint(slot: PaintSlot, paint: Paint): void {
+  cancelActiveGesture();
+  if (app.selection.length > 0) commitDoc(enablePaint(app.doc, app.selection, slot, paint));
+  rememberStyle({ [slot]: paint });
 }
 
 export function setGradientTarget(which: PaintSlot): void {

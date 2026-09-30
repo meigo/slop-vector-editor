@@ -116,6 +116,26 @@ describe("the Text tool: entering and driving an edit", () => {
     expect(selects(state)).toEqual([]);
   });
 
+  /** Review M3 (2026-09-30): a pinch's first finger ended or switched the session on its press,
+   *  before the second finger made it a pinch. For touch, a leave or a switch waits for the lift. */
+  it("a touch press that becomes a pinch neither ends nor switches the session", () => {
+    const { ctx, state } = editing();
+    const t = createTextTool();
+    t.down(ctx, ev(300, 300, {}, "touch"));
+    t.cancel(ctx);
+    t.down(ctx, ev(50, 150, {}, "touch"));
+    t.cancel(ctx);
+    expect(state.textEdits).toEqual([]);
+    expect(state.fakeTextEdit?.id).toBe("t");
+    // A tap still does both, on the lift.
+    t.down(ctx, ev(50, 150, {}, "touch"));
+    t.up(ctx, ev(50, 150, {}, "touch"));
+    expect(state.textEdits).toEqual([{ op: "begin", id: "u", at: { x: 50, y: 150 } }]);
+    t.down(ctx, ev(300, 300, {}, "touch"));
+    t.up(ctx, ev(300, 300, {}, "touch"));
+    expect(state.textEdits.at(-1)).toEqual({ op: "end" });
+  });
+
   it("a click inside the edited title puts the caret at the index", () => {
     const { ctx, state } = editing("Tallinn", 1);
     state.fakeIndexAt = () => 4;

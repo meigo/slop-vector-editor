@@ -179,6 +179,22 @@ export function setStyle(doc: Doc, ids: readonly string[], patch: Partial<Style>
   );
 }
 
+/** A paint slot turned on (review M23): only the shapes with no paint there get `paint`, so
+ *  turning a mixed selection's Fill or Stroke on never repaints the shapes that already had one.
+ *  The same document when every shape already has one (invariant 1). */
+export function enablePaint(
+  doc: Doc,
+  ids: readonly string[],
+  slot: "fill" | "stroke",
+  paint: Fill,
+): Doc {
+  return mapNodes(doc, ids, (n) =>
+    mapShapes(n, (s) =>
+      s.style[slot] !== null ? s : { ...s, style: { ...s.style, [slot]: paint } },
+    ),
+  );
+}
+
 export function setRectRadius(doc: Doc, ids: readonly string[], rx: number): Doc {
   if (!Number.isFinite(rx)) return doc;
   return mapNodes(doc, ids, (n) => {

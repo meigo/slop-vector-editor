@@ -572,3 +572,30 @@ it("keeps an own-format layer's transform and opacity in a group, as for a forei
   expect(g.transform).toEqual([1, 0, 0, 1, 3, 4]);
   expect(r.dropped).toEqual([]);
 });
+
+/** Review M13 (2026-09-30): `<switch>` was an unknown element, so an Illustrator or draw.io file
+ *  whose whole drawing sits in one imported empty — while a browser renders it. */
+describe("<switch>", () => {
+  it("renders its first child whose conditions pass, as a browser does", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <switch opacity="0.5">
+        <foreignObject requiredExtensions="http://ns.adobe.com/AdobeIllustrator/10.0/"/>
+        <g><rect width="5" height="5"/></g>
+        <rect width="9" height="9"/>
+      </switch></svg>`);
+    expect(r.dropped).toEqual([]);
+    const [sw] = r.doc.layers[0].children;
+    expect(sw.kind).toBe("group");
+    if (sw.kind !== "group") return;
+    expect(sw.opacity).toBe(0.5);
+    expect(sw.children).toHaveLength(1);
+    expect(sw.children[0].kind).toBe("group");
+  });
+
+  it("an empty requiredExtensions fails too, and no passing child imports nothing", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <switch><rect requiredExtensions="" width="5" height="5"/></switch></svg>`);
+    expect(r.doc.layers[0].children).toEqual([]);
+    expect(r.dropped).toEqual([]);
+  });
+});

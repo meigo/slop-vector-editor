@@ -217,6 +217,30 @@ describe("pen: drawing a new path", () => {
 
   /** Review L5 (2026-09-30): the layer was checked only at the first press, so a layer locked or
    *  hidden while the draft was open still received the path. */
+  /** Review M3 (2026-09-30): a pinch's first finger placed a node before the second finger turned
+   *  it into a pinch, and the Pen's cancel keeps its draft (invariant 33) — so a stray node stayed. */
+  it("a cancelled touch press takes back the node it placed; the rest of the draft stays", () => {
+    const { ctx, state } = fakeContext(blank(), noSnap);
+    const tool = createPenTool();
+    tool.down(ctx, ev(10, 10, {}, "touch"));
+    tool.cancel?.(ctx);
+    expect(tool.busy?.()).toBe(false);
+    click(tool, ctx, 10, 10);
+    click(tool, ctx, 50, 10);
+    tool.down(ctx, ev(90, 90, {}, "touch"));
+    tool.cancel?.(ctx);
+    tool.keydown?.(ctx, "enter");
+    expect(paths(state.session.doc)[0].subpaths[0].nodes).toHaveLength(2);
+    // A mouse or Pencil cancel keeps the node it placed, as before.
+    const m = createPenTool();
+    const f = fakeContext(blank(), noSnap);
+    click(m, f.ctx, 10, 10);
+    m.down(f.ctx, ev(50, 10));
+    m.cancel?.(f.ctx);
+    m.keydown?.(f.ctx, "enter");
+    expect(paths(f.state.session.doc)[0].subpaths[0].nodes).toHaveLength(2);
+  });
+
   it("refuses to commit into a layer blocked while the draft was open", () => {
     const { ctx, state } = fakeContext(blank(), noSnap);
     const tool = createPenTool();

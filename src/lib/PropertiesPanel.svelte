@@ -22,6 +22,7 @@
     setSelectionPaintKind,
     setSelectionPolygon,
     setSelectionRectRadius,
+    enableSelectionPaint,
     setSelectionStyle,
   } from "../state/appState.svelte";
   import {
@@ -203,6 +204,7 @@
             midAuto={fillGrad?.midAuto ?? null}
             midPaint={fillGrad?.midPaint ?? null}
             onchange={(p) => setSelectionStyle({ fill: p })}
+            onenable={(p) => enableSelectionPaint("fill", p)}
             onkind={(k) => setSelectionPaintKind("fill", k)}
             onstop={(stop, p) => setSelectionGradientStop("fill", stop, p)}
             onmid={(m) => setSelectionGradientMid("fill", m)}
@@ -224,6 +226,7 @@
             midAuto={strokeGrad?.midAuto ?? null}
             midPaint={strokeGrad?.midPaint ?? null}
             onchange={(p) => setSelectionStyle({ stroke: p })}
+            onenable={(p) => enableSelectionPaint("stroke", p)}
             onkind={(k) => setSelectionPaintKind("stroke", k)}
             onstop={(stop, p) => setSelectionGradientStop("stroke", stop, p)}
             onmid={(m) => setSelectionGradientMid("stroke", m)}

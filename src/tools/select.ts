@@ -40,7 +40,9 @@ import {
 import { SNAP_45 } from "./shape-tools";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
-type Common = { start: ToolEvent; startSelection: readonly string[] };
+/** `startEntered` is the entered group at the press: a press outside it leaves it at once, and a
+ *  cancelled press — a pinch's first finger, review M3 — puts it back with the selection. */
+type Common = { start: ToolEvent; startSelection: readonly string[]; startEntered: string | null };
 type Pending = Common & {
   kind: "pending";
   hitId: string | null;
@@ -110,7 +112,7 @@ function startDrag(ctx: ToolContext, p: Pending): Mode {
   const doc = ctx.doc();
   const ids = ctx.selection();
   const snapping = ctx.snapEnabled();
-  const common = { start: p.start, startSelection: p.startSelection };
+  const common = { start: p.start, startSelection: p.startSelection, startEntered: p.startEntered };
   if (p.handle && p.frame) {
     ctx.beginGesture();
     if (p.handle === "rotate") {
@@ -266,6 +268,7 @@ export function createSelectTool(): Tool {
       ctx.endGesture();
     }
     ctx.setOverlay(null);
+    if (ctx.enteredGroupId() !== m.startEntered) ctx.setEnteredGroup(m.startEntered);
     ctx.setSelection(m.startSelection);
   }
 
@@ -277,6 +280,7 @@ export function createSelectTool(): Tool {
     down(ctx, e) {
       cancelMode(ctx);
       const sel = ctx.selection();
+      const startEntered = ctx.enteredGroupId();
       const doc = ctx.doc();
       const view = ctx.view();
       const frame = sel.length > 0 ? selectionFrame(doc, sel) : null;
@@ -313,6 +317,7 @@ export function createSelectTool(): Tool {
         kind: "pending",
         start: e,
         startSelection: sel,
+        startEntered,
         hitId,
         handle,
         frame,

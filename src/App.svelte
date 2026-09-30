@@ -28,6 +28,7 @@
     pasteText,
     restoreGoogleFonts,
   } from "./state/appState.svelte";
+  import { clampSidebarWidth } from "./lib/panel-layout";
   import { runCommand, runEditAction } from "./state/commands";
   import { commandForKey, editActionForKey, fieldPassesKey, type FieldScope } from "./state/keys";
 
@@ -36,8 +37,16 @@
   // Notices and the narrow-screen dock are fixed to the viewport, so they cannot see the sidebar's
   // width the way an in-flow sibling can. 12px is the gap the old 252px inset left beside a 240px
   // column.
+  let viewportPx = $state(window.innerWidth);
   $effect(() => {
-    document.documentElement.style.setProperty("--sidebar-inset", `${app.prefs.sidebarPx + 12}px`);
+    const onResize = () => (viewportPx = window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  });
+  $effect(() => {
+    // The width the sidebar shows: the pref clamped to this viewport, as `Sidebar` clamps it.
+    const px = clampSidebarWidth(app.prefs.sidebarPx, viewportPx);
+    document.documentElement.style.setProperty("--sidebar-inset", `${px + 12}px`);
   });
 
   // Autosave starts only after the restore attempt, so the empty startup document never

@@ -74,7 +74,9 @@ function constrain45(from: Vec, to: Vec): { p: Vec; axes: Axes } {
 
 export function createPenTool(): Tool {
   let draft: Draft | null = null;
-  let pulling: { start: Vec; dragging: boolean } | null = null;
+  /** The press that just placed a node, while it is held. `touch` because a touch press cancelled
+   *  by a second finger was never meant as a node — it was the first finger of a pinch. */
+  let pulling: { start: Vec; dragging: boolean; touch: boolean } | null = null;
   let lastTap: Tap | null = null;
   let lastTapPos: Vec | null = null;
   /** The last pointer seen, so the overlay can size the close tolerance between presses. */
@@ -275,7 +277,7 @@ export function createPenTool(): Tool {
       // writer's own merge tolerance would collapse on reload.
       if (last && coincident(p, last.p)) return;
       d.nodes.push({ p, in: null, out: null, type: "corner" });
-      pulling = { start: e.screen, dragging: false };
+      pulling = { start: e.screen, dragging: false, touch: e.pointerType === "touch" };
       paint(ctx, null);
     },
 
@@ -306,7 +308,20 @@ export function createPenTool(): Tool {
 
     /** A lost press must not cost the drawing (spec M4b §8): keep the draft. */
     cancel(ctx) {
+      // A touch press cancelled while held was the first finger of a pinch (review M3): take back
+      // the node it placed, and the draft with it if that was its only one. A mouse or Pencil
+      // press keeps its node — the draft is kept whole, as the spec says.
+      const took = pulling?.touch === true && draft !== null;
       pulling = null;
+      if (took && draft) {
+        draft.nodes.pop();
+        lastTap = null;
+        lastTapPos = null;
+        if (draft.pathId === null && draft.nodes.length === 0) {
+          reset(ctx);
+          return;
+        }
+      }
       if (draft) paint(ctx, null);
     },
 

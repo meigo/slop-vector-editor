@@ -67,17 +67,15 @@
   let gripStartPx = 0;
   /** The width being dragged right now; null when no drag is running and the pref rules. */
   let liveWidth = $state<number | null>(null);
-  const widthPx = $derived(liveWidth ?? app.prefs.sidebarPx);
-
+  let viewportPx = $state(window.innerWidth);
   /** A width stored on a wider screen, or left over from before the window shrank, would otherwise
    *  leave no canvas at all. The ceiling is half the viewport, and it can only be applied where the
-   *  viewport is known — here, not in `sanitizePrefs`. */
+   *  viewport is known — here, not in `sanitizePrefs`. It clamps what is SHOWN, never the pref
+   *  (review M18): saving the clamp made a portrait turn shrink the chosen width for good. */
+  const widthPx = $derived(liveWidth ?? clampSidebarWidth(app.prefs.sidebarPx, viewportPx));
+
   $effect(() => {
-    const onResize = () => {
-      const next = clampSidebarWidth(app.prefs.sidebarPx, window.innerWidth);
-      if (next !== app.prefs.sidebarPx) setPrefs({ ...app.prefs, sidebarPx: next });
-    };
-    onResize();
+    const onResize = () => (viewportPx = window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   });

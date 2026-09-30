@@ -427,6 +427,18 @@ export function parseSvg(src: string): ParseResult {
         if (kids.length === 0) return null;
         return { kind: "group", id, name: label, transform, opacity, children: kids };
       }
+      case "switch": {
+        // A browser renders only the first child whose conditions pass (review M13): Illustrator
+        // and draw.io put the whole drawing in one, after an alternative for their own
+        // extensions. We support no extension, so any `requiredExtensions` fails — an empty one
+        // too, per the spec — while `requiredFeatures` passes (SVG 2) and `systemLanguage` is
+        // taken as passing. The skipped alternatives are not content, so nothing is reported.
+        const id = newId();
+        const pick = el.children.find((c) => c.attrs.requiredExtensions === undefined);
+        const kid = pick ? convert(pick, i2) : null;
+        if (!kid) return null;
+        return { kind: "group", id, name: label, transform, opacity, children: [kid] };
+      }
       case "rect": {
         const w = num(a.width, 0);
         const h = num(a.height, 0);

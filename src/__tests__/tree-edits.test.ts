@@ -14,6 +14,7 @@ import {
   convertToPath,
   deleteNodes,
   duplicateNodes,
+  enablePaint,
   flattenTransform,
   rotateNodes,
   setPolygon,
@@ -170,6 +171,20 @@ describe("edits", () => {
     expect((a as RectShape).style.strokeWidth).toBe(3);
     expect(((g as Group).children[0] as RectShape).style.strokeWidth).toBe(3);
     expect((a as RectShape).style.stroke).toEqual(DEFAULT_STYLE.stroke);
+  });
+
+  /** Review M23 (2026-09-30): "On" over a mixed selection repainted every shape with the default,
+   *  replacing a red fill or a gradient. */
+  it("enablePaint paints only the shapes that have none in that slot", () => {
+    const red = { color: "#ff0000", opacity: 1 };
+    const grey = { color: "#808080", opacity: 1 };
+    const off = { ...rect("b"), style: { ...DEFAULT_STYLE, fill: null } };
+    const d = doc([{ children: [{ ...rect("a"), style: { ...DEFAULT_STYLE, fill: red } }, off] }]);
+    const s = enablePaint(d, ["a", "b"], "fill", grey);
+    const [a, b] = s.layers[0].children as RectShape[];
+    expect(a.style.fill).toEqual(red);
+    expect(b.style.fill).toEqual(grey);
+    expect(enablePaint(s, ["a", "b"], "fill", grey)).toBe(s);
   });
 
   it("sets a clamped rect radius", () => {
