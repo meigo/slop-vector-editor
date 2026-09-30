@@ -3163,3 +3163,15 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Also confirmed on the iPad: pinch zoom and pan; the palm rest while drawing. Still open: a Pencil
   stroke with fingers resting after the first Pencil touch — not reproduced here.
 
+## 2026-09-30 — `?debug` pointer log
+
+- **Investigating:** in Chrome on iPad, with the Brush, a finger first and then the Pencil does not
+  draw (the brush cursor stays where the Pencil touched); the Pencil first and then a finger works;
+  a new stroke without a finger works. Not reproduced with synthetic events in desktop Chrome (the
+  finger routes to pan, the Pencil takes over to the tool, as designed).
+- Opening the app with **`?debug`** in the address bar shows a panel (top left, ignores the pointer)
+  listing the last pointer events as the canvas saw them: pointer type and id, what
+  `routePointerDown` decided, the pointers already down, the running gesture and the tool; each
+  pointer's first move; ups and cancels with the DOM event that ended them. No effect without the
+  parameter.
+

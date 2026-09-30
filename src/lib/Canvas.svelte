@@ -44,6 +44,16 @@
   /** Once a Pencil has touched the canvas, fingers only navigate (spec §5). */
   /** Remembered per device (`prefs.pencilSeen`), so the finger rule holds after a reload too. */
   const pencilSeen = $derived(app.prefs.pencilSeen);
+  /** `?debug` in the address bar (2026-09-30): a panel listing the last pointer events as the canvas
+   *  saw them — type, id, what routing decided, the pointers already down — for device bugs that
+   *  synthetic events cannot reproduce (a Pencil over a resting finger in Chrome on iPad). */
+  const debugPointers = new URLSearchParams(location.search).has("debug");
+  let pointerLog = $state<string[]>([]);
+  function logPointer(line: string) {
+    if (!debugPointers) return;
+    const t = (performance.now() / 1000).toFixed(2);
+    pointerLog = [`${t} ${line}`, ...pointerLog].slice(0, 14);
+  }
   /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
    *  a third finger is routed to "ignore" and never tracked below. */
   const fingerTap = createFingerTap();
@@ -217,6 +227,9 @@
       pencilSeen,
       penActive: penGestureActive(),
     });
+    logPointer(
+      `down ${e.pointerType}#${e.pointerId} → ${route} (down: ${[...pointerTypes.entries()].map(([id, t]) => `${t}#${id}`).join(",") || "none"}; gesture ${gesture?.kind ?? "none"}; tool ${app.toolId})`,
+    );
     if (route === "ignore") return;
     // Only routed pointers set the handle size (a stray palm must not); right-click counts as mouse.
     app.lastPointerType = e.pointerType;
@@ -293,7 +306,12 @@
     }, tool.id);
   }
 
+  const movedLogged = new Set<number>();
   function onpointermove(e: PointerEvent) {
+    if (debugPointers && e.buttons !== 0 && !movedLogged.has(e.pointerId)) {
+      movedLogged.add(e.pointerId);
+      logPointer(`move ${e.pointerType}#${e.pointerId} (gesture ${gesture?.kind ?? "none"})`);
+    }
     if (e.pointerType === "touch") fingerTap.move(e.pointerId, { x: e.clientX, y: e.clientY });
     longPress.move(e.pointerId, { x: e.clientX, y: e.clientY });
     const p = local(e);
@@ -341,6 +359,7 @@
   }
 
   function endPointer(e: PointerEvent, cancelled: boolean) {
+    logPointer(`${cancelled ? "cancel" : "up"} ${e.pointerType}#${e.pointerId} (${e.type})`);
     longPress.end(e.pointerId);
     const pick = fingerPick?.id === e.pointerId ? fingerPick : null;
     if (pick) fingerPick = null;
@@ -547,4 +566,12 @@
     <Overlay />
   </svg>
   <TextEditField {width} {height} {pressing} />
+  {#if debugPointers}
+    <div
+      class="pointer-events-none absolute top-2 left-2 z-20 max-w-[92%] rounded bg-black/80 p-2 font-mono text-[10px] leading-tight text-white"
+    >
+      {#each pointerLog as line, i (i)}<div>{line}</div>{/each}
+      {#if pointerLog.length === 0}<div>pointer log — press on the canvas</div>{/if}
+    </div>
+  {/if}
 </div>
