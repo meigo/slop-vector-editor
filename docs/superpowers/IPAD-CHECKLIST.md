@@ -112,6 +112,8 @@ polish.
 - [ ] **P2** Sidebar: drag its width grip; drag the Layers/Properties divider; collapse and expand
       each panel; Properties opens with the Brush tool active.
 - [ ] **P2** Layers panel: drag rows to reorder and into groups; eye and lock toggles; the trash.
+- [ ] **P3** Double-tap the name of a hidden or locked object's row: it renames (a single tap still
+      does not select it).
 - [ ] **P2** Portrait (below 900 px): the sidebar becomes a drawer; the top bar never wraps or
       clips the File menu.
 - [ ] **P2** Menus (File, Edit, Select, Path, Object) open and close by tap; items work.

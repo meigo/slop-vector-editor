@@ -3209,3 +3209,14 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   zoom blocked; double tap enters a group; the Hand tool pans with a finger and the Pencil. §1
   (navigation and gestures) of the checklist is complete.
 
+## 2026-09-30 — A hidden or locked object's row can be renamed
+
+- **Reported on the iPad:** a hidden object's row could not be renamed. The panel's "blocked" guard
+  (a hidden or locked object, or one in a hidden or locked layer or group, cannot be selected —
+  invariant 39) also skipped the rename double-tap; layer rows were never blocked from renaming.
+- **Now:** a double-tap on a blocked object row's name renames it, while a single tap still does not
+  select it; the name's hint says why the row is greyed and that it can be renamed. 1 new test (the
+  rename edit on a hidden, locked object in a hidden layer); 1334 tests in 88 files. Browser-checked:
+  a hidden rectangle renamed by a real double-click, still hidden and unselected.
+- Also confirmed on the iPad: checklist §1 is complete.
+

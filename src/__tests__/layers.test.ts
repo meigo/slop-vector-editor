@@ -168,6 +168,27 @@ describe("moving and naming objects", () => {
     expect(renameNode(named, "a", "Logo")).toBe(named);
   });
 
+  it("renames a hidden or locked object, and one in a hidden layer (2026-09-30)", () => {
+    // Renaming does not touch the drawing, so the panel lets a blocked row be renamed even though
+    // it cannot be selected (invariant 39).
+    const d = doc(layer("A", ["a"]));
+    const kid = d.layers[0].children[0];
+    const hidden = {
+      ...d,
+      layers: [
+        {
+          ...d.layers[0],
+          visible: false,
+          children: [{ ...kid, hidden: true as const, locked: true as const }],
+        },
+      ],
+    };
+    const renamed = renameNode(hidden, "a", "Logo");
+    expect(renamed.layers[0].children[0].name).toBe("Logo");
+    expect(renamed.layers[0].children[0].hidden).toBe(true);
+    expect(renamed.layers[0].visible).toBe(false);
+  });
+
   it("labels every kind", () => {
     const base = { id: "x", transform: IDENTITY, style: DEFAULT_STYLE };
     expect(rowLabel({ ...base, kind: "ellipse", cx: 0, cy: 0, rx: 1, ry: 1 })).toBe("Ellipse");

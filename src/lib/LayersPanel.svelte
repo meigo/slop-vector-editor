@@ -263,14 +263,14 @@
         <button
           type="button"
           class="h-8 min-w-0 flex-1 truncate text-left"
-          title={blocked ? undefined : `Select “${rowLabel(node)}” — double-click to rename`}
+          title={blocked
+            ? `${nodeBlockedTitle(node, layer, inherited) ?? "Inside a hidden or locked group"} — double-click to rename`
+            : `Select “${rowLabel(node)}” — double-click to rename`}
           onclick={(e) => {
             if (editing) return;
             if (!blocked) selectFromPanel(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
           }}
-          onpointerup={(e) => {
-            if (!blocked) tapName("node", node.id, node.name ?? "", e);
-          }}
+          onpointerup={(e) => tapName("node", node.id, node.name ?? "", e)}
         >
           {rowLabel(node)}
         </button>
