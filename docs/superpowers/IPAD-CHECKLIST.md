@@ -26,12 +26,10 @@ polish.
       menu with that object selected; lifting the finger does **not** trigger a menu item; a tap on
       an item then works. Same with the Node tool (Delete node(s) in the menu). Same with the Pencil.
 - [x] **P1** After the Pencil has been used once, one finger pans (never draws or selects).
-- [ ] **P1** **Fingers select** (the pointing-finger button in the dock, next to Shift/Alt): on,
+- [x] **P1** **Fingers select** (the pointing-finger button in the dock, next to Shift/Alt): on,
       a quick finger tap selects and deselects after the Pencil has been used, a finger drag still
       pans, a finger long press opens the menu, and Brush/Pen/shapes never draw with a finger;
-      off (the default), fingers only navigate. The choice survives a reload. _On: confirmed.
-      Re-check: off, right after a reload (fixed 2026-09-30, `32beada` — touch the Pencil once
-      after updating first)._
+      off (the default), fingers only navigate. The choice survives a reload. _Both confirmed (off after a reload since `32beada`)._
 - [ ] **P1** Palm: rest the side of your hand on the glass while drawing with the Pencil — the
       stroke is not interrupted, the view does not jump, and lifting the palm does not undo.
 - [ ] **P2** A Pencil press over resting fingers takes over (the stroke starts, no pinch).

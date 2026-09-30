@@ -3145,4 +3145,6 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   the rule applies from the first touch after a reload. A finger-only device never sets it. 1 new
   test; 1328 tests in 88 files. Browser-checked: a Pencil press, a reload, then with the toggle off
   a finger tap selected nothing and with it on the tap selected.
+- Confirmed on the iPad: with "Fingers select" off, a finger tap selects nothing right after a
+  reload.
 
