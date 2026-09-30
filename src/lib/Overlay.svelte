@@ -11,7 +11,13 @@
   import { selectionRects } from "../text/edit";
   import { selectionFrame } from "../tools/frame";
   import { handleCorner } from "../tools/cage-handles";
-  import { activeHandles, frameOutline, handlePositions, handleSize } from "../tools/gizmo";
+  import {
+    frameOutline,
+    handleDrawSize,
+    handlePositions,
+    handleSize,
+    visibleHandles,
+  } from "../tools/gizmo";
   import { gradientHandles } from "../tools/gradient-handles";
 
   const LINE = "stroke: var(--color-accent); fill: none";
@@ -113,6 +119,8 @@
   );
   const enteredOutline = $derived(entered ? frameOutline(entered, view) : null);
   const size = $derived(handleSize(app.lastPointerType));
+  /** Drawn smaller than they reach on touch (2026-09-30); positions still use the reach basis. */
+  const drawSize = $derived(handleDrawSize(app.lastPointerType));
   const handles = $derived(frame ? handlePositions(frame, view, size) : null);
   const marquee = $derived(app.overlay?.kind === "marquee" ? app.overlay.box : null);
   const marqueeA = $derived(marquee ? docToScreen(view, { x: marquee.x, y: marquee.y }) : null);
@@ -335,15 +343,15 @@
       style={LINE}
       stroke-width="1"
     />
-    {@render knobHalo({ t: "circle", c: handles.rotate, r: size / 2 })}
-    <circle cx={handles.rotate.x} cy={handles.rotate.y} r={size / 2} style={KNOB} />
-    {#each activeHandles(frame) as h (h)}
-      {@render knobHalo({ t: "rect", c: handles[h], half: size / 2 })}
+    {@render knobHalo({ t: "circle", c: handles.rotate, r: drawSize / 2 })}
+    <circle cx={handles.rotate.x} cy={handles.rotate.y} r={drawSize / 2} style={KNOB} />
+    {#each visibleHandles(frame, view, size) as h (h)}
+      {@render knobHalo({ t: "rect", c: handles[h], half: drawSize / 2 })}
       <rect
-        x={handles[h].x - size / 2}
-        y={handles[h].y - size / 2}
-        width={size}
-        height={size}
+        x={handles[h].x - drawSize / 2}
+        y={handles[h].y - drawSize / 2}
+        width={drawSize}
+        height={drawSize}
         style={KNOB}
       />
     {/each}

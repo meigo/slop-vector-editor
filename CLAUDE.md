@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1328 tests in 88 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1333 tests in 88 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -245,7 +245,11 @@ every user-visible change.
     shows the true geometry while only the handles move out. Only a non-zero axis is expanded: a
     zero-size axis keeps its handles coincident, which is what leaves a horizontal/vertical line
     draggable by its middle (`activeHandles`). Drawing and hit-testing read the same padded
-    positions, so they can't disagree. The resize maths are unaffected, and must stay that way:
+    positions, so they can't disagree. **Drawn smaller than they reach** (2026-09-30): `handleSize` is the reach
+    basis (unchanged — 16 for touch keeps the 10px grab and the push-outside span), `handleDrawSize`
+    how big a knob is drawn (8 mouse, 10 touch). `visibleHandles` drops a side's midpoint when that
+    side is shorter on screen than room for four reaches, and `handleAt` then lets that whole edge
+    line grab; measured on the drawn positions, so zooming in brings the midpoints back. The resize maths are unaffected, and must stay that way:
     `handleFramePoint` keeps receiving the **unpadded** `frame.box` in `select.ts`, so `grab` is
     the true handle point minus the press point — and that offset is exactly what carries a press
     on a pushed-out handle back to the true corner. Padding the box there would zero the offset and

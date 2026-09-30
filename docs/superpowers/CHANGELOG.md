@@ -3148,3 +3148,18 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Confirmed on the iPad: with "Fingers select" off, a finger tap selects nothing right after a
   reload.
 
+## 2026-09-30 — Handles no longer hide a small object on touch
+
+- **Reported with a screenshot:** a small title's eight touch handles (drawn at their 16px reach
+  basis, plus the contrast rings) covered the word — worse zoomed out, fine zoomed in.
+- **Now:** knobs are drawn smaller than they reach — `handleDrawSize` (10 for touch, 8 for a mouse
+  as before), while `handleSize` stays the reach basis, so nothing is harder to hit. And
+  `visibleHandles` drops a side's midpoint when that side is shorter on screen than room for four
+  reaches (80px touch, 48px mouse); `handleAt` then grabs the whole edge line for it, as Figma's
+  frame edges do. Both are screen-sized, so zooming in brings the midpoints back. A line's end
+  midpoints (which sat on its corners, and never won against them) are no longer drawn.
+- 5 new tests; 1333 tests in 88 files. Browser-checked: an 86×45px rectangle shows smaller knobs
+  and no side midpoints; a 270×135px one shows all eight, smaller. **Owed:** the iPad.
+- Also confirmed on the iPad: pinch zoom and pan; the palm rest while drawing. Still open: a Pencil
+  stroke with fingers resting after the first Pencil touch — not reproduced here.
+

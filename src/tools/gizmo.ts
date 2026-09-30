@@ -12,8 +12,17 @@ export const ROTATE_OFFSET = 24;
 export const MIN_SIZE = 0.01;
 export const ROTATE_SNAP = Math.PI / 12;
 
+/** The basis of a handle's REACH (`reachOf`) and of the push-outside rule — 16 for touch keeps a
+ *  finger's 10px grab. Not how big it is drawn: see `handleDrawSize`. */
 export function handleSize(pointerType: string): number {
   return pointerType === "mouse" ? 8 : 16;
+}
+
+/** How big a handle is DRAWN (2026-09-30). Touch handles drawn at their 16px reach basis covered a
+ *  small object on screen; drawn at 10 they grab exactly as before — the reach is invisible, as in
+ *  Procreate, Figma and Affinity on iPad. A mouse's are unchanged. */
+export function handleDrawSize(pointerType: string): number {
+  return pointerType === "mouse" ? 8 : 10;
 }
 
 export function handleFramePoint(h: ResizeHandle, b: Box): Vec {
@@ -71,14 +80,54 @@ export function activeHandles(f: Frame): readonly ResizeHandle[] {
   });
 }
 
+/** The two corners each edge midpoint sits between. */
+const EDGE: Readonly<Record<"n" | "e" | "s" | "w", [ResizeHandle, ResizeHandle]>> = {
+  n: ["nw", "ne"],
+  e: ["ne", "se"],
+  s: ["se", "sw"],
+  w: ["sw", "nw"],
+};
+
+const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** The resize handles to draw and hit-test at this zoom (2026-09-30): `activeHandles`, minus the
+ *  midpoint of any side shorter on screen than room for four reaches — there it only covered the
+ *  object. `handleAt` then lets that whole edge line grab instead. Measured on the positions as
+ *  drawn (pushed out for a tiny object), so zooming in brings the midpoints back. */
+export function visibleHandles(f: Frame, view: View, size: number): readonly ResizeHandle[] {
+  const pos = handlePositions(f, view, size);
+  const room = 4 * 2 * reachOf(size);
+  return activeHandles(f).filter((h) => {
+    if (!(h in EDGE)) return true;
+    const [a, b] = EDGE[h as keyof typeof EDGE];
+    return dist(pos[a], pos[b]) >= room;
+  });
+}
+
+/** Distance from `p` to the segment a–b. */
+function toSegment(p: Vec, a: Vec, b: Vec): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return dist(p, { x: a.x + dx * t, y: a.y + dy * t });
+}
+
 export function handleAt(f: Frame, view: View, screen: Vec, size: number): Handle | null {
   const pos = handlePositions(f, view, size);
   const reach = reachOf(size);
-  const active: readonly Handle[] = activeHandles(f);
+  const active = activeHandles(f);
+  const visible: readonly Handle[] = visibleHandles(f, view, size);
   for (const h of PRIORITY) {
-    if (h !== "rotate" && !active.includes(h)) continue;
+    if (h !== "rotate" && !visible.includes(h)) continue;
     const p = pos[h];
     if (Math.abs(p.x - screen.x) <= reach && Math.abs(p.y - screen.y) <= reach) return h;
+  }
+  // A midpoint hidden on a short side: its whole edge line grabs, as a frame edge does in Figma.
+  for (const h of ["n", "e", "s", "w"] as const) {
+    if (!active.includes(h) || visible.includes(h)) continue;
+    const [a, b] = EDGE[h];
+    if (toSegment(screen, pos[a], pos[b]) <= reach) return h;
   }
   return null;
 }
