@@ -33,6 +33,9 @@ What works today:
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
   and three to redo.
 - Context menu: right-click with a mouse, or press and hold with a finger or the Pencil.
+- On iPad, once the Pencil has been used a finger only pans and zooms (so a resting finger never
+  draws or selects). The pointing-finger button in the modifier dock ("Fingers select") lets a
+  quick finger tap select again with the Select, Node, Text and Gradient tools.
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width;

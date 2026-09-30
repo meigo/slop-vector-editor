@@ -32,6 +32,7 @@ describe("preferences", () => {
     },
     polygon: { sides: 7, star: true, innerRatio: 0.3 },
     snap: false,
+    fingerSelect: true,
     dockExpanded: true,
     splitRatio: 0.3,
     layersOpen: false,

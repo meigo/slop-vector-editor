@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight } from "@lucide/svelte";
+  import { ChevronLeft, ChevronRight, Pointer } from "@lucide/svelte";
   import { dockDown, dockUp, type DockPress } from "../input/dock";
   import { app, setDock, setPrefs, toggleSnap, type DockState } from "../state/appState.svelte";
 
@@ -63,6 +63,25 @@
     Snap
   </button>
   {#if expanded}
+    <!-- "Fingers select" (input/finger-pick.ts). Once the Pencil has been used, one finger only
+         navigates; on, a quick finger tap still picks. A setting, like Snap, so it is a plain
+         toggle — never held like Shift and Alt. -->
+    <button
+      class={[
+        "flex h-10 w-14 items-center justify-center rounded border border-line select-none",
+        app.prefs.fingerSelect && "ui-on",
+      ]}
+      style="touch-action: none"
+      aria-pressed={app.prefs.fingerSelect}
+      aria-label="Fingers select"
+      title={app.prefs.fingerSelect
+        ? "Fingers select — after the Pencil, a finger tap still picks; tap to make fingers navigate only"
+        : "Fingers navigate only after the Pencil — tap to let a finger tap select"}
+      onclick={() => setPrefs({ ...app.prefs, fingerSelect: !app.prefs.fingerSelect })}
+      onpointerdown={(e) => e.preventDefault()}
+    >
+      <Pointer size={18} />
+    </button>
     {#each KEYS as key (key)}
       <button
         class={[

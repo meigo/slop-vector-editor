@@ -3115,3 +3115,23 @@ clear on replace); not browser-checked. 843 tests in 63 files.
 - Also confirmed: a slow two-finger tap and one with sliding fingers do not undo. The finger-tap
   rules (ported from slop-paint) hold on the device.
 
+## 2026-09-30 — "Fingers select", a dock toggle
+
+- **Reported on the iPad:** after selecting with the Pencil, a finger could not select anymore.
+  That was the pencil-seen rule (invariant 16): once a Pencil touches the canvas, one finger only
+  navigates (Procreate's convention), so a resting finger never draws or picks — with no exception
+  for taps, and it also silently took away the finger long press.
+- **Chosen in discussion:** a setting rather than changing the rule, since a tap-selects rule is not
+  fully accident-proof and a hidden rule confuses. `prefs.fingerSelect`, **off by default**, a
+  pointing-finger toggle in the modifier dock's expandable part (beside Shift and Alt, which open
+  on the first touch). On: after the Pencil, a quick still finger tap (under 500 ms, within 10 px)
+  is a click for the Select, Node, Gradient and Text tools (Text only on a title or to end an edit
+  — a finger never creates), a finger drag still pans, a finger long press opens the menu, and no
+  drawing tool ever gets a finger. `src/input/finger-pick.ts` holds the rule; `Canvas.svelte`
+  hands the tap to the tool as a down+up after restoring the few pixels it panned.
+- 3 new tests; 1327 tests in 88 files. Browser-checked (desktop Chrome, synthetic pen + touch):
+  off — a finger tap after the Pencil selected nothing; on — a tap selected the rectangle and a tap
+  on empty canvas deselected; a finger drag panned without selecting; a finger long press opened
+  the menu with the rectangle selected; Brush and a Text tap on empty canvas created nothing.
+  **Owed:** the iPad (checklist §1).
+
