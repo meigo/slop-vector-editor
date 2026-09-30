@@ -16,6 +16,8 @@ import {
   handleAt,
   handlePositions,
   handleSize,
+  handleDrawSize,
+  visibleHandles,
   normalizeAngle,
   rotateDelta,
 } from "../tools/gizmo";
@@ -351,5 +353,51 @@ describe("rotation", () => {
     const p = { x: Math.cos(0.5) * 10, y: Math.sin(0.5) * 10 };
     const snapped = rotateDelta(c, { x: 10, y: 0 }, p, 0.1, true);
     expect(0.1 + snapped).toBeCloseTo(Math.PI / 6);
+  });
+});
+
+/** Handles that hid small objects on touch (2026-09-30): drawn smaller than they reach, and the
+ *  edge midpoints dropped on a side too short for them — the edge line itself then grabs. */
+describe("handles on a small object on screen", () => {
+  it("are drawn smaller than they reach on touch, unchanged for a mouse", () => {
+    expect(handleDrawSize("mouse")).toBe(8);
+    expect(handleDrawSize("touch")).toBe(10);
+    expect(handleDrawSize("pen")).toBe(10);
+    expect(handleSize("touch")).toBe(16); // the reach basis is unchanged
+  });
+
+  it("drop a side's midpoint when that side is short on screen, and bring it back zoomed in", () => {
+    const f = { angle: 0, box: { x: 0, y: 0, w: 85, h: 45 } }; // the reported title, roughly
+    // Touch: room for four 20px reaches is 80px — 85 keeps n/s, 45 drops e/w.
+    expect(visibleHandles(f, view, 16)).toEqual(["nw", "n", "ne", "se", "s", "sw"]);
+    const zoomed = { x: 0, y: 0, zoom: 2 };
+    expect(visibleHandles(f, zoomed, 16)).toEqual(["nw", "n", "ne", "e", "se", "s", "sw", "w"]);
+    // A mouse needs less room (48px): a 50px side keeps its midpoint, where touch's 80px drops it.
+    const f50 = { angle: 0, box: { x: 0, y: 0, w: 85, h: 50 } };
+    expect(visibleHandles(f50, view, 8)).toEqual(["nw", "n", "ne", "e", "se", "s", "sw", "w"]);
+    expect(visibleHandles(f50, view, 16)).toEqual(["nw", "n", "ne", "se", "s", "sw"]);
+  });
+
+  it("draws only the corners of a line: its end midpoints sat on the corners, which win anyway", () => {
+    const line = { angle: 0, box: { x: 0, y: 10, w: 100, h: 0 } };
+    expect(visibleHandles(line, view, 8)).toEqual(["nw", "ne", "se", "sw"]);
+    expect(handleAt(line, view, { x: 100, y: 10 }, 8)).toBe("ne");
+    expect(handleAt(line, view, { x: 50, y: 10 }, 8)).toBeNull(); // the middle still drags
+  });
+
+  it("grab a hidden midpoint's edge line anywhere along it, corners first", () => {
+    const f = { angle: 0, box: { x: 0, y: 0, w: 85, h: 45 } };
+    expect(handleAt(f, view, { x: 85, y: 22 }, 16)).toBe("e"); // where the e handle was
+    expect(handleAt(f, view, { x: 87, y: 30 }, 16)).toBe("e"); // along the edge
+    expect(handleAt(f, view, { x: -3, y: 15 }, 16)).toBe("w");
+    expect(handleAt(f, view, { x: 84, y: 44 }, 16)).toBe("se"); // a corner wins
+    expect(handleAt(f, view, { x: 42, y: 22 }, 16)).toBeNull(); // the middle still moves
+  });
+
+  it("follow a rotated frame's edge", () => {
+    const f = { angle: Math.PI / 2, box: { x: 0, y: 0, w: 85, h: 45 } };
+    const p = handlePositions(f, view, 16);
+    const mid = { x: (p.ne.x + p.se.x) / 2, y: (p.ne.y + p.se.y) / 2 };
+    expect(handleAt(f, view, mid, 16)).toBe("e");
   });
 });

@@ -15,7 +15,7 @@ polish.
 
 ## 1. Navigation and gestures
 
-- [ ] **P1** Two-finger pinch zooms and pans smoothly; letting go leaves nothing selected or moved.
+- [x] **P1** Two-finger pinch zooms and pans smoothly; letting go leaves nothing selected or moved.
 - [x] **P1** Two-finger **tap** undoes.
 - [x] **P1** Three-finger tap redoes. (Watch for iPadOS taking three fingers for its own edit
       menu.)
@@ -30,9 +30,11 @@ polish.
       a quick finger tap selects and deselects after the Pencil has been used, a finger drag still
       pans, a finger long press opens the menu, and Brush/Pen/shapes never draw with a finger;
       off (the default), fingers only navigate. The choice survives a reload. _Both confirmed (off after a reload since `32beada`)._
-- [ ] **P1** Palm: rest the side of your hand on the glass while drawing with the Pencil — the
+- [x] **P1** Palm: rest the side of your hand on the glass while drawing with the Pencil — the
       stroke is not interrupted, the view does not jump, and lifting the palm does not undo.
 - [ ] **P2** A Pencil press over resting fingers takes over (the stroke starts, no pinch).
+      _Reported: draws on a fresh reload, but after the first Pencil touch it does not draw with
+      finger(s) down — not reproduced in desktop Chrome; which tool, and what happens instead?_
 - [ ] **P2** Double tap (finger and Pencil) enters a group / opens a path in the Node tool / enters
       text editing on a title.
 - [ ] **P3** The Hand tool pans with a finger and with the Pencil.
@@ -44,6 +46,8 @@ polish.
       freely; edge handles stretch one way. Handles are easy to hit with a finger (14 px reach).
 - [ ] **P1** A title resized from a corner stays **editable text**.
 - [ ] **P2** Small objects: handles move outside so the middle is still draggable.
+- [ ] **P1** Handles on a small title/object no longer hide it: smaller knobs (same reach), no
+      side midpoints on a short side — drag that edge line instead; zoom in and they return.
 - [ ] **P2** Rotate knob by finger and Pencil; Shift latched snaps to 15°.
 - [ ] **P2** Modifier dock: Shift/Alt latch on tap, stay latched, unlatch on tap; with Shift
       latched a tap on empty canvas still clears the selection.
