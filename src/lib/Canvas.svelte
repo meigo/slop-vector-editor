@@ -16,6 +16,7 @@
     openContextMenu,
     registerGestureCancel,
     setOverlay,
+    setPrefs,
     setView,
     setViewportSize,
     undo,
@@ -41,7 +42,8 @@
   let height = $state(0);
   let gesture = $state.raw<Gesture | null>(null);
   /** Once a Pencil has touched the canvas, fingers only navigate (spec §5). */
-  let pencilSeen = false;
+  /** Remembered per device (`prefs.pencilSeen`), so the finger rule holds after a reload too. */
+  const pencilSeen = $derived(app.prefs.pencilSeen);
   /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
    *  a third finger is routed to "ignore" and never tracked below. */
   const fingerTap = createFingerTap();
@@ -201,7 +203,8 @@
     } else {
       fingerTap.spoil();
     }
-    if (e.pointerType === "pen") pencilSeen = true;
+    if (e.pointerType === "pen" && !app.prefs.pencilSeen)
+      setPrefs({ ...app.prefs, pencilSeen: true });
     let activeTouches = 0;
     for (const t of pointerTypes.values()) if (t === "touch") activeTouches++;
     const route = routePointerDown({
