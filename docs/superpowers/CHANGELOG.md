@@ -3205,4 +3205,7 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   turned out to be iPadOS's own accessibility Zoom, toggled by a three-finger double tap — outside
   the page, easy to hit while testing the three-finger redo; noted in the checklist.)
 - Confirmed on the iPad: the page no longer zooms (pinch or double tap outside the canvas).
+- Also confirmed: a double-tapped layer name still renames and the panels still scroll with page
+  zoom blocked; double tap enters a group; the Hand tool pans with a finger and the Pencil. §1
+  (navigation and gestures) of the checklist is complete.
 
