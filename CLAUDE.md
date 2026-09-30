@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1324 tests in 87 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1327 tests in 88 files. Only pure logic is unit-tested.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 
@@ -109,7 +109,12 @@ every user-visible change.
   `registerToolDiscard`; tests use `__tests__/fake-context.ts`).
 - `src/input/` — `route.ts` (`routePointerDown`: tool vs. pan vs. pinch vs. menu vs. ignore, from
   pointer type/button/active pointers), `dock.ts` (on-screen Shift/Alt latch state machine),
-  `double-tap.ts` (pure double-tap/double-click detection), `long-press.ts` (`createLongPress`, the touch/Pencil context menu), `finger-tap.ts` (`createFingerTap`:
+  `double-tap.ts` (pure double-tap/double-click detection), `long-press.ts` (`createLongPress`, the touch/Pencil context menu), `finger-pick.ts` (`fingerPicks`, `isFingerTap` — "Fingers select", the dock's
+  toggle `prefs.fingerSelect`, off by default, 2026-09-30: once a Pencil has been seen a finger is
+  routed to "pan"; with the toggle on, `Canvas.svelte` keeps that pan's start and hands a quick,
+  still tap to the Select/Node/Gradient/Text tool as a down+up — the Text tool only when it lands
+  on a title or ends an edit, since a finger never creates — restoring the view the tap panned;
+  the same pan arms a finger long press), `finger-tap.ts` (`createFingerTap`:
   two-finger tap = undo, three = redo — ported from slop-paint's `touch-gestures.ts`, same rules:
   reported on the last lift, no finger past 15 px, the last finger down under 300 ms, 100 ms
   debounce; plus `spoil()`, which `Canvas.svelte` calls when a Pencil or mouse is involved, so a

@@ -13,6 +13,9 @@ export type Prefs = {
   style: FlatStyle;
   polygon: PolygonPrefs;
   snap: boolean;
+  /** "Fingers select", the dock's toggle (2026-09-30): after the Pencil has been used, a quick
+   *  finger tap still picks with the Select, Node, Text and Gradient tools. Off by default. */
+  fingerSelect: boolean;
   /** The modifier dock's Shift and Alt latches. `null` means nobody has decided yet, so the dock
    *  may expand itself the first time a finger or a Pencil is used; once it is true or false, that
    *  was a decision — by the user or by that first touch — and nothing overrides it again. */
@@ -56,6 +59,7 @@ export const DEFAULT_PREFS: Prefs = {
   style: DEFAULT_STYLE,
   polygon: { sides: 5, star: false, innerRatio: 0.5 },
   snap: true,
+  fingerSelect: false,
   dockExpanded: null,
   splitRatio: 0.55,
   layersOpen: true,
@@ -103,6 +107,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
       innerRatio: num(p.innerRatio, 0.1, 0.95, d.polygon.innerRatio),
     },
     snap: typeof r.snap === "boolean" ? r.snap : d.snap,
+    fingerSelect: typeof r.fingerSelect === "boolean" ? r.fingerSelect : d.fingerSelect,
     dockExpanded: typeof r.dockExpanded === "boolean" ? r.dockExpanded : d.dockExpanded,
     // Any fraction of the column is legal here; how small a panel may actually get is a question
     // about pixels, and `clampRatio` is the one that knows the column's height. A window range

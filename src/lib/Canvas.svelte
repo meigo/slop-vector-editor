@@ -3,6 +3,9 @@
   import type { Vec } from "../geom/vec";
   import { createFingerTap } from "../input/finger-tap";
   import { createLongPress } from "../input/long-press";
+  import { fingerPicks, isFingerTap } from "../input/finger-pick";
+  import { findNode } from "../doc/tree";
+  import { hitTest } from "../geom/hit";
   import { routePointerDown } from "../input/route";
   import {
     app,
@@ -21,7 +24,7 @@
   import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
   import { storeContext } from "../tools/context";
   import { TOOLS } from "../tools/registry";
-  import type { Tool, ToolEvent } from "../tools/tool";
+  import { pointerTolerance, type Tool, type ToolEvent } from "../tools/tool";
   import NodeView from "./NodeView.svelte";
   import Overlay from "./Overlay.svelte";
   import TextEditField from "./TextEditField.svelte";
@@ -47,6 +50,17 @@
    *  began — a pending select or drag is rolled back — and swallows the click the lift then makes,
    *  which would otherwise land on the menu item that opened under the finger. */
   let swallowClickUntil = 0;
+  /** "Fingers select" (`input/finger-pick.ts`): a finger pan that may turn out to be a tap, kept
+   *  with the view it started from and the press, so the tap can be handed to the tool as a click
+   *  as if the finger had never panned. */
+  let fingerPick: {
+    id: number;
+    x: number;
+    y: number;
+    t: number;
+    view: typeof app.view;
+    down: PointerEvent;
+  } | null = null;
   const longPress = createLongPress((client) => {
     const r = host.getBoundingClientRect();
     const at = screenToDoc(app.view, { x: client.x - r.left, y: client.y - r.top });
@@ -55,6 +69,8 @@
       registerGestureCancel(null);
     }
     gesture = null;
+    // A finger in "Fingers select" mode: the lift is not a tap as well.
+    fingerPick = null;
     if (openContextMenu(at, client, app.lastPointerType)) {
       swallowClickUntil = performance.now() + 1000;
     }
@@ -238,6 +254,7 @@
     pointerTypes.set(e.pointerId, e.pointerType);
     if (route === "pinch") {
       longPress.cancel();
+      fingerPick = null;
       if (gesture?.kind === "tool") {
         gesture.tool.cancel(storeContext);
         registerGestureCancel(null);
@@ -247,6 +264,16 @@
     }
     if (route === "pan") {
       gesture = { kind: "pan", pointerId: e.pointerId };
+      // Only the pan a Pencil-seen finger gets: a Space-held or Hand-tool pan is a pan by choice.
+      fingerPick =
+        e.pointerType === "touch" &&
+        pencilSeen &&
+        app.prefs.fingerSelect &&
+        !app.spaceHeld &&
+        fingerPicks(app.toolId)
+          ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, view: app.view, down: e }
+          : null;
+      if (fingerPick) longPress.start(e.pointerId, { x: e.clientX, y: e.clientY });
       return;
     }
     const tool = TOOLS[app.toolId];
@@ -288,8 +315,32 @@
     }
   }
 
+  /** A finger tap in "Fingers select" mode, delivered to the tool as a click. The Text tool only
+   *  gets one that lands on a title or ends an edit: a tap on empty canvas would place a title, and
+   *  a finger never creates. */
+  function deliverFingerTap(pick: NonNullable<typeof fingerPick>, e: PointerEvent) {
+    // Undo the few pixels the tap panned, so the click lands where the finger touched.
+    if (app.view !== pick.view) setView(pick.view);
+    const tool = TOOLS[app.toolId];
+    const down = toolEvent(pick.down);
+    if (app.toolId === "text" && !app.textEdit) {
+      const hit = hitTest(
+        app.doc,
+        down.doc,
+        pointerTolerance("touch") / app.view.zoom,
+        app.enteredGroupId,
+      );
+      const n = hit ? findNode(app.doc, hit.nodeId)?.node : null;
+      if (!(n?.kind === "path" && n.text)) return;
+    }
+    tool.down(storeContext, down);
+    tool.up(storeContext, toolEvent(e));
+  }
+
   function endPointer(e: PointerEvent, cancelled: boolean) {
     longPress.end(e.pointerId);
+    const pick = fingerPick?.id === e.pointerId ? fingerPick : null;
+    if (pick) fingerPick = null;
     if (!pointers.has(e.pointerId)) return;
     const g = gesture;
     if (g && g.kind !== "pinch" && g.pointerId === e.pointerId) {
@@ -304,6 +355,15 @@
     pointerTypes.delete(e.pointerId);
     if (pointers.size === 0) gesture = null;
     lastPointerEnd = performance.now();
+    // Only a lone finger that stayed a tap: a second finger (a pinch) cleared `fingerPick` below.
+    if (
+      pick &&
+      !cancelled &&
+      pointers.size === 0 &&
+      isFingerTap(pick, { x: e.clientX, y: e.clientY, t: e.timeStamp })
+    ) {
+      deliverFingerTap(pick, e);
+    }
   }
 
   /** A file dropped on the canvas is imported like File ▸ Import SVG… (2026-09-30). Without these,
