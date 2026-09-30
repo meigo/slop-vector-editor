@@ -3200,4 +3200,8 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   win — checked computed: a layer name `manipulation`, the canvas `none`, a NumberField `pan-y`, the
   sidebar grip `none`. **Owed:** the iPad (checklist §1).
 - Also confirmed on the iPad: double tap opens a path in the Node tool and enters title editing.
+- **Tightened:** `pan-x pan-y` instead of `manipulation`, so a pinch over the panels cannot zoom the
+  page either — only the canvas zooms, and it zooms the drawing. (A stuck zoom reported right after
+  turned out to be iPadOS's own accessibility Zoom, toggled by a three-finger double tap — outside
+  the page, easy to hit while testing the three-finger redo; noted in the checklist.)
 
