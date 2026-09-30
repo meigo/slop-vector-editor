@@ -626,9 +626,14 @@
   </div>
 
   <!-- Unsaved = recoloured name, never an inserted glyph (guide §5: state must not move layout). -->
-  <span class={["ml-1 min-w-0 truncate", app.dirty && "text-accent"]} title={app.fileName}>
+  <!-- Tapping the name opens Document settings, where it is renamed (2026-09-30). -->
+  <button
+    class={["ml-1 min-w-0 truncate text-left hover:underline", app.dirty && "text-accent"]}
+    title={`${app.fileName} — rename in Document settings`}
+    onclick={() => dialog("settings")}
+  >
     {app.fileName}{#if app.dirty}<span class="sr-only">, unsaved changes</span>{/if}
-  </span>
+  </button>
 
   <span class="bar-sep"></span>
   <IconButton

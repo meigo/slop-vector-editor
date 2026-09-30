@@ -8,6 +8,7 @@ import {
   replaceDocument,
   reportDelivery,
 } from "../state/appState.svelte";
+import { DEFAULT_NAME, svgFileName } from "../state/doc-name";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 import { loadAutosave, type AutosaveRecord } from "./autosave";
@@ -16,8 +17,8 @@ import { errorMessage } from "./errors";
 import { pickSvgFile, writeSvgFile } from "./file-io";
 import { saveToFilesAvailable } from "./share";
 
-export function createNewDocument(w: number, h: number): void {
-  replaceDocument(createDoc(w, h), "Untitled.svg", null, true);
+export function createNewDocument(w: number, h: number, name = DEFAULT_NAME): void {
+  replaceDocument(createDoc(w, h), svgFileName(name), null, true);
 }
 
 export async function openDocument(): Promise<void> {

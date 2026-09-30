@@ -3246,3 +3246,20 @@ From `REVIEW-2026-09-30.md` (marked fixed there):
 - 9 new tests; 1343 tests in 88 files. `npm run build` reports 0 errors and 0 warnings. Not
   browser-checked yet. Owed on the iPad: a still Pencil mid-stroke with Brush and Pen, and the
   long-press menu with Select and Node (unchanged).
+
+## 2026-09-30 — A document name
+
+- **Asked for** (as slop-paint's Document ▸ Name): a constant file name for saving. The name
+  already existed (`app.fileName`, autosaved, used by Save, Save to Files and Export PNG) but could
+  only come from an opened file or a save picker, so on the iPad every new drawing saved as
+  `Untitled.svg`.
+- **Now:** a Name field in New document and in Document settings (`.svg` shown beside it, never
+  typed); tapping the file name in the top bar opens Document settings. `svgFileName`
+  (`state/doc-name.ts`) drops `/ \ : * ? " < > |` and control characters, trims, adds `.svg` once
+  and falls back to "Untitled". `renameDocument` is not an undo step (it names the file, not the
+  drawing); a real change drops the save-in-place link, so the next ⌘S opens the save picker under
+  the new name instead of overwriting the old file and taking its name back.
+- 5 new tests; 1348 tests in 89 files. Browser-checked (desktop Chrome): the name button opens the
+  dialog, "Poster: v2" became `Poster v2.svg`, and it survived a reload. Not checked: the New
+  document field in the browser, and the desktop save picker's suggested name after a rename. Owed:
+  the iPad Save to Files name (checklist §5).
