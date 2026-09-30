@@ -59,17 +59,18 @@ body {
   inset: 0;
 }
 
-/* No double-tap-to-zoom (2026-09-30): double-tapping a layer's name zoomed the whole page on iPad —
-   the viewport's `user-scalable=no` is ignored by modern iOS. `manipulation` keeps panning and
-   scrolling and drops only the double-tap zoom (and the old tap delay), as slop-paint and
-   slop-animator set on `#app`. Here on every element, not just the root: the layer list and the
-   Properties panel scroll, and a touch-action above a scroll container does not reach inside it.
-   In the base layer, so the `touch-none` / `touch-pan-y` utilities (the grips, NumberField) and
-   the canvas's inline `touch-action: none` still win. */
+/* The page never zooms (2026-09-30). Double-tapping a layer's name zoomed the whole page on iPad —
+   the viewport's `user-scalable=no` is ignored by modern iOS — and a pinch over the sidebar could
+   zoom it too, leaving a page that is hard to get back out of. `pan-x pan-y` keeps scrolling in
+   both directions and allows neither double-tap nor pinch zoom (slop-paint and slop-animator set
+   `manipulation`, which still allows the pinch). On every element, not just the root: the layer
+   list and Properties scroll, and a touch-action above a scroll container does not reach inside
+   it. In the base layer, so the `touch-none` / `touch-pan-y` utilities (the grips, NumberField)
+   and the canvas's inline `touch-action: none` still win. The canvas zooms the drawing itself. */
 @layer base {
   #app,
   #app * {
-    touch-action: manipulation;
+    touch-action: pan-x pan-y;
   }
 }
 
