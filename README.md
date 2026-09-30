@@ -32,6 +32,7 @@ What works today:
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
   and three to redo.
+- Context menu: right-click with a mouse, or press and hold with a finger or the Pencil.
 - Drawing rectangles, ellipses, lines, polygons and stars — polygons and stars stay editable
   (sides, star, inner ratio).
 - Selecting (click, Shift-click, drag-select), moving, resizing (strokes keep their width;

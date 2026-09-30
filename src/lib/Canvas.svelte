@@ -1,19 +1,18 @@
 <script lang="ts">
   import { untrack } from "svelte";
-  import { hitTest } from "../geom/hit";
   import type { Vec } from "../geom/vec";
   import { createFingerTap } from "../input/finger-tap";
+  import { createLongPress } from "../input/long-press";
   import { routePointerDown } from "../input/route";
   import {
     app,
-    cancelActiveGesture,
     dockMods,
     fitArtboard,
     importSvgText,
     notify,
+    openContextMenu,
     registerGestureCancel,
     setOverlay,
-    setSelection,
     setView,
     setViewportSize,
     undo,
@@ -22,7 +21,7 @@
   import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
   import { storeContext } from "../tools/context";
   import { TOOLS } from "../tools/registry";
-  import { pointerTolerance, type Tool, type ToolEvent } from "../tools/tool";
+  import type { Tool, ToolEvent } from "../tools/tool";
   import NodeView from "./NodeView.svelte";
   import Overlay from "./Overlay.svelte";
   import TextEditField from "./TextEditField.svelte";
@@ -43,6 +42,23 @@
   /** Two-finger tap = undo, three = redo (`input/finger-tap.ts`). Fed every pointer before routing:
    *  a third finger is routed to "ignore" and never tracked below. */
   const fingerTap = createFingerTap();
+  /** A still finger or Pencil held on the canvas opens the context menu (touch has no right-click;
+   *  the right-click route stays mouse-only, invariant 16). Firing cancels the tool action the press
+   *  began — a pending select or drag is rolled back — and swallows the click the lift then makes,
+   *  which would otherwise land on the menu item that opened under the finger. */
+  let swallowClickUntil = 0;
+  const longPress = createLongPress((client) => {
+    const r = host.getBoundingClientRect();
+    const at = screenToDoc(app.view, { x: client.x - r.left, y: client.y - r.top });
+    if (gesture?.kind === "tool") {
+      gesture.tool.cancel(storeContext);
+      registerGestureCancel(null);
+    }
+    gesture = null;
+    if (openContextMenu(at, client, app.lastPointerType)) {
+      swallowClickUntil = performance.now() + 1000;
+    }
+  });
   /** Active pointers in canvas-local px. A plain Map: nothing renders from it. */
   const pointers = new Map<number, Vec>();
   /** Each active pointer's `pointerType`, alongside `pointers`. */
@@ -221,6 +237,7 @@
     pointers.set(e.pointerId, local(e));
     pointerTypes.set(e.pointerId, e.pointerType);
     if (route === "pinch") {
+      longPress.cancel();
       if (gesture?.kind === "tool") {
         gesture.tool.cancel(storeContext);
         registerGestureCancel(null);
@@ -233,6 +250,9 @@
       return;
     }
     const tool = TOOLS[app.toolId];
+    if (e.pointerType !== "mouse" && pointers.size === 1) {
+      longPress.start(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
     gesture = { kind: "tool", pointerId: e.pointerId, tool };
     tool.down(storeContext, toolEvent(e));
     registerGestureCancel(() => {
@@ -245,6 +265,7 @@
 
   function onpointermove(e: PointerEvent) {
     if (e.pointerType === "touch") fingerTap.move(e.pointerId, { x: e.clientX, y: e.clientY });
+    longPress.move(e.pointerId, { x: e.clientX, y: e.clientY });
     const p = local(e);
     oncursor(screenToDoc(app.view, p));
     if (!gesture) TOOLS[app.toolId].hover?.(storeContext, toolEvent(e));
@@ -268,6 +289,7 @@
   }
 
   function endPointer(e: PointerEvent, cancelled: boolean) {
+    longPress.end(e.pointerId);
     if (!pointers.has(e.pointerId)) return;
     const g = gesture;
     if (g && g.kind !== "pinch" && g.pointerId === e.pointerId) {
@@ -309,20 +331,30 @@
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
     if (app.lastPointerType !== "mouse") return;
-    if (app.toolId !== "select" && app.toolId !== "node") return;
-    cancelActiveGesture();
-    if (app.toolId === "select") {
-      const p = screenToDoc(app.view, local(e));
-      const hit = hitTest(
-        app.doc,
-        p,
-        pointerTolerance("mouse") / app.view.zoom,
-        app.enteredGroupId,
-      );
-      if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
-    }
-    app.contextMenu = { x: e.clientX, y: e.clientY };
+    openContextMenu(screenToDoc(app.view, local(e)), { x: e.clientX, y: e.clientY }, "mouse");
   }
+
+  // The click a long press's lift makes (see `longPress`): swallowed once, in the capture phase,
+  // before it can reach the menu item that opened under the finger.
+  $effect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (performance.now() > swallowClickUntil) return;
+      swallowClickUntil = 0;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    // A new press means the lift's click, if the browser made one, has already come and gone: a
+    // deliberate tap on a menu item must not be the one swallowed.
+    const onDown = () => {
+      swallowClickUntil = 0;
+    };
+    window.addEventListener("click", onClick, { capture: true });
+    window.addEventListener("pointerdown", onDown, { capture: true });
+    return () => {
+      window.removeEventListener("click", onClick, { capture: true });
+      window.removeEventListener("pointerdown", onDown, { capture: true });
+    };
+  });
 
   $effect(() => {
     // Non-passive so preventDefault stops page scroll / browser zoom.

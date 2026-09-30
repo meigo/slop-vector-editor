@@ -16,6 +16,7 @@ import {
   deleteSelectedNodes,
   deleteSelectionOrNodes,
   deletesNodes,
+  openContextMenu,
   invertSelection,
   nudgeSelection,
   redo,
@@ -490,5 +491,33 @@ describe("deleteSelectionOrNodes", () => {
     expect(deletesNodes()).toBe(false);
     deleteSelectionOrNodes();
     expect(findNode(app.doc, "r")).toBeNull();
+  });
+});
+
+/** Right-click and long-press share one opener (2026-09-30), so both select what is under the
+ *  pointer the same way. */
+describe("openContextMenu", () => {
+  it("with the Select tool, selects the object under the point and opens at the client point", () => {
+    setTool("select");
+    setSelection([]);
+    expect(openContextMenu({ x: 45, y: 45 }, { x: 300, y: 200 }, "touch")).toBe(true);
+    expect(app.selection).toEqual(["r"]);
+    expect(app.contextMenu).toEqual({ x: 300, y: 200 });
+  });
+
+  it("keeps a multi-selection that already contains the object", () => {
+    setTool("select");
+    setSelection(["p", "r"]);
+    openContextMenu({ x: 45, y: 45 }, { x: 1, y: 1 }, "pen");
+    expect(app.selection).toEqual(["p", "r"]);
+  });
+
+  it("opens for the Node tool, and not for other tools", () => {
+    setTool("node");
+    expect(openContextMenu({ x: 0, y: 0 }, { x: 5, y: 5 }, "touch")).toBe(true);
+    app.contextMenu = null;
+    setTool("rect");
+    expect(openContextMenu({ x: 0, y: 0 }, { x: 5, y: 5 }, "touch")).toBe(false);
+    expect(app.contextMenu).toBeNull();
   });
 });

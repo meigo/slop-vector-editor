@@ -154,7 +154,8 @@ import { downloadBlob, writePngFile } from "../persist/file-io";
 import { rasterise, writeClipboardPng } from "../persist/png";
 import { saveToFilesAvailable, shareFile } from "../persist/share";
 import { readClipboardText, writeClipboardText } from "../persist/system-clipboard";
-import type { Overlay } from "../tools/tool";
+import { pointerTolerance, type Overlay } from "../tools/tool";
+import { hitTest } from "../geom/hit";
 import type { Mods, ToolId } from "../tools/types";
 import { clipboardText, isPasteError, looksLikeSvg, planPaste, type Clip } from "./clipboard";
 import { canRedo, canUndo } from "./history";
@@ -1493,6 +1494,27 @@ export function deleteSelectedNodes(): void {
     commitDoc(mapNodes(app.doc, [path.id], () => next));
   }
   app.nodeSel = [];
+}
+
+/** Opens the canvas context menu (2026-09-30: shared by right-click and the touch/Pencil long
+ *  press). With the Select tool, the object under the point becomes the selection unless it is
+ *  already part of it — a right-click on one member of a multi-selection acts on all of them. Only
+ *  the Select and Node tools have a menu; returns whether it opened. `at` is in document space,
+ *  `client` in window coordinates (where the menu is drawn). */
+export function openContextMenu(
+  at: Vec,
+  client: { x: number; y: number },
+  pointerType: string,
+): boolean {
+  if (app.toolId !== "select" && app.toolId !== "node") return false;
+  cancelActiveGesture();
+  if (app.toolId === "select") {
+    const tol = pointerTolerance(pointerType) / app.view.zoom;
+    const hit = hitTest(app.doc, at, tol, app.enteredGroupId);
+    if (hit && !app.selection.includes(hit.nodeId)) setSelection([hit.nodeId]);
+  }
+  app.contextMenu = { x: client.x, y: client.y };
+  return true;
 }
 
 /** Whether Delete means "these nodes" rather than "this object": the Node tool with nodes selected.

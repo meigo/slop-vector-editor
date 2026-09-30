@@ -3087,3 +3087,20 @@ clear on replace); not browser-checked. 843 tests in 63 files.
   snapped axis can lose to the other one (the larger ratio wins) — the guide may then show a
   line the edge does not sit on. **Owed:** the feel on iPad with a finger and a Pencil.
 
+## 2026-09-30 — Long press opens the context menu; the iPad checklist
+
+- **Long press** (`src/input/long-press.ts`): a finger or Pencil held still for 500 ms (within
+  10 px) with the Select or Node tool opens the context menu — the touch route to Delete node(s),
+  arrange, booleans, Select Same and the rest, which the mouse-only right-click menu kept from
+  touch. Right-click and long press share the store's `openContextMenu`, so both select what is
+  under the pointer alike. Firing cancels the press's tool action (a pending select or drag rolls
+  back) and swallows the click the lift makes; any new press clears that, so a tap on a menu item
+  straight after works. A move, a lift, a second finger or a pinch cancels it.
+- 7 new tests (the detector with fake timers; the shared opener); 1324 tests in 87 files.
+  Browser-checked (desktop Chrome, synthetic touch/pen): a finger long press opened the menu with
+  the rectangle selected and the document untouched, and it stayed open after the lift; a moving
+  finger, a quick tap and a pinch did not open it; a Pencil long press did; a tap on Delete in the
+  just-opened menu deleted the rectangle. **Owed:** real fingers and Pencil.
+- **`docs/superpowers/IPAD-CHECKLIST.md`**: every device item owed since M5, from this file's
+  "Owed" lines, grouped by what you do on the iPad and prioritised P1–P3.
+
