@@ -269,6 +269,11 @@ every user-visible change.
     Pencil. `Canvas.svelte` ends any running pan/pinch gesture first (nothing to roll back) and
     drops the superseded pointers from its own bookkeeping, so they don't keep counting toward
     `activeTouches` or re-anchor a pinch on a stale coordinate once the Pencil lifts. The
+    **A Pencil pressed while a finger is already down never reaches the page** (iPadOS, Safari and
+    Chrome alike; found 2026-09-30 with `?debug`): no pointer event and no raw `touchstart` for it,
+    page-wide — so on an iPad the Pencil takeover above never runs (its trigger never arrives; it
+    stays for any device that does deliver it), and a finger-first stroke simply does not start. Not fixable from the page and accepted: a resting
+    palm does not block drawing, only a finger that lands first. Don't chase it again. The
     right-click menu opens only for mouse input; touch and Pencil get a **long press** instead
     (2026-09-30, `input/long-press.ts`: 500 ms still within 10 px; a move, a lift, a second finger
     or a pinch cancels it). Both routes call the store's `openContextMenu`, so they select alike.
