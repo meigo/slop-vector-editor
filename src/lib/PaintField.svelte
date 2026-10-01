@@ -119,8 +119,8 @@
         {#if midPaint && !midPaint.mixed}
           <!-- Spec M18 §4: the middle stop's EFFECTIVE colour, like the Start/End rows. Editing it
                stores a custom colour, which turns Auto off by itself. -->
-          <div class="flex items-center gap-2">
-            <span class="w-9 shrink-0"></span>
+          <div class="flex items-start gap-1.5">
+            <span class="w-8 shrink-0"></span>
             <PaintRow
               label={`${label} middle`}
               paint={midPaint.value}
@@ -133,8 +133,12 @@
         {/if}
       {/if}
       {#if !f.mixed}
-        <div class="flex items-center gap-2">
-          <span class="w-9 shrink-0 text-muted">{stop === "start" ? "Start" : "End"}</span>
+        <!-- `items-start` + the label's line height: when the row wraps (see PaintRow), the label stays
+             beside the first line rather than centring between the two. -->
+        <div class="flex items-start gap-1.5">
+          <span class="w-8 shrink-0 leading-(--ctl-h) text-muted"
+            >{stop === "start" ? "Start" : "End"}</span
+          >
           <PaintRow
             label={`${label} ${stop}`}
             paint={f.value}
