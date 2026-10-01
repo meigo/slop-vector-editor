@@ -5,3 +5,6 @@ dist/
 .DS_Store
 .claude/
 temp/
+
+# npm run test:ipad screenshots
+test-results/

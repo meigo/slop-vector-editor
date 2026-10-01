@@ -192,7 +192,8 @@ shaping for complex scripts (bold/italic weight and style are done).
 npm install
 npm run dev       # dev server
 npm run dev:lan   # HTTPS on your LAN, for iPad testing
-npm test          # 1282 unit tests
+npm test          # 1389 unit tests
+npm run test:ipad # iPad smoke check in WebKit (Safari's engine); first run: npx playwright install webkit
 npm run build     # type-check + production build
 npm run deploy    # build + deploy to Cloudflare
 ```
