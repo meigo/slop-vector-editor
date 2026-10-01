@@ -3472,3 +3472,16 @@ inside a UI bracket), which stays parked as M21 left it.
   drag of a row (23 checks), seen to fail with the gap broken. 4 new unit tests (1393 in 92
   files). Owed on the iPad: a real finger drag (IPAD-CHECKLIST §5).
 
+
+## 2026-10-01 — The Midpoint slider keeps its length in a narrow sidebar
+
+- Supersedes the "Not fixed" note in the gradient opacity entry above: at the 200px minimum sidebar
+  the Midpoint row squeezed its slider to the bare knob (~20px), because the label, the % field
+  and Auto took the rest.
+- The slider now keeps at least 56px (61px at the default 240px); in a narrower row the % field
+  and Auto wrap onto a line of their own below it, and the slider takes the full width (137px at
+  200px). The "Mid" label stays beside the first line.
+- Found while measuring: the % field (48px) was 3px short of "50 %" in WebKit and 1px in
+  Chromium, so the unit touched the digits; it is 52px now.
+- Measured in WebKit (iPad, touch) and Chromium (desktop, mouse) at 240, 200 and 320px:
+  one line at 240 and 320, wrapped at 200, no field narrower than its text; screenshots checked.
