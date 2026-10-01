@@ -83,9 +83,11 @@ function pageSetup() {
   });
 
   /** Plays simulated pointer steps: `{ type: "down" | "move" | "up" | "cancel", id, kind, x, y,
-   *  p?, wait? }`, or `{ type: "click", x, y }` for the click a browser may add after a lift. */
+   *  p?, wait? }`, or `{ type: "click", x, y }` for the click a browser may add after a lift.
+   *  The pointers' down targets outlive a call, so a check can stop mid-gesture, look, and end it
+   *  with another. */
   window.__gesture = async (steps) => {
-    const targets = new Map();
+    const targets = (window.__targets ??= new Map());
     const fire = (el, type, s, extra) =>
       el.dispatchEvent(
         new PointerEvent(type, {
@@ -569,7 +571,39 @@ try {
   const imported = await until(async () => (await objects()) === objectsBeforeImport + 1);
   check(imported, "File ▸ Import SVG… opens the picker and adds the file's drawing");
 
-  // 19. Autosave: a reload brings back the document and its name.
+  // 19. [sim] A finger drags the bottom object's row in the Layers panel by its grip to the top:
+  //     mid-drag the row follows the finger and the rows below the drop point slide aside to open
+  //     a gap; the lift reorders.
+  const rowOrder = () =>
+    page
+      .locator("section[aria-label=Layers] [data-row-id]")
+      .evaluateAll((els) => els.map((e) => e.dataset.rowId));
+  const o0 = await rowOrder();
+  const gripBox = await page
+    .locator(`[data-row-id="${o0.at(-1)}"] button[aria-label^="Drag"]`)
+    .boundingBox();
+  const firstRow = await page.locator(`[data-row-id="${o0[1]}"]`).boundingBox();
+  const from = { x: gripBox.x + gripBox.width / 2, y: gripBox.y + gripBox.height / 2 };
+  const rowDrag = dragSteps("touch", 80, from, { x: from.x, y: firstRow.y + 6 });
+  const rowLift = rowDrag.pop();
+  await gesture(rowDrag);
+  await page.waitForTimeout(200);
+  const lifted = await page.evaluate(() => ({
+    ghost: !!document.querySelector("[data-drag-ghost]"),
+    gap: [...document.querySelectorAll("section[aria-label=Layers] [data-row-id]")].some(
+      (e) => e.style.transform,
+    ),
+  }));
+  await page.screenshot({ path: `${OUT}/19-layer-drag.png` });
+  await gesture([rowLift]);
+  await page.waitForTimeout(200);
+  const o1 = await rowOrder();
+  check(
+    lifted.ghost && lifted.gap && o1[1] === o0.at(-1) && o1.length === o0.length,
+    "[sim] a finger drags a layer row by its grip: it follows the finger, a gap opens, the drop reorders",
+  );
+
+  // 20. Autosave: a reload brings back the document and its name.
   const objectsBeforeReload = await objects();
   await page.waitForTimeout(3500); // the 3 s debounce
   await page.reload();
@@ -578,14 +612,14 @@ try {
   const nameKept = (await page.getByTitle(/rename in Document settings$/).innerText()).startsWith(
     "Poster.svg",
   );
-  await page.screenshot({ path: `${OUT}/19-reloaded.png` });
+  await page.screenshot({ path: `${OUT}/20-reloaded.png` });
   check(
     restored && nameKept,
     `a reload restores the autosaved document (${await objects()} of ${objectsBeforeReload} objects) and its name`,
   );
 
   // ---------------------------------------------------------------- portrait
-  // 20. iPad portrait (834 px, below the 900 px breakpoint): the top bar fits without wrapping or
+  // 21. iPad portrait (834 px, below the 900 px breakpoint): the top bar fits without wrapping or
   //     overflowing, the File menu opens inside the window, and the Properties button opens the
   //     sidebar as a drawer.
   const portrait = await browser.newContext({ ...devices["iPad Pro 11"] });
@@ -609,7 +643,7 @@ try {
   await pp.getByRole("button", { name: "Properties", exact: true }).tap();
   await pp.waitForTimeout(300);
   const drawer = await pp.getByRole("region", { name: "Layers" }).isVisible();
-  await pp.screenshot({ path: `${OUT}/20-portrait.png` });
+  await pp.screenshot({ path: `${OUT}/21-portrait.png` });
   check(
     bar.fits && bar.height === 44 && menuInside && layersHidden && drawer,
     `portrait: the top bar fits (${bar.height}px high), the File menu is on screen, Properties opens the sidebar drawer`,

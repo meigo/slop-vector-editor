@@ -120,6 +120,9 @@ polish.
 - [ ] **P2** Sidebar: drag its width grip; drag the Layers/Properties divider; collapse and expand
       each panel; Properties opens with the Brush tool active.
 - [ ] **P2** Layers panel: drag rows to reorder and into groups; eye and lock toggles; the trash.
+- [ ] **P2** Layer row drag by finger (2026-10-01): the row lifts only after a small move, follows
+      the finger, the rows below slide open a gap, the target layer/group is outlined; near the
+      list's top or bottom edge it scrolls; a locked layer closes the gap.
 - [ ] **P3** Double-tap the name of a hidden or locked object's row: it renames (a single tap still
       does not select it).
 - [ ] **P2** Tap the file name in the top bar → Document settings; rename to "Poster", Apply;

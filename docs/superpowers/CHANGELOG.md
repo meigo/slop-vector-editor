@@ -3449,3 +3449,26 @@ inside a UI bracket), which stays parked as M21 left it.
   at 240 and 320, wrapped at 200, no field narrower than its text; screenshots checked. Not fixed,
   seen at 200px: the Midpoint slider shrinks to its knob (pre-existing).
 
+## 2026-10-01 — Layers panel: the dragged row follows the pointer
+
+- **Asked for:** the slop-paint/slop-animator feel, where the dragged item moves with the cursor,
+  instead of only a blue line. Those two hand the drag to SortableJS, which moves DOM rows Svelte
+  owns (their comments record duplicate rows and data loss from it) and knows nothing of dropping
+  into a group or refusing a locked layer — so the feel is drawn here over the existing pointer
+  handlers, and `layer-drop.ts`'s `dropTarget` still alone decides where a drop lands.
+- **What it does:** past a 3px move the grabbed row lifts — a copy follows the pointer at the
+  grab offset (with a count badge for several selected objects), the dragged rows dim in place,
+  every row at or below the drop line slides down one row (150ms) to open a gap, and the layer or
+  group a node drop lands in is outlined (`.ui-drop-target`). A refused position closes the gap
+  and shows the not-allowed cursor. Near the list's top or bottom edge it auto-scrolls (new; there
+  was none). A tap on a grip lifts nothing; Escape and a cancel put everything back. The blue line
+  is gone.
+- **Rows are measured once, at the lift, in content coordinates** (`layer-drag-visual.ts`): the
+  sliding rows must not move the targets they are measured against, and scrolling then needs no
+  re-measuring.
+- Checked in Chromium and WebKit with real mouse drags: reorder, the mid-drag ghost/gap/dim/outline,
+  a tap, Escape, a refused drop onto a locked layer, auto-scroll (33 rows, scrolled 316 → 0 and
+  dropped at the top), no page errors; screenshots checked. `test:ipad` gained a `[sim]` finger
+  drag of a row (23 checks), seen to fail with the gap broken. 4 new unit tests (1393 in 92
+  files). Owed on the iPad: a real finger drag (IPAD-CHECKLIST §5).
+
