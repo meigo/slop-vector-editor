@@ -50,8 +50,8 @@
      `--ctl-h` high like every other control (invariant 23), and the raised field look
      (`rounded border border-line bg-raised`, as `PaintRow`'s `type="color"` input composes it —
      a range input has no `.field` styling of its own to fall back on). -->
-<div class="flex items-center gap-2" title="Midpoint — where the middle stop sits">
-  <span class="w-9 shrink-0 text-muted">Mid</span>
+<div class="flex items-center gap-1.5" title="Midpoint — where the middle stop sits">
+  <span class="w-8 shrink-0 text-muted">Mid</span>
   <input
     type="range"
     min="1"

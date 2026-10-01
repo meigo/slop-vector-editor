@@ -3432,3 +3432,20 @@ inside a UI bracket), which stays parked as M21 left it.
   select passed on the device. The script clicks that toggle; the canvas taps stay real.
 - Still device-only: the real Pencil, feel, the keyboard and auto-pan, the real share sheet,
   memory. The IPAD-CHECKLIST stays as it is — a `[sim]` pass is weaker evidence than the device.
+
+## 2026-10-01 — The gradient opacity field no longer hides its third digit
+
+- Found by the iPad check's screenshots: at the default 240px sidebar under touch a gradient
+  stop's opacity field was 51px wide and "100 %" needs 59, so the `%` covered the last digit
+  ("10ı %"); with a mouse it fitted with nothing to spare, and a sidebar dragged to its 200px
+  minimum left it ~11px.
+- Fix (the user picked "tighten + wrap"): the stop label column is 32px (was 36) and the row gaps
+  6px (were 8), in the Start/End rows, the Mid colour row and the Midpoint row alike, so a stop row
+  fits on one line at 240px (61px for the field under touch); and `PaintRow` wraps, with the
+  opacity field never below 60px, so a narrower row moves the field onto a line of its own instead
+  of overlapping. Flat fill/stroke rows share `PaintRow`, so they get the 6px gaps too and wrap
+  below ~210px under touch.
+- Measured in WebKit (iPad, touch) and Chromium (desktop, mouse) at 240, 200 and 320px: one line
+  at 240 and 320, wrapped at 200, no field narrower than its text; screenshots checked. Not fixed,
+  seen at 200px: the Midpoint slider shrinks to its knob (pre-existing).
+

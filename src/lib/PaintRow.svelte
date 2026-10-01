@@ -50,7 +50,16 @@
   }
 </script>
 
-<div class={["flex min-w-0 flex-1 items-center gap-2 rounded", selected && "ui-selected"]}>
+<!-- Wraps when narrow (2026-10-01): the opacity field never shrinks below the 60px "100 %" needs —
+     at the default 240px sidebar a gradient stop row left it 51px under touch, and the unit covered
+     the third digit — so in a narrower row it drops onto a line of its own instead. `gap-x-1.5` and
+     the stop label's `w-8` are what make a stop row fit on one line at 240px (61px). -->
+<div
+  class={[
+    "flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-2 rounded",
+    selected && "ui-selected",
+  ]}
+>
   <!-- A square control of the shared height (`--ctl-h`), not a fixed `size-8`: it has to track
        the 32/24px control size like every other control. It was `h-8 w-10`, and a flex item
        shrinks below its width, so in the 240px sidebar the row squeezed it to a tall ~17px sliver
@@ -98,11 +107,11 @@
   />
   <!-- `NumberField`'s own root is `display: contents` (it's meant for `.field-grid`), so it has no
        box of its own to put `flex-1`/`min-w-0` on. Wrapping it gives it one: this div is the flex
-       item that takes whatever the swatch and hex leave behind and shrinks first when the row is
-       tight, and it is also what `width: 100%` on the field inside now measures against — without
+       item that takes whatever the swatch and hex leave behind — never below 60px; a tighter row
+       wraps it onto its own line — and it is also what `width: 100%` on the field inside now measures against — without
        it, that 100% read against the whole row, which is why the opacity field previously grabbed
        most of the space instead of giving it up. -->
-  <div class="min-w-0 flex-1">
+  <div class="min-w-15 flex-1">
     <NumberField
       {onlivestart}
       {onliveend}
