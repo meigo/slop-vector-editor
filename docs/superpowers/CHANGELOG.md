@@ -3485,3 +3485,9 @@ inside a UI bracket), which stays parked as M21 left it.
   Chromium, so the unit touched the digits; it is 52px now.
 - Measured in WebKit (iPad, touch) and Chromium (desktop, mouse) at 240, 200 and 320px:
   one line at 240 and 320, wrapped at 200, no field narrower than its text; screenshots checked.
+
+## 2026-10-01 — The dragged layer row: straight top and bottom borders
+
+- Asked for: the floating row drawn with straight accent borders above and below only, not a
+  rounded ring all round (`border-y border-accent`, no `rounded`/`ring`). The shadow stays.
+  Checked in a WebKit screenshot mid-drag.

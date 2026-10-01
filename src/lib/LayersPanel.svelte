@@ -586,7 +586,7 @@
              it carries their count. -->
         <div
           data-drag-ghost
-          class="pointer-events-none absolute inset-x-0 z-10 flex h-8 items-center gap-1 rounded bg-raised pr-[6px] shadow-lg ring-1 ring-accent"
+          class="pointer-events-none absolute inset-x-0 z-10 flex h-8 items-center gap-1 border-y border-accent bg-raised pr-[6px] shadow-lg"
           style="top: {ghost.top}px; padding-left: {ghost.pad}"
         >
           <span class="flex w-3.5 shrink-0 justify-center text-muted"
