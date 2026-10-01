@@ -22,10 +22,10 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1389 tests in 91 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1393 tests in 92 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
-  with touch, in a fresh profile (never the user's autosave) — 22 checks, landscape then portrait.
+  with touch, in a fresh profile (never the user's autosave) — 23 checks, landscape then portrait.
   Starts its own dev server on a free port; `npm run test:ipad -- <url>` checks a URL (e.g. the
   deployed site). Screenshots in `test-results/ipad/` (gitignored); exit 1 on failure. First run
   per machine: `npx playwright install webkit`. **Two strengths of evidence:** real taps
@@ -34,7 +34,7 @@ entries supersede earlier ones — mark superseded entries).
   Fingers select, rename, Save/Export/Import and portrait; and **simulated** pointer events,
   labelled `[sim]`, for everything Playwright cannot do on WebKit — it can only tap, so drags,
   holds, the Pencil and every multi-finger gesture (corner drag, long press, two/three-finger
-  tap, pinch, Brush with a resting start, finger pan after the Pencil) are dispatched by the
+  tap, pinch, Brush with a resting start, finger pan after the Pencil, a layer row drag) are dispatched by the
   script, as the full over/enter/down/move/up/out/leave sequence on the down target. Those test
   the app's routing and tools, not what iPadOS delivers. Also: 32 px touch controls (other small
   targets are listed as `info`, not failed), the radial gradient's centre vs rim brightness, the
@@ -213,7 +213,10 @@ every user-visible change.
   `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
-  helper), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `AlignSection` (spec M19: the Properties panel's Align section, shown with any selection), `split.ts` (pure: the ratio
+  helper: where a dragged row lands — the one rule), `layer-drag-visual.ts` (pure, 2026-10-01: what a
+  row drag looks like over it — the 3px lift threshold, the rows that slide to open the gap, the
+  floating row's clamp, the edge auto-scroll; rows are measured once at the lift, in content
+  coordinates, so sliding rows never move their own targets), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `AlignSection` (spec M19: the Properties panel's Align section, shown with any selection), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField` (typed, or dragged sideways through the pure `scrub.ts` — see invariant 42), `PaintField` (Flat/
   Linear, the Start/End gradient rows), `PaintRow.svelte` (swatch + hex + opacity, shared by the
   flat row and both gradient stops), `MidpointRow.svelte` (the Midpoint slider + `%` field, and the

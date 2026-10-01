@@ -211,6 +211,22 @@ body {
 .ui-selected {
   box-shadow: inset 2px 0 0 var(--color-accent);
 }
+/* The layer or group a dragged row would land in (LayersPanel, 2026-10-01). An outline, so it
+   stacks with `.ui-selected`'s box-shadow on a selected row. */
+.ui-drop-target {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+/* While a layer row is dragged: the cursor everywhere, whatever the element under it sets —
+   not-allowed while the position under the pointer refuses the drop. */
+html.layer-dragging,
+html.layer-dragging * {
+  cursor: grabbing !important;
+}
+html.layer-drop-refused,
+html.layer-drop-refused * {
+  cursor: not-allowed !important;
+}
 
 /* Focus rings are a keyboard affordance: none after a mouse/pen click, one consistent ring for
    the keyboard. */

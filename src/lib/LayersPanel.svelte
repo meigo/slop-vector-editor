@@ -33,6 +33,13 @@
   import { isDoubleTap, type Tap } from "../input/double-tap";
   import IconButton from "./IconButton.svelte";
   import PanelHeader from "./PanelHeader.svelte";
+  import {
+    autoScrollStep,
+    ghostTop,
+    pastThreshold,
+    ROW_PX,
+    shiftedRowIds,
+  } from "./layer-drag-visual";
   import { dropTarget, type Drag, type Drop, type RowBox } from "./layer-drop";
   import { trashAction } from "./layer-trash";
   import { revealScrollTop } from "./reveal";
@@ -43,9 +50,30 @@
   let draft = $state("");
   let lastTap: Tap | null = null;
   let list = $state<HTMLElement | null>(null);
-  let dragging: { drag: Drag; pointerId: number } | null = null;
+  /** A press on a grip; `live` once it has travelled past the threshold and become a drag. Rows,
+   *  the grab offset and the content height are measured then, once (`layer-drag-visual.ts`). */
+  let dragging: {
+    drag: Drag;
+    pointerId: number;
+    row: HTMLElement;
+    label: string;
+    startX: number;
+    startY: number;
+    clientY: number;
+    live: boolean;
+    boxes: RowBox[];
+    grab: number;
+    contentHeight: number;
+  } | null = null;
   let drop = $state<Drop | null>(null);
-  let lineTop = $state(0);
+  /** The floating copy of the grabbed row, in content coordinates. */
+  let ghost = $state<{ top: number; label: string; pad: string; count: number } | null>(null);
+  /** Rows slid down to open the gap, and the rows being dragged (dimmed in place). */
+  let shifted = $state.raw<Set<string>>(new Set());
+  let dimmed = $state.raw<Set<string>>(new Set());
+  /** The layer or group a node drop lands in, outlined. */
+  const dropInto = $derived(drop?.kind === "node" ? drop.parentId : null);
+  let scrollFrame = 0;
 
   const layers = $derived([...app.doc.layers].reverse());
   const current = $derived(app.doc.layers.find((l) => l.id === app.currentLayerId) ?? null);
@@ -126,49 +154,146 @@
     else renameNodeById(e.id, draft);
   }
 
+  /** Every rendered row, in the list's content coordinates. */
   function rows(): RowBox[] {
     if (!list) return [];
+    const off = list.scrollTop - list.getBoundingClientRect().top;
     return [...list.querySelectorAll<HTMLElement>("[data-row-id]")].map((el) => {
       const r = el.getBoundingClientRect();
       return {
         kind: el.dataset.rowKind === "layer" ? "layer" : "node",
         id: el.dataset.rowId ?? "",
-        top: r.top,
-        bottom: r.bottom,
+        top: r.top + off,
+        bottom: r.bottom + off,
       };
     });
   }
 
-  function startDrag(e: PointerEvent, drag: Drag) {
+  function startDrag(e: PointerEvent, drag: Drag, label: string) {
     if (e.button !== 0) return;
+    const row = (e.currentTarget as Element | null)?.closest<HTMLElement>("[data-row-id]");
+    if (!row) return;
     e.preventDefault();
     try {
       if (e.currentTarget instanceof Element) e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
       // Capture is a convenience; moves still arrive while the pointer stays on the grip.
     }
-    dragging = { drag, pointerId: e.pointerId };
+    dragging = {
+      drag,
+      pointerId: e.pointerId,
+      row,
+      label,
+      startX: e.clientX,
+      startY: e.clientY,
+      clientY: e.clientY,
+      live: false,
+      boxes: [],
+      grab: 0,
+      contentHeight: 0,
+    };
     drop = null;
+  }
+
+  /** The press became a drag: measure the rows once — sliding rows must not move the targets
+   *  they are measured against — dim what moves, lift the copy and start the edge scroll. */
+  function lift(d: NonNullable<typeof dragging>) {
+    if (!list) return;
+    d.live = true;
+    d.boxes = rows();
+    d.grab = d.startY - d.row.getBoundingClientRect().top;
+    d.contentHeight = list.scrollHeight;
+    // A dragged row carries what is drawn inside it: a layer its objects, a group its children.
+    const ids = d.drag.kind === "layer" ? [d.drag.id] : d.drag.ids;
+    const moving = new Set<string>();
+    for (const id of ids) {
+      const el = list.querySelector(`[data-row-id="${CSS.escape(id)}"]`)?.closest("li");
+      el?.querySelectorAll<HTMLElement>("[data-row-id]").forEach((r) => {
+        if (r.dataset.rowId) moving.add(r.dataset.rowId);
+      });
+    }
+    dimmed = moving;
+    ghost = {
+      top: 0,
+      label: d.label,
+      pad: d.row.style.paddingLeft,
+      count: d.drag.kind === "node" ? d.drag.ids.length : 1,
+    };
+    document.documentElement.classList.add("layer-dragging");
+    scrollFrame = requestAnimationFrame(edgeScroll);
+  }
+
+  function update(d: NonNullable<typeof dragging>) {
+    if (!list || !ghost) return;
+    const y = d.clientY - list.getBoundingClientRect().top + list.scrollTop;
+    drop = dropTarget(app.doc, d.boxes, y, d.drag);
+    shifted = shiftedRowIds(d.boxes, drop?.line ?? null);
+    ghost = { ...ghost, top: ghostTop(y, d.grab, d.contentHeight) };
+    document.documentElement.classList.toggle("layer-drop-refused", drop === null);
+  }
+
+  /** Near the list's top or bottom edge, scroll it — once a frame while the drag lasts. */
+  function edgeScroll() {
+    const d = dragging;
+    if (!d) return;
+    // The panel collapsed under the drag: nothing left to drop on.
+    if (!list) return finishDrag();
+    const view = list.getBoundingClientRect();
+    const step = autoScrollStep(d.clientY, view.top, view.bottom);
+    const max = Math.max(d.contentHeight - list.clientHeight, 0);
+    const next = Math.min(Math.max(list.scrollTop + step, 0), max);
+    if (next !== list.scrollTop) {
+      list.scrollTop = next;
+      update(d);
+    }
+    scrollFrame = requestAnimationFrame(edgeScroll);
+  }
+
+  // The cursor classes sit on <html>, outside this component: never leave them behind.
+  $effect(() => () => finishDrag());
+
+  /** Puts everything back as it was before the press. */
+  function finishDrag() {
+    cancelAnimationFrame(scrollFrame);
+    dragging = null;
+    drop = null;
+    ghost = null;
+    shifted = new Set();
+    dimmed = new Set();
+    document.documentElement.classList.remove("layer-dragging", "layer-drop-refused");
   }
 
   function moveDrag(e: PointerEvent) {
-    if (!dragging || e.pointerId !== dragging.pointerId || !list) return;
-    drop = dropTarget(app.doc, rows(), e.clientY, dragging.drag);
-    if (drop) lineTop = drop.line - list.getBoundingClientRect().top + list.scrollTop;
+    const d = dragging;
+    if (!d || e.pointerId !== d.pointerId) return;
+    d.clientY = e.clientY;
+    if (!d.live) {
+      if (!pastThreshold(e.clientX - d.startX, e.clientY - d.startY)) return;
+      lift(d);
+    }
+    update(d);
   }
 
   function endDrag(e: PointerEvent, apply: boolean) {
-    if (!dragging || e.pointerId !== dragging.pointerId) return;
-    const drag = dragging.drag;
-    const target = apply ? dropTarget(app.doc, rows(), e.clientY, drag) : null;
-    dragging = null;
-    drop = null;
-    if (!apply || !target) return;
+    const d = dragging;
+    if (!d || e.pointerId !== d.pointerId) return;
+    d.clientY = e.clientY;
+    // A press that never became a drag lands nothing.
+    if (apply && d.live) update(d);
+    const target = apply && d.live ? drop : null;
+    const drag = d.drag;
+    finishDrag();
+    if (!target) return;
     if (drag.kind === "layer" && target.kind === "layer") moveLayerTo(drag.id, target.index);
     else if (drag.kind === "node" && target.kind === "node") {
       moveNodesTo(drag.ids, target.parentId, target.index);
     }
   }
+
+  /** A row's slide, while a drag is open: the gap opens and closes smoothly, and at the drop the
+   *  rows jump straight to their new order rather than animating back from the gap. */
+  const slide = (id: string) => (shifted.has(id) ? `translateY(${ROW_PX}px)` : null);
+  const slideTransition = $derived(ghost ? "transform 150ms ease" : null);
 
   /** Dragging a selected row moves the whole selection; any other row moves on its own. */
   const nodeDrag = (id: string): Drag => ({
@@ -191,8 +316,7 @@
 <svelte:window
   onkeydowncapture={(e) => {
     if (e.key !== "Escape" || !dragging) return;
-    dragging = null;
-    drop = null;
+    finishDrag();
     e.preventDefault();
     e.stopPropagation();
   }}
@@ -213,8 +337,12 @@
         "flex h-8 items-center gap-1 pr-[6px]",
         isSelected && "ui-selected",
         blocked && "text-muted",
+        dimmed.has(node.id) && "opacity-40",
+        dropInto === node.id && "ui-drop-target",
       ]}
       style={rowPad(depth)}
+      style:transform={slide(node.id)}
+      style:transition={slideTransition}
       title={nodeBlockedTitle(node, layer, inherited)}
     >
       <button
@@ -225,7 +353,7 @@
         aria-label="Drag “{rowLabel(node)}”"
         title="Drag to move “{rowLabel(node)}”"
         onpointerdown={(e) => {
-          if (!blocked) startDrag(e, nodeDrag(node.id));
+          if (!blocked) startDrag(e, nodeDrag(node.id), rowLabel(node));
         }}
         onpointermove={moveDrag}
         onpointerup={(e) => endDrag(e, true)}
@@ -356,8 +484,15 @@
             <div
               data-row-id={layer.id}
               data-row-kind="layer"
-              class={["flex h-8 items-center gap-1 pr-[6px]", isCurrent && "ui-selected-tint"]}
+              class={[
+                "flex h-8 items-center gap-1 pr-[6px]",
+                isCurrent && "ui-selected-tint",
+                dimmed.has(layer.id) && "opacity-40",
+                dropInto === layer.id && "ui-drop-target",
+              ]}
               style={rowPad(0)}
+              style:transform={slide(layer.id)}
+              style:transition={slideTransition}
             >
               <button
                 type="button"
@@ -366,7 +501,7 @@
                 style="touch-action: none"
                 aria-label="Drag “{layer.name}”"
                 title="Drag to move “{layer.name}”"
-                onpointerdown={(e) => startDrag(e, { kind: "layer", id: layer.id })}
+                onpointerdown={(e) => startDrag(e, { kind: "layer", id: layer.id }, layer.name)}
                 onpointermove={moveDrag}
                 onpointerup={(e) => endDrag(e, true)}
                 onpointercancel={(e) => endDrag(e, false)}
@@ -446,11 +581,23 @@
           </li>
         {/each}
       </ul>
-      {#if drop}
+      {#if ghost}
+        <!-- The grabbed row, following the pointer (2026-10-01). With several objects selected
+             it carries their count. -->
         <div
-          class="pointer-events-none absolute inset-x-1 h-0.5 bg-accent"
-          style="top: {lineTop - 1}px"
-        ></div>
+          data-drag-ghost
+          class="pointer-events-none absolute inset-x-0 z-10 flex h-8 items-center gap-1 rounded bg-raised pr-[6px] shadow-lg ring-1 ring-accent"
+          style="top: {ghost.top}px; padding-left: {ghost.pad}"
+        >
+          <span class="flex w-3.5 shrink-0 justify-center text-muted"
+            ><GripVertical size={14} /></span
+          >
+          <span class="w-3.5 shrink-0"></span>
+          <span class="min-w-0 flex-1 truncate">{ghost.label}</span>
+          {#if ghost.count > 1}
+            <span class="rounded bg-accent px-1.5 text-[10px] text-accent-text">{ghost.count}</span>
+          {/if}
+        </div>
       {/if}
     </div>
   {/if}
