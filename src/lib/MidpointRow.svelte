@@ -50,45 +50,52 @@
      `--ctl-h` high like every other control (invariant 23), and the raised field look
      (`rounded border border-line bg-raised`, as `PaintRow`'s `type="color"` input composes it —
      a range input has no `.field` styling of its own to fall back on). -->
-<div class="flex items-center gap-1.5" title="Midpoint — where the middle stop sits">
-  <span class="w-8 shrink-0 text-muted">Mid</span>
-  <input
-    type="range"
-    min="1"
-    max="99"
-    step="1"
-    class="min-w-0 flex-1 cursor-pointer rounded border border-line bg-raised"
-    style="height: var(--ctl-h); touch-action: none"
-    aria-label="{label} midpoint"
-    value={pct ?? 50}
-    oninput={(e) => {
-      startLive();
-      onmid(Number(e.currentTarget.value) / 100);
-    }}
-    onchange={endLive}
-    onblur={endLive}
-  />
-  <!-- `NumberField`'s root is `display: contents`; this wrapper is the flex item it sizes
-       against, as in PaintRow. -->
-  <div class="w-12 shrink-0">
-    <NumberField
-      {onlivestart}
-      {onliveend}
-      label=""
-      value={pct}
-      min={1}
-      max={99}
-      suffix="%"
-      onchange={(v) => onmid(Math.round(v) / 100)}
+<!-- Wraps when narrow (2026-10-01): the slider keeps at least 56px — about what it has at the
+     default 240px sidebar — and in a narrower panel the % field and Auto drop onto a line of their
+     own below it, rather than squeezing the slider to its bare knob (it did at 200px). -->
+<div class="flex items-start gap-1.5" title="Midpoint — where the middle stop sits">
+  <span class="w-8 shrink-0 leading-(--ctl-h) text-muted">Mid</span>
+  <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-2">
+    <input
+      type="range"
+      min="1"
+      max="99"
+      step="1"
+      class="min-w-14 flex-1 cursor-pointer rounded border border-line bg-raised"
+      style="height: var(--ctl-h); touch-action: none"
+      aria-label="{label} midpoint"
+      value={pct ?? 50}
+      oninput={(e) => {
+        startLive();
+        onmid(Number(e.currentTarget.value) / 100);
+      }}
+      onchange={endLive}
+      onblur={endLive}
     />
-  </div>
-  <!-- Spec M18 §4: Auto = the middle stop is the computed mix. Pressing it on drops any custom
+    <div class="flex shrink-0 items-center gap-1.5">
+      <!-- `NumberField`'s root is `display: contents`; this wrapper is the flex item it sizes
+       against, as in PaintRow. -->
+      <div class="w-13 shrink-0">
+        <NumberField
+          {onlivestart}
+          {onliveend}
+          label=""
+          value={pct}
+          min={1}
+          max={99}
+          suffix="%"
+          onchange={(v) => onmid(Math.round(v) / 100)}
+        />
+      </div>
+      <!-- Spec M18 §4: Auto = the middle stop is the computed mix. Pressing it on drops any custom
        colour; off seeds the mix, so the artwork doesn't change until a colour is picked. -->
-  <ToggleButton
-    label="Auto"
-    ariaLabel="{label} middle colour automatic"
-    title="Middle colour — Auto mixes Start and End; off keeps a colour of its own"
-    value={auto.mixed ? "mixed" : auto.value}
-    onchange={() => onauto(auto.mixed ? true : !auto.value)}
-  />
+      <ToggleButton
+        label="Auto"
+        ariaLabel="{label} middle colour automatic"
+        title="Middle colour — Auto mixes Start and End; off keeps a colour of its own"
+        value={auto.mixed ? "mixed" : auto.value}
+        onchange={() => onauto(auto.mixed ? true : !auto.value)}
+      />
+    </div>
+  </div>
 </div>
