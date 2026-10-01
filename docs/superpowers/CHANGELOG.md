@@ -3529,3 +3529,20 @@ inside a UI bracket), which stays parked as M21 left it.
   6 px nudge there. The check now turns Snap off for itself and drags the rectangle's real
   on-screen corner rather than where the draw ended.
 
+## 2026-10-01 — Layer drag: the dragged rows' place moves, the rest close up (from slop-spine)
+
+- Asked for: the UX slop-spine settled on. There the dimmed row in place plus a one-row gap read
+  as an extra slot, so spine slides the dragged row's place to the drop slot and closes up the
+  rows it passes — the SortableJS feel; the list keeps its height. This supersedes the "gap"
+  description in the layer-drag entry above.
+- Generalised here: spine moves one row in a flat list; here a drag can be a layer with its
+  objects, a group with its children or several selected objects from anywhere. `slideOffsets(rows,
+  moving, line)` (replacing `shiftedRowIds`) takes every moving row out, stands them together at
+  the drop line in their own order, and slides every row by how far its place changed, each by its
+  own height. The moved rows keep their indent until the drop.
+- Checked: 6 unit tests for the helper (single row up and down, a no-op, a refusal, a layer
+  block, two rows from apart, mixed heights); a Chromium drag of a whole layer with two objects
+  above another (its block −96px, the other +96px, the drop matching; screenshot checked);
+  `test:ipad`'s row-drag check now asserts each row's slide (0, +32 ×4, −128) and was seen to
+  fail with the slides broken. Owed on the iPad: a real finger drag (checklist §5, reworded).
+

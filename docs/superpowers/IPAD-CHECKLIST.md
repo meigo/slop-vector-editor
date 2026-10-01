@@ -121,7 +121,8 @@ polish.
       each panel; Properties opens with the Brush tool active.
 - [ ] **P2** Layers panel: drag rows to reorder and into groups; eye and lock toggles; the trash.
 - [ ] **P2** Layer row drag by finger (2026-10-01): the row lifts only after a small move, follows
-      the finger, the rows below slide open a gap, the target layer/group is outlined; near the
+      the finger, its place moves to the drop point and the rows it passes close up, the target
+      layer/group is marked; near the
       list's top or bottom edge it scrolls; a locked layer closes the gap.
 - [ ] **P3** Double-tap the name of a hidden or locked object's row: it renames (a single tap still
       does not select it).

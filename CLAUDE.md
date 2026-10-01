@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1396 tests in 92 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1398 tests in 92 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
   with touch, in a fresh profile (never the user's autosave) — 23 checks, landscape then portrait.
@@ -215,7 +215,9 @@ every user-visible change.
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
   helper: where a dragged row lands — the one rule), `layer-drag-visual.ts` (pure, 2026-10-01: what a
-  row drag looks like over it — the 3px lift threshold, the rows that slide to open the gap, the
+  row drag looks like over it — the 3px lift threshold, `slideOffsets` (the dragged rows' place moves
+  to the drop point and the rows they pass close up, the SortableJS feel, ported back from
+  slop-spine), the
   floating row's clamp, the edge auto-scroll; rows are measured once at the lift, in content
   coordinates, so sliding rows never move their own targets), `layer-trash.ts` (pure: what the header trash deletes), `reveal.ts` (pure: the nearest-edge scroll that keeps the selected layer row in view), `PanelHeader` (a panel's raised, collapsible header bar), `AlignSection` (spec M19: the Properties panel's Align section, shown with any selection), `split.ts` (pure: the ratio
   clamp, the drag maths and the Properties open/override rule), `NumberField` (typed, or dragged sideways through the pure `scrub.ts` — see invariant 42), `PaintField` (Flat/

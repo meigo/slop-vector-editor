@@ -1,6 +1,7 @@
 /** What a row drag in the layers panel looks like (2026-10-01): the dragged row follows the pointer
- *  and the rows below the drop point slide down to open a gap, as in slop-paint and slop-animator —
- *  but drawn over `layer-drop.ts`'s `dropTarget`, which still alone decides where a drop lands.
+ *  and its place in the list moves to the drop point, the rows it passes closing up behind it, as
+ *  SortableJS did in the sibling apps (ported back from slop-spine) — but drawn over
+ *  `layer-drop.ts`'s `dropTarget`, which still alone decides where a drop lands.
  *  Pure: no DOM, so it is testable. Every position is in the list's CONTENT coordinates (client y −
  *  list top + scrollTop), measured once when the drag starts, so rows sliding aside never move
  *  the targets they are measured against. */
@@ -8,7 +9,7 @@ import type { RowBox } from "./layer-drop";
 
 /** How far the pointer travels before a press on a grip becomes a drag, so a tap lifts nothing. */
 export const DRAG_THRESHOLD_PX = 3;
-/** The height of the gap opened at the drop point: one row. */
+/** A row's height: the floating row's, and the bottom limit `ghostTop` keeps it above. */
 export const ROW_PX = 32;
 /** The band at the list's top and bottom edge that scrolls it, and the fastest step per frame. */
 export const SCROLL_EDGE_PX = 32;
@@ -18,11 +19,30 @@ export function pastThreshold(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX;
 }
 
-/** The rows that slide down to open the gap: every row at or below the drop line. Nothing slides
- *  when there is no drop (a refused position), so the gap closes. */
-export function shiftedRowIds(rows: readonly RowBox[], line: number | null): Set<string> {
-  if (line === null) return new Set();
-  return new Set(rows.filter((r) => r.top >= line - 0.5).map((r) => r.id));
+/** How far each row slides while the `moving` rows hover over the drop `line`: they leave their
+ *  places and stand together at the line — a layer with its objects, a group with its children,
+ *  several selected objects from anywhere — and every other row closes up or makes room, so the
+ *  list keeps its height and shows the order the drop will make. Only rows that move are listed;
+ *  `line` null (a refused position) slides nothing. Rows may differ in height. The moving rows keep
+ *  their own indent until the drop gives them their new one. */
+export function slideOffsets(
+  rows: readonly RowBox[],
+  moving: ReadonlySet<string>,
+  line: number | null,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (line === null || rows.length === 0) return out;
+  const block = rows.filter((r) => moving.has(r.id));
+  if (block.length === 0) return out;
+  const stay = rows.filter((r) => !moving.has(r.id));
+  let at = stay.findIndex((r) => r.top >= line - 0.5);
+  if (at < 0) at = stay.length;
+  let top = rows[0].top;
+  for (const r of [...stay.slice(0, at), ...block, ...stay.slice(at)]) {
+    if (Math.abs(top - r.top) > 0.5) out.set(r.id, top - r.top);
+    top += r.bottom - r.top;
+  }
+  return out;
 }
 
 /** The floating row's top: the pointer less where on its row it was grabbed, kept inside the

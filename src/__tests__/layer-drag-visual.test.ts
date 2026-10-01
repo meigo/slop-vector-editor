@@ -6,7 +6,7 @@ import {
   pastThreshold,
   ROW_PX,
   SCROLL_MAX_PX,
-  shiftedRowIds,
+  slideOffsets,
 } from "../lib/layer-drag-visual";
 import type { RowBox } from "../lib/layer-drop";
 
@@ -26,11 +26,49 @@ describe("layer drag visuals", () => {
     expect(pastThreshold(-3, 0)).toBe(true);
   });
 
-  it("slides every row at or below the drop line, and none without a drop", () => {
-    expect([...shiftedRowIds(rows, 64)]).toEqual(["b1", "A"]);
-    expect([...shiftedRowIds(rows, 0)]).toEqual(["B", "b2", "b1", "A"]);
-    expect([...shiftedRowIds(rows, 128)]).toEqual([]);
-    expect(shiftedRowIds(rows, null).size).toBe(0);
+  it("moves the dragged rows' place to the line and closes up the rows they pass", () => {
+    // b1 up above b2: b1 moves one row up, b2 one row down; nothing else moves.
+    expect([...slideOffsets(rows, new Set(["b1"]), 32)]).toEqual([
+      ["b1", -32],
+      ["b2", 32],
+    ]);
+    // b2 down to the end: the rows it passes move up one row each.
+    expect([...slideOffsets(rows, new Set(["b2"]), 128)]).toEqual([
+      ["b1", -32],
+      ["A", -32],
+      ["b2", 64],
+    ]);
+    // Its own place, or a refused position, slides nothing.
+    expect(slideOffsets(rows, new Set(["b2"]), 32).size).toBe(0);
+    expect(slideOffsets(rows, new Set(["b2"]), null).size).toBe(0);
+  });
+
+  it("moves a block — a layer with its objects, or rows from apart — as one, keeping its order", () => {
+    // Layer B with its two objects below layer A: A moves up three rows, B's block down one.
+    expect([...slideOffsets(rows, new Set(["B", "b2", "b1"]), 128)]).toEqual([
+      ["A", -96],
+      ["B", 32],
+      ["b2", 32],
+      ["b1", 32],
+    ]);
+    // B and b1 (not adjacent) to the end: they gather there in their own order.
+    expect([...slideOffsets(rows, new Set(["B", "b1"]), 128)]).toEqual([
+      ["b2", -32],
+      ["A", -64],
+      ["B", 64],
+      ["b1", 32],
+    ]);
+  });
+
+  it("slides by each row's own height", () => {
+    const mixed: RowBox[] = [
+      { kind: "node", id: "x", top: 0, bottom: 40 },
+      { kind: "node", id: "y", top: 40, bottom: 60 },
+    ];
+    expect([...slideOffsets(mixed, new Set(["x"]), 60)]).toEqual([
+      ["y", -40],
+      ["x", 20],
+    ]);
   });
 
   it("keeps the floating row inside the content", () => {
