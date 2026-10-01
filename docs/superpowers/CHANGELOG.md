@@ -3400,3 +3400,35 @@ inside a UI bracket), which stays parked as M21 left it.
   (CLAUDE.md, accessibility group), not new.
 - Playwright 1.63 is a dev dependency; WebKit was already in the machine's Playwright cache from
   slop-paint.
+
+## 2026-10-01 — `npm run test:ipad` extended: 6 checks → 22
+
+- **Asked for:** cover as much of the iPad checklist as WebKit can. Playwright can only *tap* on
+  WebKit (no touch drag, hold or second finger), so the checks are of two strengths:
+  - **Real taps** — the File menu; a tapped icon's title in the status bar; tap selects and a tap
+    on empty canvas deselects; the dock's Shift latches and a tap on empty canvas still clears;
+    Select ▸ Select All / Deselect; the Text tool places a title and focuses the field from the
+    tap; Fingers select on/off after the Pencil; renaming via the file name; File ▸ Save shares
+    `Poster.svg` (stubbed share sheet) and clears the dirty mark; Export PNG through the "ready"
+    dialog; Import SVG through the file picker; an autosave reload; portrait (the top bar fits at
+    834 px, the File menu is on screen, Properties opens the drawer).
+  - **Simulated pointer events, labelled `[sim]`** — a finger corner drag on a thin rectangle
+    (now touch, was mouse); a long press opens the context menu with the object selected and the
+    lift's click runs nothing; two-finger tap undoes, three redoes; a pinch zooms and doesn't
+    undo; a Brush stroke that rests 0.7 s at its start lands with no menu (review H1); after the
+    Pencil, a finger drag pans and never moves or selects.
+  - 32 px touch controls: every `.btn`/`.field` and bar icon. Other targets under 32 px are printed
+    as `info`, not failed: the file name (20 px high), the dock's chevron (24 wide), the layer
+    rows' grip/lock/eye (14–20 wide) and the Properties section headings (24 high).
+- **Each new check was seen to fail without its behaviour**, by breaking the app on purpose and
+  re-running: long press armed for every tool, no two-finger undo, the lift's click not swallowed,
+  fingers drawing after the Pencil, a latched Shift blocking deselect, a touch lift clearing the
+  hint (the M5 bug), `--ctl-h` 24 px under touch. Two checks passed the first time when they
+  shouldn't have and were fixed: the Brush pause came after the Pencil had moved past the long
+  press's 10 px slop (the rest must come first), and the lift's click landed on the menu's padding
+  rather than an item.
+- **Harness quirk, not an app bug:** a Playwright touch tap on a button that `preventDefault`s its
+  pointerdown (the dock's Snap and Fingers select) produces no `click`; iOS still does, and Fingers
+  select passed on the device. The script clicks that toggle; the canvas taps stay real.
+- Still device-only: the real Pencil, feel, the keyboard and auto-pan, the real share sheet,
+  memory. The IPAD-CHECKLIST stays as it is — a `[sim]` pass is weaker evidence than the device.
