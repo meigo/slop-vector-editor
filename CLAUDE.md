@@ -24,18 +24,26 @@ entries supersede earlier ones — mark superseded entries).
   them.
 - `npm test` — Vitest, node env, no DOM — 1389 tests in 91 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
-  slop-paint 2026-10-01): the app in WebKit (Safari's engine) at iPad Pro 11 landscape with touch,
-  in a fresh profile (never the user's autosave). Starts its own dev server on a free port;
-  `npm run test:ipad -- <url>` checks a URL (e.g. the deployed site). Checks: it loads; a real
-  touch tap opens the File menu and a tap outside closes it; a simulated Pencil stroke with the
-  Brush lands; a thin rectangle's corner drag scales by the drag (review M14); the Text tool places
-  and retitles a title; a radial gradient renders (centre vs rim brightness, not an image's range —
-  a range also passes on an outline or the dark ground); no page errors. Screenshots in
-  `test-results/ipad/` (gitignored); exit 1 on failure. First run per machine: `npx playwright
-install webkit`. Synthetic pen events aren't live pointers, so the script lets WebKit's refused
-  `setPointerCapture` fail quietly. NOT covered (test on the iPad): the real Pencil, multi-finger
-  gestures, the share sheet, the keyboard, iPadOS memory limits. It also drives what the Chrome
-  extension cannot — a real mouse drag with moves on a resize handle.
+  slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
+  with touch, in a fresh profile (never the user's autosave) — 22 checks, landscape then portrait.
+  Starts its own dev server on a free port; `npm run test:ipad -- <url>` checks a URL (e.g. the
+  deployed site). Screenshots in `test-results/ipad/` (gitignored); exit 1 on failure. First run
+  per machine: `npx playwright install webkit`. **Two strengths of evidence:** real taps
+  (`touchscreen.tap` — WebKit makes the pointer, touch and click events itself) for menus, the
+  status-bar hint, select/deselect, the dock's Shift latch, the Text tool's placement and focus,
+  Fingers select, rename, Save/Export/Import and portrait; and **simulated** pointer events,
+  labelled `[sim]`, for everything Playwright cannot do on WebKit — it can only tap, so drags,
+  holds, the Pencil and every multi-finger gesture (corner drag, long press, two/three-finger
+  tap, pinch, Brush with a resting start, finger pan after the Pencil) are dispatched by the
+  script, as the full over/enter/down/move/up/out/leave sequence on the down target. Those test
+  the app's routing and tools, not what iPadOS delivers. Also: 32 px touch controls (other small
+  targets are listed as `info`, not failed), the radial gradient's centre vs rim brightness, the
+  autosave reload, no page errors. The share sheet is **stubbed** (`navigator.share` records the
+  file). Two harness quirks: simulated pointers aren't live, so WebKit's refused
+  `setPointerCapture` is made to fail quietly; and Playwright's touch emulation makes no `click`
+  after a pointerdown the page `preventDefault`s (iOS does), so the dock's Fingers select toggle is
+  clicked, not tapped. NOT covered (test on the iPad): the real Pencil (pressure, hover, palm), how
+  gestures feel, the on-screen keyboard and auto-pan, the real share sheet, iPadOS memory limits.
 - After UI or input changes, run `npm run test:ipad` too: WebKit catches Safari-only breakage that
   Chrome doesn't. A new check must fail without the behaviour it claims — read its screenshot.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
