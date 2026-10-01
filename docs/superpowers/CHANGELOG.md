@@ -3493,3 +3493,21 @@ inside a UI bracket), which stays parked as M21 left it.
   Checked in a WebKit screenshot mid-drag.
 - The drop target (the layer or group a node drop lands in) matches: straight accent lines above
   and below, as inset box-shadows (no height change), combined with a selected row's left bar.
+
+## 2026-10-01 — Touch targets: everything reachable by finger is at least 32px
+
+- The iPad check listed these as smaller than the 32px rule; the user asked for them fixed:
+  - the file name in the top bar: 20 → 32px high (no layout change, the bar is 44px);
+  - the dock's show/hide chevron: 24 → 32px wide (everywhere; the dock is 8px wider);
+  - the Properties section headings: 24px → `--ctl-h` (32 on touch, still 24 with a mouse);
+  - layer rows, **touch only** (the user's pick of three): lock and eye 20 → 32px, grip and
+    chevron 14 → 24px, indent per level 18 → 28px, through `--row-*` variables beside `--ctl-h`
+    under `any-pointer: coarse`. The mouse layout is unchanged and still matches slop-paint and
+    slop-animator; a child's grip still sits under its parent's chevron (measured at both sizes).
+- `test:ipad`'s sizing check is strict now: any button, input or select under 32px fails, except
+  the row grip/chevron (24px minimum) and the sidebar's 8px resize grip; seen to fail with the dock
+  chevron put back to 24px.
+- **Cost, seen in the screenshot:** on touch at the default 240px sidebar, a row two levels deep
+  (a shape inside a group) has ~50px for its name ("Rect…"). Not addressed yet.
+- Owed on the iPad: the feel of the wider row controls (IPAD-CHECKLIST §5's 32px line).
+

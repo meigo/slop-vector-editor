@@ -15,7 +15,7 @@
 
 <button
   type="button"
-  class="field-divider section-title flex items-center gap-1 text-left text-muted hover:text-text"
+  class="field-divider section-title flex min-h-(--ctl-h) items-center gap-1 text-left text-muted hover:text-text"
   aria-expanded={open}
   title={open ? `Hide the ${title} section` : `Show the ${title} section`}
   onclick={() => toggleSection(id)}

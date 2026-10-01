@@ -36,8 +36,9 @@ entries supersede earlier ones — mark superseded entries).
   holds, the Pencil and every multi-finger gesture (corner drag, long press, two/three-finger
   tap, pinch, Brush with a resting start, finger pan after the Pencil, a layer row drag) are dispatched by the
   script, as the full over/enter/down/move/up/out/leave sequence on the down target. Those test
-  the app's routing and tools, not what iPadOS delivers. Also: 32 px touch controls (other small
-  targets are listed as `info`, not failed), the radial gradient's centre vs rim brightness, the
+  the app's routing and tools, not what iPadOS delivers. Also: every touch target at least 32 px
+  (2026-10-01; the exceptions by design are a layer row's 24 px grip and chevron and the 8 px
+  sidebar grip), the radial gradient's centre vs rim brightness, the
   autosave reload, no page errors. The share sheet is **stubbed** (`navigator.share` records the
   file). Two harness quirks: simulated pointers aren't live, so WebKit's refused
   `setPointerCapture` is made to fail quietly; and Playwright's touch emulation makes no `click`
@@ -398,6 +399,13 @@ every user-visible change.
       primary pointer would shrink the targets on the one device the 32px rule exists for.
       `.field` and `.btn` follow it; `.icon-btn` deliberately does not — it is the top bar's square
       icon target, where the density buys nothing. A new control uses `var(--ctl-h)`, never `h-8`.
+      **Layer rows follow the same media query** (`--row-slot`/`--row-toggle`/`--row-indent`,
+      2026-10-01): 14/20/18px with a mouse — the geometry slop-paint and slop-animator share — and
+      24/32/28px on touch, where the lock and eye columns meet the 32px rule and the grip and
+      chevron stop at 24 (32 would push nested rows too far right). The indent is always one slot
+      plus the 4px gap, so a child's grip stays under its parent's chevron. The file name, the
+      dock's chevron and the Properties section headings are 32px targets too; `test:ipad` fails on
+      any other control under 32px.
     - **A `<textarea>` needs a definite height in a grid.** With `height: auto` it contributes a
       ~10px row while rendering 43px, so it overlaps its neighbours on both sides. `textarea.field`
       states `height` and `min-height` in `--ctl-h` units instead.
