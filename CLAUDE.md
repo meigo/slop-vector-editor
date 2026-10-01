@@ -47,7 +47,9 @@ entries supersede earlier ones — mark superseded entries).
 - After UI or input changes, run `npm run test:ipad` too: WebKit catches Safari-only breakage that
   Chrome doesn't. A new check must fail without the behaviour it claims — read its screenshot.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
-- `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
+- `npm run deploy` — `npm run test:ipad` first (`predeploy`, 2026-10-01: ~22 s; a failure stops the
+  deploy — its checks wait on fixed timeouts, so on a busy machine re-run before suspecting the
+  app), then build, then `wrangler deploy` (assets-only Worker, no `main`).
 
 ## Workflow
 
