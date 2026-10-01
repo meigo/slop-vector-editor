@@ -38,8 +38,9 @@ export type Prefs = {
   /** The sidebar's width in CSS px (spec M10e §3), as the user chose it. Clamped, never rejected,
    *  on load; the viewport's ceiling clamps only what is shown (review M18), so a width saved on a
    *  wide monitor cannot strand the panel on a laptop, and turning an iPad to portrait and back
-   *  does not shrink it for good. */
-  sidebarPx: number;
+   *  does not shrink it for good. `null` = not chosen: the device's default is shown
+   *  (`shownSidebarWidth`, 240px, or 280px on a touch screen — 2026-10-01). */
+  sidebarPx: number | null;
   /** The Brush tool's settings (spec M21 §6). */
   brush: BrushPrefs;
 };
@@ -72,7 +73,7 @@ export const DEFAULT_PREFS: Prefs = {
   splitRatio: 0.55,
   layersOpen: true,
   closedSections: [...DEFAULT_CLOSED],
-  sidebarPx: DEFAULT_SIDEBAR_PX,
+  sidebarPx: null,
   brush: DEFAULT_BRUSH,
 };
 
@@ -92,6 +93,8 @@ function paint(v: unknown, fallback: Paint | null): Paint | null {
   if (!isObj(v) || typeof v.color !== "string" || !/^#[0-9a-f]{6}$/.test(v.color)) return fallback;
   return { color: v.color, opacity: num(v.opacity, 0, 1, 1) };
 }
+
+const notDefault = (px: number): number | null => (px === DEFAULT_SIDEBAR_PX ? null : px);
 
 /** Preferences come from localStorage, so every field is checked on its own. */
 export function sanitizePrefs(raw: unknown): Prefs {
@@ -140,9 +143,13 @@ export function sanitizePrefs(raw: unknown): Prefs {
     // a 5K monitor merely narrow on a laptop instead of silently thrown away. The real viewport is
     // not known here — this runs before layout — so the ceiling is applied again on mount and on
     // every window resize; this pass only enforces the floor and rejects nonsense.
+    //
+    // A stored 240 reads as "not chosen" (2026-10-01): until then every save wrote the default
+    // with the rest of the prefs, so 240 almost always means nobody dragged the grip — and reading
+    // it as a choice would keep every existing iPad on the narrow default.
     sidebarPx:
       typeof r.sidebarPx === "number" && Number.isFinite(r.sidebarPx)
-        ? clampSidebarWidth(r.sidebarPx, Number.MAX_SAFE_INTEGER)
+        ? notDefault(clampSidebarWidth(r.sidebarPx, Number.MAX_SAFE_INTEGER))
         : d.sidebarPx,
     brush: sanitizeBrush(r.brush),
   };

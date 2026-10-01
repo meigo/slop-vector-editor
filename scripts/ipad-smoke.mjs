@@ -233,6 +233,11 @@ try {
   // 4. [sim] A thin rectangle, drawn with a finger; its corner, dragged with a finger, scales it
   //    uniformly by the pointer's travel along its diagonal (review M14): a 6 px nudge on the short
   //    side once made it 1.25× as long. The finger's reach is 10 px, the mouse's 6.
+  //    Snap is off for it: an edge that lands on a guide (the artboard's centre, at some canvas
+  //    sizes) rightly holds a 6 px nudge there. Clicked, not tapped — the dock's buttons
+  //    `preventDefault` their pointerdown, and Playwright's touch emulation then makes no click.
+  const snap = page.getByRole("button", { name: "Snap", exact: true });
+  await snap.click();
   await tapTool("Rectangle");
   const r0 = at(0.15, 0.2);
   const r1 = { x: r0.x + 300, y: r0.y + 24 };
@@ -240,9 +245,14 @@ try {
   await tapTool("Select");
   await page.waitForTimeout(300);
   const w0 = await width();
-  await gesture(dragSteps("touch", 12, r1, { x: r1.x + 6, y: r1.y + 6 }));
+  // The corner where the rectangle actually is: snapping may have moved its edges off the drag's
+  // end (at another canvas size its top snapped onto the artboard's edge).
+  const drawn = await objectBox(0);
+  const corner = { x: drawn.x + drawn.width, y: drawn.y + drawn.height };
+  await gesture(dragSteps("touch", 12, corner, { x: corner.x + 6, y: corner.y + 6 }));
   await page.waitForTimeout(300);
   const w1 = await width();
+  await snap.click();
   await page.screenshot({ path: `${OUT}/4-corner.png` });
   check(
     w1 > w0 && w1 / w0 < 1.1,

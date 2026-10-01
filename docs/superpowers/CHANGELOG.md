@@ -3511,3 +3511,21 @@ inside a UI bracket), which stays parked as M21 left it.
   (a shape inside a group) has ~50px for its name ("Rect…"). Not addressed yet.
 - Owed on the iPad: the feel of the wider row controls (IPAD-CHECKLIST §5's 32px line).
 
+## 2026-10-01 — A wider default sidebar on touch screens
+
+- The touch-target change above left a shape inside a group ~50px for its name on touch at the
+  default 240px sidebar. The user picked a wider touch default over accepting it or a shallower
+  indent: on a touch screen (`any-pointer: coarse`) a sidebar whose width was never chosen is now
+  280px (`TOUCH_SIDEBAR_PX`, `shownSidebarWidth` in `panel-layout.ts`); a mouse-only machine stays
+  at 240.
+- To tell "never chosen" from "chose 240", `prefs.sidebarPx` is `number | null` (null = not
+  chosen), and a stored 240 reads as null: until now every save wrote the default along with the
+  other prefs (the dock's first touch is one), so existing iPads would otherwise keep 240. A
+  chosen width other than 240 is kept, on any device.
+- Measured: a fresh iPad and an iPad with a stored 240 show 280; a stored 300 shows 300; the
+  desktop shows 240 fresh and with 240 stored. 3 new unit tests (1396 in 92 files).
+- `test:ipad`'s thin-rectangle corner check broke with the narrower canvas — not an app bug: the
+  rectangle's right edge now landed on the artboard's centre guide, and snapping rightly held a
+  6 px nudge there. The check now turns Snap off for itself and drags the rectangle's real
+  on-screen corner rather than where the draw ended.
+

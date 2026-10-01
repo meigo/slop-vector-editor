@@ -4,6 +4,8 @@ import {
   DEFAULT_SIDEBAR_PX,
   MIN_SIDEBAR_PX,
   resizedSidebarWidth,
+  shownSidebarWidth,
+  TOUCH_SIDEBAR_PX,
 } from "../lib/panel-layout";
 
 describe("clampSidebarWidth", () => {
@@ -59,5 +61,20 @@ describe("resizedSidebarWidth", () => {
     const once = resizedSidebarWidth(240, 1000, 880, 1600);
     for (let x = 999; x > 880; x -= 7) resizedSidebarWidth(240, 1000, x, 1600);
     expect(resizedSidebarWidth(240, 1000, 880, 1600)).toBe(once);
+  });
+});
+
+describe("shownSidebarWidth", () => {
+  it("shows the device's default until a width is chosen, wider on a touch screen", () => {
+    expect(TOUCH_SIDEBAR_PX).toBe(280);
+    expect(shownSidebarWidth(null, 1600, false)).toBe(DEFAULT_SIDEBAR_PX);
+    expect(shownSidebarWidth(null, 1600, true)).toBe(TOUCH_SIDEBAR_PX);
+  });
+
+  it("shows a chosen width on any device, clamped to the viewport", () => {
+    expect(shownSidebarWidth(320, 1600, true)).toBe(320);
+    expect(shownSidebarWidth(320, 1600, false)).toBe(320);
+    expect(shownSidebarWidth(900, 1000, false)).toBe(500);
+    expect(shownSidebarWidth(null, 500, true)).toBe(250);
   });
 });

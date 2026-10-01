@@ -42,6 +42,15 @@ describe("preferences", () => {
     brush: { size: 12, pressure: 4.5, taper: false, stream: 20, smooth: 60 },
   };
 
+  it("reads an absent or default sidebar width as not chosen, and keeps any other", () => {
+    expect(sanitizePrefs({}).sidebarPx).toBeNull();
+    expect(sanitizePrefs({ sidebarPx: "300" }).sidebarPx).toBeNull();
+    // Every save before 2026-10-01 wrote the 240 default with the other prefs, so it is no choice.
+    expect(sanitizePrefs({ sidebarPx: 240 }).sidebarPx).toBeNull();
+    expect(sanitizePrefs({ sidebarPx: 300 }).sidebarPx).toBe(300);
+    expect(sanitizePrefs({ sidebarPx: 100 }).sidebarPx).toBe(200);
+  });
+
   it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {
     expect(sanitizePrefs({}).splitRatio).toBe(0.55);
     expect(sanitizePrefs({ splitRatio: 0.3 }).splitRatio).toBe(0.3);

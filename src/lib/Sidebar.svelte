@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { clampSidebarWidth, resizedSidebarWidth } from "./panel-layout";
+  import { clampSidebarWidth, resizedSidebarWidth, shownSidebarWidth } from "./panel-layout";
   import { clampRatio, MIN_PANEL_PX, propsOpen, ratioFromDrag, STRIP_PX } from "./split";
   import { app, propsHasContent, setPrefs, togglePropsPanel } from "../state/appState.svelte";
   import LayersPanel from "./LayersPanel.svelte";
@@ -68,11 +68,13 @@
   /** The width being dragged right now; null when no drag is running and the pref rules. */
   let liveWidth = $state<number | null>(null);
   let viewportPx = $state(window.innerWidth);
+  /** A touch screen gets a wider default width while none is chosen (`shownSidebarWidth`). */
+  const coarse = matchMedia("(any-pointer: coarse)").matches;
   /** A width stored on a wider screen, or left over from before the window shrank, would otherwise
    *  leave no canvas at all. The ceiling is half the viewport, and it can only be applied where the
    *  viewport is known — here, not in `sanitizePrefs`. It clamps what is SHOWN, never the pref
    *  (review M18): saving the clamp made a portrait turn shrink the chosen width for good. */
-  const widthPx = $derived(liveWidth ?? clampSidebarWidth(app.prefs.sidebarPx, viewportPx));
+  const widthPx = $derived(liveWidth ?? shownSidebarWidth(app.prefs.sidebarPx, viewportPx, coarse));
 
   $effect(() => {
     const onResize = () => (viewportPx = window.innerWidth);
