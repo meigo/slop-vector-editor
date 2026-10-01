@@ -28,7 +28,7 @@
     pasteText,
     restoreGoogleFonts,
   } from "./state/appState.svelte";
-  import { clampSidebarWidth } from "./lib/panel-layout";
+  import { shownSidebarWidth } from "./lib/panel-layout";
   import { runCommand, runEditAction } from "./state/commands";
   import { commandForKey, editActionForKey, fieldPassesKey, type FieldScope } from "./state/keys";
 
@@ -38,6 +38,8 @@
   // width the way an in-flow sibling can. 12px is the gap the old 252px inset left beside a 240px
   // column.
   let viewportPx = $state(window.innerWidth);
+  /** A touch screen gets a wider default sidebar (`shownSidebarWidth`). */
+  const coarse = matchMedia("(any-pointer: coarse)").matches;
   $effect(() => {
     const onResize = () => (viewportPx = window.innerWidth);
     window.addEventListener("resize", onResize);
@@ -45,7 +47,7 @@
   });
   $effect(() => {
     // The width the sidebar shows: the pref clamped to this viewport, as `Sidebar` clamps it.
-    const px = clampSidebarWidth(app.prefs.sidebarPx, viewportPx);
+    const px = shownSidebarWidth(app.prefs.sidebarPx, viewportPx, coarse);
     document.documentElement.style.setProperty("--sidebar-inset", `${px + 12}px`);
   });
 

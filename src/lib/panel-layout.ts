@@ -17,6 +17,11 @@ export const MIN_SIDEBAR_PX = 200;
  *  nothing moves for anyone who never drags the grip. */
 export const DEFAULT_SIDEBAR_PX = 240;
 
+/** The same, on a touch screen (`any-pointer: coarse`, 2026-10-01): its layer rows have wider
+ *  controls and a deeper indent (`--row-*` in app.css), which at 240px left a shape inside a group
+ *  ~50px for its name. Only a width the user has not chosen follows the device (`sidebarPx: null`). */
+export const TOUCH_SIDEBAR_PX = 280;
+
 /** The grip's hit strip. 8px, matching every sibling app; it is positioned over the panel's left
  *  border rather than taking a column of its own, so widening it costs the panel no content. */
 export const GRIP_PX = 8;
@@ -42,4 +47,14 @@ export function resizedSidebarWidth(
   viewportPx: number,
 ): number {
   return clampSidebarWidth(startPx + (startX - clientX), viewportPx);
+}
+
+/** The width the sidebar shows: the user's own width, or the device's default while they have not
+ *  chosen one, clamped to this viewport. */
+export function shownSidebarWidth(
+  pref: number | null,
+  viewportPx: number,
+  coarse: boolean,
+): number {
+  return clampSidebarWidth(pref ?? (coarse ? TOUCH_SIDEBAR_PX : DEFAULT_SIDEBAR_PX), viewportPx);
 }
