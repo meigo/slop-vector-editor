@@ -8,6 +8,7 @@
     "dev:lan": "HTTPS=1 vite --host",
     "build": "svelte-check && tsc --noEmit && vite build",
     "preview": "vite preview",
+    "predeploy": "npm run test:ipad",
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:ipad": "node scripts/ipad-smoke.mjs",

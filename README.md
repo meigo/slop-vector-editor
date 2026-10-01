@@ -195,15 +195,15 @@ npm run dev:lan   # HTTPS on your LAN, for iPad testing
 npm test          # 1389 unit tests
 npm run test:ipad # iPad smoke check in WebKit (Safari's engine); first run: npx playwright install webkit
 npm run build     # type-check + production build
-npm run deploy    # build + deploy to Cloudflare
+npm run deploy    # iPad smoke check, then build + deploy to Cloudflare
 ```
 
 Svelte 5, TypeScript, Vite, Tailwind CSS 4, Vitest.
 
 ## Deploy
 
-`npm run deploy` builds and publishes to Cloudflare (assets-only Worker); it needs `wrangler`
-auth. The live demo above is that deploy.
+`npm run deploy` runs the iPad smoke check first (`predeploy`; a failure stops the deploy), then
+builds and publishes to Cloudflare (assets-only Worker); it needs `wrangler` auth. The live demo above is that deploy.
 
 ## Licence
 
