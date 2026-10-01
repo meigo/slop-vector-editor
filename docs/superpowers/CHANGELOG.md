@@ -3491,3 +3491,5 @@ inside a UI bracket), which stays parked as M21 left it.
 - Asked for: the floating row drawn with straight accent borders above and below only, not a
   rounded ring all round (`border-y border-accent`, no `rounded`/`ring`). The shadow stays.
   Checked in a WebKit screenshot mid-drag.
+- The drop target (the layer or group a node drop lands in) matches: straight accent lines above
+  and below, as inset box-shadows (no height change), combined with a selected row's left bar.
