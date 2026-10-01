@@ -91,7 +91,7 @@ What works today:
   available offline afterwards. **Weight** and **Italic** are selectable wherever the family
   offers them.
 - Layers: a layers panel with show/hide, lock, rename, drag to reorder (by a row's grip: the row
-  follows the pointer and the list opens a gap where it will land), and a current layer for
+  follows the pointer and its place in the list moves to where it will land), and a current layer for
   new shapes; z-order (bring forward/backward, to front/back). **Every shape and group has its own
   eye and lock too** — a hidden or locked object can't be clicked, dragged or marquee-selected, and
   its row in the panel is how you get it back; a closed eye or a shut lock shows in yellow. The panel's trash deletes the selected objects when

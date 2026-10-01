@@ -33,13 +33,7 @@
   import { isDoubleTap, type Tap } from "../input/double-tap";
   import IconButton from "./IconButton.svelte";
   import PanelHeader from "./PanelHeader.svelte";
-  import {
-    autoScrollStep,
-    ghostTop,
-    pastThreshold,
-    ROW_PX,
-    shiftedRowIds,
-  } from "./layer-drag-visual";
+  import { autoScrollStep, ghostTop, pastThreshold, slideOffsets } from "./layer-drag-visual";
   import { dropTarget, type Drag, type Drop, type RowBox } from "./layer-drop";
   import { trashAction } from "./layer-trash";
   import { revealScrollTop } from "./reveal";
@@ -68,8 +62,9 @@
   let drop = $state<Drop | null>(null);
   /** The floating copy of the grabbed row, in content coordinates. */
   let ghost = $state<{ top: number; label: string; pad: string; count: number } | null>(null);
-  /** Rows slid down to open the gap, and the rows being dragged (dimmed in place). */
-  let shifted = $state.raw<Set<string>>(new Set());
+  /** How far each row slides — the dragged rows' place to the drop point, the rows they pass
+   *  closing up — and the rows being dragged, dimmed. */
+  let shifted = $state.raw<Map<string, number>>(new Map());
   let dimmed = $state.raw<Set<string>>(new Set());
   /** The layer or group a node drop lands in, outlined. */
   const dropInto = $derived(drop?.kind === "node" ? drop.parentId : null);
@@ -227,7 +222,7 @@
     if (!list || !ghost) return;
     const y = d.clientY - list.getBoundingClientRect().top + list.scrollTop;
     drop = dropTarget(app.doc, d.boxes, y, d.drag);
-    shifted = shiftedRowIds(d.boxes, drop?.line ?? null);
+    shifted = slideOffsets(d.boxes, dimmed, drop?.line ?? null);
     ghost = { ...ghost, top: ghostTop(y, d.grab, d.contentHeight) };
     document.documentElement.classList.toggle("layer-drop-refused", drop === null);
   }
@@ -258,7 +253,7 @@
     dragging = null;
     drop = null;
     ghost = null;
-    shifted = new Set();
+    shifted = new Map();
     dimmed = new Set();
     document.documentElement.classList.remove("layer-dragging", "layer-drop-refused");
   }
@@ -290,9 +285,12 @@
     }
   }
 
-  /** A row's slide, while a drag is open: the gap opens and closes smoothly, and at the drop the
-   *  rows jump straight to their new order rather than animating back from the gap. */
-  const slide = (id: string) => (shifted.has(id) ? `translateY(${ROW_PX}px)` : null);
+  /** A row's slide, while a drag is open: rows glide to their places as the drop point moves, and
+   *  at the drop they jump straight to their new order rather than animating back. */
+  const slide = (id: string) => {
+    const dy = shifted.get(id);
+    return dy ? `translateY(${dy}px)` : null;
+  };
   const slideTransition = $derived(ghost ? "transform 150ms ease" : null);
 
   /** Dragging a selected row moves the whole selection; any other row moves on its own. */

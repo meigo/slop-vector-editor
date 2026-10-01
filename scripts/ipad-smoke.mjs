@@ -582,8 +582,8 @@ try {
   check(imported, "File ▸ Import SVG… opens the picker and adds the file's drawing");
 
   // 19. [sim] A finger drags the bottom object's row in the Layers panel by its grip to the top:
-  //     mid-drag the row follows the finger and the rows below the drop point slide aside to open
-  //     a gap; the lift reorders.
+  //     mid-drag the row follows the finger, its place moves up to the top slot and the rows it
+  //     passes close up behind it (each one row down; the layer row stays); the lift reorders.
   const rowOrder = () =>
     page
       .locator("section[aria-label=Layers] [data-row-id]")
@@ -600,17 +600,23 @@ try {
   await page.waitForTimeout(200);
   const lifted = await page.evaluate(() => ({
     ghost: !!document.querySelector("[data-drag-ghost]"),
-    gap: [...document.querySelectorAll("section[aria-label=Layers] [data-row-id]")].some(
-      (e) => e.style.transform,
+    // Each row's slide in px, in list order.
+    dy: [...document.querySelectorAll("section[aria-label=Layers] [data-row-id]")].map((e) =>
+      Math.round(Number(e.style.transform.match(/-?[\d.]+/)?.[0] ?? 0)),
     ),
   }));
+  const rowH = firstRow.height;
+  const closesUp =
+    lifted.dy[0] === 0 &&
+    lifted.dy.slice(1, -1).every((d) => d === rowH) &&
+    lifted.dy.at(-1) === -rowH * (o0.length - 2);
   await page.screenshot({ path: `${OUT}/19-layer-drag.png` });
   await gesture([rowLift]);
   await page.waitForTimeout(200);
   const o1 = await rowOrder();
   check(
-    lifted.ghost && lifted.gap && o1[1] === o0.at(-1) && o1.length === o0.length,
-    "[sim] a finger drags a layer row by its grip: it follows the finger, a gap opens, the drop reorders",
+    lifted.ghost && closesUp && o1[1] === o0.at(-1) && o1.length === o0.length,
+    `[sim] a finger drags a layer row by its grip: it follows the finger, its place moves to the drop and the rest close up (slides ${lifted.dy.join(", ")}), the drop reorders`,
   );
 
   // 20. Autosave: a reload brings back the document and its name.
