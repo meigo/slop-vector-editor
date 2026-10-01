@@ -84,10 +84,19 @@ body {
    yes to with or without a trackpad, and a desktop answers no to. */
 :root {
   --ctl-h: 1.5rem;
+  /* Layer-row columns (LayersPanel, 2026-10-01): the grip and chevron slots, the lock and eye
+     columns, and the indent per nesting level (one slot plus its 4px gap). With a mouse they are
+     the geometry slop-paint and slop-animator share; on touch they widen toward the 32px rule. */
+  --row-slot: 14px;
+  --row-toggle: 20px;
+  --row-indent: 18px;
 }
 @media (any-pointer: coarse) {
   :root {
     --ctl-h: 2rem;
+    --row-slot: 24px;
+    --row-toggle: 32px;
+    --row-indent: 28px;
   }
 }
 

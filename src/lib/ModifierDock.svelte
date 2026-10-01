@@ -110,7 +110,7 @@
     {/each}
   {/if}
   <button
-    class="flex h-10 w-6 items-center justify-center rounded text-muted hover:bg-raised"
+    class="flex h-10 w-8 items-center justify-center rounded text-muted hover:bg-raised"
     style="touch-action: none"
     aria-expanded={expanded}
     title={expanded

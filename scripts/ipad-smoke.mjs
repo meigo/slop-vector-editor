@@ -250,14 +250,17 @@ try {
   );
 
   // 5. Touch sizing: with a touch screen present (`any-pointer: coarse`) every field and button in
-  //    the panels is 32 px high, and every icon in the bars is 32 px square (M10e §2). Other small
-  //    targets are listed, not failed: some are small by design (a row's drag grip, the 8 px
-  //    sidebar grip that sits over a border).
+  //    the panels is 32 px high, every icon in the bars 32 px square (M10e §2), and every other
+  //    button, input and select at least 32 × 32 (2026-10-01) — with two exceptions by design: a
+  //    layer row's grip and chevron are 24 px wide (`--row-slot`; 32 would push nested rows too far
+  //    right), and the sidebar's 8 px resize grip sits over a border.
   const sizes = await page.evaluate(() => {
     const box = (el) => el.getBoundingClientRect();
     const name = (el) =>
       el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent.trim();
     const visible = (el) => box(el).width > 0 && box(el).height > 0;
+    const size = (el) =>
+      `${name(el) || el.tagName} ${Math.round(box(el).width)}×${Math.round(box(el).height)}`;
     const short = [...document.querySelectorAll(".btn, .field:not(textarea)")]
       .filter(visible)
       .filter((el) => box(el).height < 31.5)
@@ -265,33 +268,30 @@ try {
     const icons = [...document.querySelectorAll(".icon-btn")]
       .filter(visible)
       .filter((el) => box(el).height < 31.5 || box(el).width < 31.5)
-      .map((el) => `${name(el)} ${Math.round(box(el).width)}×${Math.round(box(el).height)}`);
-    const small = [...document.querySelectorAll("button, input, select")]
+      .map(size);
+    const rowSlot = (el) =>
+      !!el.closest("[data-row-id]") &&
+      /^(Drag|Collapse|Expand) “/.test(el.getAttribute("aria-label") ?? "");
+    const others = [...document.querySelectorAll("button, input, select")]
       .filter(visible)
       .filter((el) => !el.matches(".btn, .field, .icon-btn"))
-      .filter((el) => box(el).height < 31.5 || box(el).width < 31.5)
-      .map(
-        (el) =>
-          `${name(el) || el.tagName} ${Math.round(box(el).width)}×${Math.round(box(el).height)}`,
-      );
+      .filter((el) => !(el.getAttribute("aria-label") ?? "").startsWith("Resize the sidebar"));
+    const small = others
+      .filter((el) => box(el).height < 31.5 || box(el).width < (rowSlot(el) ? 23.5 : 31.5))
+      .map(size);
     return {
       coarse: matchMedia("(any-pointer: coarse)").matches,
       fields: document.querySelectorAll(".btn, .field").length,
-      short,
-      icons,
-      small,
+      others: others.length,
+      bad: [...new Set([...short, ...icons, ...small])],
     };
   });
   check(
-    sizes.coarse && sizes.fields > 5 && sizes.short.length === 0 && sizes.icons.length === 0,
-    `fields, buttons and bar icons are 32 px for touch (${sizes.fields} checked${
-      sizes.short.length || sizes.icons.length
-        ? `; too small: ${[...sizes.short, ...sizes.icons].join(", ")}`
-        : ""
+    sizes.coarse && sizes.fields > 5 && sizes.others > 10 && sizes.bad.length === 0,
+    `touch targets are 32 px (${sizes.fields} fields and buttons, ${sizes.others} other controls${
+      sizes.bad.length ? `; too small: ${sizes.bad.join(", ")}` : ""
     })`,
   );
-  if (sizes.small.length)
-    console.log(`info smaller targets: ${[...new Set(sizes.small)].join(", ")}`);
 
   // 6. Real taps select: a tap on the rectangle selects it, a tap on empty canvas clears it. With
   //    Shift latched in the dock (which opened on the first touch), a tap on empty canvas must still

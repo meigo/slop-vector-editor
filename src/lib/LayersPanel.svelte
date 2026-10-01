@@ -301,14 +301,16 @@
     ids: selected.has(id) ? app.selection : [id],
   });
 
-  /** Row geometry, shared with slop-animator and slop-paint: every row starts 8px in, and each
-   *  level indents by one grip slot plus its gap (14 + 4px), so a child's grip sits exactly under
-   *  its parent's chevron. The state toggles sit in fixed 20px columns at a 6px right inset —
-   *  whatever the row's kind or depth — so the eyes and locks make straight columns. An "off" toggle
-   *  (hidden, locked) is warn-coloured so it stands out in a column of muted icons. */
-  const rowPad = (depth: number) => `padding-left: ${8 + 18 * depth}px`;
+  /** Row geometry, shared with slop-animator and slop-paint for a mouse: every row starts 8px in,
+   *  and each level indents by one grip slot plus its gap (14 + 4px), so a child's grip sits
+   *  exactly under its parent's chevron. The state toggles sit in fixed 20px columns at a 6px right
+   *  inset — whatever the row's kind or depth — so the eyes and locks make straight columns. On a
+   *  touch screen the slots are 24px, the toggles 32px and the indent 28px (`--row-*` in app.css,
+   *  2026-10-01), keeping every one of those alignments. An "off" toggle (hidden, locked) is
+   *  warn-coloured so it stands out in a column of muted icons. */
+  const rowPad = (depth: number) => `padding-left: calc(8px + var(--row-indent) * ${depth})`;
   const toggleClass = (off: boolean) => [
-    "flex h-8 w-5 shrink-0 items-center justify-center rounded",
+    "flex h-8 w-(--row-toggle) shrink-0 items-center justify-center rounded",
     off ? "text-warn" : "text-muted hover:text-text",
   ];
 </script>
@@ -348,7 +350,7 @@
       <button
         type="button"
         tabindex="-1"
-        class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
+        class="flex h-8 w-(--row-slot) shrink-0 cursor-grab items-center justify-center text-muted"
         style="touch-action: none"
         aria-label="Drag “{rowLabel(node)}”"
         title="Drag to move “{rowLabel(node)}”"
@@ -365,7 +367,7 @@
       {#if isGroup}
         <button
           type="button"
-          class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
+          class="flex h-8 w-(--row-slot) shrink-0 items-center justify-center text-muted"
           aria-label={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           title={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           aria-expanded={open}
@@ -374,7 +376,7 @@
           {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
         </button>
       {:else}
-        <span class="w-3.5 shrink-0"></span>
+        <span class="w-(--row-slot) shrink-0"></span>
       {/if}
       {#if editing?.kind === "node" && editing.id === node.id}
         <input
@@ -497,7 +499,7 @@
               <button
                 type="button"
                 tabindex="-1"
-                class="flex h-8 w-3.5 shrink-0 cursor-grab items-center justify-center text-muted"
+                class="flex h-8 w-(--row-slot) shrink-0 cursor-grab items-center justify-center text-muted"
                 style="touch-action: none"
                 aria-label="Drag “{layer.name}”"
                 title="Drag to move “{layer.name}”"
@@ -511,7 +513,7 @@
               </button>
               <button
                 type="button"
-                class="flex h-8 w-3.5 shrink-0 items-center justify-center text-muted"
+                class="flex h-8 w-(--row-slot) shrink-0 items-center justify-center text-muted"
                 aria-label={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 title={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 aria-expanded={open}
@@ -589,10 +591,10 @@
           class="pointer-events-none absolute inset-x-0 z-10 flex h-8 items-center gap-1 border-y border-accent bg-raised pr-[6px] shadow-lg"
           style="top: {ghost.top}px; padding-left: {ghost.pad}"
         >
-          <span class="flex w-3.5 shrink-0 justify-center text-muted"
+          <span class="flex w-(--row-slot) shrink-0 justify-center text-muted"
             ><GripVertical size={14} /></span
           >
-          <span class="w-3.5 shrink-0"></span>
+          <span class="w-(--row-slot) shrink-0"></span>
           <span class="min-w-0 flex-1 truncate">{ghost.label}</span>
           {#if ghost.count > 1}
             <span class="rounded bg-accent px-1.5 text-[10px] text-accent-text">{ghost.count}</span>
