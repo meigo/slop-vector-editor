@@ -23,6 +23,21 @@ entries supersede earlier ones — mark superseded entries).
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
 - `npm test` — Vitest, node env, no DOM — 1389 tests in 91 files. Only pure logic is unit-tested.
+- `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
+  slop-paint 2026-10-01): the app in WebKit (Safari's engine) at iPad Pro 11 landscape with touch,
+  in a fresh profile (never the user's autosave). Starts its own dev server on a free port;
+  `npm run test:ipad -- <url>` checks a URL (e.g. the deployed site). Checks: it loads; a real
+  touch tap opens the File menu and a tap outside closes it; a simulated Pencil stroke with the
+  Brush lands; a thin rectangle's corner drag scales by the drag (review M14); the Text tool places
+  and retitles a title; a radial gradient renders (centre vs rim brightness, not an image's range —
+  a range also passes on an outline or the dark ground); no page errors. Screenshots in
+  `test-results/ipad/` (gitignored); exit 1 on failure. First run per machine: `npx playwright
+install webkit`. Synthetic pen events aren't live pointers, so the script lets WebKit's refused
+  `setPointerCapture` fail quietly. NOT covered (test on the iPad): the real Pencil, multi-finger
+  gestures, the share sheet, the keyboard, iPadOS memory limits. It also drives what the Chrome
+  extension cannot — a real mouse drag with moves on a resize handle.
+- After UI or input changes, run `npm run test:ipad` too: WebKit catches Safari-only breakage that
+  Chrome doesn't. A new check must fail without the behaviour it claims — read its screenshot.
 - `npm run lint` / `npm run format`. Pre-commit (husky + lint-staged) runs eslint --fix + prettier.
 - `npm run deploy` — build, then `wrangler deploy` (assets-only Worker, no `main`).
 

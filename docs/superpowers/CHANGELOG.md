@@ -3379,3 +3379,24 @@ inside a UI bracket), which stays parked as M21 left it.
   browser-checked: the touch-only changes (M3, L23, L21's hints on touch) and M18's rotation. Owed
   on the iPad: checklist §3's new pinch line. L7, L8, L17, L19 and L20 are UI wiring without unit
   tests.
+
+## 2026-10-01 — `npm run test:ipad`, a WebKit iPad smoke check
+
+- **Asked for:** the Playwright iPad check slop-paint got, here too. `scripts/ipad-smoke.mjs` runs
+  the app in WebKit at iPad Pro 11 landscape with touch, in a fresh profile, against its own dev
+  server or a given URL. It has six checks plus "no page errors":
+  - a real touch tap opens the File menu, and a tap outside closes it
+  - a simulated Pencil stroke with the Brush lands
+  - a thin rectangle's corner drag scales by the drag (W 693.98 → 709.04; the old larger-ratio
+    rule gave 1.25×) — the batch 4 M14 check the Chrome extension could not drive
+  - the Text tool places a title and typing replaces "Text"
+  - a radial gradient renders under `gradientTransform` (centre 218 vs rim 247)
+- **All pass.** The first version of the gradient check passed for the wrong reason: it measured
+  one image's brightness range, which the dark ground above the artboard satisfied. It was
+  rewritten to compare two patches, and the screenshot checked.
+- **Found by its screenshots, not yet fixed:** at the default sidebar width the gradient Start
+  row's opacity field shows "10ı %": the unit covers the third digit of 100.
+- Escape does not close the File menu (only a tap outside does). That is the parked keyboard work
+  (CLAUDE.md, accessibility group), not new.
+- Playwright 1.63 is a dev dependency; WebKit was already in the machine's Playwright cache from
+  slop-paint.
