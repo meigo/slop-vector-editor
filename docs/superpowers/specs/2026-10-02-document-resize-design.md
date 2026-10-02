@@ -84,7 +84,9 @@ ellipses and polygons stay live under any rotation (a uniform scale commutes wit
 their text through `scaleTextMeta` (invariant 44), gradients follow through `mapStyle` (invariant
 46), the odd-polygon flip path is never taken (no flip). Then:
 
-- **Every shape's stroke width is multiplied by `k`**, document-wide, hidden and locked included.
+- **Every shape's stroke width is multiplied by `k`**, document-wide, hidden and locked included —
+  `scaleDetails(shape, k)` (which runs before the bake, together with the radius) is separate from
+  `bakeShape`, so the resize tools' "strokes keep their width" (invariant 11) is unchanged.
   Shapes with `stroke: null` are returned as they are. A title's stroke scales the same way.
 - **Every rectangle's corner radius `rx` is multiplied by `k`** in the same pass — `bakeShape`
   keeps radii fixed on resize ("stroke widths and corner radii never scale", spec M2a §1), and the

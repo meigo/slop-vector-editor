@@ -67,7 +67,13 @@ describe("extendCanvas", () => {
 
   it("moves hidden and locked content, and leaves nested transforms alone", () => {
     const child = rect({ id: "c", transform: translate(3, 4), hidden: true });
-    const group: Group = { kind: "group", id: "g", transform: IDENTITY, children: [child] };
+    const group: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [child],
+    };
     const out = extendCanvas(docWith([group], [rect({ id: "b", locked: true })]), 200, 50, 1, 0);
     const g = out.layers[0].children[0] as Group;
     expect(g.transform).toEqual([1, 0, 0, 1, 100, 0]);
