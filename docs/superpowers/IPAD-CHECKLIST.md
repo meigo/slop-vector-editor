@@ -124,6 +124,9 @@ polish.
       the finger, its place moves to the drop point and the rows it passes close up, the target
       layer/group is marked; near the
       list's top or bottom edge it scrolls; a locked layer closes the gap.
+- [ ] **P2** Layers panel with the dock's Shift latched (2026-10-02): tapping a second row adds it,
+      and Group / the trash / a row drag act on both — in landscape and portrait (is the dock
+      reachable while the sidebar drawer is open?).
 - [ ] **P3** Double-tap the name of a hidden or locked object's row: it renames (a single tap still
       does not select it).
 - [ ] **P2** Tap the file name in the top bar → Document settings; rename to "Poster", Apply;

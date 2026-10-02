@@ -25,13 +25,13 @@ entries supersede earlier ones — mark superseded entries).
 - `npm test` — Vitest, node env, no DOM — 1398 tests in 92 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
-  with touch, in a fresh profile (never the user's autosave) — 23 checks, landscape then portrait.
+  with touch, in a fresh profile (never the user's autosave) — 24 checks, landscape then portrait.
   Starts its own dev server on a free port; `npm run test:ipad -- <url>` checks a URL (e.g. the
   deployed site). Screenshots in `test-results/ipad/` (gitignored); exit 1 on failure. First run
   per machine: `npx playwright install webkit`. **Two strengths of evidence:** real taps
   (`touchscreen.tap` — WebKit makes the pointer, touch and click events itself) for menus, the
   status-bar hint, select/deselect, the dock's Shift latch, the Text tool's placement and focus,
-  Fingers select, rename, Save/Export/Import and portrait; and **simulated** pointer events,
+  Fingers select, rename, Save/Export/Import, the dock's Shift latch picking two layer rows and portrait; and **simulated** pointer events,
   labelled `[sim]`, for everything Playwright cannot do on WebKit — it can only tap, so drags,
   holds, the Pencil and every multi-finger gesture (corner drag, long press, two/three-finger
   tap, pinch, Brush with a resting start, finger pan after the Pencil, a layer row drag) are dispatched by the
