@@ -539,6 +539,43 @@ try {
     `the file name opens Document settings and renames (${named})`,
   );
 
+  // 15b. Document settings resizes (M23). Scale drawing to half: at the same zoom the first object
+  //      is half as wide on screen and the page reads 960 × 540. Then Crop/extend back to 1920
+  //      wide with the top-right anchor: the drawing moves right by the 960 px added. Undo twice
+  //      puts everything back — each Apply is one undo step.
+  const dlg = page.getByRole("dialog");
+  const footer = () => page.locator("footer").innerText();
+  const pct = parseFloat(await zoom()) / 100;
+  const b0 = await objectBox(0);
+  await page.getByTitle(/rename in Document settings$/).tap();
+  await dlg.getByRole("button", { name: "Scale drawing" }).tap();
+  await dlg.getByLabel("W", { exact: true }).fill("960");
+  await dlg.getByRole("button", { name: "Apply" }).tap();
+  await page.waitForTimeout(300);
+  const b1 = await objectBox(0);
+  const halved = Math.abs(b1.width - b0.width / 2) < 1.5 && (await footer()).includes("960 × 540");
+  await page.getByTitle(/rename in Document settings$/).tap();
+  await dlg.getByLabel("W", { exact: true }).fill("1920");
+  await dlg.getByRole("button", { name: "Anchor top right" }).tap();
+  await dlg.getByRole("button", { name: "Apply" }).tap();
+  await page.waitForTimeout(300);
+  const b2 = await objectBox(0);
+  await page.screenshot({ path: `${OUT}/15b-resize.png` });
+  const movedRight = Math.abs(b2.x - b1.x - 960 * pct) < 1.5 && Math.abs(b2.width - b1.width) < 0.5;
+  const undoBtn = page.getByRole("button", { name: "Undo", exact: true });
+  await undoBtn.tap();
+  await undoBtn.tap();
+  await page.waitForTimeout(300);
+  const b3 = await objectBox(0);
+  const sizeRestored =
+    Math.abs(b3.x - b0.x) < 0.5 &&
+    Math.abs(b3.width - b0.width) < 0.5 &&
+    (await footer()).includes("1920 × 1080");
+  check(
+    halved && movedRight && sizeRestored,
+    `Document settings: Scale drawing halves the drawing (${b0.width.toFixed(1)} → ${b1.width.toFixed(1)} px), Crop/extend with the top-right anchor moves it right (${(b2.x - b1.x).toFixed(1)} px), two undos restore it`,
+  );
+
   // 16. File ▸ Save hands the share sheet (stubbed) Poster.svg — our own format, with the drawing —
   //     and marks the document saved.
   await menu("File", /^Save\b(?! As)/);

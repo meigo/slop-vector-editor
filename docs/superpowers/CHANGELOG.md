@@ -3560,3 +3560,26 @@ inside a UI bracket), which stays parked as M21 left it.
   selected, one object fewer; screenshot checked) fails without the fix (1 selected) and passes
   with it; all 24 checks pass; build clean. Owed on the iPad: the real taps, and whether the dock
   is reachable in portrait while the sidebar drawer is open (checklist).
+
+## 2026-10-02 — M23: Document resize
+
+- Document settings gains a Size section: **Crop/extend** (the page changes around the drawing; a 3×3
+  anchor says where space is added or taken; optional Keep ratio) and **Scale drawing** (everything
+  scales with the page, always in proportion). Each Apply is one undo step (`applyDocumentSize`,
+  replacing `applyArtboard`). Code: `src/doc/doc-resize.ts`, `src/lib/AnchorGrid.svelte`, the rewritten
+  `DocumentSettingsDialog.svelte`. Spec: `docs/superpowers/specs/2026-10-02-document-resize-design.md`.
+- Spec correction: stroke widths and rect radii are scaled by `k` BEFORE the bake (`scaleDetails`),
+  since the resize bake itself leaves strokes alone (invariant 11).
+- Checked in the browser (WebKit, :5198): defaults on open; empty W and 100001 refused with reasons;
+  Keep ratio W 3840 gives H 2160; the top-right anchor moved the art by the added width and undo
+  restored it; reopening resets, Cancel changes nothing; Scale drawing W 960 gives H 540, the
+  rectangle and stroke halved, one undo restores; a title scaled x2 stays a title.
+- `test:ipad`: a new check (real taps) scales the drawing to half, extends back with the top-right
+  anchor and undoes twice; it fails without the feature (no Scale drawing button) and passes with it;
+  now 25 checks.
+- Owed: the iPad pass (checklist): finger use of the mode buttons, Keep ratio and anchor grid, the
+  numeric keyboard, Scale drawing on a document with a title and a gradient.
+- Final review follow-ups: `doc-resize.ts` imports `MAX_COORD` from `svg/parse.ts` (no cycle);
+  Scale drawing clears `app.gradientMemory` (it held the old scale); `scaleRefusal` says "Too small"
+  for k <= 0; more spec §5 tests. Parked: an in-flight brush stroke lands in pre-resize coordinates;
+  `scaleRefusal` walks all bounds per keystroke.

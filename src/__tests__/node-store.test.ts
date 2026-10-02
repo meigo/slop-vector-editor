@@ -524,15 +524,71 @@ describe("openContextMenu", () => {
 
 /** Review M7 (2026-09-30): Document settings committed without settling a running tool, so a
  *  Warp session's next cage drag (committing from its pre-warp base) put the old artboard back. */
-describe("applyArtboard", () => {
+describe("applyDocumentSize", () => {
   it("settles a running tool gesture before changing the artboard, as one undo step", async () => {
-    const { applyArtboard, registerGestureCancel, undo } = await import("../state/appState.svelte");
+    const { applyDocumentSize, registerGestureCancel, undo } =
+      await import("../state/appState.svelte");
     const order: string[] = [];
     registerGestureCancel(() => order.push("cancel"), "warp");
-    applyArtboard({ w: 500, h: 400, background: null });
+    applyDocumentSize({ mode: "extend", w: 500, h: 400, ax: 0, ay: 0 }, null);
     order.push(`artboard ${app.doc.artboard.w}`);
     expect(order).toEqual(["cancel", "artboard 500"]);
+    expect(app.doc.artboard.background).toBeNull();
     undo();
     expect(app.doc.artboard.w).toBe(100);
+  });
+
+  it("scales the drawing in one undo step and keeps the selection and a title's text", async () => {
+    const { applyDocumentSize, undo } = await import("../state/appState.svelte");
+    const before = app.doc;
+    const layer = before.layers[0];
+    const t: PathShape = {
+      kind: "path",
+      id: "t9",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      subpaths: [
+        {
+          closed: true,
+          nodes: [
+            { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 10, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 10, y: 10 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+      text: {
+        text: "A",
+        font: "anton",
+        size: 20,
+        letterSpacing: 0,
+        lineHeight: 1.2,
+        align: "left",
+        seed: 1,
+        amounts: { rotate: 0, scale: 0, offset: 0, skew: 0 },
+        overrides: {},
+      },
+    };
+    commitDoc({
+      ...before,
+      layers: [{ ...layer, children: [...layer.children, t] }, ...before.layers.slice(1)],
+    });
+    setSelection(["t9"]);
+    const w0 = app.doc.artboard.w;
+    applyDocumentSize({ mode: "scale", k: 2 }, app.doc.artboard.background);
+    const scaled = findNode(app.doc, "t9")?.node as PathShape;
+    expect(scaled.text?.size).toBe(40);
+    expect(app.doc.artboard.w).toBe(w0 * 2);
+    expect(app.selection).toEqual(["t9"]);
+    undo();
+    expect(app.doc.artboard.w).toBe(w0);
+  });
+
+  it("refuses an out-of-range scale with an error notice and leaves the document alone", async () => {
+    const { applyDocumentSize } = await import("../state/appState.svelte");
+    const before = app.doc;
+    applyDocumentSize({ mode: "scale", k: 1e6 }, before.artboard.background);
+    expect(app.doc).toBe(before);
+    expect(app.notices.at(-1)).toMatchObject({ kind: "error" });
   });
 });

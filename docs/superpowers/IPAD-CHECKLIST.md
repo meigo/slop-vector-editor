@@ -154,3 +154,4 @@ polish.
 
 - [ ] **P3** A long Brush stroke (full screen, fast) keeps up with the Pencil.
 - [ ] **P3** Warp and resize on a large selection; many node knobs in the Node tool.
+- [ ] **P2** Document settings (M23): the mode buttons, the Keep ratio link and the anchor grid by finger; the numeric keyboard for W/H; Scale drawing on a document with a title and a gradient.
