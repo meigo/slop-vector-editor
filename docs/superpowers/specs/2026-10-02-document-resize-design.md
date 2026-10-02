@@ -85,13 +85,12 @@ their text through `scaleTextMeta` (invariant 44), gradients follow through `map
 46), the odd-polygon flip path is never taken (no flip). Then:
 
 - **Every shape's stroke width is multiplied by `k`**, document-wide, hidden and locked included —
-  a new step, `scaleStrokes(doc, k)`, separate from `bakeShape` so the resize tools' "strokes keep
+  a new step, `scaleDetails(doc, k)`, separate from `bakeShape` so the resize tools' "strokes keep
   their width" (invariant 11) is not changed. Shapes with `stroke: null` are returned as they are.
   A title's stroke scales the same way.
 - **Every rectangle's corner radius `rx` is multiplied by `k`** in the same pass — `bakeShape`
   keeps radii fixed on resize ("stroke widths and corner radii never scale", spec M2a §1), and the
-  drawing would otherwise not look the same. The pass is `scaleStrokes` → renamed `scaleDetails`
-  (stroke width and corner radius), and it runs after the bake, so `rx` is already clamped to the
+  drawing would otherwise not look the same. Both are `scaleDetails`'s job, and it runs after the bake, so `rx` is already clamped to the
   baked half-sides and `k · rx` stays within the scaled ones.
 - The artboard becomes `w0·k × h0·k`, then rounded to 2 decimals per side as the dialog shows.
 - `k === 1` returns the same doc.
