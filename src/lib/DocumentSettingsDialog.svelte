@@ -1,6 +1,6 @@
 <script lang="ts">
   import { isValidArtboardSize, MAX_ARTBOARD } from "../doc/document";
-  import { app, applyArtboard, renameDocument } from "../state/appState.svelte";
+  import { app, applyDocumentSize, renameDocument } from "../state/appState.svelte";
   import { baseName } from "../state/doc-name";
   import Modal from "./Modal.svelte";
   import ToggleButton from "./ToggleButton.svelte";
@@ -22,7 +22,7 @@
     if (!isValidArtboardSize(w) || !isValidArtboardSize(h)) return;
     const background = hasBackground ? { color, opacity: initial.background?.opacity ?? 1 } : null;
     renameDocument(name);
-    applyArtboard({ w, h, background });
+    applyDocumentSize({ mode: "extend", w, h, ax: 0, ay: 0 }, background);
     close();
   }
 </script>

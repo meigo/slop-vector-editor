@@ -1,4 +1,5 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
+import { extendCanvas, scaleDrawing, scaleRefusal, type Anchor } from "../doc/doc-resize";
 import { svgFileName } from "./doc-name";
 import {
   createDoc,
@@ -6,7 +7,6 @@ import {
   isGradient,
   isHidden,
   isLocked,
-  type Artboard,
   type Doc,
   type FlatStyle,
   type Node,
@@ -831,13 +831,29 @@ export function toggleSnap(): void {
 
 // ----- selection actions (keyboard, top bar, context menu) -----
 
-/** Document settings' Apply (review M7, 2026-09-30): settles any running tool first, as every store
- *  edit does (invariant 15). The dialog committed directly, so a Warp session left open folded the
- *  artboard change into its step, and its next cage drag — committing from its pre-warp base —
- *  put the old artboard back. */
-export function applyArtboard(artboard: Artboard): void {
+/** Document settings' Apply (spec M23 §3). Settles any running tool first, as every store edit
+ *  does (invariant 15, review M7: a Warp session left open folded the artboard change into its
+ *  step, and its next cage drag put the old artboard back). One commit, so one undo step: the
+ *  background and the size change together. */
+export type DocSize =
+  { mode: "extend"; w: number; h: number; ax: Anchor; ay: Anchor } | { mode: "scale"; k: number };
+
+export function applyDocumentSize(size: DocSize, background: Paint | null): void {
   cancelActiveGesture();
-  commitDoc(setArtboard(app.doc, artboard));
+  if (size.mode === "scale") {
+    const reason = scaleRefusal(app.doc, size.k);
+    if (reason) {
+      notify("error", `Document size — ${reason}.`);
+      return;
+    }
+  }
+  const { w, h } = app.doc.artboard;
+  const painted = setArtboard(app.doc, { w, h, background });
+  commitDoc(
+    size.mode === "scale"
+      ? scaleDrawing(painted, size.k)
+      : extendCanvas(painted, size.w, size.h, size.ax, size.ay),
+  );
 }
 
 export function deleteSelection(): void {
