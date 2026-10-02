@@ -619,6 +619,27 @@ try {
     `[sim] a finger drags a layer row by its grip: it follows the finger, its place moves to the drop and the rest close up (slides ${lifted.dy.join(", ")}), the drop reorders`,
   );
 
+  // 19b. With Shift latched in the dock, a tap on a second layer row adds it to the selection, and
+  //     Group then groups the two — on an iPad with no keyboard the latch is the only way to pick
+  //     several rows in the panel.
+  const names = page.locator("section[aria-label=Layers] [data-row-id] button[title^='Select “']");
+  await deselect();
+  await names.nth(0).tap();
+  await shift.tap();
+  await names.nth(1).tap();
+  await page.waitForTimeout(200);
+  const rowsPicked = await selected();
+  await shift.tap();
+  const objectsBeforeGroup = await objects();
+  await page.getByRole("button", { name: "Group", exact: true }).tap();
+  await page.waitForTimeout(200);
+  const grouped = await objects();
+  await page.screenshot({ path: `${OUT}/19b-rows-grouped.png` });
+  check(
+    rowsPicked === 2 && grouped === objectsBeforeGroup - 1,
+    `with Shift latched, a tap on a second layer row adds it (${rowsPicked} selected) and Group groups them (${objectsBeforeGroup} → ${grouped} objects)`,
+  );
+
   // 20. Autosave: a reload brings back the document and its name.
   const objectsBeforeReload = await objects();
   await page.waitForTimeout(3500); // the 3 s debounce

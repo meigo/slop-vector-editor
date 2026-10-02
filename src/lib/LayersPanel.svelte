@@ -30,6 +30,7 @@
     toggleNodeLocked,
     toggleNodeVisible,
   } from "../state/appState.svelte";
+  import { latchOn } from "../input/dock";
   import { isDoubleTap, type Tap } from "../input/double-tap";
   import IconButton from "./IconButton.svelte";
   import PanelHeader from "./PanelHeader.svelte";
@@ -398,7 +399,13 @@
             : `Select “${rowLabel(node)}” — double-click to rename`}
           onclick={(e) => {
             if (editing) return;
-            if (!blocked) selectFromPanel(node.id, e.shiftKey || e.metaKey || e.ctrlKey);
+            // The dock's latched Shift counts too: on an iPad with no keyboard it is the only way
+            // to add a second row.
+            if (!blocked)
+              selectFromPanel(
+                node.id,
+                e.shiftKey || e.metaKey || e.ctrlKey || latchOn(app.dock.shift),
+              );
           }}
           onpointerup={(e) => tapName("node", node.id, node.name ?? "", e)}
         >

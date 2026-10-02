@@ -66,7 +66,8 @@ What works today:
   Opening and closing it never shifts the layer list; a selected row that would be hidden scrolls
   just into view.
 - An on-screen Shift/Alt/Snap pad for touch. Snap is always there; the Shift and Alt latches fold
-  away behind a chevron, and open themselves the first time you use a finger or a Pencil.
+  away behind a chevron, and open themselves the first time you use a finger or a Pencil. A latched
+  Shift also adds layer rows to the selection, so several objects can be picked from the panel.
 - An icon toolbar with tooltips (also shown in the status bar); on touch, where there is no hover
   and no tooltip, pressing a control shows its label — or, for one that is unavailable, the reason
   — in the status bar. On narrower windows some icon groups fold away (flip first, clipboard

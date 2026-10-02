@@ -3546,3 +3546,17 @@ inside a UI bracket), which stays parked as M21 left it.
   `test:ipad`'s row-drag check now asserts each row's slide (0, +32 ×4, −128) and was seen to
   fail with the slides broken. Owed on the iPad: a real finger drag (checklist §5, reworded).
 
+
+## 2026-10-02 — The dock's Shift latch picks layer rows too (from slop-paint)
+
+- Reported by the slop-paint session: on an iPad with no keyboard, a second layer row could not be
+  added to the selection — the row tap read only `shiftKey`/`metaKey`/`ctrlKey`, and the dock's
+  Shift latch was combined with keys only in `Canvas.svelte`. So multi-row Group, the trash and a
+  block drag in the panel worked on touch only after picking the objects on the canvas.
+- Fix: the row's name tap also counts `latchOn(app.dock.shift)` as additive. A latched Shift then
+  keeps adding (toggling) rows until it is unlatched, exactly as on the canvas. Considered and not
+  taken: slop-paint's Select/Done mode in the Layers header — a second mechanism for the same thing.
+- Checked: a new `test:ipad` check (real taps: latch Shift, tap two object rows, tap Group → 2
+  selected, one object fewer; screenshot checked) fails without the fix (1 selected) and passes
+  with it; all 24 checks pass; build clean. Owed on the iPad: the real taps, and whether the dock
+  is reachable in portrait while the sidebar drawer is open (checklist).
