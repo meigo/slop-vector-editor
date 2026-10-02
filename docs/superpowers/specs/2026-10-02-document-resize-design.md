@@ -84,14 +84,13 @@ ellipses and polygons stay live under any rotation (a uniform scale commutes wit
 their text through `scaleTextMeta` (invariant 44), gradients follow through `mapStyle` (invariant
 46), the odd-polygon flip path is never taken (no flip). Then:
 
-- **Every shape's stroke width is multiplied by `k`**, document-wide, hidden and locked included —
-  a new step, `scaleDetails(doc, k)`, separate from `bakeShape` so the resize tools' "strokes keep
-  their width" (invariant 11) is not changed. Shapes with `stroke: null` are returned as they are.
-  A title's stroke scales the same way.
+- **Every shape's stroke width is multiplied by `k`**, document-wide, hidden and locked included.
+  Shapes with `stroke: null` are returned as they are. A title's stroke scales the same way.
 - **Every rectangle's corner radius `rx` is multiplied by `k`** in the same pass — `bakeShape`
   keeps radii fixed on resize ("stroke widths and corner radii never scale", spec M2a §1), and the
-  drawing would otherwise not look the same. Both are `scaleDetails`'s job, and it runs after the bake, so `rx` is already clamped to the
-  baked half-sides and `k · rx` stays within the scaled ones.
+  drawing would otherwise not look the same. `scaleDetails(shape, k)` is applied to every shape
+  **before** the bake, so the bake's clamp `min(k·rx, k·w/2, k·h/2)` equals `k · min(rx, w/2, h/2)`;
+  scaling after the bake would clamp twice on a scale-down.
 - The artboard becomes `w0·k × h0·k`, then rounded to 2 decimals per side as the dialog shows.
 - `k === 1` returns the same doc.
 - **Range:** refused (the dialog disables Apply, §2) when `w0·k` or `h0·k` fails
@@ -121,7 +120,7 @@ unchanged.
 ## 4. Files
 
 - `src/doc/doc-resize.ts` — new: `extendCanvas`, `scaleDrawing`, `scaleDetails`, `scaleRefusal`,
-  `linkedSize`, `scaledSide`.
+  `sizeRefusal`, `linkedSize`, `scaledSide`.
 - `src/state/appState.svelte.ts` — `applyArtboard` → `applyDocumentSize`.
 - `src/lib/DocumentSettingsDialog.svelte` — the Size section.
 - `src/lib/AnchorGrid.svelte` — new, the 3×3 grid (presentational: `value`, `onchange`).
