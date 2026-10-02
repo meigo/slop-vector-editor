@@ -3,12 +3,27 @@ import {
   createDoc,
   DEFAULT_STYLE,
   type Doc,
+  type EllipseShape,
   type Group,
   type Node,
+  type PathShape,
+  type PolygonShape,
   type RectShape,
+  type TextMeta,
 } from "../doc/document";
-import { extendCanvas, linkedSize, round2, scaledSide, sizeRefusal } from "../doc/doc-resize";
-import { IDENTITY, translate } from "../geom/mat";
+import {
+  extendCanvas,
+  linkedSize,
+  round2,
+  scaleDetails,
+  scaledSide,
+  scaleDrawing,
+  scaleRefusal,
+  sizeRefusal,
+} from "../doc/doc-resize";
+import { IDENTITY, rotate, translate } from "../geom/mat";
+import { parseSvg } from "../svg/parse";
+import { serializeDoc } from "../svg/serialize";
 import { deepFreeze } from "./helpers";
 
 const rect = (over: Partial<RectShape> = {}): RectShape => ({
@@ -127,4 +142,179 @@ describe("ratio helpers", () => {
     expect(scaledSide(100, 3, 1)).toBe(33.33);
   });
   it("round2", () => expect(round2(2 / 3)).toBe(0.67));
+});
+
+const first = (d: Doc) => d.layers[0].children[0];
+
+const meta: TextMeta = {
+  text: "Hi",
+  font: "anton",
+  size: 40,
+  letterSpacing: 2,
+  lineHeight: 1.2,
+  align: "left",
+  seed: 7,
+  amounts: { rotate: 0, scale: 0, offset: 3, skew: 0 },
+  overrides: {},
+};
+const title = (): PathShape => ({
+  kind: "path",
+  id: "t",
+  transform: translate(5, 5),
+  style: DEFAULT_STYLE,
+  text: meta,
+  subpaths: [
+    {
+      closed: true,
+      nodes: [
+        { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 20, y: 0 }, in: null, out: null, type: "corner" },
+        { p: { x: 20, y: 30 }, in: null, out: null, type: "corner" },
+      ],
+    },
+  ],
+});
+const polygon = (): PolygonShape => ({
+  kind: "polygon",
+  id: "p",
+  transform: IDENTITY,
+  style: DEFAULT_STYLE,
+  cx: 50,
+  cy: 25,
+  rx: 10,
+  ry: 10,
+  sides: 5,
+  star: false,
+  innerRatio: 0.5,
+});
+
+describe("scaleDetails", () => {
+  it("multiplies a stroked shape's width and a rect's radius", () => {
+    const r = scaleDetails(rect({ rx: 4, style: { ...DEFAULT_STYLE, strokeWidth: 3 } }), 2);
+    expect(r.style.strokeWidth).toBe(6);
+    expect((r as RectShape).rx).toBe(8);
+  });
+  it("leaves an unstroked width alone", () => {
+    const s = { ...DEFAULT_STYLE, stroke: null, strokeWidth: 3 };
+    expect(scaleDetails(rect({ style: s }), 2).style).toBe(s);
+  });
+  it("returns the same shape when nothing applies", () => {
+    const e: EllipseShape = {
+      kind: "ellipse",
+      id: "e",
+      transform: IDENTITY,
+      style: { ...DEFAULT_STYLE, stroke: null },
+      cx: 0,
+      cy: 0,
+      rx: 1,
+      ry: 1,
+    };
+    expect(scaleDetails(e, 2)).toBe(e);
+  });
+});
+
+describe("scaleDrawing", () => {
+  it("scales a rectangle about the origin, with its stroke and radius", () => {
+    const out = scaleDrawing(docWith([rect({ rx: 4 })]), 2);
+    expect(first(out)).toMatchObject({ kind: "rect", x: 20, y: 40, w: 60, h: 80, rx: 8 });
+    expect((first(out) as RectShape).style.strokeWidth).toBe(2);
+    expect(out.artboard).toMatchObject({ w: 200, h: 100 });
+  });
+
+  it("scales a rounded rectangle DOWN without clamping the radius twice", () => {
+    const out = scaleDrawing(docWith([rect({ w: 10, h: 10, rx: 5 })]), 0.5);
+    expect(first(out)).toMatchObject({ w: 5, h: 5, rx: 2.5 });
+  });
+
+  it("keeps a rotated rectangle a rectangle", () => {
+    const out = scaleDrawing(docWith([rect({ transform: rotate(0.3) })]), 3);
+    expect(first(out).kind).toBe("rect");
+  });
+
+  it("keeps a polygon live", () => {
+    const out = scaleDrawing(docWith([polygon()]), 2);
+    expect(first(out)).toMatchObject({ kind: "polygon", cx: 100, cy: 50, rx: 20, ry: 20 });
+  });
+
+  it("keeps a title's text, its size scaled", () => {
+    const t = first(scaleDrawing(docWith([title()]), 2)) as PathShape;
+    expect(t.text?.size).toBe(80);
+    expect(t.text?.letterSpacing).toBe(4);
+    expect(t.text?.amounts.offset).toBe(6);
+    expect(t.style.strokeWidth).toBe(2);
+  });
+
+  it("maps a linear gradient's points by k", () => {
+    const g = {
+      kind: "linear" as const,
+      from: { x: 10, y: 20 },
+      to: { x: 40, y: 20 },
+      start: { color: "#ff0000", opacity: 1 },
+      end: { color: "#0000ff", opacity: 1 },
+    };
+    const out = first(scaleDrawing(docWith([rect({ style: { ...DEFAULT_STYLE, fill: g } })]), 2));
+    expect((out as RectShape).style.fill).toMatchObject({
+      from: { x: 20, y: 40 },
+      to: { x: 80, y: 40 },
+    });
+  });
+
+  it("scales hidden and locked content and a group's children", () => {
+    const child = rect({ id: "c", hidden: true });
+    const group: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [child],
+    };
+    const out = scaleDrawing(docWith([group], [rect({ id: "b", locked: true })]), 2);
+    expect((first(out) as Group).children[0]).toMatchObject({ x: 20, w: 60, hidden: true });
+    expect(out.layers[1].children[0]).toMatchObject({ x: 20, w: 60, locked: true });
+  });
+
+  it("rounds the artboard to 2 decimals", () => {
+    expect(scaleDrawing(docWith([]), 1 / 3).artboard).toMatchObject({ w: 33.33, h: 16.67 });
+  });
+
+  it("returns the same document for k = 1", () => {
+    const d = docWith([rect()]);
+    expect(scaleDrawing(d, 1)).toBe(d);
+  });
+
+  it("throws when refused", () => {
+    expect(() => scaleDrawing(docWith([]), 0)).toThrow(RangeError);
+  });
+
+  it("round-trips: a scaled title and polygon come back from a save as a title and a polygon", () => {
+    const out = scaleDrawing(docWith([title(), polygon()]), 2);
+    const back = parseSvg(serializeDoc(out)).doc.layers[0].children;
+    expect((back[0] as PathShape).text?.size).toBe(80);
+    expect(back[1].kind).toBe("polygon");
+  });
+});
+
+describe("scaleRefusal", () => {
+  it("accepts an ordinary scale", () => expect(scaleRefusal(docWith([rect()]), 2)).toBeNull());
+  it("refuses a non-positive or non-finite k", () => {
+    expect(scaleRefusal(docWith([]), 0)).toBe("Enter a width and a height");
+    expect(scaleRefusal(docWith([]), Number.NaN)).toBe("Enter a width and a height");
+  });
+  it("refuses a page over the maximum", () =>
+    expect(scaleRefusal(docWith([]), 1001)).toBe("Too large — at most 100000 px a side"));
+  it("refuses a page that rounds to nothing", () =>
+    expect(scaleRefusal(docWith([]), 0.00001)).toBe("Too small — a side must be more than 0 px"));
+  it("refuses coordinates past MAX_COORD, hidden content included", () => {
+    const far = rect({ id: "far", x: 2e8, hidden: true });
+    const group: Group = {
+      kind: "group",
+      id: "g",
+      transform: IDENTITY,
+      opacity: 1,
+      children: [far],
+    };
+    expect(scaleRefusal(docWith([group]), 10)).toBe(
+      "Scaling by 10× would put the drawing out of range",
+    );
+  });
 });
