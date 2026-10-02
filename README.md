@@ -31,6 +31,10 @@ What works today:
 - New document with a name and size presets; artboard size and background (or transparent).
 - A document name, set in New document or Document settings (tap the name in the top bar): Save,
   Save to Files and Export PNG all use it, so a drawing keeps one file name across saves.
+- Document settings resizes the page two ways: **Crop/extend** changes the page around the drawing,
+  with a 3×3 anchor for where space is added or taken (Keep ratio optional), and **Scale drawing**
+  scales everything with it — always in proportion, strokes and rounded corners included — so
+  titles, polygons and gradients stay editable.
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
   and three to redo.

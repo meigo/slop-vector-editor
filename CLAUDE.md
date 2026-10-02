@@ -25,13 +25,13 @@ entries supersede earlier ones — mark superseded entries).
 - `npm test` — Vitest, node env, no DOM — 1398 tests in 92 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
-  with touch, in a fresh profile (never the user's autosave) — 24 checks, landscape then portrait.
+  with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
   Starts its own dev server on a free port; `npm run test:ipad -- <url>` checks a URL (e.g. the
   deployed site). Screenshots in `test-results/ipad/` (gitignored); exit 1 on failure. First run
   per machine: `npx playwright install webkit`. **Two strengths of evidence:** real taps
   (`touchscreen.tap` — WebKit makes the pointer, touch and click events itself) for menus, the
   status-bar hint, select/deselect, the dock's Shift latch, the Text tool's placement and focus,
-  Fingers select, rename, Save/Export/Import, the dock's Shift latch picking two layer rows and portrait; and **simulated** pointer events,
+  Fingers select, rename, Document settings' resize, Save/Export/Import, the dock's Shift latch picking two layer rows and portrait; and **simulated** pointer events,
   labelled `[sim]`, for everything Playwright cannot do on WebKit — it can only tap, so drags,
   holds, the Pencil and every multi-finger gesture (corner drag, long press, two/three-finger
   tap, pinch, Brush with a resting start, finger pan after the Pencil, a layer row drag) are dispatched by the
@@ -61,7 +61,7 @@ every user-visible change.
 
 ## Architecture map
 
-- `src/doc/` — `document.ts` (types, incl. `Fill`, `Gradient`, `LinearGradient`, `RadialGradient`,
+- `src/doc/` — `doc-resize.ts` (`extendCanvas`, `scaleDrawing`, `scaleDetails`, `scaleRefusal`, `sizeRefusal`, `linkedSize`, `scaledSide` — Document settings' Crop/extend and Scale drawing, spec M23), `document.ts` (types, incl. `Fill`, `Gradient`, `LinearGradient`, `RadialGradient`,
   `isLinear`/`isRadial`, `radialMatrix`, `mapStyle`, `midOf`/`withMid`/`midStop` — the gradient
   midpoint — and `midPaintOf`/`withMidPaint` — its custom colour; `createDoc`), `paint-edit.ts`
   (`setPaintKind`,
@@ -211,7 +211,7 @@ every user-visible change.
   `src/text/google-fonts.json` snapshot `google-catalogue.ts` loads).
 - `src/lib/` — `Canvas` (also shows the tool's hover cursor, `app.hoverCursor`, in place of its
   static cursor when set), `NodeView`, `TextEditField` (spec M22: the hidden textarea mirror of the title being edited, always mounted in `Canvas`; invariant 49), `Overlay` (marquee/handles/gizmo/guides drawing, and the text caret and selection rectangles from `app.textEdit`/`app.caretStops`; every mark sits on a contrast halo — white under lines, a dark ring then a white one under knobs — so it reads on artwork of the accent's own hue), `TopBar`,
-  `StatusBar`, `ToolStrip`, `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
+  `StatusBar`, `ToolStrip`, `AnchorGrid` (M23: the 3×3 anchor picker in Document settings), `IconButton` (top-bar icon action with reason tooltips), `hover-hint.ts`
   (the status bar shows the hovered element's `title`), `ContextMenu`, `ModifierDock`, `Sidebar`
   (the Layers + Properties column, Layers on top: the split ratio, the divider drag and which panel is open), `PropertiesPanel`, `LayersPanel`, `layer-drop.ts` (pure
   helper: where a dragged row lands — the one rule), `layer-drag-visual.ts` (pure, 2026-10-01: what a
@@ -279,7 +279,10 @@ every user-visible change.
     so a later ⌘S can never silently overwrite an Inkscape/Figma/Illustrator original with our
     lossy re-export.
 11. **Resize bakes scale into geometry** (spec M2a §1). Move and rotate only touch the matrix.
-    Never "simplify" resize into a matrix multiply: strokes would scale.
+    Never "simplify" resize into a matrix multiply: strokes would scale. **Scale drawing is the
+    exception** (M23, `doc-resize.ts`): it multiplies stroke widths and rect radii by `k`
+    (`scaleDetails`, before the bake) and then bakes through `resizeNode`; it is always uniform, so
+    titles keep their text.
 12. **Tools never import the store.** They use `ToolContext` (`tools/context.ts` for the app,
     `__tests__/fake-context.ts` for tests). This is what makes them unit-testable.
 13. **Every session change goes through `setSession`,** which prunes the selection. Don't assign
@@ -1132,7 +1135,13 @@ every user-visible change.
 
 ## Current state
 
-**M22** (on-canvas text editing, 2026-09-29): a title is edited where it is. Double-click one with
+**M23** (document resize, 2026-10-02): Document settings' Size section resizes the page two ways.
+**Crop/extend** changes the page around the drawing, with a 3×3 anchor for where space is added or
+taken (optional Keep ratio); **Scale drawing** scales everything with the page, always in proportion,
+strokes and rounded corners included, so titles, polygons and gradients stay editable. One undo
+step per Apply (`applyDocumentSize` in the store). Owed: the iPad pass (checklist).
+
+Before that, **M22** (on-canvas text editing, 2026-09-29): a title is edited where it is. Double-click one with
 the Select tool or click it with the Text tool and a caret appears at the click; placing a title
 enters editing with its text selected. Type, drag-select, Shift and the arrows, ↑/↓ across lines,
 ⌘A, paste over a selection; a one-character selection is the Character block's `charSel` and drags.
@@ -1216,7 +1225,8 @@ distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope war
 `docs/superpowers/specs/2026-09-29-m21-brush-tool-design.md`) is complete too, and freehand has left
 the post-v1 list. **M22** (on-canvas text editing,
 `docs/superpowers/specs/2026-09-29-m22-on-canvas-text-design.md`) is complete as well; paragraph text
-and shaping for complex scripts remain unspecced. Nothing on the roadmap is currently specced and unbuilt.
+and shaping for complex scripts remain unspecced. **M23** (document resize,
+`docs/superpowers/specs/2026-10-02-document-resize-design.md`) is complete too. Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do
