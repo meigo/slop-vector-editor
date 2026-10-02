@@ -17,6 +17,7 @@ import { findNode } from "../doc/tree";
 import { IDENTITY } from "../geom/mat";
 import {
   app,
+  applyDocumentSize,
   beginDocGesture,
   clearOrLeaveGroup,
   commitDoc,
@@ -393,4 +394,25 @@ it("a tool change clears the hover cursor (spec M17 §6)", () => {
   setHoverCursor("grab");
   setTool("select");
   expect(app.hoverCursor).toBeNull();
+});
+
+describe("Scale drawing clears the gradient memory (M23 final review)", () => {
+  it("a remembered gradient is at the old scale, so it is dropped", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelectionPaintKind("fill", "flat");
+    expect(app.gradientMemory.size).toBeGreaterThan(0);
+    applyDocumentSize({ mode: "scale", k: 2 }, app.doc.artboard.background);
+    expect(app.gradientMemory.size).toBe(0);
+  });
+  it("Crop/extend keeps it (nothing is scaled)", () => {
+    setSelection(["a"]);
+    setSelectionPaintKind("fill", "linear");
+    setSelectionPaintKind("fill", "flat");
+    applyDocumentSize(
+      { mode: "extend", w: 200, h: 200, ax: 0, ay: 0 },
+      app.doc.artboard.background,
+    );
+    expect(app.gradientMemory.size).toBeGreaterThan(0);
+  });
 });

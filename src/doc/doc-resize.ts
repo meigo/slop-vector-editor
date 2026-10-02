@@ -3,9 +3,7 @@ import { nodeBounds } from "../geom/bounds";
 import { IDENTITY, multiply, scale, type Mat } from "../geom/mat";
 import { resizeNode } from "./resize";
 import { mapShapes } from "./tree";
-
-// MAX_COORD = svg/parse.ts's value; imported here would cause a cycle
-const MAX_COORD = 1e9;
+import { MAX_COORD } from "../svg/parse";
 
 /** Spec M23 §2: where a crop/extend keeps the drawing — 0 = left/top, 0.5 = centre, 1 = right/bottom. */
 export type Anchor = 0 | 0.5 | 1;
@@ -82,7 +80,8 @@ function extent(node: Node, m: Mat): number {
 /** Why Scale drawing by `k` can't be applied, or null. The dialog and the store both read this, so
  *  they cannot disagree (the `booleanRefusal` pattern). */
 export function scaleRefusal(doc: Doc, k: number): string | null {
-  if (!Number.isFinite(k) || k <= 0) return "Enter a width and a height";
+  if (!Number.isFinite(k)) return "Enter a width and a height";
+  if (k <= 0) return "Too small — a side must be more than 0 px";
   const size = sizeRefusal(round2(doc.artboard.w * k), round2(doc.artboard.h * k));
   if (size) return size;
   let max = 0;

@@ -7,6 +7,7 @@ import {
   type Group,
   type Node,
   type PathShape,
+  type RadialGradient,
   type PolygonShape,
   type RectShape,
   type TextMeta,
@@ -21,7 +22,7 @@ import {
   scaleRefusal,
   sizeRefusal,
 } from "../doc/doc-resize";
-import { IDENTITY, rotate, translate } from "../geom/mat";
+import { applyMat, IDENTITY, multiply, rotate, translate } from "../geom/mat";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
 import { deepFreeze } from "./helpers";
@@ -294,10 +295,76 @@ describe("scaleDrawing", () => {
   });
 });
 
+describe("scaleDrawing — more kinds (spec §5)", () => {
+  it("scales an ellipse's centre and radii", () => {
+    const e: EllipseShape = {
+      kind: "ellipse",
+      id: "e",
+      transform: IDENTITY,
+      style: DEFAULT_STYLE,
+      cx: 10,
+      cy: 20,
+      rx: 5,
+      ry: 7,
+    };
+    expect(first(scaleDrawing(docWith([e]), 3))).toMatchObject({ cx: 30, cy: 60, rx: 15, ry: 21 });
+  });
+
+  it("leaves the width of an unstroked shape alone", () => {
+    const style = { ...DEFAULT_STYLE, stroke: null, strokeWidth: 3 };
+    const out = first(scaleDrawing(docWith([rect({ style })]), 2)) as RectShape;
+    expect(out.style.strokeWidth).toBe(3);
+  });
+
+  it("a radial gradient on a rect in a rotated group keeps its world centre scaling by k", () => {
+    const radial: RadialGradient = {
+      kind: "radial",
+      center: { x: 25, y: 40 },
+      a: { x: 45, y: 40 },
+      b: { x: 25, y: 60 },
+      start: { color: "#ff0000", opacity: 1 },
+      end: { color: "#0000ff", opacity: 1 },
+    };
+    const r = rect({ style: { ...DEFAULT_STYLE, fill: radial }, transform: translate(7, 3) });
+    const gT = multiply(translate(30, 10), rotate(0.4));
+    const group: Group = { kind: "group", id: "g", transform: gT, opacity: 1, children: [r] };
+    const world = (d: Doc) => {
+      const g = first(d) as Group;
+      const rr = g.children[0] as RectShape;
+      return applyMat(
+        multiply(g.transform, rr.transform),
+        (rr.style.fill as RadialGradient).center,
+      );
+    };
+    const k = 2.5;
+    const before = world(docWith([group]));
+    const out = scaleDrawing(docWith([group]), k);
+    const after = world(out);
+    expect((first(out) as Group).transform).toEqual(gT);
+    expect((first(out) as Group).children[0].kind).toBe("rect");
+    expect(after.x).toBeCloseTo(before.x * k, 6);
+    expect(after.y).toBeCloseTo(before.y * k, 6);
+  });
+});
+
+describe("extendCanvas keeps live shapes live", () => {
+  it("a polygon and a title's text survive, apart from the transform", () => {
+    const p = polygon();
+    const t = title();
+    const out = extendCanvas(docWith([p, t]), 200, 100, 1, 1);
+    const [op, ot] = out.layers[0].children;
+    expect(op).toEqual({ ...p, transform: [1, 0, 0, 1, 100, 50] });
+    expect(op.kind).toBe("polygon");
+    expect((ot as PathShape).text).toBe(meta);
+    expect(ot).toEqual({ ...t, transform: [1, 0, 0, 1, 105, 55] });
+  });
+});
+
 describe("scaleRefusal", () => {
   it("accepts an ordinary scale", () => expect(scaleRefusal(docWith([rect()]), 2)).toBeNull());
   it("refuses a non-positive or non-finite k", () => {
-    expect(scaleRefusal(docWith([]), 0)).toBe("Enter a width and a height");
+    expect(scaleRefusal(docWith([]), 0)).toBe("Too small — a side must be more than 0 px");
+    expect(scaleRefusal(docWith([]), -1)).toBe("Too small — a side must be more than 0 px");
     expect(scaleRefusal(docWith([]), Number.NaN)).toBe("Enter a width and a height");
   });
   it("refuses a page over the maximum", () =>

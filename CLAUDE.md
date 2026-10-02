@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1398 tests in 92 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1448 tests in 93 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
   with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
@@ -1243,14 +1243,16 @@ pointermove.
 Parked, not tied to a milestone: a path inside a group contributes no snap targets, because
 `collectTargets` walks only top-level nodes; snap guides are not drawn while a pen draft exists
 (the overlay has one slot); hit-testing flattens at document scale rather than viewport zoom;
-`movePathNodes` can still drag a node onto its subpath's first node.
+`movePathNodes` can still drag a node onto its subpath's first node; a brush stroke still being
+simplified when Document settings' resize applies lands in its pre-resize coordinates (dropping it
+would lose ink, invariant 48; only the first stroke while Paper loads is exposed).
 
 Parked as a group, for a milestone of its own (spec M5 §1 "Out"): accessibility and keyboard work
 — Space not activating a focused button, the Modal focus trap, File-menu keyboard navigation,
 `aria-current`/`aria-selected` on layer rows, the PaintField opacity label, the Midpoint % field
 label, `.ui-mixed`'s contrast; and performance — the id index for `findNode`, layer-row
 measurement caching, `collectTargets` recomputing every bounds per pointer-down,
-`nearestOnSubpath`'s cost.
+`nearestOnSubpath`'s cost, `scaleRefusal`'s full bounds walk per keystroke in Document settings.
 
 ## Verification debt
 

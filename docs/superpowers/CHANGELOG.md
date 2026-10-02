@@ -3579,3 +3579,7 @@ inside a UI bracket), which stays parked as M21 left it.
   now 25 checks.
 - Owed: the iPad pass (checklist): finger use of the mode buttons, Keep ratio and anchor grid, the
   numeric keyboard, Scale drawing on a document with a title and a gradient.
+- Final review follow-ups: `doc-resize.ts` imports `MAX_COORD` from `svg/parse.ts` (no cycle);
+  Scale drawing clears `app.gradientMemory` (it held the old scale); `scaleRefusal` says "Too small"
+  for k <= 0; more spec §5 tests. Parked: an in-flight brush stroke lands in pre-resize coordinates;
+  `scaleRefusal` walks all bounds per keystroke.

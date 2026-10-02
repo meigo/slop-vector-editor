@@ -849,11 +849,12 @@ export function applyDocumentSize(size: DocSize, background: Paint | null): void
   }
   const { w, h } = app.doc.artboard;
   const painted = setArtboard(app.doc, { w, h, background });
-  commitDoc(
-    size.mode === "scale"
-      ? scaleDrawing(painted, size.k)
-      : extendCanvas(painted, size.w, size.h, size.ax, size.ay),
-  );
+  if (size.mode === "scale") {
+    const scaled = scaleDrawing(painted, size.k);
+    // Remembered gradients are at the old scale (invariant 46); restoring one would be the wrong size.
+    if (scaled !== painted) app.gradientMemory.clear();
+    commitDoc(scaled);
+  } else commitDoc(extendCanvas(painted, size.w, size.h, size.ax, size.ay));
 }
 
 export function deleteSelection(): void {
