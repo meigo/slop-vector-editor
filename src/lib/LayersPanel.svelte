@@ -598,7 +598,7 @@
               "pointer-events-none absolute h-8 border-x border-b bg-raised shadow-md",
               n === 1 ? "z-9 border-accent/60" : "z-8 border-accent/30",
             ]}
-            style="top: {ghost.top + 4 * n}px; left: {8 * n}px; right: {8 * n}px"
+            style="top: {ghost.top + 6 * n}px; left: {8 * n}px; right: {8 * n}px"
           ></div>
         {/each}
         <!-- The grabbed row, following the pointer (2026-10-01). With several objects selected

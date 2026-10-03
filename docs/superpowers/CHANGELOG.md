@@ -3598,3 +3598,5 @@ inside a UI bracket), which stays parked as M21 left it.
   failed with a temporary override forcing a pile; the two-edge look was screenshot-checked (a
   first try at 3px steps with no side borders read as a double line, not a pile). Owed on the
   iPad: how it looks under a real finger (checklist §5).
+- Same day, follow-up: the pile's step is 6px, not 4px — asked for: the edges should stick out a
+  little more. Supersedes "each 4px lower" above. `test:ipad` passes; screenshot checked.
