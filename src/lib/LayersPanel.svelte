@@ -589,6 +589,18 @@
         {/each}
       </ul>
       {#if ghost}
+        <!-- Several rows dragged (2026-10-03): the edges of one or two fainter rows peek out
+             below the ghost, a pile of cards — never more than two, so the pile keeps its size. -->
+        {#each [1, 2].slice(0, Math.min(ghost.count - 1, 2)) as n (n)}
+          <div
+            data-drag-stack
+            class={[
+              "pointer-events-none absolute h-8 border-x border-b bg-raised shadow-md",
+              n === 1 ? "z-9 border-accent/60" : "z-8 border-accent/30",
+            ]}
+            style="top: {ghost.top + 4 * n}px; left: {8 * n}px; right: {8 * n}px"
+          ></div>
+        {/each}
         <!-- The grabbed row, following the pointer (2026-10-01). With several objects selected
              it carries their count. -->
         <div
