@@ -637,6 +637,7 @@ try {
   await page.waitForTimeout(200);
   const lifted = await page.evaluate(() => ({
     ghost: !!document.querySelector("[data-drag-ghost]"),
+    pile: document.querySelectorAll("[data-drag-stack]").length,
     // Each row's slide in px, in list order.
     dy: [...document.querySelectorAll("section[aria-label=Layers] [data-row-id]")].map((e) =>
       Math.round(Number(e.style.transform.match(/-?[\d.]+/)?.[0] ?? 0)),
@@ -652,8 +653,8 @@ try {
   await page.waitForTimeout(200);
   const o1 = await rowOrder();
   check(
-    lifted.ghost && closesUp && o1[1] === o0.at(-1) && o1.length === o0.length,
-    `[sim] a finger drags a layer row by its grip: it follows the finger, its place moves to the drop and the rest close up (slides ${lifted.dy.join(", ")}), the drop reorders`,
+    lifted.ghost && lifted.pile === 0 && closesUp && o1[1] === o0.at(-1) && o1.length === o0.length,
+    `[sim] a finger drags a layer row by its grip: it follows the finger (no pile for one row), its place moves to the drop and the rest close up (slides ${lifted.dy.join(", ")}), the drop reorders`,
   );
 
   // 19b. With Shift latched in the dock, a tap on a second layer row adds it to the selection, and
@@ -667,14 +668,29 @@ try {
   await page.waitForTimeout(200);
   const rowsPicked = await selected();
   await shift.tap();
+  // [sim] Mid-drag of one of the two picked rows, the ghost carries a pile: one faint edge below
+  // it (check 19's single-row drag has none). The lift drops near where it started.
+  const stackGrip = await page
+    .locator('section[aria-label=Layers] [data-row-id].ui-selected button[aria-label^="Drag"]')
+    .first()
+    .boundingBox();
+  const sg = { x: stackGrip.x + stackGrip.width / 2, y: stackGrip.y + stackGrip.height / 2 };
+  const stackDrag = dragSteps("touch", 81, sg, { x: sg.x, y: sg.y + 12 });
+  const stackLift = stackDrag.pop();
+  await gesture(stackDrag);
+  await page.waitForTimeout(200);
+  const pile = await page.locator("[data-drag-stack]").count();
+  await page.screenshot({ path: `${OUT}/19b-drag-pile.png` });
+  await gesture([stackLift]);
+  await page.waitForTimeout(200);
   const objectsBeforeGroup = await objects();
   await page.getByRole("button", { name: "Group", exact: true }).tap();
   await page.waitForTimeout(200);
   const grouped = await objects();
   await page.screenshot({ path: `${OUT}/19b-rows-grouped.png` });
   check(
-    rowsPicked === 2 && grouped === objectsBeforeGroup - 1,
-    `with Shift latched, a tap on a second layer row adds it (${rowsPicked} selected) and Group groups them (${objectsBeforeGroup} → ${grouped} objects)`,
+    rowsPicked === 2 && pile === 1 && grouped === objectsBeforeGroup - 1,
+    `with Shift latched, a tap on a second layer row adds it (${rowsPicked} selected), dragging them shows a pile behind the ghost (${pile} edge) and Group groups them (${objectsBeforeGroup} → ${grouped} objects)`,
   );
 
   // 20. Autosave: a reload brings back the document and its name.
