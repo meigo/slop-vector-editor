@@ -3583,3 +3583,18 @@ inside a UI bracket), which stays parked as M21 left it.
   Scale drawing clears `app.gradientMemory` (it held the old scale); `scaleRefusal` says "Too small"
   for k <= 0; more spec §5 tests. Parked: an in-flight brush stroke lands in pre-resize coordinates;
   `scaleRefusal` walks all bounds per keystroke.
+
+## 2026-10-03 — A multi-row drag shows a pile under the ghost
+
+- Asked for: dragging several selected layer rows showed only the grabbed row under the pointer
+  (with the count badge), which did not read as "more than one". Now the edges of one fainter row
+  (two selected) or two (three or more) peek out below the ghost, like a pile of cards: each 4px
+  lower and 8px further in, side and bottom borders in the accent at 60% then 30%. Only for
+  several selected rows, as the badge — a layer or an expanded group dragged with its contents is
+  one thing picked up and gets no pile (the user's choice). Markup only (`LayersPanel.svelte`);
+  `SLOP-LAYER-DRAG.md` describes it for the sibling apps.
+- Checked: `test:ipad`'s single-row drag now asserts no pile, and the two-row check (19b) drags
+  the two picked rows and asserts one edge — that failed without the change (0 edges), and both
+  failed with a temporary override forcing a pile; the two-edge look was screenshot-checked (a
+  first try at 3px steps with no side borders read as a double line, not a pile). Owed on the
+  iPad: how it looks under a real finger (checklist §5).
