@@ -111,6 +111,33 @@ function familyOf(font: ParsedFont, fallback: string): string {
   );
 }
 
+function subfamilyOf(font: ParsedFont): string | undefined {
+  const n = font.names as Record<string, { fontSubfamily?: Record<string, string> }>;
+  return n.windows?.fontSubfamily?.en ?? n.macintosh?.fontSubfamily?.en;
+}
+
+function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+
+/** A file font's label, which is also its id (`file:<label>`): the family alone while that is free
+ *  or holds these very bytes — so a file added before keeps the id its titles were saved with —
+ *  then the family and style, then a number. Two faces of one family (Inter Regular, Inter Bold)
+ *  shared an id, and the second silently replaced the first (review L13, 2026-10-17). */
+function freeLabel(family: string, sub: string | undefined, buf: ArrayBuffer): string {
+  const free = (l: string) => {
+    const taken = added.get(`file:${l}`);
+    return !taken || sameBytes(taken.buf, buf);
+  };
+  const styled = sub && !/^regular$/i.test(sub.trim()) ? `${family} ${sub.trim()}` : family;
+  for (const l of [family, styled]) if (free(l)) return l;
+  for (let n = 2; ; n++) if (free(`${styled} ${n}`)) return `${styled} ${n}`;
+}
+
 /** Registers a Google family for this session (spec M20 §5) and tells the listener. */
 export function registerGoogleFamily(
   entry: CachedFamily,
@@ -231,7 +258,8 @@ export async function registerFontFile(file: File): Promise<string> {
   const o = await ot();
   const buf = await file.arrayBuffer();
   const font = o.parse(buf); // throws on anything unparseable, including a mislabelled .woff2
-  const label = familyOf(font, file.name.replace(/\.[^.]+$/, ""));
+  const family = familyOf(font, file.name.replace(/\.[^.]+$/, ""));
+  const label = freeLabel(family, subfamilyOf(font), buf);
   const id = `file:${label}`;
   added.set(id, { label, buf });
   loaded.set(`${id}|bundled`, { id, label, font });

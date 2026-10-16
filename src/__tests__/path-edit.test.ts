@@ -357,6 +357,20 @@ describe("closeSubpath", () => {
     expect(closeSubpath(short, 0)).toBe(short);
     expect(closeSubpath(p, 9)).toBe(p);
   });
+
+  /** Review L16 (2026-10-17): an end already sitting on the start was kept, and the reload merged
+   *  it away — a node lost (invariant 30). */
+  it("merges an end node that sits on the first one, keeping its incoming handle", () => {
+    const end = { ...corner(0, 1e-7), in: { x: -5, y: 5 } };
+    const p = path({ closed: false, nodes: [corner(0, 0), corner(10, 0), corner(10, 10), end] });
+    const sp = closeSubpath(p, 0).subpaths[0];
+    expect(sp.closed).toBe(true);
+    expect(sp.nodes).toHaveLength(3);
+    expect(sp.nodes[0].in).toEqual({ x: -5, y: 5 });
+    expect(sp.nodes[0].p).toEqual({ x: 0, y: 0 });
+    const two = path({ closed: false, nodes: [corner(0, 0), corner(0, 0)] });
+    expect(closeSubpath(two, 0)).toBe(two);
+  });
 });
 
 const style = DEFAULT_STYLE;

@@ -721,6 +721,12 @@ export function dismissNotice(id: number): void {
 }
 
 /** In-app replacement for window.confirm (native dialogs block the page and browser automation). */
+/** Unsaved changes, counting a brush stroke still landing: it is not in the document yet, but it
+ *  will be, and replacing the document drops it (review L5, 2026-10-17). */
+export function hasUnsavedWork(): boolean {
+  return app.dirty || app.brushPending.length > 0;
+}
+
 export function askConfirm(text: string, confirmLabel: string): Promise<boolean> {
   return new Promise((resolve) => {
     app.confirm = {

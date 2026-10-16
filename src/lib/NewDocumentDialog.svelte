@@ -1,7 +1,7 @@
 <script lang="ts">
   import { isValidArtboardSize, MAX_ARTBOARD } from "../doc/document";
   import { createNewDocument } from "../persist/project-io";
-  import { app } from "../state/appState.svelte";
+  import { app, hasUnsavedWork } from "../state/appState.svelte";
   import { DEFAULT_NAME } from "../state/doc-name";
   import Modal from "./Modal.svelte";
 
@@ -68,7 +68,7 @@
       <span class="text-muted">px</span>
     </div>
   </div>
-  {#if app.dirty}
+  {#if hasUnsavedWork()}
     <p class="mt-3 text-xs text-warn">
       The current document has unsaved changes. They will be lost.
     </p>
