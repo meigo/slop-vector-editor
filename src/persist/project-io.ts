@@ -101,6 +101,9 @@ export function autosaveRecord(): AutosaveRecord {
  *  caller skips scheduling autosaves: in the first case they would fail moments later, in the
  *  second they would overwrite the unreadable copy. */
 export async function restoreAutosave(): Promise<boolean> {
+  // The app is live while IndexedDB is read. Work done meanwhile is not replaced unasked
+  // (review L4, 2026-10-17): declining keeps it, and autosave then saves it over the old copy.
+  const startup = app.doc;
   let rec: AutosaveRecord | null;
   try {
     rec = await loadAutosave();
@@ -111,6 +114,15 @@ export async function restoreAutosave(): Promise<boolean> {
   if (!rec) return true;
   try {
     const { doc } = parseSvg(rec.svg);
+    if (
+      app.doc !== startup &&
+      !(await askConfirm(
+        "Restore the autosaved document? It replaces what you have done since the page opened.",
+        "Restore",
+      ))
+    ) {
+      return true;
+    }
     replaceDocument(doc, rec.fileName, null, !rec.dirty);
   } catch (err) {
     // The stored copy may be the only one: autosaving the blank startup document would overwrite
