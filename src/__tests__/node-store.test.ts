@@ -592,3 +592,35 @@ describe("applyDocumentSize", () => {
     expect(app.notices.at(-1)).toMatchObject({ kind: "error" });
   });
 });
+
+/** Review M1 (2026-10-17): a pen draft open when Document settings applied stayed in the old page
+ *  coordinates and committed there. Applying now finishes the draft first, so it is scaled with
+ *  everything else. */
+describe("applyDocumentSize with a pen draft open", () => {
+  it("finishes the draft first, so the new path is scaled with the drawing", async () => {
+    const { applyDocumentSize } = await import("../state/appState.svelte");
+    const { storeContext } = await import("../tools/context");
+    const { ev } = await import("./fake-context");
+    setTool("pen");
+    const pen = TOOLS.pen;
+    for (const [x, y] of [
+      [60, 70],
+      [80, 70],
+    ]) {
+      pen.down(storeContext, ev(x, y));
+      pen.up(storeContext, ev(x, y));
+    }
+    expect(pen.busy?.()).toBe(true);
+    applyDocumentSize({ mode: "scale", k: 2 }, null);
+    expect(pen.busy?.()).toBe(false);
+    const drawn = app.doc.layers
+      .flatMap((l) => l.children)
+      .find((n): n is PathShape => n.kind === "path" && n.subpaths[0].nodes.length === 2);
+    const pts = drawn!.subpaths[0].nodes.map((n) => applyMat(drawn!.transform, n.p));
+    expect(pts).toEqual([
+      { x: 120, y: 140 },
+      { x: 160, y: 140 },
+    ]);
+    setTool("select");
+  });
+});

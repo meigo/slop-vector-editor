@@ -429,3 +429,35 @@ describe("addGoogleFamily targets the title selected when it started (final revi
     expect(app.canUndo).toBe(false);
   });
 });
+
+/** Review M5 (2026-10-17): a face's bytes were cached before anything parsed them, so a captive
+ *  portal's 200 HTML page broke that face for good — every later try read the cached page. */
+describe("a face download that isn't a font", () => {
+  const PORTAL = new TextEncoder().encode("<!doctype html><title>Log in</title>").buffer;
+
+  it("is not cached, so a retry once the network is honest succeeds", async () => {
+    const net = { portal: true };
+    const fetcher: Fetcher = async (url) => {
+      const real = await fakeNet().fetcher(url);
+      if (!net.portal || url.endsWith("/METADATA.pb")) return real;
+      return { ...real, arrayBuffer: async () => PORTAL };
+    };
+    setGoogleFontIo({ store, fetcher });
+    setSelection(["t"]);
+
+    expect(await addGoogleFamily(family("lora-portal"))).toBe(false);
+    expect(await store.getFace(faceKey("gf:lora-portal", "Lora[wght].ttf"))).toBeNull();
+    net.portal = false;
+    expect(await addGoogleFamily(family("lora-portal"))).toBe(true);
+    expect(titleNode().text?.font).toBe("gf:lora-portal");
+  });
+
+  it("already in the cache is fetched again rather than served", async () => {
+    await store.putFace(faceKey("gf:lora-poisoned", "Lora[wght].ttf"), PORTAL);
+    setGoogleFontIo({ store, fetcher: fakeNet().fetcher });
+    setSelection(["t"]);
+
+    expect(await addGoogleFamily(family("lora-poisoned"))).toBe(true);
+    expect(titleNode().text?.font).toBe("gf:lora-poisoned");
+  });
+});

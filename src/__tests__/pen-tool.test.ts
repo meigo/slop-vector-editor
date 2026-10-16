@@ -8,7 +8,7 @@ import {
   type PathShape,
 } from "../doc/document";
 import { mapNodes } from "../doc/tree";
-import { IDENTITY, translate } from "../geom/mat";
+import { IDENTITY, translate, type Mat } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
 import { parseSvg } from "../svg/parse";
 import { serializeDoc } from "../svg/serialize";
@@ -579,5 +579,70 @@ describe("pen: resuming an open path", () => {
     t2.keydown?.(shut.ctx, "enter");
     // A closed path can't be resumed, so this drew a new one.
     expect(paths(shut.state.session.doc)).toHaveLength(2);
+  });
+});
+
+/** Review M1 (2026-10-17): a resumed draft kept the path's world matrix from the moment it
+ *  resumed, so a nudge or flip of that path while the draft was open put every later click in the
+ *  wrong place (a flipped path took its next node mirrored). */
+describe("pen: the resumed path moves while the draft is open", () => {
+  const withPath = (): Doc => {
+    const d = createDoc(300, 300);
+    const path: PathShape = {
+      kind: "path",
+      id: "p",
+      transform: translate(100, 0),
+      style: DEFAULT_PREFS.style,
+      subpaths: [
+        {
+          closed: false,
+          nodes: [
+            { p: { x: 0, y: 0 }, in: null, out: null, type: "corner" },
+            { p: { x: 40, y: 0 }, in: null, out: null, type: "corner" },
+          ],
+        },
+      ],
+    };
+    return { ...d, layers: [{ ...d.layers[0], children: [path] }] };
+  };
+  const moveTo = (doc: Doc, t: Mat) => mapNodes(doc, ["p"], (n) => ({ ...n, transform: t }));
+
+  it("a nudge: the next click lands where it is pressed", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 140, 0); // resume from the end
+    ctx.commit(moveTo(state.session.doc, [1, 0, 0, 1, 100, 50]));
+    click(tool, ctx, 180, 50);
+    tool.keydown?.(ctx, "enter");
+    expect(paths(state.session.doc)[0].subpaths[0].nodes.map((n) => n.p)).toEqual([
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+      { x: 80, y: 0 },
+    ]);
+  });
+
+  it("a flip: the next click is not mirrored", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 140, 0);
+    // Mirrored about x = 120: the end node (local 40) is now at document x 100.
+    ctx.commit(moveTo(state.session.doc, [-1, 0, 0, 1, 140, 0]));
+    click(tool, ctx, 60, 30);
+    tool.keydown?.(ctx, "enter");
+    const nodes = paths(state.session.doc)[0].subpaths[0].nodes;
+    expect(nodes[2].p).toEqual({ x: 80, y: 30 });
+  });
+
+  it("the overlay follows the moved path", () => {
+    const { ctx, state } = fakeContext(withPath(), noSnap);
+    const tool = createPenTool();
+    click(tool, ctx, 140, 0);
+    ctx.commit(moveTo(state.session.doc, [1, 0, 0, 1, 100, 50]));
+    tool.hover?.(ctx, ev(200, 200));
+    const o = state.overlay;
+    expect(o?.kind === "pen" && o.knobs).toEqual([
+      { x: 100, y: 50 },
+      { x: 140, y: 50 },
+    ]);
   });
 });

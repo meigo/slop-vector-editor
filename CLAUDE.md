@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1448 tests in 93 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1464 tests in 94 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
   with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
@@ -248,8 +248,9 @@ every user-visible change.
    `RangeError` (recursion) — callers (`openText`, `restoreAutosave`) catch every error, not just
    the named ones. `openText` parses fully before replacing the document. **A property the model
    cannot draw is reported, never ignored** (`UNREPRESENTABLE` in `parse.ts`, review H2,
-   2026-09-30): `fill-rule: evenodd`, `stroke-dasharray`, markers, `transform-origin` and a CSS
-   `transform` in `style`, each only when set to something other than a value that draws the same
+   2026-09-30): `fill-rule: evenodd`, `stroke-dasharray`, markers, `transform-origin`, a CSS
+   `transform` in `style`, `paint-order`, `vector-effect` and `mix-blend-mode` (review M3,
+   2026-10-17), each only when set to something other than a value that draws the same
    as leaving it out. An ignored one left `dropped` empty, so invariant 10 kept the handle and ⌘S
    wrote it away. A layer's own `transform`/`opacity` becomes a group around its children in our
    own format too (review M11): our export never writes them, but another editor may add them.
@@ -269,7 +270,10 @@ every user-visible change.
    rejected the same way non-finite values are — `fmt`'s 6-decimal rounding overflows to
    `Infinity` well before that.
 9. **Autosave is skipped for the rest of the session when IndexedDB is unavailable**, with a
-   single notice — it does not retry on every edit. **It is also off when the stored copy cannot
+   single notice — it does not retry on every edit. **A failed write drops the connection** so the
+   next one reopens it (review M4, 2026-10-17: Safari can lose it without `onclose`); the font cache
+   does the same. **The startup restore asks before replacing** a document edited while it loaded
+   (review L4). **It is also off when the stored copy cannot
    be read** (`restoreAutosave` returns false, review M10, 2026-09-30): autosaving the blank
    startup document would overwrite what may be the only copy 3 s later. A reload tries again.
 10. **A file is only kept as the Save-in-place target when it round-trips losslessly**: `openText`
@@ -564,7 +568,10 @@ every user-visible change.
     tool and the overlay until the path is finished, which is what keeps a one-node path — the
     importer drops it — out of the file and makes a whole stroke one undo step. This is why the
     pen's `cancel()` keeps the draft instead of rolling it back: a `pointercancel` only stops the
-    handles being pulled, and only Escape, a finish or a tool change ends a stroke.
+    handles being pulled, and only Escape, a finish or a tool change ends a stroke. A resumed draft
+    re-reads its path's matrix from the document on every use (`sync`, review M1, 2026-10-17), so a
+    nudge or flip of that path mid-draft moves the draft with it; Document settings' Apply finishes
+    an open draft first.
 34. **A tool may take Escape, Enter and Backspace through `Tool.keydown` while `busy()`.**
     `runEditAction` (`state/commands.ts`) asks the active tool before its own clear/commit/delete
     handling; the pen, the Warp tool and the Brush implement `keydown`/`busy` today. `hover` is every pointer move

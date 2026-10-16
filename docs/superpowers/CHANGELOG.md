@@ -3600,3 +3600,32 @@ inside a UI bracket), which stays parked as M21 left it.
   iPad: how it looks under a real finger (checklist §5).
 - Same day, follow-up: the pile's step is 6px, not 4px — asked for: the edges should stick out a
   little more. Supersedes "each 4px lower" above. `test:ipad` passes; screenshot checked.
+
+## 2026-10-17 — Code review by risk areas, and review fixes batch 1
+
+- A second eight-area review (`REVIEW-2026-10-17.md`, same method as 2026-09-30), focused on what
+  changed since the last fixes: 0 high, 7 medium, 22 low. M23's maths came out clean under
+  property tests (200 random transform trials; 9,000 random documents round-tripped through Scale
+  drawing and Crop/extend).
+- Batch 1 (the data-loss items), each with a test that fails without it:
+  - **M1:** a resumed pen draft re-reads its path's matrix on every use, so a nudge, flip or align
+    of that path mid-draft no longer puts the next click in the wrong place (a flipped path took
+    its next node mirrored); Document settings' Apply finishes an open draft first, so it is moved
+    or scaled with the drawing. Left: a geometry *bake* of the resumed path mid-draft (a W/H typed
+    in the panel) still leaves the draft's new nodes in the old local scale.
+  - **M2:** a rect at its full corner radius reads back as a rect when rounding makes rx and ry
+    differ by up to 1e-6 (it reopened as a plain path in about a quarter of random Scale drawings).
+  - **M3:** `paint-order`, `vector-effect` and `mix-blend-mode` are reported on import ("paint
+    order", "non-scaling strokes", "blend modes"). `stroke-miterlimit` is not yet — open question:
+    Illustrator writes 10 on nearly every stroke.
+  - **M4:** autosave and the Google Fonts cache drop their IndexedDB connection when a transaction
+    fails, so the next write reopens it (Safari can lose one without `onclose`, and autosave stayed
+    dead for the session); a successful write re-arms the failure notice.
+  - **M5:** only bytes that start like a font (`00010000`, `OTTO`, `true`) enter or leave the face
+    cache, so a captive portal's 200 page no longer breaks a face for good, and one already cached
+    is refetched.
+  - **L4:** the startup restore asks ("Restore the autosaved document?") when the document changed
+    while IndexedDB was being read, instead of replacing that work; declining keeps it.
+- Checked: `npm test` (1464), build 0 errors/0 warnings with the four chunks as before, `test:ipad`
+  all passed. Not browser-checked by hand: the restore prompt and the pen after a flip. Owed on the
+  iPad (checklist §6): autosave after a long background, the restore prompt on a cold launch.

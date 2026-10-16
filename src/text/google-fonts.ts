@@ -137,6 +137,15 @@ export async function fetchMetadata(
   return parseMetadata(text);
 }
 
+/** Whether `buf` starts like a TrueType/OpenType font (`00 01 00 00`, `OTTO` or `true`). Not a
+ *  parse — that needs opentype.js — but enough to keep a captive portal's or a filtering proxy's
+ *  HTML page, served with status 200, out of the face cache for good (review M5, 2026-10-17). */
+export function looksLikeFont(buf: ArrayBuffer): boolean {
+  if (buf.byteLength < 12) return false;
+  const tag = new DataView(buf).getUint32(0);
+  return tag === 0x00010000 || tag === 0x4f54544f || tag === 0x74727565;
+}
+
 /** Downloads one face file. `filename` is URL-encoded — a variable face's name contains `[`, `]`
  *  and, for a multi-axis family, `,`. */
 export async function fetchFaceFile(

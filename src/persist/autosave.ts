@@ -41,20 +41,39 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-export async function loadAutosave(): Promise<AutosaveRecord | null> {
-  const db = await open();
-  const rec = await request(db.transaction(STORE, "readonly").objectStore(STORE).get(KEY));
-  return (rec as AutosaveRecord | undefined) ?? null;
+/** Runs `fn` on the shared connection, dropping the connection when it fails so the next call
+ *  reopens it (review M4, 2026-10-17): Safari can lose one without `onclose`, after which every
+ *  `transaction()` on it throws — and autosave stayed dead for the session. */
+async function withDb<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
+  const p = open();
+  const db = await p;
+  try {
+    return await fn(db);
+  } catch (err) {
+    if (dbPromise === p) {
+      dbPromise = null;
+      db.close();
+    }
+    throw err;
+  }
 }
 
-export async function writeAutosave(rec: AutosaveRecord): Promise<void> {
-  const db = await open();
-  const tx = db.transaction(STORE, "readwrite");
-  tx.objectStore(STORE).put(rec, KEY);
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+export function loadAutosave(): Promise<AutosaveRecord | null> {
+  return withDb(async (db) => {
+    const rec = await request(db.transaction(STORE, "readonly").objectStore(STORE).get(KEY));
+    return (rec as AutosaveRecord | undefined) ?? null;
+  });
+}
+
+export function writeAutosave(rec: AutosaveRecord): Promise<void> {
+  return withDb(async (db) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(rec, KEY);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    });
   });
 }
 
@@ -63,11 +82,16 @@ let reported = false;
 let pending: { get: () => AutosaveRecord; onError: (err: unknown) => void } | null = null;
 
 function runWrite(get: () => AutosaveRecord, onError: (err: unknown) => void): void {
-  writeAutosave(get()).catch((err: unknown) => {
-    if (reported) return; // one notice per session is enough
-    reported = true;
-    onError(err);
-  });
+  writeAutosave(get()).then(
+    () => {
+      reported = false; // working again: the next outage gets its own notice
+    },
+    (err: unknown) => {
+      if (reported) return; // one notice per outage is enough
+      reported = true;
+      onError(err);
+    },
+  );
 }
 
 /** Debounced write. `get` runs when the timer fires, so a burst of edits serializes once. */
