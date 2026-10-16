@@ -110,6 +110,14 @@ const UNREPRESENTABLE: readonly { key: string; label: string; plain: readonly st
   { key: "marker-mid", label: "markers", plain: ["none"] },
   { key: "marker-end", label: "markers", plain: ["none"] },
   { key: "transform-origin", label: "transform-origin", plain: ["0 0", "0px 0px", "left top"] },
+  // Review M3 (2026-10-17).
+  {
+    key: "paint-order",
+    label: "paint order",
+    plain: ["normal", "fill", "fill stroke", "fill stroke markers"],
+  },
+  { key: "vector-effect", label: "non-scaling strokes", plain: ["none"] },
+  { key: "mix-blend-mode", label: "blend modes", plain: ["normal"] },
 ];
 const CSS_TRANSFORM = { key: "transform", label: "CSS transforms", plain: ["none"] };
 
@@ -483,8 +491,23 @@ export function parseSvg(src: string): ParseResult {
         const x = len(a.x, 0);
         const y = len(a.y, 0);
         const st = style(i2, opacity);
-        if (rx === ry) {
-          return { kind: "rect", id: newId(), name: label, transform, style: st, x, y, w, h, rx };
+        // Review M2 (2026-10-17): rx and a side round separately on save, so a rect at its full
+        // radius can read back with rx a hair over the clamped ry. Within the writer's 1e-6 they
+        // are one radius, not an elliptical corner.
+        if (Math.abs(rx - ry) <= 1e-6) {
+          const r = Math.min(rx, ry);
+          return {
+            kind: "rect",
+            id: newId(),
+            name: label,
+            transform,
+            style: st,
+            x,
+            y,
+            w,
+            h,
+            rx: r,
+          };
         }
         return pathNode([rectPath(x, y, w, h, rx, ry)], newId(), label, transform, st);
       }

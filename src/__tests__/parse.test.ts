@@ -644,3 +644,63 @@ describe("review L11-L13 (2026-09-30)", () => {
     expect(g.kind === "path" && g.subpaths[0].nodes).toHaveLength(3);
   });
 });
+
+describe("review 2026-10-17", () => {
+  /** M2: a rect at its full radius (rx = h/2) after a resize has an arbitrary-float h; rx and h
+   *  round separately on save, so the read-back rx could exceed the clamped ry by 1e-6 and the
+   *  rect came back a plain path, unreported. */
+  it("keeps a pill-shaped rect a rect when its rounded radius overshoots half a side", () => {
+    const h = 10.0000013;
+    const doc = createDoc(200, 50);
+    const withRect: Doc = {
+      ...doc,
+      layers: [
+        {
+          ...doc.layers[0],
+          children: [
+            {
+              kind: "rect",
+              id: "r",
+              transform: IDENTITY,
+              style: DEFAULT_STYLE,
+              x: 0,
+              y: 0,
+              w: 100,
+              h,
+              rx: h / 2,
+            },
+          ],
+        },
+      ],
+    };
+    const r = parseSvg(serializeDoc(withRect));
+    const [node] = r.doc.layers[0].children;
+    expect(node.kind).toBe("rect");
+    expect(r.dropped).toEqual([]);
+  });
+
+  it("still reads a rect whose rx and ry really differ as a path", () => {
+    const r = parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <rect width="8" height="8" rx="1" ry="2"/></svg>`);
+    expect(r.doc.layers[0].children[0].kind).toBe("path");
+  });
+
+  /** M3: properties that change the picture were ignored with `dropped` empty. */
+  it("reports paint-order, vector-effect and blend modes", () => {
+    const one = (attrs: string) =>
+      parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+        <path d="M0 0L10 0L10 10Z" ${attrs}/></svg>`).dropped;
+    expect(one(`paint-order="stroke"`)).toEqual(["paint order"]);
+    expect(one(`style="paint-order: stroke fill"`)).toEqual(["paint order"]);
+    expect(one(`vector-effect="non-scaling-stroke"`)).toEqual(["non-scaling strokes"]);
+    expect(one(`style="mix-blend-mode: multiply"`)).toEqual(["blend modes"]);
+    for (const a of [
+      `paint-order="normal"`,
+      `paint-order="fill stroke markers"`,
+      `vector-effect="none"`,
+      `mix-blend-mode="normal"`,
+    ]) {
+      expect(one(a)).toEqual([]);
+    }
+  });
+});
