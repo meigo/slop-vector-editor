@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MITER_LIMIT,
   DOC_VERSION,
   idFor,
   isValidArtboardSize,
@@ -55,6 +56,7 @@ type Inherited = {
   strokeWidth: number;
   cap: LineCap;
   join: LineJoin;
+  miterLimit: number;
 };
 
 const ROOT_INHERITED: Inherited = {
@@ -66,6 +68,7 @@ const ROOT_INHERITED: Inherited = {
   strokeWidth: 1,
   cap: "butt",
   join: "miter",
+  miterLimit: DEFAULT_MITER_LIMIT,
 };
 
 const PROPS = [
@@ -77,6 +80,7 @@ const PROPS = [
   "stroke-width",
   "stroke-linecap",
   "stroke-linejoin",
+  "stroke-miterlimit",
   "opacity",
   "display",
   "visibility",
@@ -174,6 +178,14 @@ function num(v: string | undefined, fallback: number): number {
   if (v === undefined) return fallback;
   const n = parseFloat(v);
   return Number.isFinite(n) && Math.abs(n) <= MAX_COORD ? n : fallback;
+}
+
+/** SVG requires a miter limit of at least 1; anything else is invalid and leaves the inherited
+ *  value, as a browser does. */
+function miterLimitValue(v: string | undefined, fallback: number): number {
+  if (v === undefined) return fallback;
+  const n = Number(v.trim());
+  return Number.isFinite(n) && n >= 1 && n <= MAX_COORD ? n : fallback;
 }
 
 function opacityValue(v: string | undefined, fallback: number): number {
@@ -304,6 +316,7 @@ export function parseSvg(src: string): ParseResult {
       strokeWidth: Math.max(0, len(p["stroke-width"], parent.strokeWidth)),
       cap: cap && CAPS.includes(cap) ? (cap as LineCap) : parent.cap,
       join: join && JOINS.includes(join) ? (join as LineJoin) : parent.join,
+      miterLimit: miterLimitValue(p["stroke-miterlimit"], parent.miterLimit),
     };
   }
 
@@ -317,6 +330,7 @@ export function parseSvg(src: string): ParseResult {
       cap: inh.cap,
       join: inh.join,
       opacity,
+      ...(inh.miterLimit !== DEFAULT_MITER_LIMIT ? { miterLimit: inh.miterLimit } : {}),
     };
     const refs: { fill?: { ref: Ref; o: number }; stroke?: { ref: Ref; o: number } } = {};
     if (isRef(inh.fill)) refs.fill = { ref: inh.fill, o: inh.fillOpacity };

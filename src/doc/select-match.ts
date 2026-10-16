@@ -1,4 +1,4 @@
-import { sameColours, type Doc, type Node, type Style } from "./document";
+import { miterLimitOf, sameColours, type Doc, type Node, type Style } from "./document";
 import { findNode, selectableIds } from "./tree";
 
 /** What "the same" means for `sameIds` (spec M6 §3). */
@@ -10,6 +10,7 @@ const sameStyle = (a: Style, b: Style): boolean =>
   a.strokeWidth === b.strokeWidth &&
   a.cap === b.cap &&
   a.join === b.join &&
+  miterLimitOf(a) === miterLimitOf(b) &&
   a.opacity === b.opacity;
 
 /** A group has no `Style`, so it is neither a seed nor a candidate for the paint fields. */

@@ -8,6 +8,7 @@ import {
   isGradient,
   type Doc,
   type Fill,
+  type Node,
   type Paint,
   type PathShape,
   type PolygonShape,
@@ -702,5 +703,39 @@ describe("review 2026-10-17", () => {
     ]) {
       expect(one(a)).toEqual([]);
     }
+  });
+});
+
+/** Review M3 follow-up (2026-10-17): `stroke-miterlimit` was ignored, so Illustrator's 10 (on
+ *  nearly every stroke) drew joins between ~11.5° and ~29° bevelled at our default 4. It is now a
+ *  style field, absent at 4, inherited like the stroke width. */
+describe("stroke-miterlimit", () => {
+  const shapeOf = (svg: string) => {
+    const r = parseSvg(svg);
+    return { r, s: r.doc.layers[0].children[0] as Node };
+  };
+
+  it("is read, inherited, and written back", () => {
+    const { r, s } = shapeOf(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <g stroke-miterlimit="10"><path d="M0 0L10 1L0 2" stroke="red"/></g></svg>`);
+    expect(r.dropped).toEqual([]);
+    const leaf = (s.kind === "group" ? s.children[0] : s) as Shape;
+    expect(leaf.style.miterLimit).toBe(10);
+    expect(serializeDoc(r.doc)).toContain(`stroke-miterlimit="10"`);
+  });
+
+  it("is absent at the default 4, and an invalid value falls back to the inherited one", () => {
+    const four = shapeOf(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <path d="M0 0L10 0L10 10Z" stroke-miterlimit="4"/></svg>`).s;
+    expect("miterLimit" in (four as Shape).style).toBe(false);
+    const bad = shapeOf(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <path d="M0 0L10 0L10 10Z" style="stroke-miterlimit: 0.5"/></svg>`).s;
+    expect("miterLimit" in (bad as Shape).style).toBe(false);
+    expect(
+      serializeDoc(
+        parseSvg(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">
+      <path d="M0 0L10 0L10 10Z"/></svg>`).doc,
+      ),
+    ).not.toContain("miterlimit");
   });
 });

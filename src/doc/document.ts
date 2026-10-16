@@ -51,7 +51,16 @@ export type Style = {
   cap: LineCap;
   join: LineJoin;
   opacity: number;
+  /** `stroke-miterlimit`. Absent = SVG's default 4, and never stored at 4, as `hidden` is never
+   *  stored false (invariant 39); read it through `miterLimitOf`. Kept so a file that sets it
+   *  (Illustrator writes 10 on nearly every stroke) draws its joins the same here (review M3,
+   *  2026-10-17). A ratio, so no bake scales it. */
+  miterLimit?: number;
 };
+
+export const DEFAULT_MITER_LIMIT = 4;
+
+export const miterLimitOf = (s: Style): number => s.miterLimit ?? DEFAULT_MITER_LIMIT;
 /** The defaults for new shapes, and the artboard's world: flat paints only (spec M15 §2). */
 export type FlatStyle = Omit<Style, "fill" | "stroke"> & {
   fill: Paint | null;
