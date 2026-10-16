@@ -140,6 +140,7 @@ import {
   fetchFaceFile,
   fetchMetadata,
   FontDownloadError,
+  looksLikeFont,
   type FaceEntry,
   type Fetcher,
 } from "../text/google-fonts";
@@ -2189,15 +2190,21 @@ function faceLoader(
 ): (filename: string) => Promise<ArrayBuffer> {
   return async (filename) => {
     const key = faceKey(entry.id, filename);
+    // Only font-shaped bytes are served from or written to the cache (review M5, 2026-10-17): a
+    // portal's HTML page cached here failed that face on every later try, across sessions.
     const cached = await store.getFace(key).catch(() => null);
-    if (cached) return cached;
+    if (cached && looksLikeFont(cached)) return cached;
     const buf = await fetchFaceFile(
       familyDir(entry.family),
       filename,
       fontFetcher,
       entry.family.family,
     );
-    await store.putFace(key, buf).catch((e: unknown) => console.warn("Font cache write failed", e));
+    if (looksLikeFont(buf)) {
+      await store
+        .putFace(key, buf)
+        .catch((e: unknown) => console.warn("Font cache write failed", e));
+    }
     return buf;
   };
 }

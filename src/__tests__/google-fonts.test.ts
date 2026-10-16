@@ -6,6 +6,7 @@ import {
   fetchMetadata,
   hasItalic,
   isVariableFile,
+  looksLikeFont,
   parseMetadata,
   type FaceEntry,
   type Fetcher,
@@ -255,5 +256,18 @@ describe("fetchFaceFile", () => {
         "Playfair Display",
       ),
     ).rejects.toThrow("Couldn't download Playfair Display — check your connection");
+  });
+});
+
+describe("looksLikeFont (review M5, 2026-10-17)", () => {
+  const bytes = (...b: number[]) => new Uint8Array([...b, ...new Array(12).fill(0)]).buffer;
+  it("accepts TrueType, OpenType-CFF and Apple 'true' headers", () => {
+    expect(looksLikeFont(bytes(0, 1, 0, 0))).toBe(true);
+    expect(looksLikeFont(bytes(0x4f, 0x54, 0x54, 0x4f))).toBe(true);
+    expect(looksLikeFont(bytes(0x74, 0x72, 0x75, 0x65))).toBe(true);
+  });
+  it("refuses an HTML page and a short body", () => {
+    expect(looksLikeFont(new TextEncoder().encode("<!doctype html><html>").buffer)).toBe(false);
+    expect(looksLikeFont(new Uint8Array([0, 1, 0, 0]).buffer)).toBe(false);
   });
 });
