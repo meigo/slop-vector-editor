@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1464 tests in 94 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1471 tests in 95 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
   with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
@@ -470,9 +470,11 @@ every user-visible change.
       drag, on release. The grip is a real `<button>`, so Tab reaches it and Arrow/Shift-Arrow step
       it by 8/24px — the only keyboard route to a width. **`sidebarPx` is `number | null`, and
       `null` means not chosen** (2026-10-01): `shownSidebarWidth` then shows the device's default —
-      240px, or 280px on a touch screen, whose layer rows are wider (`--row-*`). A stored 240 reads
-      as `null`, because every save before then wrote the default with the other prefs; a chosen
-      width is kept on any device.
+      240px, or 280px on a touch screen, whose layer rows are wider (`--row-*`). A stored 240
+      **without the `sidebarChosen` marker** reads as `null` in `loadPrefs` only — every save
+      before then wrote the default with the other prefs — never in `sanitizePrefs`, which every
+      write runs (review M6, 2026-10-17); a chosen width, 240 included, is kept on any device. A
+      grip tap or a no-op key press saves nothing (review M7).
     - **The panel pairs rows two-up once it is 320px wide** (M10e §4), through a **container
       query** on the Properties `<section>`, never a media query: the sidebar is dragged to any
       width independently of the window, so the viewport cannot answer the question. Note the
@@ -849,7 +851,8 @@ every user-visible change.
     3px sideways becomes a drag (`src/lib/scrub.ts`: 4px per step, Shift 4× finer, snapped to the
     field's `step`, measured from the press so returning restores the value; the grid anchors at
     0 when `min` is not finite). It calls `onchange` live on every step change and brackets the
-    drag in its `onlivestart`/`onliveend` props — callers pass `beginUiGesture`/`endDocGesture`,
+    drag in its `onlivestart`/`onliveend` props — callers pass `beginUiGesture`/`endUiGesture` (which leaves the typing bracket alone, review
+    L2, 2026-10-17; undo/redo wait while such a drag holds the bracket, L1),
     and TextPanel passes `finishCharDrag` as the end, because title outlines are async and the
     bracket must wait for them (invariant 41). A mixed value (`null`) is typed only. The input is
     `touch-pan-y`, never `touch-none`: on iPad a vertical finger-scroll of the panel must still

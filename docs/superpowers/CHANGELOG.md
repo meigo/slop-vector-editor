@@ -3617,7 +3617,7 @@ inside a UI bracket), which stays parked as M21 left it.
     differ by up to 1e-6 (it reopened as a plain path in about a quarter of random Scale drawings).
   - **M3:** `paint-order`, `vector-effect` and `mix-blend-mode` are reported on import ("paint
     order", "non-scaling strokes", "blend modes"). `stroke-miterlimit` is not yet — open question:
-    Illustrator writes 10 on nearly every stroke.
+    Illustrator writes 10 on nearly every stroke. (Superseded the same day: batch 2 keeps it.)
   - **M4:** autosave and the Google Fonts cache drop their IndexedDB connection when a transaction
     fails, so the next write reopens it (Safari can lose one without `onclose`, and autosave stayed
     dead for the session); a successful write re-arms the failure notice.
@@ -3629,3 +3629,29 @@ inside a UI bracket), which stays parked as M21 left it.
 - Checked: `npm test` (1464), build 0 errors/0 warnings with the four chunks as before, `test:ipad`
   all passed. Not browser-checked by hand: the restore prompt and the pen after a flip. Owed on the
   iPad (checklist §6): autosave after a long background, the restore prompt on a cold launch.
+
+## 2026-10-17 — Review fixes, batch 2 (sidebar width, undo brackets, miter limit)
+
+From `REVIEW-2026-10-17.md` (marked fixed there), each with a test that fails without it except M7:
+
+- **M6:** a sidebar width of 240px chosen on a touch screen is kept. The "stored 240 = not chosen"
+  migration (2026-10-01) ran in `sanitizePrefs`, which `setPrefs` runs on every write, so a drag
+  to 240 snapped to 280 and the grip's arrows cycled 248 → 280. It now runs only in `loadPrefs`,
+  for prefs saved without the new `sidebarChosen` marker that every save writes.
+- **M7:** a tap on the sidebar grip, or a drag back to its start, saves nothing; a widening arrow
+  press at the viewport's ceiling saves nothing. Both saved the clamped (or default) width as the
+  user's choice. Markup only (`Sidebar.svelte`), not unit-tested; traced.
+- **L1:** undo and redo do nothing while a panel control's drag holds the bracket (they closed it
+  and every later value became its own step); a new panel drag closes a bracket whose owner let go
+  but closes late (`finishCharDrag`), so it gets its own epoch.
+- **L2:** a Properties-panel drag inside a canvas text session no longer closes the typing bracket
+  (`endUiGesture`, which skips the close while `insideTyping()`, like `endToolGesture`).
+- **L3:** undo and redo wait for a brush stroke still landing, so the first undo removes the stroke
+  rather than the edit before it (whose redo the landing stroke then wiped).
+- **M3 follow-up — `stroke-miterlimit` is kept** (the user's choice of the three options): an
+  optional `Style.miterLimit`, absent at SVG's default 4 and read through `miterLimitOf`; read and
+  inherited on import (an invalid value — under 1 — leaves the inherited one, as a browser does),
+  written only when set, compared by Select Same Style. Not shown in the panel.
+- Checked: `npm test` (1471), build 0 errors/0 warnings with the four chunks, `test:ipad` all
+  passed. Owed on the iPad: the grip tap in portrait (checklist §5).
+
