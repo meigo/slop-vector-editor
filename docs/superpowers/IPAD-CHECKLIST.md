@@ -143,6 +143,11 @@ polish.
 - [ ] **P1** **Open…** and **Import SVG…** show the Files picker; import adds to the current layer.
 - [ ] **P2** Export PNG (dialog, share sheet); Copy PNG to the clipboard.
 - [ ] **P2** Close Safari and reopen: autosave restored the document.
+- [ ] **P2** Autosave keeps working after the app has sat in the background for a while (switch
+      apps for ~10 min, come back, edit, wait 3 s, close the tab, reopen): the edit is there.
+      (Review M4, 2026-10-17: a connection Safari dropped is now reopened.)
+- [ ] **P3** On a cold Home Screen launch, draw something at once before the autosave loads: a
+      "Restore the autosaved document?" dialog asks instead of replacing the drawing.
 - [ ] **P3** Copy/paste between the app and another app (Notes, Figma) as SVG.
 
 ## 7. Home Screen app
