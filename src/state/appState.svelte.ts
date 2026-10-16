@@ -1,5 +1,11 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
-import { extendCanvas, scaleDrawing, scaleRefusal, type Anchor } from "../doc/doc-resize";
+import {
+  extendCanvas,
+  outOfRange,
+  scaleDrawing,
+  scaleRefusal,
+  type Anchor,
+} from "../doc/doc-resize";
 import { svgFileName } from "./doc-name";
 import {
   createDoc,
@@ -106,6 +112,7 @@ import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
 import {
+  fileSafeText,
   indexAt,
   remapIndex,
   remapOverrides,
@@ -241,6 +248,11 @@ class AppState {
    *  saved, not undoable, not reactive — nothing renders from it — and cleared by
    *  `replaceDocument`, whose ids mean other shapes. */
   gradientMemory = new Map<string, RememberedGradient>();
+
+  /** Collapsed rows in the Layers panel, by layer or group id (spec M3a §5). Store state, not
+   *  saved or undoable, so the drawer's panel and the docked one agree and a closed drawer
+   *  remembers (review L11, 2026-10-17). Mutated in place; reset by `replaceDocument`. */
+  collapsedRows = $state<Record<string, boolean>>({});
 
   /** Top-level node ids; not part of undo history. */
   selection = $state.raw<readonly string[]>([]);
@@ -581,6 +593,7 @@ export function replaceDocument(
   app.nodeTarget = null;
   app.nodeSel = [];
   app.gradientMemory.clear();
+  app.collapsedRows = {}; // another document's ids
   brushEpoch++;
   app.brushPending = [];
   app.fileName = fileName;
@@ -714,6 +727,12 @@ export function dismissNotice(id: number): void {
 }
 
 /** In-app replacement for window.confirm (native dialogs block the page and browser automation). */
+/** Unsaved changes, counting a brush stroke still landing: it is not in the document yet, but it
+ *  will be, and replacing the document drops it (review L5, 2026-10-17). */
+export function hasUnsavedWork(): boolean {
+  return app.dirty || app.brushPending.length > 0;
+}
+
 export function askConfirm(text: string, confirmLabel: string): Promise<boolean> {
   return new Promise((resolve) => {
     app.confirm = {
@@ -890,6 +909,10 @@ export function applyDocumentSize(size: DocSize, background: Paint | null): void
   const painted = setArtboard(app.doc, { w, h, background });
   if (size.mode === "scale") {
     const scaled = scaleDrawing(painted, size.k);
+    if (outOfRange(scaled)) {
+      notify("error", `Document size — scaling by ${size.k}× would put the drawing out of range.`);
+      return;
+    }
     // Remembered gradients are at the old scale (invariant 46); restoring one would be the wrong size.
     if (scaled !== painted) app.gradientMemory.clear();
     commitDoc(scaled);
@@ -1978,7 +2001,11 @@ async function reshapeTitle(
   if (!keepGesture) cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
-  const meta = withFace({ ...target.text, ...patch });
+  const meta = withFace({
+    ...target.text,
+    ...patch,
+    ...(patch.text !== undefined ? { text: fileSafeText(patch.text) } : {}),
+  });
   // Overrides never outlive the string they were made for (spec M10 §4). Drop them before
   // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
   // still records an undo step for a change that is not there.
@@ -2587,7 +2614,13 @@ export function textIndexAt(at: Vec): number | null {
   if (!found) return null;
   const inv = invertMat(multiplyMat(found.parent, found.node.transform));
   if (!inv) return null; // invariant 26
-  const i = indexAt(app.caretStops, applyMat(inv, at));
+  const text = found.node.kind === "path" ? found.node.text?.text : undefined;
+  // The stops are the document's title; past a keystroke still outlining they and the text agree.
+  const i = indexAt(
+    app.caretStops,
+    applyMat(inv, at),
+    text !== undefined && [...text].length + 1 === app.caretStops.length ? text : undefined,
+  );
   return i < 0 ? null : i;
 }
 

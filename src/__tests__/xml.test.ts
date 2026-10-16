@@ -54,3 +54,33 @@ describe("parseXml", () => {
     expect(() => parseXml('<a b="&#xD800;"/>')).toThrow(XmlError);
   });
 });
+
+/** Review L20 (2026-10-17): older Illustrator files ("Style Elements: Entity References") declare
+ *  their styles as internal-subset entities and reference them from attributes; the references
+ *  stayed literal and every colour was lost, unreported. */
+describe("internal-subset entities", () => {
+  it("expands a general entity declared in the DOCTYPE, in attributes and text", () => {
+    const root = parseXml(`<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x" [
+  <!ENTITY st0 "fill:#FF0000;">
+  <!ENTITY ns_svg 'http://www.w3.org/2000/svg'>
+  <!ENTITY % param "ignored">
+]>
+<svg xmlns="&ns_svg;"><rect style="&st0;stroke:none"/><text>&st0;</text></svg>`);
+    expect(root.attrs.xmlns).toBe("http://www.w3.org/2000/svg");
+    expect(root.children[0].attrs.style).toBe("fill:#FF0000;stroke:none");
+    expect(root.children[1].text).toBe("fill:#FF0000;");
+  });
+
+  it("expands one level only, so a nested reference can't multiply", () => {
+    const root = parseXml(`<!DOCTYPE svg [
+  <!ENTITY a "x">
+  <!ENTITY b "&a;&a;">
+]><svg t="&b;"/>`);
+    expect(root.attrs.t).toBe("&a;&a;");
+  });
+
+  it("leaves an undeclared reference as it was", () => {
+    expect(parseXml(`<svg t="&nope;"/>`).attrs.t).toBe("&nope;");
+  });
+});

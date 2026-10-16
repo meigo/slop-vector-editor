@@ -188,6 +188,17 @@ function miterLimitValue(v: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n >= 1 && n <= MAX_COORD ? n : fallback;
 }
 
+/** The value of `key` in a `style` attribute, or undefined. */
+function styleDecl(style: string | undefined, key: string): string | undefined {
+  for (const decl of (style ?? "").split(";")) {
+    const colon = decl.indexOf(":");
+    if (colon >= 0 && decl.slice(0, colon).trim().toLowerCase() === key) {
+      return decl.slice(colon + 1).replace(/\s*!important\s*$/i, "");
+    }
+  }
+  return undefined;
+}
+
 function opacityValue(v: string | undefined, fallback: number): number {
   if (v === undefined) return fallback;
   const n = parseFloat(v);
@@ -475,6 +486,14 @@ export function parseSvg(src: string): ParseResult {
         if (name === "svg") {
           transform = multiply(transform, translate(len(a.x, 0), len(a.y, 0)));
           if (a.viewBox !== undefined) drop("nested viewBox scaling");
+          // A sized viewport clips what it holds unless its overflow is visible (review L22).
+          const overflow = (styleDecl(a.style, "overflow") ?? a.overflow ?? "hidden").trim();
+          if (
+            (a.width !== undefined || a.height !== undefined) &&
+            !/^(visible|auto)$/i.test(overflow)
+          ) {
+            drop("nested viewport clipping");
+          }
         }
         // Allocate the group id before its children so ids follow document order.
         const id = newId();
@@ -650,7 +669,10 @@ export function parseSvg(src: string): ParseResult {
   const place = (n: Node): Node =>
     isIdentity(rootMat) ? n : { ...n, transform: multiply(rootMat, n.transform) };
 
-  const rootInh = inherit(ROOT_INHERITED, props(root));
+  const rootProps = props(root);
+  // `opacity` doesn't inherit, so the root's own is read for nothing (review L19, 2026-10-17).
+  if (opacityValue(rootProps.opacity, 1) < 1) drop("document opacity");
+  const rootInh = inherit(ROOT_INHERITED, rootProps);
   const layers: Layer[] = [];
   let background: Paint | null = null;
 

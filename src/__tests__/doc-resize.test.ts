@@ -21,6 +21,7 @@ import {
   scaleDrawing,
   scaleRefusal,
   sizeRefusal,
+  outOfRange,
 } from "../doc/doc-resize";
 import { applyMat, IDENTITY, multiply, rotate, translate } from "../geom/mat";
 import { parseSvg } from "../svg/parse";
@@ -129,7 +130,7 @@ describe("sizeRefusal", () => {
   it("refuses a side over the maximum", () =>
     expect(sizeRefusal(100001, 50)).toBe("Too large — at most 100000 px a side"));
   it("refuses a zero or negative side", () =>
-    expect(sizeRefusal(0, 50)).toBe("Too small — a side must be more than 0 px"));
+    expect(sizeRefusal(0, 50)).toBe("Too small — a side must be at least 0.01 px"));
 });
 
 describe("ratio helpers", () => {
@@ -363,14 +364,14 @@ describe("extendCanvas keeps live shapes live", () => {
 describe("scaleRefusal", () => {
   it("accepts an ordinary scale", () => expect(scaleRefusal(docWith([rect()]), 2)).toBeNull());
   it("refuses a non-positive or non-finite k", () => {
-    expect(scaleRefusal(docWith([]), 0)).toBe("Too small — a side must be more than 0 px");
-    expect(scaleRefusal(docWith([]), -1)).toBe("Too small — a side must be more than 0 px");
+    expect(scaleRefusal(docWith([]), 0)).toBe("Too small — a side must be at least 0.01 px");
+    expect(scaleRefusal(docWith([]), -1)).toBe("Too small — a side must be at least 0.01 px");
     expect(scaleRefusal(docWith([]), Number.NaN)).toBe("Enter a width and a height");
   });
   it("refuses a page over the maximum", () =>
     expect(scaleRefusal(docWith([]), 1001)).toBe("Too large — at most 100000 px a side"));
   it("refuses a page that rounds to nothing", () =>
-    expect(scaleRefusal(docWith([]), 0.00001)).toBe("Too small — a side must be more than 0 px"));
+    expect(scaleRefusal(docWith([]), 0.00001)).toBe("Too small — a side must be at least 0.01 px"));
   it("refuses coordinates past MAX_COORD, hidden content included", () => {
     const far = rect({ id: "far", x: 2e8, hidden: true });
     const group: Group = {
@@ -384,4 +385,28 @@ describe("scaleRefusal", () => {
       "Scaling by 10× would put the drawing out of range",
     );
   });
+});
+
+/** Review L18 (2026-10-17): a side that rounds to 0 in the file reopened as 300×150. */
+it("sizeRefusal refuses a side under 0.01 px, which the file would round away", () => {
+  expect(sizeRefusal(1e-7, 100)).toBe("Too small — a side must be at least 0.01 px");
+  expect(sizeRefusal(0.01, 100)).toBeNull();
+});
+
+/** Review L17 (2026-10-17): `scaleRefusal` measures document space, but a child under a tiny
+ *  scale gets k baked into its own coordinates, past what the importer reads back. */
+it("outOfRange finds own-space coordinates a scale pushed past MAX_COORD", () => {
+  const group: Group = {
+    kind: "group",
+    id: "g",
+    transform: [1e-4, 0, 0, 1e-4, 0, 0],
+    opacity: 1,
+    children: [rect({ id: "far", x: 5e8 })],
+  };
+  const doc = docWith([group]);
+  expect(scaleRefusal(doc, 10)).toBeNull();
+  expect(outOfRange(doc)).toBe(false);
+  const scaled = scaleDrawing(doc, 10);
+  expect(outOfRange(scaled)).toBe(true);
+  expect(parseSvg(serializeDoc(scaled)).dropped).toContain("invalid coordinates");
 });

@@ -739,3 +739,29 @@ describe("stroke-miterlimit", () => {
     ).not.toContain("miterlimit");
   });
 });
+
+describe("review 2026-10-17 — more reported content", () => {
+  const dropped = (body: string, rootAttrs = "") =>
+    parseSvg(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" ${rootAttrs}>${body}</svg>`,
+    ).dropped;
+
+  /** L19: the root's own opacity doesn't inherit, so it was read for nothing. */
+  it("reports a root opacity, attribute or style", () => {
+    expect(dropped(`<rect width="5" height="5"/>`, `opacity="0.3"`)).toEqual(["document opacity"]);
+    expect(dropped(`<rect width="5" height="5"/>`, `style="opacity: 50%"`)).toEqual([
+      "document opacity",
+    ]);
+    expect(dropped(`<rect width="5" height="5"/>`, `opacity="1"`)).toEqual([]);
+  });
+
+  /** L22: a nested <svg> with a size clips its content to it. */
+  it("reports a nested <svg> viewport that would clip", () => {
+    const inner = `<rect width="80" height="80"/>`;
+    expect(dropped(`<svg x="10" y="10" width="20" height="20">${inner}</svg>`)).toEqual([
+      "nested viewport clipping",
+    ]);
+    expect(dropped(`<svg width="20" height="20" overflow="visible">${inner}</svg>`)).toEqual([]);
+    expect(dropped(`<svg x="10">${inner}</svg>`)).toEqual([]);
+  });
+});

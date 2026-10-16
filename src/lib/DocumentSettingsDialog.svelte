@@ -28,7 +28,10 @@
   let ay = $state<Anchor>(0.5);
   /** Scale drawing's factor comes from the side typed last. */
   let typed = $state<"w" | "h">("w");
-  const k = $derived(typed === "w" ? Number(w) / initial.w : Number(h) / initial.h);
+  // An empty field is `null`, which `Number` reads as 0 ("Too small"); NaN says "Enter a width and
+  // a height" (review L12, 2026-10-17).
+  const side = (v: unknown, from: number) => (typeof v === "number" ? v / from : Number.NaN);
+  const k = $derived(typed === "w" ? side(w, initial.w) : side(h, initial.h));
   const refusal = $derived(mode === "scale" ? scaleRefusal(app.doc, k) : sizeRefusal(w, h));
 
   function typedW() {

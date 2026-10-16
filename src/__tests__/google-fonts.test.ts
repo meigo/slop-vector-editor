@@ -271,3 +271,40 @@ describe("looksLikeFont (review M5, 2026-10-17)", () => {
     expect(looksLikeFont(new Uint8Array([0, 1, 0, 0]).buffer)).toBe(false);
   });
 });
+
+/** Review L6/L7 (2026-10-17): a METADATA.pb that parses to no faces (a portal's 200 page) resolved
+ *  to `[]` and was cached for the session; a body that failed mid-download escaped as a raw error
+ *  and was reported as an unreadable font or "reload the page". */
+describe("downloads that fail after the response arrives", () => {
+  const broken: Fetcher = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => {
+      throw new TypeError("network connection was lost");
+    },
+    arrayBuffer: async () => {
+      throw new TypeError("network connection was lost");
+    },
+  });
+
+  it("a METADATA.pb with no faces is a failed download", async () => {
+    const portal: Fetcher = async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "<!doctype html><title>Log in</title>",
+      arrayBuffer: async () => new ArrayBuffer(0),
+    });
+    await expect(fetchMetadata("ofl/lora", portal)).rejects.toThrow(
+      "Couldn't download Lora — check your connection",
+    );
+  });
+
+  it("a body cut off mid-download is a failed download", async () => {
+    await expect(fetchMetadata("ofl/lora", broken)).rejects.toThrow(
+      "Couldn't download Lora — check your connection",
+    );
+    await expect(fetchFaceFile("ofl/lora", "Lora[wght].ttf", broken)).rejects.toThrow(
+      "Couldn't download Lora — check your connection",
+    );
+  });
+});

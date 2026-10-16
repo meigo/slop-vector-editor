@@ -133,8 +133,16 @@ export async function fetchMetadata(
     throw downloadError(dir, label);
   }
   if (!res.ok) throw unavailableError(dir, label);
-  const text = await res.text();
-  return parseMetadata(text);
+  // A body cut off mid-download, or one that lists no faces (a captive portal's 200 page), is a
+  // failed download — not a font that can't be read, and not cached as an answer (review L6/L7).
+  let faces;
+  try {
+    faces = parseMetadata(await res.text());
+  } catch {
+    throw downloadError(dir, label);
+  }
+  if (faces.length === 0) throw downloadError(dir, label);
+  return faces;
 }
 
 /** Whether `buf` starts like a TrueType/OpenType font (`00 01 00 00`, `OTTO` or `true`). Not a
@@ -161,5 +169,9 @@ export async function fetchFaceFile(
     throw downloadError(dir, label);
   }
   if (!res.ok) throw unavailableError(dir, label);
-  return res.arrayBuffer();
+  try {
+    return await res.arrayBuffer();
+  } catch {
+    throw downloadError(dir, label);
+  }
 }

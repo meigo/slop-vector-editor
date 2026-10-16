@@ -267,12 +267,19 @@ export function setNodeType(path: PathShape, refs: readonly NodeRef[], type: Nod
 }
 
 /** Closing never repeats the first node as the last: the writer emits `Z` and the importer would
- *  merge such a node away, losing it on reload (CLAUDE.md's M4 constraint). */
+ *  merge such a node away, losing it on reload (CLAUDE.md's M4 constraint). An end already on the
+ *  start is merged into it here instead, its incoming handle kept (review L16, 2026-10-17); a
+ *  subpath that would be left with one node is not closed. */
 export function closeSubpath(path: PathShape, sub: number): PathShape {
   const sp = path.subpaths[sub];
   if (!sp || sp.closed || sp.nodes.length < 2) return path;
+  const first = sp.nodes[0];
+  const last = sp.nodes[sp.nodes.length - 1];
+  const onStart = Math.abs(first.p.x - last.p.x) <= 1e-6 && Math.abs(first.p.y - last.p.y) <= 1e-6;
+  if (onStart && sp.nodes.length <= 2) return path;
+  const nodes = onStart ? [{ ...first, in: last.in }, ...sp.nodes.slice(1, -1)] : sp.nodes;
   const subpaths = path.subpaths.slice();
-  subpaths[sub] = { ...sp, closed: true };
+  subpaths[sub] = { ...sp, nodes, closed: true };
   return withSubpaths(path, subpaths, true);
 }
 

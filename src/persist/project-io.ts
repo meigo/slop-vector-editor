@@ -2,6 +2,7 @@ import { createDoc } from "../doc/document";
 import {
   app,
   askConfirm,
+  hasUnsavedWork,
   importSvgText,
   markDocSaved,
   notify,
@@ -22,12 +23,9 @@ export function createNewDocument(w: number, h: number, name = DEFAULT_NAME): vo
 }
 
 export async function openDocument(): Promise<void> {
-  if (
-    app.dirty &&
-    !(await askConfirm("Discard unsaved changes and open another file?", "Discard"))
-  ) {
-    return;
-  }
+  const discard = () => askConfirm("Discard unsaved changes and open another file?", "Discard");
+  const asked = hasUnsavedWork();
+  if (asked && !(await discard())) return;
   let picked;
   try {
     picked = await pickSvgFile();
@@ -35,7 +33,10 @@ export async function openDocument(): Promise<void> {
     notify("error", `Could not open the file: ${errorMessage(err)}`);
     return;
   }
-  if (picked) openText(picked.text, picked.name, picked.handle);
+  if (!picked) return;
+  // Work can arrive while the picker is up — a brush stroke landing (review L5, 2026-10-17).
+  if (!asked && hasUnsavedWork() && !(await discard())) return;
+  openText(picked.text, picked.name, picked.handle);
 }
 
 /** File ▸ Import SVG… (2026-09-30): adds a file's drawing to the open document rather than

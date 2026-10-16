@@ -22,7 +22,7 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1471 tests in 95 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1490 tests in 97 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
   with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
@@ -251,7 +251,9 @@ every user-visible change.
    2026-09-30): `fill-rule: evenodd`, `stroke-dasharray`, markers, `transform-origin`, a CSS
    `transform` in `style`, `paint-order`, `vector-effect` and `mix-blend-mode` (review M3,
    2026-10-17), each only when set to something other than a value that draws the same
-   as leaving it out. An ignored one left `dropped` empty, so invariant 10 kept the handle and ⌘S
+   as leaving it out — and a root `opacity` and a sized nested `<svg>` that would clip (review
+   L19/L22). `stroke-miterlimit` is kept, as `Style.miterLimit` (absent at 4). The XML reader
+   expands the DOCTYPE's internal `<!ENTITY>`s one level (L20). An ignored one left `dropped` empty, so invariant 10 kept the handle and ⌘S
    wrote it away. A layer's own `transform`/`opacity` becomes a group around its children in our
    own format too (review M11): our export never writes them, but another editor may add them.
    **Import, drop and paste merge the source's layers into the current one, carrying each layer's
