@@ -3655,3 +3655,40 @@ From `REVIEW-2026-10-17.md` (marked fixed there), each with a test that fails wi
 - Checked: `npm test` (1471), build 0 errors/0 warnings with the four chunks, `test:ipad` all
   passed. Owed on the iPad: the grip tap in portrait (checklist §5).
 
+## 2026-10-17 — Review fixes, batch 3 (the remaining lows)
+
+From `REVIEW-2026-10-17.md` (marked there). With this every finding is fixed except L9, declined.
+
+- **Files:** L20 internal-subset `<!ENTITY>` declarations expand (one level, so a declaration that
+  references another can't multiply; parameter entities skipped) — old Illustrator "entity
+  reference" styles keep their colours; L19 a root `opacity` is reported ("document opacity");
+  L22 a nested `<svg>` with a size and no visible overflow is reported ("nested viewport
+  clipping"); L21 a stop's `currentColor` resolves against the stop's, then the gradient's,
+  `color`, and a percentage `stop-opacity` is read.
+- **Document settings:** L18 a side under 0.01 px is refused (the file would round it to 0); L17
+  Apply refuses a Scale drawing whose result puts any own-space coordinate or transform entry past
+  `MAX_COORD` (`outOfRange`), which `scaleRefusal`'s document-space measure missed under a
+  tiny-scale group; L12 an empty side reads "Enter a width and a height".
+- **Text:** L14 a title's text is kept file-safe (`fileSafeText`): vertical tab and form feed become
+  newlines, other forbidden controls spaces, U+FFFE/U+FFFF and lone surrogates U+FFFD — one code
+  point for one, so overrides and the jitter keep their letters; L15 a click and ↑/↓ land only on
+  grapheme boundaries (`Intl.Segmenter`); L13 a second, different file of an added family gets its
+  own id (family, then family + style, then a number) — the same bytes keep theirs, so titles saved
+  before keep their font.
+- **Fonts:** L6 a body cut off mid-download and L7 a METADATA.pb that lists no faces are download
+  errors ("check your connection"), and the empty list is no longer cached for the session.
+- **Async:** L5 Open and New count a brush stroke still landing as unsaved work
+  (`hasUnsavedWork`), and Open asks again if work arrived while the picker was up.
+- **Paths:** L16 Close path merges an end node sitting on the start into it (its incoming handle
+  kept), and refuses when that would leave one node.
+- **UI:** L8 a layer-row drag ends when the document changes under it or its grip loses capture,
+  and a second pointer can't start another; L10 the font Download row is held from the first
+  render, as an `aria-disabled` "Looking up the font…" until the catalogue answers ("Not in the
+  Google Fonts list" when it doesn't know the family); L11 collapsed layer rows are store state
+  (`app.collapsedRows`), so the drawer remembers them and both panels agree.
+- **Declined — L9:** letters in a focused `<select>` still go to the app (invariant 50): tool keys
+  after a mouse pick matter more here than type-ahead.
+- Checked: `npm test` (1490), build 0 errors/0 warnings with the four chunks, `test:ipad` all
+  passed (its layer drags included). L8, L10 and L11 are markup, not unit-tested; the drag
+  cancelled by ⌘Z mid-drag and the Download placeholder were not browser-checked by hand.
+
