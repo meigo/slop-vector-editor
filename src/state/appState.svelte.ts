@@ -2608,7 +2608,13 @@ export function textIndexAt(at: Vec): number | null {
   if (!found) return null;
   const inv = invertMat(multiplyMat(found.parent, found.node.transform));
   if (!inv) return null; // invariant 26
-  const i = indexAt(app.caretStops, applyMat(inv, at));
+  const text = found.node.kind === "path" ? found.node.text?.text : undefined;
+  // The stops are the document's title; past a keystroke still outlining they and the text agree.
+  const i = indexAt(
+    app.caretStops,
+    applyMat(inv, at),
+    text !== undefined && [...text].length + 1 === app.caretStops.length ? text : undefined,
+  );
   return i < 0 ? null : i;
 }
 

@@ -159,3 +159,21 @@ describe("fileSafeText", () => {
     expect(fileSafeText(s)).toBe(s);
   });
 });
+
+/** Review L15 (2026-10-17): a combining mark has no advance, so the stops before and after it share
+ *  an x, and a click there put the caret between a letter and its accent. */
+describe("caret positions stay on grapheme boundaries", () => {
+  // "e" + U+0301 + "x": stops at 0, 10, 10 (inside the cluster), 20.
+  const text = "éx";
+  const one = [L(0, 0), L(0, 10), L(0, 10), L(0, 20)];
+  it("indexAt never lands inside a cluster when it knows the text", () => {
+    expect(indexAt(one, { x: 10, y: 0 })).toBe(1); // without the text: the old answer
+    expect(indexAt(one, { x: 10, y: 0 }, text)).toBe(2);
+    expect(indexAt(one, { x: 3, y: 0 }, text)).toBe(0);
+  });
+  it("verticalMove lands on a boundary too", () => {
+    const two = [...one.slice(0, 3), L(0, 20), L(1, 10)];
+    // "éx\n" then line 1 at index 4; moving up from it towards x 10 finds the cluster end.
+    expect(verticalMove(two, 4, -1, 10, "éx\n")).toBe(2);
+  });
+});

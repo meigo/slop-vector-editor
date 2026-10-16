@@ -103,6 +103,29 @@ function lineOf(stops: readonly CaretStop[]): Map<number, number[]> {
   return lines;
 }
 
+/** The code-point indices a caret may sit at: the grapheme cluster boundaries of `text`, so never
+ *  between a letter and its combining mark, or inside a ZWJ emoji (review L15, 2026-10-17). */
+function graphemeBoundaries(text: string): Set<number> {
+  const out = new Set<number>([0]);
+  let cp = 0;
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
+    text,
+  )) {
+    cp += [...segment].length;
+    out.add(cp);
+  }
+  return out;
+}
+
+/** `idx` without the indices inside a grapheme cluster, when the text is known and that leaves
+ *  any; otherwise `idx` as it is. */
+function onBoundaries(idx: readonly number[], text: string | undefined): readonly number[] {
+  if (text === undefined) return idx;
+  const ok = graphemeBoundaries(text);
+  const kept = idx.filter((i) => ok.has(i));
+  return kept.length > 0 ? kept : idx;
+}
+
 function nearestX(stops: readonly CaretStop[], idx: readonly number[], x: number): number {
   let best = idx[0];
   for (const i of idx) if (Math.abs(stops[i].x - x) < Math.abs(stops[best].x - x)) best = i;
@@ -111,7 +134,11 @@ function nearestX(stops: readonly CaretStop[], idx: readonly number[], x: number
 
 /** Index of the stop nearest `p` (title-local): nearest line by baseline-to-mid distance, then
  *  nearest x on that line. `stops[i]` is the stop for index i. -1 for no stops. */
-export function indexAt(stops: readonly CaretStop[], p: { x: number; y: number }): number {
+export function indexAt(
+  stops: readonly CaretStop[],
+  p: { x: number; y: number },
+  text?: string,
+): number {
   if (stops.length === 0) return -1;
   let bestLine: number[] = [];
   let bestD = Infinity;
@@ -123,7 +150,7 @@ export function indexAt(stops: readonly CaretStop[], p: { x: number; y: number }
       bestLine = idx;
     }
   }
-  return nearestX(stops, bestLine, p.x);
+  return nearestX(stops, onBoundaries(bestLine, text), p.x);
 }
 
 /** ↑ (dir −1) / ↓ (+1) from `index` towards `goalX`; before the first line → 0, past the last →
@@ -133,12 +160,13 @@ export function verticalMove(
   index: number,
   dir: -1 | 1,
   goalX: number,
+  text?: string,
 ): number {
   if (stops.length === 0) return 0;
   const target = stops[index].line + dir;
   const idx = lineOf(stops).get(target);
   if (!idx) return dir < 0 ? 0 : stops.length - 1;
-  return nearestX(stops, idx, goalX);
+  return nearestX(stops, onBoundaries(idx, text), goalX);
 }
 
 const WORD = /[\p{L}\p{N}_]/u;

@@ -233,7 +233,9 @@
     e.preventDefault();
     if (edit.focus !== goalAt) goalX = null;
     goalX ??= stops[edit.focus].x;
-    const i = verticalMove(stops, edit.focus, e.key === "ArrowUp" ? -1 : 1, goalX);
+    // The field's text, when the stops have caught up with it, keeps ↑/↓ on whole characters.
+    const text = [...el.value].length + 1 === stops.length ? el.value : undefined;
+    const i = verticalMove(stops, edit.focus, e.key === "ArrowUp" ? -1 : 1, goalX, text);
     goalAt = i;
     setTextSelection(e.shiftKey ? edit.anchor : i, i);
   }
