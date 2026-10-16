@@ -82,6 +82,20 @@ export function createPenTool(): Tool {
   /** The last pointer seen, so the overlay can size the close tolerance between presses. */
   let pointerKind = "mouse";
 
+  /** A resumed draft takes its path's matrix from the document as it is now (review M1,
+   *  2026-10-17): a nudge, flip or align of that path while the draft is open moves the draft with
+   *  it. Captured once at the resume, it put every later click in the wrong place. */
+  const sync = (ctx: ToolContext, d: Draft) => {
+    if (d.pathId === null) return;
+    const found = findNode(ctx.doc(), d.pathId);
+    if (!found || found.node.kind !== "path") return;
+    const world = multiply(found.parent, found.node.transform);
+    const inv = invert(world);
+    if (!inv) return;
+    d.world = world;
+    d.inv = inv;
+  };
+
   const toDoc = (d: Draft, p: Vec) => applyMat(d.world, p);
   const toLocal = (d: Draft, p: Vec) => applyMat(d.inv, p);
 
@@ -105,6 +119,7 @@ export function createPenTool(): Tool {
       ctx.setOverlay(null);
       return;
     }
+    sync(ctx, d);
     const view = ctx.view();
     // Flatten at the on-screen scale, as the node overlay does, or a curve drawn zoomed in looks
     // polygonal while it is being drawn.
@@ -242,6 +257,7 @@ export function createPenTool(): Tool {
       }
 
       const d = draft;
+      sync(ctx, d);
       // A second press finishes the path, but only when it lands where the first one did (spec
       // M4b §3) — isDoubleTap alone only checks timing, so a fast, distant press must not count.
       const tap = { id: "pen", time: e.time };
@@ -287,6 +303,7 @@ export function createPenTool(): Tool {
       if (!d || !pulling) return;
       if (!pulling.dragging && !movedEnough(pulling.start, e.screen)) return;
       pulling.dragging = true;
+      sync(ctx, d);
       const last = d.nodes[d.nodes.length - 1];
       const out = toLocal(d, e.doc);
       last.out = out;

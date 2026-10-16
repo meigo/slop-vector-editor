@@ -841,6 +841,9 @@ export type DocSize =
 
 export function applyDocumentSize(size: DocSize, background: Paint | null): void {
   cancelActiveGesture();
+  // A pen draft is in the old page's coordinates: finish it first, so the resize moves or scales
+  // it with everything else (review M1, 2026-10-17).
+  finishActiveTool?.();
   if (size.mode === "scale") {
     const reason = scaleRefusal(app.doc, size.k);
     if (reason) {
