@@ -45,10 +45,21 @@ describe("preferences", () => {
   it("reads an absent or default sidebar width as not chosen, and keeps any other", () => {
     expect(sanitizePrefs({}).sidebarPx).toBeNull();
     expect(sanitizePrefs({ sidebarPx: "300" }).sidebarPx).toBeNull();
-    // Every save before 2026-10-01 wrote the 240 default with the other prefs, so it is no choice.
-    expect(sanitizePrefs({ sidebarPx: 240 }).sidebarPx).toBeNull();
+    // A width chosen now is kept, 240 included (review M6, 2026-10-17): `setPrefs` sanitizes on
+    // every write, so reading 240 as "not chosen" here snapped a drag to 240 back to 280 on touch.
+    expect(sanitizePrefs({ sidebarPx: 240 }).sidebarPx).toBe(240);
     expect(sanitizePrefs({ sidebarPx: 300 }).sidebarPx).toBe(300);
     expect(sanitizePrefs({ sidebarPx: 100 }).sidebarPx).toBe(200);
+  });
+
+  it("reads a 240 saved before the width could be unchosen as not chosen, and only that", () => {
+    // Every save before 2026-10-01 wrote the 240 default with the other prefs, so it is no choice.
+    const old = memoryStorage();
+    old.setItem("slop-vector-editor:prefs", JSON.stringify({ sidebarPx: 240 }));
+    expect(loadPrefs(old).sidebarPx).toBeNull();
+    const now = memoryStorage();
+    savePrefs({ ...DEFAULT_PREFS, sidebarPx: 240 }, now);
+    expect(loadPrefs(now).sidebarPx).toBe(240);
   });
 
   it("keeps the sidebar split a fraction, and leaves the pixel minimum to clampRatio", () => {
