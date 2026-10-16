@@ -66,39 +66,59 @@ export function idbFontStore(): FontStore {
     return dbPromise;
   }
 
+  /** As autosave's `withDb` (review M4, 2026-10-17): a failure drops the connection, so a
+   *  connection Safari lost without `onclose` is reopened by the next call. */
+  async function withDb<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
+    const p = open();
+    const db = await p;
+    try {
+      return await fn(db);
+    } catch (err) {
+      if (dbPromise === p) {
+        dbPromise = null;
+        db.close();
+      }
+      throw err;
+    }
+  }
+
   return {
-    async getFamilies() {
-      const db = await open();
-      const all = await request(
-        db.transaction(FAMILIES_STORE, "readonly").objectStore(FAMILIES_STORE).getAll(),
-      );
-      return all as CachedFamily[];
-    },
-    async putFamily(f) {
-      const db = await open();
-      const tx = db.transaction(FAMILIES_STORE, "readwrite");
-      tx.objectStore(FAMILIES_STORE).put(f, f.id);
-      await new Promise<void>((resolve, reject) => {
-        tx.oncomplete = () => resolve();
-        tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-        tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    getFamilies() {
+      return withDb(async (db) => {
+        const all = await request(
+          db.transaction(FAMILIES_STORE, "readonly").objectStore(FAMILIES_STORE).getAll(),
+        );
+        return all as CachedFamily[];
       });
     },
-    async getFace(key) {
-      const db = await open();
-      const rec = await request(
-        db.transaction(FACES_STORE, "readonly").objectStore(FACES_STORE).get(key),
-      );
-      return (rec as ArrayBuffer | undefined) ?? null;
+    putFamily(f) {
+      return withDb(async (db) => {
+        const tx = db.transaction(FAMILIES_STORE, "readwrite");
+        tx.objectStore(FAMILIES_STORE).put(f, f.id);
+        await new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+          tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+        });
+      });
     },
-    async putFace(key, buf) {
-      const db = await open();
-      const tx = db.transaction(FACES_STORE, "readwrite");
-      tx.objectStore(FACES_STORE).put(buf, key);
-      await new Promise<void>((resolve, reject) => {
-        tx.oncomplete = () => resolve();
-        tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-        tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    getFace(key) {
+      return withDb(async (db) => {
+        const rec = await request(
+          db.transaction(FACES_STORE, "readonly").objectStore(FACES_STORE).get(key),
+        );
+        return (rec as ArrayBuffer | undefined) ?? null;
+      });
+    },
+    putFace(key, buf) {
+      return withDb(async (db) => {
+        const tx = db.transaction(FACES_STORE, "readwrite");
+        tx.objectStore(FACES_STORE).put(buf, key);
+        await new Promise<void>((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+          tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+        });
       });
     },
   };
