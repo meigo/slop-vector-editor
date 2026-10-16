@@ -6,7 +6,7 @@
   import {
     app,
     beginUiGesture,
-    endDocGesture,
+    endUiGesture,
     applyGeometry,
     moveSelectedNodes,
     deleteSelectedNodes,
@@ -210,7 +210,7 @@
             onmid={(m) => setSelectionGradientMid("fill", m)}
             onmidauto={(a) => setSelectionGradientMidAuto("fill", a)}
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
           />
         </div>
         <div class="field-full">
@@ -232,12 +232,12 @@
             onmid={(m) => setSelectionGradientMid("stroke", m)}
             onmidauto={(a) => setSelectionGradientMidAuto("stroke", a)}
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
           />
         </div>
         <NumberField
           onlivestart={beginUiGesture}
-          onliveend={endDocGesture}
+          onliveend={endUiGesture}
           label="Width"
           step={0.5}
           value={value(summary.strokeWidth)}
@@ -273,7 +273,7 @@
         </label>
         <NumberField
           onlivestart={beginUiGesture}
-          onliveend={endDocGesture}
+          onliveend={endUiGesture}
           label="Opacity"
           value={opacityValue}
           min={0}
@@ -288,7 +288,7 @@
           {#if rects}
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label="Radius"
               value={rects.radius}
               min={0}
@@ -298,7 +298,7 @@
           {#if polygons}
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label="Sides"
               value={polygons.sides}
               min={3}
@@ -315,7 +315,7 @@
             {#if polygons.anyStar}
               <NumberField
                 onlivestart={beginUiGesture}
-                onliveend={endDocGesture}
+                onliveend={endUiGesture}
                 label="Inner"
                 value={polygons.innerRatio === null ? null : Math.round(polygons.innerRatio * 100)}
                 min={10}
@@ -332,7 +332,7 @@
         <FieldSection id="newPolygons" title="New polygons">
           <NumberField
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
             label="Sides"
             value={poly.sides}
             min={3}
@@ -349,7 +349,7 @@
           {#if poly.star}
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label="Inner"
               value={Math.round(poly.innerRatio * 100)}
               min={10}
@@ -365,7 +365,7 @@
         <FieldSection id="brush" title="Brush">
           <NumberField
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
             label="Size"
             value={brush.size}
             min={0.5}
@@ -376,7 +376,7 @@
           />
           <NumberField
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
             label="Pressure"
             value={brush.pressure}
             min={1}
@@ -395,7 +395,7 @@
           </div>
           <NumberField
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
             label="Stream"
             value={brush.stream}
             min={0}
@@ -405,7 +405,7 @@
           />
           <NumberField
             onlivestart={beginUiGesture}
-            onliveend={endDocGesture}
+            onliveend={endUiGesture}
             label="Smooth"
             value={brush.smooth}
             min={0}
@@ -444,14 +444,14 @@
             {@const pt = nodeSummary.point}
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label="X"
               value={pt.x}
               onchange={(v) => moveSelectedNodes(v - pt.x, 0)}
             />
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label="Y"
               value={pt.y}
               onchange={(v) => moveSelectedNodes(0, v - pt.y)}
@@ -465,7 +465,7 @@
           {#each GEOMETRY as g (g.field)}
             <NumberField
               onlivestart={beginUiGesture}
-              onliveend={endDocGesture}
+              onliveend={endUiGesture}
               label={g.label}
               value={geometry[g.field]}
               min={g.min}
