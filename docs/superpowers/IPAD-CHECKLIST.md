@@ -136,6 +136,10 @@ polish.
 - [ ] **P2** Menus (File, Edit, Select, Path, Object) open and close by tap; items work.
 - [ ] **P3** Colour pickers (fill, stroke, gradient stops) open and apply; one undo per pick.
 
+- [ ] **P2** Sidebar width: drag the grip to its narrowest on a touch screen and let go — it stays
+      there (it snapped to 280px). In portrait, tap the grip without dragging, then turn back to
+      landscape: the width you chose in landscape is back (review M6/M7, 2026-10-17).
+
 ## 6. Files
 
 - [ ] **P1** **Save** and **Save As**: the share sheet opens and **Save to Files** writes the

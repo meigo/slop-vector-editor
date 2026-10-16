@@ -489,11 +489,32 @@ export function beginDocGesture(): number {
  *  owns, leaving every later value its own undo step. */
 export function beginUiGesture(): number {
   cancelActiveGesture();
-  return beginDocGesture();
+  // A UI bracket still open here is one whose owner already let go but closes late (a TextPanel
+  // drag waiting on its outlines, `finishCharDrag`). Joining it would let that late close end this
+  // drag partway through (review L1, 2026-10-17): close it now, and this drag gets its own epoch.
+  if (app.session.gestureBase !== null && !insideTyping()) endDocGesture();
+  uiGestureEpoch = beginDocGesture();
+  return uiGestureEpoch;
+}
+
+/** The epoch of the last bracket a UI control opened. */
+let uiGestureEpoch = -1;
+
+/** True while a panel control's drag holds the open bracket — not a tool's, not the typing
+ *  session's (whose own leave runs first in `undo`). */
+function insideUiGesture(): boolean {
+  return app.session.gestureBase !== null && gestureEpoch === uiGestureEpoch && !insideTyping();
 }
 
 export function endDocGesture(): void {
   setSession(endGesture(app.session));
+}
+
+/** A panel control's close (`onliveend`). Inside the typing bracket the drag opened nothing, so
+ *  it must not close the bracket the text session owns (review L2, 2026-10-17), exactly as
+ *  `endToolGesture` does for a tool. */
+export function endUiGesture(): void {
+  if (!insideTyping()) endDocGesture();
 }
 
 /** The character drag's outline commit is async. Closing the bracket in `pointerup` would land
@@ -513,16 +534,30 @@ export function endToolGesture(): void {
 }
 
 export function undo(): void {
+  // A stroke still landing is the newest edit: undoing now would take the one before it, and the
+  // stroke landing after would wipe that from redo (review L3, 2026-10-17). Wait for it.
+  if (app.brushPending.length > 0) {
+    void brushChain.then(undo);
+    return;
+  }
   leaveTextEdit(false);
   cancelActiveGesture();
+  // Mid-drag in a panel control the undo would close its bracket and leave every later value its
+  // own step (review L1, 2026-10-17). The drag owns the document until it lets go.
+  if (insideUiGesture()) return;
   if (!canUndo(app.session.history)) return;
   discardToolDraft();
   setSession(undoSession(app.session));
 }
 
 export function redo(): void {
+  if (app.brushPending.length > 0) {
+    void brushChain.then(redo);
+    return;
+  }
   leaveTextEdit(false);
   cancelActiveGesture();
+  if (insideUiGesture()) return;
   if (!canRedo(app.session.history)) return;
   discardToolDraft();
   setSession(redoSession(app.session));

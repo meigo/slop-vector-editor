@@ -118,6 +118,7 @@ export function styleAttrs(s: Style, id: string): Attrs {
   a["stroke-width"] = fmt(s.strokeWidth);
   if (s.cap !== "butt") a["stroke-linecap"] = s.cap;
   if (s.join !== "miter") a["stroke-linejoin"] = s.join;
+  if (s.miterLimit !== undefined) a["stroke-miterlimit"] = fmt(s.miterLimit);
   if (s.opacity !== 1) a.opacity = fmt(s.opacity);
   return a;
 }

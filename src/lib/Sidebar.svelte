@@ -111,7 +111,9 @@
 
   function gripUp(e: PointerEvent) {
     if (gripId === null || e.pointerId !== gripId) return;
-    commitWidth(liveWidth);
+    // A tap, or a drag back to where it began, chose nothing: committing the shown width saved the
+    // portrait clamp (or the touch default) as the user's choice (review M7, 2026-10-17).
+    commitWidth(liveWidth === gripStartPx ? null : liveWidth);
   }
 
   /** The grip is a real button, so it is reachable by Tab — the one keyboard route to a width on a
@@ -120,9 +122,13 @@
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
     const step = e.shiftKey ? 24 : 8;
-    commitWidth(
-      clampSidebarWidth(widthPx + (e.key === "ArrowLeft" ? step : -step), window.innerWidth),
+    const next = clampSidebarWidth(
+      widthPx + (e.key === "ArrowLeft" ? step : -step),
+      window.innerWidth,
     );
+    // At the viewport's ceiling a widening press changes nothing on screen, and saving the clamp
+    // would shrink the chosen width for good (review M7).
+    commitWidth(next === widthPx ? null : next);
   }
 
   function toggleLayers() {

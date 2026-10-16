@@ -94,8 +94,6 @@ function paint(v: unknown, fallback: Paint | null): Paint | null {
   return { color: v.color, opacity: num(v.opacity, 0, 1, 1) };
 }
 
-const notDefault = (px: number): number | null => (px === DEFAULT_SIDEBAR_PX ? null : px);
-
 /** Preferences come from localStorage, so every field is checked on its own. */
 export function sanitizePrefs(raw: unknown): Prefs {
   const r = isObj(raw) ? raw : {};
@@ -144,12 +142,9 @@ export function sanitizePrefs(raw: unknown): Prefs {
     // not known here — this runs before layout — so the ceiling is applied again on mount and on
     // every window resize; this pass only enforces the floor and rejects nonsense.
     //
-    // A stored 240 reads as "not chosen" (2026-10-01): until then every save wrote the default
-    // with the rest of the prefs, so 240 almost always means nobody dragged the grip — and reading
-    // it as a choice would keep every existing iPad on the narrow default.
     sidebarPx:
       typeof r.sidebarPx === "number" && Number.isFinite(r.sidebarPx)
-        ? notDefault(clampSidebarWidth(r.sidebarPx, Number.MAX_SAFE_INTEGER))
+        ? clampSidebarWidth(r.sidebarPx, Number.MAX_SAFE_INTEGER)
         : d.sidebarPx,
     brush: sanitizeBrush(r.brush),
   };
@@ -163,11 +158,23 @@ function defaultStorage(): PrefStorage | null {
   }
 }
 
+/** Written with every save from 2026-10-17 on. A stored 240 without it reads as "not chosen":
+ *  until 2026-10-01 every save wrote the default with the rest of the prefs, so such a 240 almost
+ *  always means nobody dragged the grip, and reading it as a choice would keep every existing iPad
+ *  on the narrow default. Only on load — `setPrefs` sanitizes every write, and doing it there made
+ *  a width chosen at 240 snap to 280 on touch (review M6, 2026-10-17). */
+const SIDEBAR_CHOSEN = "sidebarChosen";
+
 export function loadPrefs(storage: PrefStorage | null = defaultStorage()): Prefs {
   if (!storage) return DEFAULT_PREFS;
   try {
     const text = storage.getItem(KEY);
-    return text ? sanitizePrefs(JSON.parse(text)) : DEFAULT_PREFS;
+    if (!text) return DEFAULT_PREFS;
+    const raw: unknown = JSON.parse(text);
+    if (isObj(raw) && raw[SIDEBAR_CHOSEN] !== true && raw.sidebarPx === DEFAULT_SIDEBAR_PX) {
+      return sanitizePrefs({ ...raw, sidebarPx: null });
+    }
+    return sanitizePrefs(raw);
   } catch {
     return DEFAULT_PREFS;
   }
@@ -176,7 +183,7 @@ export function loadPrefs(storage: PrefStorage | null = defaultStorage()): Prefs
 export function savePrefs(p: Prefs, storage: PrefStorage | null = defaultStorage()): void {
   if (!storage) return;
   try {
-    storage.setItem(KEY, JSON.stringify(p));
+    storage.setItem(KEY, JSON.stringify({ ...p, [SIDEBAR_CHOSEN]: true }));
   } catch {
     // Blocked or full storage: preferences are a convenience, never an error.
   }
