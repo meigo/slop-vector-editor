@@ -194,3 +194,22 @@ export function selectionRects(
   }
   return rects;
 }
+
+/** `text` as the file can hold it, one code point for one (review L14, 2026-10-17). The writer
+ *  strips what XML forbids, so a title holding it reopened shorter — its overrides on the wrong
+ *  letters and its jitter re-rolled. A vertical tab or form feed (PowerPoint's soft line break)
+ *  becomes a newline, any other forbidden control a space, and U+FFFE/U+FFFF or an unpaired
+ *  surrogate U+FFFD; replacing rather than dropping keeps every index the field knows valid. */
+export function fileSafeText(text: string): string {
+  return (
+    text
+      // eslint-disable-next-line no-control-regex -- the controls XML forbids
+      .replace(/[\u000B\u000C]/g, "\n")
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000E-\u001F]/g, " ")
+      .replace(
+        /[\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+        "\uFFFD",
+      )
+  );
+}

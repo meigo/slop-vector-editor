@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fileSafeText,
   indexAt,
   remapIndex,
   remapOverrides,
@@ -141,5 +142,20 @@ describe("revealPan", () => {
       y: -136,
       zoom: 1,
     });
+  });
+});
+
+/** Review L14 (2026-10-17): the writer strips what XML forbids, so a title holding it reopened
+ *  shorter, with its overrides on the wrong letters. */
+describe("fileSafeText", () => {
+  it("maps what the file can't hold one for one, so indices keep their letters", () => {
+    const raw = "A\u000BB\u0001C￾\uD800D";
+    const safe = fileSafeText(raw);
+    expect(safe).toBe("A\nB C��D");
+    expect([...safe]).toHaveLength([...raw].length);
+  });
+  it("leaves ordinary text, emoji and tabs alone", () => {
+    const s = "Tallinn — šž\tõäöü 👍🏽\n";
+    expect(fileSafeText(s)).toBe(s);
   });
 });

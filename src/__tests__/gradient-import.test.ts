@@ -599,3 +599,20 @@ describe("custom middle colour import (spec M18 §3)", () => {
     });
   });
 });
+
+/** Review L21 (2026-10-17): a stop's `currentColor` was always black, and a percentage
+ *  `stop-opacity` read as 1. */
+describe("stop colours through `color` and percentage opacity", () => {
+  it("resolves currentColor against the stop's, then the gradient's, `color`", () => {
+    const g = linear(
+      `<linearGradient id="g" color="red">` +
+        `<stop offset="0" stop-color="currentColor"/>` +
+        `<stop offset="1" style="color: #00ff00; stop-color: currentcolor; stop-opacity: 50%"/>` +
+        `</linearGradient>`,
+    );
+    expect(g.stops).toEqual([
+      { offset: 0, color: "#ff0000", opacity: 1 },
+      { offset: 1, color: "#00ff00", opacity: 0.5 },
+    ]);
+  });
+});

@@ -122,7 +122,10 @@ function lenOrAbsent(v: string | undefined): Len | null {
 }
 
 /** A stop's own attribute, overridden by its `style` declaration (Inkscape writes the latter). */
-function stopProp(el: XmlElement, key: "stop-color" | "stop-opacity"): string | undefined {
+function stopProp(
+  el: XmlElement,
+  key: "stop-color" | "stop-opacity" | "color",
+): string | undefined {
   let v = el.attrs[key];
   for (const decl of (el.attrs.style ?? "").split(";")) {
     const colon = decl.indexOf(":");
@@ -143,12 +146,16 @@ function readStops(el: XmlElement): RawStop[] {
       // SVG: clamp into [0, 1], and never before the previous stop.
       const offset = Math.max(last, Math.min(1, Math.max(0, raw)));
       last = offset;
-      const col = parseColor(stopProp(c, "stop-color") ?? "#000000");
+      // `currentColor` is the stop's `color`, inherited from its gradient (review L21).
+      const own = stopProp(c, "stop-color") ?? "#000000";
+      const current = stopProp(c, "color") ?? stopProp(el, "color") ?? "#000000";
+      const col = parseColor(own.trim().toLowerCase() === "currentcolor" ? current : own);
       const color = col && col.kind === "color" ? col.color : "#000000";
       // `transparent`/`none` parses to `{ kind: "none" }`: SVG/CSS define that as black at zero
       // opacity, not opaque black — any other unparseable value keeps the opaque-black fallback.
       const alpha = col && col.kind === "color" ? col.alpha : col && col.kind === "none" ? 0 : 1;
-      const so = Number(stopProp(c, "stop-opacity") ?? "1");
+      const sv = (stopProp(c, "stop-opacity") ?? "1").trim();
+      const so = sv.endsWith("%") ? Number(sv.slice(0, -1)) / 100 : Number(sv);
       const opacity = (Number.isFinite(so) ? Math.min(1, Math.max(0, so)) : 1) * alpha;
       return { offset, color, opacity };
     });

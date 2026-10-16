@@ -25,8 +25,9 @@ export function sizeRefusal(w: unknown, h: unknown): string | null {
   if (typeof w !== "number" || typeof h !== "number" || !Number.isFinite(w) || !Number.isFinite(h))
     return "Enter a width and a height";
   if (w > MAX_ARTBOARD || h > MAX_ARTBOARD) return `Too large — at most ${MAX_ARTBOARD} px a side`;
-  if (!isValidArtboardSize(w) || !isValidArtboardSize(h))
-    return "Too small — a side must be more than 0 px";
+  // Under 0.01 the file's rounding can write 0, and the page reopens at 300×150 (review L18).
+  if (!isValidArtboardSize(w) || !isValidArtboardSize(h) || w < 0.01 || h < 0.01)
+    return "Too small — a side must be at least 0.01 px";
   return null;
 }
 
@@ -81,13 +82,28 @@ function extent(node: Node, m: Mat): number {
  *  they cannot disagree (the `booleanRefusal` pattern). */
 export function scaleRefusal(doc: Doc, k: number): string | null {
   if (!Number.isFinite(k)) return "Enter a width and a height";
-  if (k <= 0) return "Too small — a side must be more than 0 px";
+  if (k <= 0) return "Too small — a side must be at least 0.01 px";
   const size = sizeRefusal(round2(doc.artboard.w * k), round2(doc.artboard.h * k));
   if (size) return size;
   let max = 0;
   for (const l of doc.layers) for (const n of l.children) max = Math.max(max, extent(n, IDENTITY));
   if (max * k > MAX_COORD) return `Scaling by ${round2(k)}× would put the drawing out of range`;
   return null;
+}
+
+/** Whether any node's own coordinates, or any transform entry, is past `MAX_COORD` — what the
+ *  importer rejects as "invalid coordinates". `scaleRefusal` measures document space; a node under
+ *  a tiny-scale group gets `k` baked into its own coordinates, which only the result shows (review
+ *  L17, 2026-10-17). The store checks a scaled document with this before committing it. */
+export function outOfRange(doc: Doc): boolean {
+  const far = (v: number) => !(Math.abs(v) <= MAX_COORD);
+  const visit = (n: Node): boolean => {
+    if (n.transform.some(far)) return true;
+    if (n.kind === "group") return n.children.some(visit);
+    const b = nodeBounds(n, IDENTITY);
+    return b !== null && [b.x, b.y, b.x + b.w, b.y + b.h].some(far);
+  };
+  return doc.layers.some((l) => l.children.some(visit));
 }
 
 /** Spec M23 §3: everything scales by `k` about the page's top-left, uniformly, so the handle

@@ -29,8 +29,14 @@ function isForbiddenXmlCodePoint(code: number): boolean {
   );
 }
 
-function decode(s: string): string {
-  return s.replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, (_, e: string) => {
+const BUILTIN: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+/** `entities` are the general entities the DOCTYPE's internal subset declares (review L20,
+ *  2026-10-17). Their values are expanded one level, with only the predefined and character
+ *  references inside them resolved, so a declaration that references another can't multiply. An
+ *  undeclared reference is left as written. */
+function decode(s: string, entities?: ReadonlyMap<string, string>): string {
+  return s.replace(/&(#x[0-9a-fA-F]+|#\d+|[A-Za-z_][\w.-]*);/g, (ref, e: string) => {
     if (e[0] === "#") {
       const code =
         e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
@@ -39,14 +45,30 @@ function decode(s: string): string {
       }
       return String.fromCodePoint(code);
     }
-    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[e]!;
+    if (e in BUILTIN) return BUILTIN[e];
+    const value = entities?.get(e);
+    return value === undefined ? ref : decode(value);
   });
+}
+
+/** `<!ENTITY name "value">` declarations in a DOCTYPE's internal subset; parameter entities
+ *  (`<!ENTITY % …>`) are skipped. */
+function internalEntities(decl: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const open = decl.indexOf("[");
+  if (!/^<!DOCTYPE\b/i.test(decl) || open < 0) return out;
+  const re = /<!ENTITY\s+([A-Za-z_][\w.-]*)\s+(?:"([^"]*)"|'([^']*)')\s*>/g;
+  for (const m of decl.slice(open).matchAll(re)) {
+    if (!out.has(m[1])) out.set(m[1], m[2] ?? m[3]); // the first declaration binds, as in XML
+  }
+  return out;
 }
 
 export function parseXml(src: string): XmlElement {
   const stack: XmlElement[] = [];
   let root: XmlElement | null = null;
   let i = 0;
+  let entities = new Map<string, string>();
 
   const indexOrThrow = (needle: string, from: number, what: string) => {
     const at = src.indexOf(needle, from);
@@ -64,10 +86,10 @@ export function parseXml(src: string): XmlElement {
   while (i < src.length) {
     const lt = src.indexOf("<", i);
     if (lt < 0) {
-      addText(decode(src.slice(i)));
+      addText(decode(src.slice(i), entities));
       break;
     }
-    if (lt > i) addText(decode(src.slice(i, lt)));
+    if (lt > i) addText(decode(src.slice(i, lt), entities));
 
     if (src.startsWith("<!--", lt)) {
       i = indexOrThrow("-->", lt + 4, "comment") + 3;
@@ -87,6 +109,7 @@ export function parseXml(src: string): XmlElement {
         else if (c === ">" && depth === 0) break;
       }
       if (j >= src.length) throw new XmlError("Unterminated declaration");
+      if (root === null) entities = internalEntities(src.slice(lt, j + 1));
       i = j + 1;
     } else if (src[lt + 1] === "/") {
       const end = indexOrThrow(">", lt, "end tag");
@@ -122,7 +145,7 @@ export function parseXml(src: string): XmlElement {
         const quote = src[j];
         if (quote !== '"' && quote !== "'") throw new XmlError(`Unquoted attribute ${a[0]}`);
         const end = indexOrThrow(quote, j + 1, `attribute ${a[0]}`);
-        el.attrs[a[0]] = decode(src.slice(j + 1, end));
+        el.attrs[a[0]] = decode(src.slice(j + 1, end), entities);
         j = end + 1;
       }
       if (stack.length) stack[stack.length - 1].children.push(el);

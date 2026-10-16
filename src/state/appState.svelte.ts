@@ -1,5 +1,11 @@
 import { booleanShapes, type BoolOutcome } from "../doc/boolean-edit";
-import { extendCanvas, scaleDrawing, scaleRefusal, type Anchor } from "../doc/doc-resize";
+import {
+  extendCanvas,
+  outOfRange,
+  scaleDrawing,
+  scaleRefusal,
+  type Anchor,
+} from "../doc/doc-resize";
 import { svgFileName } from "./doc-name";
 import {
   createDoc,
@@ -106,6 +112,7 @@ import { latchOn, type Latch } from "../input/dock";
 import { clearedOverride, propsOpen } from "../lib/split";
 import { BUNDLED } from "../text/fonts";
 import {
+  fileSafeText,
   indexAt,
   remapIndex,
   remapOverrides,
@@ -890,6 +897,10 @@ export function applyDocumentSize(size: DocSize, background: Paint | null): void
   const painted = setArtboard(app.doc, { w, h, background });
   if (size.mode === "scale") {
     const scaled = scaleDrawing(painted, size.k);
+    if (outOfRange(scaled)) {
+      notify("error", `Document size — scaling by ${size.k}× would put the drawing out of range.`);
+      return;
+    }
     // Remembered gradients are at the old scale (invariant 46); restoring one would be the wrong size.
     if (scaled !== painted) app.gradientMemory.clear();
     commitDoc(scaled);
@@ -1978,7 +1989,11 @@ async function reshapeTitle(
   if (!keepGesture) cancelActiveGesture();
   const target = selectedTitle();
   if (!target?.text) return;
-  const meta = withFace({ ...target.text, ...patch });
+  const meta = withFace({
+    ...target.text,
+    ...patch,
+    ...(patch.text !== undefined ? { text: fileSafeText(patch.text) } : {}),
+  });
   // Overrides never outlive the string they were made for (spec M10 §4). Drop them before
   // `sameMeta`, or a stale character index writes a key, the filter removes it, and the commit
   // still records an undo step for a change that is not there.
