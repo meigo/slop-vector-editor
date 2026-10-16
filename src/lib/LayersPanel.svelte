@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import {
     ChevronDown,
     ChevronRight,
@@ -39,8 +39,8 @@
   import { trashAction } from "./layer-trash";
   import { revealScrollTop } from "./reveal";
 
-  /** Spec (M3a) §5. Collapsed layers and the rename draft are panel-local, never saved. */
-  const collapsed = $state<Record<string, boolean>>({});
+  /** Spec (M3a) §5. The rename draft is panel-local, never saved. Which rows are collapsed is
+   *  `app.collapsedRows`, shared by both mounted panels (review L11, 2026-10-17). */
   let editing = $state<{ kind: "layer" | "node"; id: string } | null>(null);
   let draft = $state("");
   let lastTap: Tap | null = null;
@@ -166,7 +166,9 @@
   }
 
   function startDrag(e: PointerEvent, drag: Drag, label: string) {
-    if (e.button !== 0) return;
+    // One drag at a time: a second finger on another grip replaced the first without finishing
+    // it, and both edge-scroll loops then ran (review L8, 2026-10-17).
+    if (e.button !== 0 || dragging) return;
     const row = (e.currentTarget as Element | null)?.closest<HTMLElement>("[data-row-id]");
     if (!row) return;
     e.preventDefault();
@@ -248,6 +250,14 @@
   // The cursor classes sit on <html>, outside this component: never leave them behind.
   $effect(() => () => finishDrag());
 
+  // The rows were measured at the lift: a document change under the drag (⌘Z, ⌫ on the dragged
+  // row, which also destroys the grip holding the capture) leaves them wrong, or the drag stuck.
+  // Drop it (review L8, 2026-10-17).
+  $effect(() => {
+    void app.doc;
+    if (untrack(() => dragging) !== null) finishDrag();
+  });
+
   /** Puts everything back as it was before the press. */
   function finishDrag() {
     cancelAnimationFrame(scrollFrame);
@@ -326,7 +336,7 @@
 {#snippet nodeRow(node: Node, layer: Layer, depth: number, inherited: boolean)}
   {@const isSelected = selected.has(node.id)}
   {@const isGroup = node.kind === "group"}
-  {@const open = !collapsed[node.id]}
+  {@const open = !app.collapsedRows[node.id]}
   <!-- `inherited` is the layer's or an ancestor's block; this row adds its own, and passes the
        result down, so a hidden group greys everything inside it. -->
   {@const blocked = inherited || isHidden(node) || isLocked(node)}
@@ -370,7 +380,7 @@
           aria-label={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           title={open ? `Collapse “${rowLabel(node)}”` : `Expand “${rowLabel(node)}”`}
           aria-expanded={open}
-          onclick={() => (collapsed[node.id] = open)}
+          onclick={() => (app.collapsedRows[node.id] = open)}
         >
           {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
         </button>
@@ -486,7 +496,7 @@
         {#each layers as layer (layer.id)}
           {@const isCurrent = layer.id === app.currentLayerId}
           {@const blocked = !layer.visible || layer.locked}
-          {@const open = !collapsed[layer.id]}
+          {@const open = !app.collapsedRows[layer.id]}
           <li>
             <div
               data-row-id={layer.id}
@@ -522,7 +532,7 @@
                 aria-label={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 title={open ? `Collapse “${layer.name}”` : `Expand “${layer.name}”`}
                 aria-expanded={open}
-                onclick={() => (collapsed[layer.id] = open)}
+                onclick={() => (app.collapsedRows[layer.id] = open)}
               >
                 {#if open}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
               </button>

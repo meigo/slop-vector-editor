@@ -249,6 +249,11 @@ class AppState {
    *  `replaceDocument`, whose ids mean other shapes. */
   gradientMemory = new Map<string, RememberedGradient>();
 
+  /** Collapsed rows in the Layers panel, by layer or group id (spec M3a §5). Store state, not
+   *  saved or undoable, so the drawer's panel and the docked one agree and a closed drawer
+   *  remembers (review L11, 2026-10-17). Mutated in place; reset by `replaceDocument`. */
+  collapsedRows = $state<Record<string, boolean>>({});
+
   /** Top-level node ids; not part of undo history. */
   selection = $state.raw<readonly string[]>([]);
   toolId = $state<ToolId>("select");
@@ -588,6 +593,7 @@ export function replaceDocument(
   app.nodeTarget = null;
   app.nodeSel = [];
   app.gradientMemory.clear();
+  app.collapsedRows = {}; // another document's ids
   brushEpoch++;
   app.brushPending = [];
   app.fileName = fileName;

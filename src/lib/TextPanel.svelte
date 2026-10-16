@@ -70,6 +70,11 @@
     );
   });
   const missingFamily = $derived(!ready && found?.font === meta.font ? found.family : null);
+  /** The Download row is held from the first render for a missing `gf:` font, not inserted once
+   *  the catalogue answers — that moved Weight and every row below it under a finger (invariant
+   *  23, review L10, 2026-10-17). */
+  const downloadRow = $derived(!ready && familyIdOf(meta.font) !== null);
+  const lookedUp = $derived(found?.font === meta.font);
 
   const label = $derived(
     choices.find((c) => c.id === meta.font)?.label ?? missingFamily?.family ?? meta.font,
@@ -324,6 +329,18 @@
         onclick={() => missingFamily && void download(missingFamily)}
       >
         {downloading ? `Downloading ${missingFamily.family}…` : `Download ${missingFamily.family}`}
+      </button>
+    </div>
+  {:else if downloadRow}
+    <div class="field-full">
+      <button
+        class="btn w-full justify-center"
+        aria-disabled="true"
+        title={lookedUp
+          ? `“${meta.font}” isn't in the Google Fonts list — add it from a file`
+          : "Looking the font up in the Google Fonts list…"}
+      >
+        {lookedUp ? "Not in the Google Fonts list" : "Looking up the font…"}
       </button>
     </div>
   {/if}
