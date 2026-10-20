@@ -16,6 +16,7 @@ import {
 } from "../geom/snap";
 import type { Vec } from "../geom/vec";
 import { isDoubleTap, type Tap } from "../input/double-tap";
+import { docToScreen, screenToDoc, type View } from "../state/viewport";
 import { SNAP_45 } from "./shape-tools";
 import { movedEnough, pointerTolerance, type Tool, type ToolContext, type ToolEvent } from "./tool";
 
@@ -45,8 +46,8 @@ type Mode =
       grab: Vec;
     }
   | { kind: "handle"; base: Doc; ref: NodeRef; which: "in" | "out" }
-  /** The marquee is dragged and hit-tested in document space, like the select tool's own
-   *  marquee — nodes are tested by their world position, not the path's own space. */
+  /** The marquee is a screen rectangle, like the select tool's own (spec M24 §6.5); `start` is
+   *  the press in screen px. Nodes are tested by their world position, not the path's own space. */
   | { kind: "marquee"; start: Vec; base: readonly NodeRef[] };
 
 const sameRef = (a: NodeRef, b: NodeRef) => a.sub === b.sub && a.i === b.i;
@@ -171,20 +172,17 @@ function applyMove(
     return;
   }
   if (m.kind === "marquee") {
-    const box = boxFromPoints([m.start, e.doc]);
+    const view = ctx.view();
+    const box = boxFromPoints([m.start, e.screen]);
     if (!box) return;
-    // Still a document-space box (the node tool's marquee is not yet screen-true on a turned view).
-    const { x, y, w, h } = box;
-    ctx.setOverlay({
-      kind: "marquee",
-      quad: [
-        { x, y },
-        { x: x + w, y },
-        { x: x + w, y: y + h },
-        { x, y: y + h },
-      ],
-    });
-    ctx.setNodeSel(mergeRefs(m.base, nodesIn(t, box)));
+    const quad = [
+      m.start,
+      { x: e.screen.x, y: m.start.y },
+      e.screen,
+      { x: m.start.x, y: e.screen.y },
+    ].map((p) => screenToDoc(view, p));
+    ctx.setOverlay({ kind: "marquee", quad });
+    ctx.setNodeSel(mergeRefs(m.base, nodesIn(t, box, view)));
   }
 }
 
@@ -270,7 +268,7 @@ export function createNodeTool(): Tool {
           pickTarget(ctx, e);
           return;
         }
-        mode = { kind: "marquee", start: e.doc, base: e.mods.shift ? ctx.nodeSel() : [] };
+        mode = { kind: "marquee", start: e.screen, base: e.mods.shift ? ctx.nodeSel() : [] };
         if (!e.mods.shift) ctx.setNodeSel([]);
         return;
       }
@@ -358,13 +356,13 @@ function pathOf(base: Doc, id: string): PathShape | null {
   return found && found.node.kind === "path" ? found.node : null;
 }
 
-/** Nodes are tested by their world position (spec M4a §7), since the marquee itself is drawn and
- *  dragged in document space. */
-function nodesIn(t: Target, box: Box): NodeRef[] {
+/** Nodes are tested by their world position (spec M4a §7), seen on screen: `box` is the screen
+ *  rectangle the user dragged. */
+function nodesIn(t: Target, box: Box, view: View): NodeRef[] {
   const out: NodeRef[] = [];
   t.path.subpaths.forEach((sp, sub) => {
     sp.nodes.forEach((n, i) => {
-      const q = applyMat(t.world, n.p);
+      const q = docToScreen(view, applyMat(t.world, n.p));
       if (q.x >= box.x && q.x <= box.x + box.w && q.y >= box.y && q.y <= box.y + box.h) {
         out.push({ sub, i });
       }
