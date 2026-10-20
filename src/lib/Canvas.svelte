@@ -21,7 +21,18 @@
     undo,
     redo,
   } from "../state/appState.svelte";
-  import { panBy, pinch, screenToDoc, wheelView, zoomAt } from "../state/viewport";
+  import {
+    docToScreen,
+    panBy,
+    pinch,
+    rotateAt,
+    screenToDoc,
+    snappedRotation,
+    viewAngle,
+    viewMatrix,
+    wheelView,
+    zoomAt,
+  } from "../state/viewport";
   import { storeContext } from "../tools/context";
   import { TOOLS } from "../tools/registry";
   import { titleAt } from "../tools/text-tool";
@@ -121,8 +132,9 @@
    *  nothing else on screen says so. This is canvas chrome — it never reaches `svg/attrs.ts`,
    *  the serializer or an export, so invariant 3's single-renderer rule is untouched.
    *
-   *  Drawn in **screen** space, outside the zoom group, because the artboard's on-screen rect is
-   *  four numbers this component already has. In document space the outer rectangle would have to
+   *  Drawn in **screen** space, outside the artwork group, because the artboard's on-screen outline
+   *  is four corners this component maps through `docToScreen` (a quadrilateral once the view is
+   *  turned, spec M24 §6.1). In document space the outer rectangle would have to
    *  cover the viewport at `MIN_ZOOM` — a 100 000-unit span before any margin — and that magic
    *  number would quietly stop working the day the zoom range widened.
    *
@@ -130,10 +142,14 @@
    *  direction bookkeeping; an artboard entirely off-screen or larger than the viewport needs no
    *  special case, because the hole simply falls outside or covers everything. */
   const scrimPath = $derived.by(() => {
-    const bw = artboard.w * view.zoom;
-    const bh = artboard.h * view.zoom;
     const outer = `M0 0H${width}V${height}H0Z`;
-    const hole = `M${view.x} ${view.y}H${view.x + bw}V${view.y + bh}H${view.x}Z`;
+    const [p0, p1, p2, p3] = [
+      { x: 0, y: 0 },
+      { x: artboard.w, y: 0 },
+      { x: artboard.w, y: artboard.h },
+      { x: 0, y: artboard.h },
+    ].map((c) => docToScreen(view, c));
+    const hole = `M${p0.x} ${p0.y}L${p1.x} ${p1.y}L${p2.x} ${p2.y}L${p3.x} ${p3.y}Z`;
     return `${outer} ${hole}`;
   });
   const cursor = $derived(
@@ -374,6 +390,13 @@
       }
       gesture = null;
     }
+    // Spec M24 §6.4: a twist ends with a snap to the page's axes when this lift takes the pinch
+    // from two fingers to one (a cancel, or the last finger's lift, does not snap).
+    if (g?.kind === "pinch" && !cancelled && pointers.size === 2) {
+      const a = viewAngle(app.view);
+      const delta = snappedRotation(a) - a;
+      if (delta !== 0) setView(rotateAt(app.view, { x: width / 2, y: height / 2 }, delta));
+    }
     pointers.delete(e.pointerId);
     pointerTypes.delete(e.pointerId);
     if (pointers.size === 0) gesture = null;
@@ -534,7 +557,7 @@
         <rect x="8" y="8" width="8" height="8" fill="#d4d4d8" />
       </pattern>
     </defs>
-    <g transform="matrix({view.zoom} 0 0 {view.zoom} {view.x} {view.y})">
+    <g transform="matrix({viewMatrix(view).join(' ')})">
       <rect x="0" y="0" width={artboard.w} height={artboard.h} fill="url(#sv-checker)" />
       {#if artboard.background}
         <rect
