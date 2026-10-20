@@ -1153,9 +1153,10 @@ every user-visible change.
     under `viewMatrix(view)`; the scrim and artboard outline are the artboard's four corners through
     `docToScreen`. **Anything drawn along the screen's axes goes through point mapping, not through
     `zoom` and `x`/`y`**: a **marquee is screen-aligned** (the Select tool's and the Node tool's alike;
-    the Node tool selects nodes by their screen positions) — the overlay shape is `{ kind: "marquee";
-quad }`, and `marqueeSelect(doc, box, entered, toBox = IDENTITY)` selects an object when the
-    quad's document-space box contains it by mapping each candidate's bounds through `toBox`. The
+    the Node tool selects nodes by their screen positions) — the overlay shape is
+    `{ kind: "marquee"; quad }`, and `marqueeSelect(doc, box, entered, toBox = IDENTITY)` selects
+    an object when the screen rectangle contains the object's bounds mapped to screen through
+    `toBox` (`viewMatrix(view)`). The
     rotate knob follows the page. A **tool draws in page space**: a rectangle dragged on a 30° page
     is page-aligned, by design. **A two-finger twist snaps on lift** to the nearest quarter turn
     within `SNAP_ANGLE` (3°), only when the lift takes the pinch from two fingers to one (a cancel or

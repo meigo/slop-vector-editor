@@ -6,6 +6,8 @@ import {
   fitRect,
   normalizeAngle,
   panBy,
+  revealPan,
+  visibleDocBox,
   pinch,
   rotateAt,
   screenToDoc,
@@ -106,5 +108,72 @@ describe("rotated viewport", () => {
     const v = fitRect({ x: 0, y: 0, w: 200, h: 100 }, 400, 400, 40, deg(90));
     expect(v.zoom).toBeCloseTo(1.6, 9);
     close(docToScreen(v, { x: 100, y: 50 }), { x: 200, y: 200 });
+  });
+});
+
+describe("rotated viewport: visible box, fit and reveal", () => {
+  it("visibleDocBox at 0° is the plain viewport", () => {
+    expect(visibleDocBox({ x: 10, y: 20, zoom: 2 }, 100, 50)).toEqual({
+      x: -5,
+      y: -10,
+      w: 50,
+      h: 25,
+    });
+  });
+  it("visibleDocBox at 90° has positive size and holds every viewport corner", () => {
+    const v: View = { x: 300, y: 0, zoom: 1, rotation: deg(90) };
+    const b = visibleDocBox(v, 300, 200);
+    expect(b.w).toBeCloseTo(200, 9);
+    expect(b.h).toBeCloseTo(300, 9);
+    // the viewport centre maps to the box centre
+    const c = screenToDoc(v, { x: 150, y: 100 });
+    expect(b.x + b.w / 2).toBeCloseTo(c.x, 9);
+    expect(b.y + b.h / 2).toBeCloseTo(c.y, 9);
+  });
+  it("visibleDocBox at 30° is the turned viewport's bounding box", () => {
+    const v: View = { x: 0, y: 0, zoom: 1, rotation: deg(30) };
+    const b = visibleDocBox(v, 200, 100);
+    const c = Math.cos(deg(30));
+    const s = Math.sin(deg(30));
+    expect(b.w).toBeCloseTo(200 * c + 100 * s, 9);
+    expect(b.h).toBeCloseTo(200 * s + 100 * c, 9);
+  });
+  it("fitRect at 30° fits the turned bounding box and centres it", () => {
+    const rect = { x: 10, y: 20, w: 200, h: 100 };
+    const a = deg(30);
+    const bw = 200 * Math.cos(a) + 100 * Math.sin(a);
+    const bh = 200 * Math.sin(a) + 100 * Math.cos(a);
+    const v = fitRect(rect, 500, 400, 40, a);
+    expect(v.zoom).toBeCloseTo(Math.min(420 / bw, 320 / bh), 9);
+    expect(viewAngle(v)).toBeCloseTo(a, 12);
+    close(docToScreen(v, { x: 110, y: 70 }), { x: 250, y: 200 });
+    const pts = [
+      { x: 10, y: 20 },
+      { x: 210, y: 20 },
+      { x: 210, y: 120 },
+      { x: 10, y: 120 },
+    ].map((p) => docToScreen(v, p));
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(bw * v.zoom, 6);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(bh * v.zoom, 6);
+  });
+  it("revealPan pans a turned caret's screen box the minimal amount and keeps rotation", () => {
+    const v: View = { x: 50, y: 60, zoom: 2, rotation: deg(30) };
+    const p = docToScreen(v, { x: 40, y: 10 });
+    const q = docToScreen(v, { x: 40, y: 30 });
+    const rect = {
+      x: Math.min(p.x, q.x),
+      y: Math.min(p.y, q.y),
+      w: Math.abs(p.x - q.x),
+      h: Math.abs(p.y - q.y),
+    };
+    const visible = { x: 0, y: 0, w: rect.x + rect.w - 20, h: 1000 };
+    const r = revealPan(v, rect, visible, 10);
+    expect(r.rotation).toBe(v.rotation);
+    expect(r.x - v.x).toBeCloseTo(visible.w - (rect.x + rect.w + 10), 9);
+    expect(r.y).toBe(v.y);
+    expect(r.zoom).toBe(v.zoom);
+    expect(revealPan(v, rect, { x: -1000, y: -1000, w: 5000, h: 5000 }, 10)).toBe(v);
   });
 });

@@ -3718,3 +3718,15 @@ From `REVIEW-2026-10-17.md` (marked there). With this every finding is fixed exc
   editing at an angle, the brush at an angle, the real two-finger twist and its lift-snap on a
   device, the menu items' disabled state.
 - Owed: the iPad pass (checklist).
+- Final-review fixes (2026-10-20): the visible area used for paste is now the document-space
+  bounding box of all four viewport corners (`visibleDocBox(view, w, h)` in `viewport.ts`; the old
+  two-corner box was wrong on a turned view, at 90 degrees even negative, so repeated paste stacked
+  at the centre instead of cascading); Reset rotation moved out of the context menu's selection
+  block so it is always shown (disabled with a reason when upright, and a click then leaves the menu
+  open, as the File menu item does); the smoke check now twists 2 degrees (must read 0 degrees:
+  the snap on lift; fails with the snap removed) and 8 degrees (stays turned) instead of reusing a
+  zero-twist pinch. Unit tests added for the visible box (0, 90, 30 degrees), `fitRect` at 30
+  degrees and `revealPan` on a turned caret.
+- Spec §6.5 (directional hover cursors), decided: the only directional cursor is the Gradient
+  tool's midpoint `ew-resize` (`gradient-tool.ts`); it is left as is, since it is already
+  approximate for any non-horizontal gradient line, upright or turned.

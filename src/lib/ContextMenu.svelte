@@ -171,15 +171,6 @@
       <button class="menu-item" role="menuitem" onclick={() => run(() => flipSelection("v"))}>
         Flip vertical <span class="kbd">⇧V</span>
       </button>
-      <button
-        class="menu-item"
-        role="menuitem"
-        aria-disabled={upright}
-        title={upright ? "Reset rotation — the page is upright" : "Reset rotation (⇧0)"}
-        onclick={() => run(() => upright || resetRotation())}
-      >
-        Reset rotation <span class="kbd">⇧0</span>
-      </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionToFront)}>
         Bring to front <span class="kbd">{SHIFT_MOD}]</span>
@@ -240,5 +231,17 @@
         Same Kind
       </button>
     {/if}
+    <div class="my-1 h-px bg-line"></div>
+    <button
+      class="menu-item"
+      role="menuitem"
+      aria-disabled={upright}
+      title={upright ? "Reset rotation — the page is upright" : "Reset rotation (⇧0)"}
+      onclick={() => {
+        if (!upright) run(resetRotation);
+      }}
+    >
+      Reset rotation <span class="kbd">⇧0</span>
+    </button>
   </div>
 {/if}

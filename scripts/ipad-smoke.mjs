@@ -407,30 +407,54 @@ try {
       .textContent()
       .then((t) => t.trim());
   const straight = await rotation();
-  const twist = [
-    { type: "down", id: 52, kind: "touch", x: c.x - 60, y: c.y },
-    { type: "down", id: 53, kind: "touch", x: c.x + 60, y: c.y, wait: 15 },
-  ];
-  for (let i = 1; i <= 10; i++) {
-    const th = ((30 * i) / 10) * (Math.PI / 180);
-    twist.push({
-      type: "move",
-      id: 52,
-      kind: "touch",
-      x: c.x - 60 * Math.cos(th),
-      y: c.y - 60 * Math.sin(th),
-      wait: 16,
-    });
-    twist.push({
-      type: "move",
-      id: 53,
-      kind: "touch",
-      x: c.x + 60 * Math.cos(th),
-      y: c.y + 60 * Math.sin(th),
-    });
-  }
-  twist.push({ type: "up", id: 52, kind: "touch", x: c.x - 52, y: c.y - 30, wait: 16 });
-  twist.push({ type: "up", id: 53, kind: "touch", x: c.x + 52, y: c.y + 30, wait: 10 });
+  // `grow` spreads the fingers too, so a small twist still travels past a tap's 15 px.
+  const twistOf = (degrees, grow = 0) => {
+    const g = [
+      { type: "down", id: 52, kind: "touch", x: c.x - 60, y: c.y },
+      { type: "down", id: 53, kind: "touch", x: c.x + 60, y: c.y, wait: 15 },
+    ];
+    const steps = 10;
+    for (let i = 1; i <= steps; i++) {
+      const th = ((degrees * i) / steps) * (Math.PI / 180);
+      const last = i === steps;
+      const r = 60 + (grow * i) / steps;
+      g.push({
+        type: "move",
+        id: 52,
+        kind: "touch",
+        x: c.x - r * Math.cos(th),
+        y: c.y - r * Math.sin(th),
+        wait: 16,
+      });
+      g.push({
+        type: "move",
+        id: 53,
+        kind: "touch",
+        x: c.x + r * Math.cos(th),
+        y: c.y + r * Math.sin(th),
+      });
+      if (last) {
+        g.push({
+          type: "up",
+          id: 52,
+          kind: "touch",
+          x: c.x - r * Math.cos(th),
+          y: c.y - r * Math.sin(th),
+          wait: 16,
+        });
+        g.push({
+          type: "up",
+          id: 53,
+          kind: "touch",
+          x: c.x + r * Math.cos(th),
+          y: c.y + r * Math.sin(th),
+          wait: 10,
+        });
+      }
+    }
+    return g;
+  };
+  const twist = twistOf(30);
   await gesture(twist);
   await page.waitForTimeout(300);
   const turned = await rotation();
@@ -438,12 +462,25 @@ try {
   await page.getByTitle(/^Rotation/).tap();
   await page.waitForTimeout(200);
   const reset = await rotation();
-  await gesture(pinch);
-  await page.waitForTimeout(250);
+  // A ~2° twist ends inside the snap window: only the snap on lift returns it to exactly 0°.
+  await gesture(twistOf(2, 60));
+  await page.waitForTimeout(300);
+  const snapped = await rotation();
+  // An ~8° twist is outside the window and must stay turned; the readout tap resets it.
+  await gesture(twistOf(8, 60));
+  await page.waitForTimeout(300);
+  const kept = await rotation();
+  await page.getByTitle(/^Rotation/).tap();
+  await page.waitForTimeout(200);
   const after = await rotation();
   check(
-    straight === "0°" && turned !== "0°" && reset === "0°" && after === "0°",
-    `[sim] a two-finger twist turns the page (${turned}); a straight pinch stays at 0°; tapping the readout resets`,
+    straight === "0°" &&
+      turned !== "0°" &&
+      reset === "0°" &&
+      snapped === "0°" &&
+      kept !== "0°" &&
+      after === "0°",
+    `[sim] a two-finger twist turns the page (${turned}); a 2° twist snaps back to ${snapped}; an 8° one stays (${kept}); tapping the readout resets`,
   );
   await page.getByTitle(/^Fit artboard/).tap();
   await page.waitForTimeout(200);

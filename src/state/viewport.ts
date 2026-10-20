@@ -1,4 +1,4 @@
-import type { Box } from "../geom/box";
+import { boxFromPoints, type Box } from "../geom/box";
 import { applyMat, type Mat } from "../geom/mat";
 import { dist, mid, type Vec } from "../geom/vec";
 
@@ -176,4 +176,18 @@ export function revealPan(view: View, rect: Box, visible: Box, margin: number): 
   const dx = axis(rect.x, rect.w, visible.x, visible.w);
   const dy = axis(rect.y, rect.h, visible.y, visible.h);
   return dx === 0 && dy === 0 ? view : panBy(view, dx, dy);
+}
+
+/** The canvas viewport, as the document-space bounding box of its four corners; on a turned view
+ *  the two opposite corners alone give a wrong (even negative-sized) box. */
+export function visibleDocBox(view: View, w: number, h: number): Box {
+  const box = boxFromPoints(
+    [
+      { x: 0, y: 0 },
+      { x: w, y: 0 },
+      { x: w, y: h },
+      { x: 0, y: h },
+    ].map((p) => screenToDoc(view, p)),
+  );
+  return box as Box;
 }

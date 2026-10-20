@@ -196,7 +196,7 @@ import {
 import {
   fitRect,
   rotateAt,
-  screenToDoc,
+  visibleDocBox as visibleDocBoxOf,
   steppedRotation,
   viewAngle,
   zoomAt,
@@ -1342,10 +1342,7 @@ let clip: Clip | null = null;
 
 /** The canvas viewport in document coordinates. */
 export function visibleDocBox(): Box {
-  const { w, h } = app.viewportSize;
-  const a = screenToDoc(app.view, { x: 0, y: 0 });
-  const b = screenToDoc(app.view, { x: w, y: h });
-  return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+  return visibleDocBoxOf(app.view, app.viewportSize.w, app.viewportSize.h);
 }
 
 // ----- PNG export (spec M12) -----
