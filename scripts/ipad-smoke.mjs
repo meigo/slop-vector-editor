@@ -401,6 +401,53 @@ try {
   await page.getByTitle(/^Fit artboard/).tap();
   await page.waitForTimeout(200);
 
+  const rotation = () =>
+    page
+      .getByTitle(/^Rotation/)
+      .textContent()
+      .then((t) => t.trim());
+  const straight = await rotation();
+  const twist = [
+    { type: "down", id: 52, kind: "touch", x: c.x - 60, y: c.y },
+    { type: "down", id: 53, kind: "touch", x: c.x + 60, y: c.y, wait: 15 },
+  ];
+  for (let i = 1; i <= 10; i++) {
+    const th = ((30 * i) / 10) * (Math.PI / 180);
+    twist.push({
+      type: "move",
+      id: 52,
+      kind: "touch",
+      x: c.x - 60 * Math.cos(th),
+      y: c.y - 60 * Math.sin(th),
+      wait: 16,
+    });
+    twist.push({
+      type: "move",
+      id: 53,
+      kind: "touch",
+      x: c.x + 60 * Math.cos(th),
+      y: c.y + 60 * Math.sin(th),
+    });
+  }
+  twist.push({ type: "up", id: 52, kind: "touch", x: c.x - 52, y: c.y - 30, wait: 16 });
+  twist.push({ type: "up", id: 53, kind: "touch", x: c.x + 52, y: c.y + 30, wait: 10 });
+  await gesture(twist);
+  await page.waitForTimeout(300);
+  const turned = await rotation();
+  await page.screenshot({ path: `${OUT}/8b-rotated.png` });
+  await page.getByTitle(/^Rotation/).tap();
+  await page.waitForTimeout(200);
+  const reset = await rotation();
+  await gesture(pinch);
+  await page.waitForTimeout(250);
+  const after = await rotation();
+  check(
+    straight === "0°" && turned !== "0°" && reset === "0°" && after === "0°",
+    `[sim] a two-finger twist turns the page (${turned}); a straight pinch stays at 0°; tapping the readout resets`,
+  );
+  await page.getByTitle(/^Fit artboard/).tap();
+  await page.waitForTimeout(200);
+
   // 9. The menus work by tap: Select ▸ Select All, then Select ▸ Deselect.
   await menu("Select", /^Select All/);
   const all = await selected();

@@ -20,6 +20,7 @@
     deselectAll,
     invertSelection,
     pasteFromClipboard,
+    resetRotation,
     selectAll,
     selectSame,
     sendSelectionBackward,
@@ -27,6 +28,7 @@
     setSelectedNodeType,
     ungroupSelection,
   } from "../state/appState.svelte";
+  import { viewAngle } from "../state/viewport";
   import { BOOL_LABEL, BOOL_OPS } from "../geom/boolean";
   import { selectionActions } from "../state/properties";
 
@@ -54,6 +56,8 @@
       ? Math.max(MARGIN, Math.min(app.contextMenu.y, innerHeight - height - MARGIN))
       : 0,
   );
+
+  const upright = $derived(viewAngle(app.view) === 0);
 
   function close() {
     app.contextMenu = null;
@@ -166,6 +170,15 @@
       </button>
       <button class="menu-item" role="menuitem" onclick={() => run(() => flipSelection("v"))}>
         Flip vertical <span class="kbd">⇧V</span>
+      </button>
+      <button
+        class="menu-item"
+        role="menuitem"
+        aria-disabled={upright}
+        title={upright ? "Reset rotation — the page is upright" : "Reset rotation (⇧0)"}
+        onclick={() => run(() => upright || resetRotation())}
+      >
+        Reset rotation <span class="kbd">⇧0</span>
       </button>
       <div class="my-1 h-px bg-line"></div>
       <button class="menu-item" role="menuitem" onclick={() => run(bringSelectionToFront)}>

@@ -60,6 +60,7 @@
     ungroupSelection,
   } from "../state/appState.svelte";
   import { runCommand } from "../state/commands";
+  import { viewAngle } from "../state/viewport";
   import { importDocument } from "../persist/project-io";
   import type { Command } from "../state/keys";
   import { allIds } from "../doc/select-match";
@@ -115,6 +116,8 @@
     intersect: SquaresIntersect,
     exclude: SquaresExclude,
   };
+
+  const upright = $derived(viewAngle(app.view) === 0);
 
   function command(cmd: Command) {
     menuOpen = false;
@@ -275,6 +278,17 @@
         <div class="my-1 h-px bg-line"></div>
         <button class="menu-item" role="menuitem" onclick={() => dialog("settings")}>
           Document settings…
+        </button>
+        <button
+          class="menu-item"
+          role="menuitem"
+          aria-disabled={upright}
+          title={upright ? "Reset rotation — the page is upright" : "Reset rotation (⇧0)"}
+          onclick={() => {
+            if (!upright) command("resetRotation");
+          }}
+        >
+          Reset rotation <span class="kbd">⇧0</span>
         </button>
       </div>
     {/if}
