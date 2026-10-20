@@ -22,10 +22,10 @@ entries supersede earlier ones — mark superseded entries).
   imported `google-fonts.json` other than `loadCatalogue`'s dynamic `import()`
   (`src/text/google-catalogue.ts`). The four bundled fonts are content-hashed `.ttf` assets beside
   them.
-- `npm test` — Vitest, node env, no DOM — 1490 tests in 97 files. Only pure logic is unit-tested.
+- `npm test` — Vitest, node env, no DOM — 1510 tests in 98 files. Only pure logic is unit-tested.
 - `npm run test:ipad` — iPad smoke check (`scripts/ipad-smoke.mjs`, Playwright, ported from
   slop-paint 2026-10-01, extended the same day): the app in WebKit (Safari's engine) at iPad Pro 11
-  with touch, in a fresh profile (never the user's autosave) — 25 checks, landscape then portrait.
+  with touch, in a fresh profile (never the user's autosave) — 27 checks, landscape then portrait.
   Starts its own dev server on a free port; `npm run test:ipad -- <url>` checks a URL (e.g. the
   deployed site). Screenshots in `test-results/ipad/` (gitignored); exit 1 on failure. First run
   per machine: `npx playwright install webkit`. **Two strengths of evidence:** real taps
@@ -151,7 +151,7 @@ every user-visible change.
   is routed to "pinch" and joins the pinch; undo/redo run after
   `endPointer`, once a pinch has cancelled the first finger's tool action).
 - `src/state/` — `session.ts` (doc + undo + gesture + saved marker, pure), `history.ts`,
-  `viewport.ts` (incl. `revealPan`, the pure smallest pan that brings the caret's rectangle into the visible area, spec M22 §6), `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
+  `viewport.ts` (`View` carries an optional `rotation` — invariant 51 — with `viewMatrix`, `viewAngle`, `rotateAt`, `snappedRotation`, `steppedRotation`; `fitRect` takes a rotation; `pinch` also twists; incl. `revealPan`, the pure smallest pan that brings the caret's rectangle into the visible area, spec M22 §6), `keys.ts`, `commands.ts`, `properties.ts` (style/geometry summaries for the
   properties panel, incl. mixed-value handling), `clipboard.ts` (pure copy text and paste
   planning: cascade, centring, errors), `export-plan.ts` (`ExportRegion`, `exportBox`,
   `exportSize`, `exportRefusal`, `sizeLabel`, `pngFileName`, `MAX_SIDE`, `MAX_PIXELS` — the pure
@@ -1145,9 +1145,38 @@ every user-visible change.
     `preventDefault()`, and the window handler skips any event already prevented — which is how the
     sidebar grip's arrows no longer also nudge the selection.
 
+51. **The view rotates, the page doesn't** (spec M24). `View.rotation` is optional radians, clockwise
+    on screen, and **absent means 0** — `rotateAt`/`fitRect` drop the key at zero, so a view that
+    never turned keeps no key (as `hidden`, invariant 39). The document, its transforms and the saved
+    file never see it: it is not undoable and not saved. `zoom` stays the pure scale, so the
+    zoom-based thresholds (snap, handle reach, hit tolerance) are unchanged. Canvas draws the artwork
+    under `viewMatrix(view)`; the scrim and artboard outline are the artboard's four corners through
+    `docToScreen`. **Anything drawn along the screen's axes goes through point mapping, not through
+    `zoom` and `x`/`y`**: a **marquee is screen-aligned** (the Select tool's and the Node tool's alike;
+    the Node tool selects nodes by their screen positions) — the overlay shape is
+    `{ kind: "marquee"; quad }`, and `marqueeSelect(doc, box, entered, toBox = IDENTITY)` selects
+    an object when the screen rectangle contains the object's bounds mapped to screen through
+    `toBox` (`viewMatrix(view)`). The
+    rotate knob follows the page. A **tool draws in page space**: a rectangle dragged on a 30° page
+    is page-aligned, by design. **A two-finger twist snaps on lift** to the nearest quarter turn
+    within `SNAP_ANGLE` (3°), only when the lift takes the pinch from two fingers to one (a cancel or
+    the last lift does not). Keys go by `KeyboardEvent.code`, since Shift changes `key` and layouts
+    differ: `,`/`.` step 15° (Shift 90°), and **Shift+0 (`Digit0`) is Reset rotation, tested before
+    the `=`/`+` zoom-in rule**. `fitArtboard(keepRotation = true)` keeps the angle (⌘0 on a turned
+    page); the `fitNonce` effect (a new or replaced document) calls `fitArtboard(false)` and resets
+    it. The status bar's readout is a button that resets, and the footer is `min-h-7` so it grows to
+    32px on touch (invariant 23).
+
 ## Current state
 
-**M23** (document resize, 2026-10-02): Document settings' Size section resizes the page two ways.
+**M24** (canvas rotation, 2026-10-20): turn the view without touching the document. A two-finger
+twist (snapping to a quarter turn on lift), `,` / `.` for 15° steps (Shift 90°), Shift+0 to reset,
+Reset rotation in the File and context menus, and an angle readout in the status bar that resets on a tap
+(invariant 51). Fit keeps the angle. Owed: the iPad pass (checklist), and the browser checks listed
+as not done in the CHANGELOG (snap guides, a Shift-constrained line, text and the brush on a turned
+page, the menu items' disabled state).
+
+Before that, **M23** (document resize, 2026-10-02): Document settings' Size section resizes the page two ways.
 **Crop/extend** changes the page around the drawing, with a 3×3 anchor for where space is added or
 taken (optional Keep ratio); **Scale drawing** scales everything with the page, always in proportion,
 strokes and rounded corners included, so titles, polygons and gradients stay editable. One undo
@@ -1238,7 +1267,8 @@ distinct handles), M18 (custom gradient midpoint colour), **M14 — envelope war
 the post-v1 list. **M22** (on-canvas text editing,
 `docs/superpowers/specs/2026-09-29-m22-on-canvas-text-design.md`) is complete as well; paragraph text
 and shaping for complex scripts remain unspecced. **M23** (document resize,
-`docs/superpowers/specs/2026-10-02-document-resize-design.md`) is complete too. Nothing on the roadmap is currently specced and unbuilt.
+`docs/superpowers/specs/2026-10-02-document-resize-design.md`) is complete too, and so is **M24** (canvas rotation,
+`docs/superpowers/specs/2026-10-20-m24-canvas-rotation-design.md`). Nothing on the roadmap is currently specced and unbuilt.
 
 M2 constraint: the importer drops zero-size rects/ellipses, empty groups and node-less paths, so
 tools and edits must never create them (or add an own-format bypass) — otherwise saved files do

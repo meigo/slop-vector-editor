@@ -46,6 +46,16 @@ polish.
 - [x] **P2** With page zoom blocked: double-tapping a layer's name still starts renaming it, and
       the layer list and Properties still scroll with a finger.
 - [x] **P3** The Hand tool pans with a finger and with the Pencil.
+- [ ] **P1** Canvas rotation (M24): a two-finger twist turns the page about the fingers' midpoint
+      and feels right; on lift within 3 degrees of a quarter turn it snaps; a plain pinch or pan
+      never turns it.
+- [ ] **P1** A twist never fires the two-finger undo.
+- [ ] **P2** Twisting mid-pen-path and mid-text-session: the draft and the caret stay put on the
+      page and nothing is lost.
+- [ ] **P2** The Pencil draws correctly on a turned page (Brush, Pen, marquee); the rotate knob and
+      marquee follow the page.
+- [ ] **P2** The on-screen keyboard and the auto-pan while the page is rotated.
+- [ ] **P2** The status bar's angle readout is easy to tap with a finger and resets the page.
 
 ## 2. Selecting and transforming
 

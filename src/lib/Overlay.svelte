@@ -7,7 +7,7 @@
   import type { Vec } from "../geom/vec";
   import { edgeCubic } from "../geom/warp";
   import { app, editCaretStops } from "../state/appState.svelte";
-  import { docToScreen } from "../state/viewport";
+  import { docToScreen, screenToDoc } from "../state/viewport";
   import { selectionRects } from "../text/edit";
   import { selectionFrame } from "../tools/frame";
   import { handleCorner } from "../tools/cage-handles";
@@ -122,10 +122,8 @@
   /** Drawn smaller than they reach on touch (2026-09-30); positions still use the reach basis. */
   const drawSize = $derived(handleDrawSize(app.lastPointerType));
   const handles = $derived(frame ? handlePositions(frame, view, size) : null);
-  const marquee = $derived(app.overlay?.kind === "marquee" ? app.overlay.box : null);
-  const marqueeA = $derived(marquee ? docToScreen(view, { x: marquee.x, y: marquee.y }) : null);
-  const marqueeB = $derived(
-    marquee ? docToScreen(view, { x: marquee.x + marquee.w, y: marquee.y + marquee.h }) : null,
+  const marqueeQuad = $derived(
+    app.overlay?.kind === "marquee" ? app.overlay.quad.map((p) => docToScreen(view, p)) : null,
   );
   const guides = $derived(app.overlay?.kind === "guides" ? app.overlay : null);
   const GUIDE = "stroke: var(--color-guide)";
@@ -528,44 +526,39 @@
     {/each}
   {/if}
 
-  {#if marqueeA && marqueeB}
-    {@const x0 = Math.min(marqueeA.x, marqueeB.x)}
-    {@const y0 = Math.min(marqueeA.y, marqueeB.y)}
-    {@const x1 = Math.max(marqueeA.x, marqueeB.x)}
-    {@const y1 = Math.max(marqueeA.y, marqueeB.y)}
-    {@render lineHalo(
-      {
-        t: "poly",
-        pts: [
-          { x: x0, y: y0 },
-          { x: x1, y: y0 },
-          { x: x1, y: y1 },
-          { x: x0, y: y1 },
-        ],
-        closed: true,
-      },
-      "4 3",
-    )}
-    <rect
-      x={x0}
-      y={y0}
-      width={x1 - x0}
-      height={y1 - y0}
+  {#if marqueeQuad}
+    {@render lineHalo({ t: "poly", pts: marqueeQuad, closed: true }, "4 3")}
+    <polygon
+      points={marqueeQuad.map((p) => `${p.x},${p.y}`).join(" ")}
       style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.08"
       stroke-dasharray="4 3"
     />
   {/if}
 
   {#if guides}
+    <!-- Spec M24 §6.5: a guide runs along the page's axis, so under a turned view it is the segment
+         across the doc-space span of the four viewport corners, not a screen-vertical line. -->
+    {@const cs = [
+      { x: 0, y: 0 },
+      { x: app.viewportSize.w, y: 0 },
+      { x: app.viewportSize.w, y: app.viewportSize.h },
+      { x: 0, y: app.viewportSize.h },
+    ].map((c) => screenToDoc(view, c))}
+    {@const xMin = Math.min(...cs.map((c) => c.x))}
+    {@const xMax = Math.max(...cs.map((c) => c.x))}
+    {@const yMin = Math.min(...cs.map((c) => c.y))}
+    {@const yMax = Math.max(...cs.map((c) => c.y))}
     {#each guides.xs as x, i (i)}
-      {@const sx = docToScreen(view, { x, y: 0 }).x}
-      {@render lineHalo({ t: "line", a: { x: sx, y: 0 }, b: { x: sx, y: app.viewportSize.h } })}
-      <line x1={sx} y1="0" x2={sx} y2={app.viewportSize.h} style={GUIDE} stroke-width="1" />
+      {@const a = docToScreen(view, { x, y: yMin })}
+      {@const b = docToScreen(view, { x, y: yMax })}
+      {@render lineHalo({ t: "line", a, b })}
+      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={GUIDE} stroke-width="1" />
     {/each}
     {#each guides.ys as y, i (i)}
-      {@const sy = docToScreen(view, { x: 0, y }).y}
-      {@render lineHalo({ t: "line", a: { x: 0, y: sy }, b: { x: app.viewportSize.w, y: sy } })}
-      <line x1="0" y1={sy} x2={app.viewportSize.w} y2={sy} style={GUIDE} stroke-width="1" />
+      {@const a = docToScreen(view, { x: xMin, y })}
+      {@const b = docToScreen(view, { x: xMax, y })}
+      {@render lineHalo({ t: "line", a, b })}
+      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={GUIDE} stroke-width="1" />
     {/each}
   {/if}
 

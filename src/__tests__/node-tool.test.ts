@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createDoc, DEFAULT_STYLE, type Doc, type Node, type PathShape } from "../doc/document";
 import { IDENTITY, rotate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
+import { screenToDoc } from "../state/viewport";
 import { createNodeTool } from "../tools/node-tool";
 import { ev, fakeContext } from "./fake-context";
 
@@ -227,6 +228,28 @@ describe("node tool: editing", () => {
     tool.down(ctx, ev(-30, 30));
     tool.move(ctx, ev(10, 50));
     tool.up(ctx, ev(10, 50));
+    expect(state.nodeSel).toEqual([{ sub: 0, i: 1 }]);
+  });
+
+  it("marquees by the screen rectangle on a turned view", () => {
+    // At 45° node 1 (doc 40,0) is at screen (28.3,28.3). The screen rectangle (0,40)-(20,60)
+    // does not hold it, though the document-axis box of the same two corners would.
+    const d = createDoc(300, 200);
+    const { ctx, state } = fakeContext({
+      ...d,
+      layers: [{ ...d.layers[0], children: [line("p", 0)] }],
+    });
+    state.view = { x: 0, y: 0, zoom: 1, rotation: Math.PI / 4 };
+    const at = (x: number, y: number) => ({ ...ev(x, y), doc: screenToDoc(state.view, { x, y }) });
+    const tool = createNodeTool();
+    state.nodeTarget = "p";
+    tool.down(ctx, at(0, 40));
+    tool.move(ctx, at(20, 60));
+    expect(state.nodeSel).toEqual([]);
+    tool.up(ctx, at(20, 60));
+    tool.down(ctx, at(40, 20));
+    tool.move(ctx, at(20, 40));
+    tool.up(ctx, at(20, 40));
     expect(state.nodeSel).toEqual([{ sub: 0, i: 1 }]);
   });
 
