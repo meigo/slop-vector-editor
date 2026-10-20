@@ -173,7 +173,17 @@ function applyMove(
   if (m.kind === "marquee") {
     const box = boxFromPoints([m.start, e.doc]);
     if (!box) return;
-    ctx.setOverlay({ kind: "marquee", box });
+    // Still a document-space box (the node tool's marquee is not yet screen-true on a turned view).
+    const { x, y, w, h } = box;
+    ctx.setOverlay({
+      kind: "marquee",
+      quad: [
+        { x, y },
+        { x: x + w, y },
+        { x: x + w, y: y + h },
+        { x, y: y + h },
+      ],
+    });
     ctx.setNodeSel(mergeRefs(m.base, nodesIn(t, box)));
   }
 }

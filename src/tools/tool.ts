@@ -1,7 +1,6 @@
 import type { Doc, Paint } from "../doc/document";
 import type { GradientKind, PaintSlot, StopEnd } from "../doc/paint-edit";
 import type { NodeRef } from "../doc/path-edit";
-import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
 import type { Cage } from "../geom/warp";
 import type { TextEdit } from "../text/edit";
@@ -23,7 +22,8 @@ export type ToolEvent = {
 
 /** Transient drawing that is not part of the document (doc-space coordinates). */
 export type Overlay =
-  | { kind: "marquee"; box: Box }
+  /** The screen rectangle's four corners in document space (spec M24 §6.5). */
+  | { kind: "marquee"; quad: Vec[] }
   | { kind: "guides"; xs: number[]; ys: number[] }
   | {
       kind: "pen";

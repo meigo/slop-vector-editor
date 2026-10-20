@@ -1,6 +1,6 @@
 import type { Box } from "../geom/box";
 import type { Vec } from "../geom/vec";
-import { docToScreen, type View } from "../state/viewport";
+import { docToScreen, viewAngle, type View } from "../state/viewport";
 import { frameToDoc, type Frame } from "./frame";
 import type { Mods } from "./types";
 
@@ -56,9 +56,11 @@ export function handlePositions(f: Frame, view: View, size?: number): Record<Han
   const out = {} as Record<Handle, Vec>;
   for (const h of RESIZE_HANDLES)
     out[h] = docToScreen(view, frameToDoc(f, handleFramePoint(h, box)));
+  // The knob stands off along the frame's outward normal as drawn, so the view's turn counts (spec M24 §6.5).
+  const a = f.angle + viewAngle(view);
   out.rotate = {
-    x: out.n.x + ROTATE_OFFSET * Math.sin(f.angle),
-    y: out.n.y - ROTATE_OFFSET * Math.cos(f.angle),
+    x: out.n.x + ROTATE_OFFSET * Math.sin(a),
+    y: out.n.y - ROTATE_OFFSET * Math.cos(a),
   };
   return out;
 }

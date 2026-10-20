@@ -13,7 +13,7 @@ import { enteredReach, reachableNodes, topLevelReach, type Reachable } from "../
 import { flattenSubpath } from "./bezier";
 import { nodeBounds } from "./bounds";
 import { boxContains, type Box } from "./box";
-import { applyMat, IDENTITY, invert } from "./mat";
+import { applyMat, IDENTITY, invert, multiply, type Mat } from "./mat";
 import { polygonSubpath, rectPath } from "./shapes";
 import type { Vec } from "./vec";
 
@@ -211,10 +211,18 @@ export function hitTest(
   return (inner && hitIn(inner, p, tol)) ?? hitIn(topLevelReach(doc), p, tol);
 }
 
-export function marqueeSelect(doc: Doc, box: Box, enteredGroupId: string | null = null): string[] {
+/** `box` lives in the space `toBox` maps the document into (identity: the document itself). The
+ *  select tool passes the screen rectangle and the view matrix, so on a turned view the marquee
+ *  stays the rectangle the user sees (spec M24 §6.5). */
+export function marqueeSelect(
+  doc: Doc,
+  box: Box,
+  enteredGroupId: string | null = null,
+  toBox: Mat = IDENTITY,
+): string[] {
   const out: string[] = [];
   for (const { node, parent } of reachableNodes(doc, enteredGroupId)) {
-    const b = nodeBounds(node, parent);
+    const b = nodeBounds(node, multiply(toBox, parent));
     if (b && boxContains(box, b)) out.push(node.id);
   }
   return out;

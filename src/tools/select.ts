@@ -17,6 +17,7 @@ import {
   type SnapTargets,
 } from "../geom/snap";
 import type { Vec } from "../geom/vec";
+import { screenToDoc, viewMatrix } from "../state/viewport";
 import {
   docToFrame,
   frameCenter,
@@ -244,9 +245,14 @@ function drag(ctx: ToolContext, m: Mode, e: ToolEvent): void {
       return;
     }
     case "marquee": {
-      const box = boxFromPoints([m.start.doc, e.doc])!;
-      ctx.setOverlay({ kind: "marquee", box });
-      const inside = marqueeSelect(ctx.doc(), box, ctx.enteredGroupId()).filter(
+      // The rectangle is drawn on screen, so it is measured there (spec M24 §6.5).
+      const view = ctx.view();
+      const a = m.start.screen;
+      const b = e.screen;
+      const box = boxFromPoints([a, b])!;
+      const quad = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }].map((p) => screenToDoc(view, p));
+      ctx.setOverlay({ kind: "marquee", quad });
+      const inside = marqueeSelect(ctx.doc(), box, ctx.enteredGroupId(), viewMatrix(view)).filter(
         (id) => !m.base.includes(id),
       );
       ctx.setSelection([...m.base, ...inside]);

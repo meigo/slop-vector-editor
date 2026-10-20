@@ -122,10 +122,8 @@
   /** Drawn smaller than they reach on touch (2026-09-30); positions still use the reach basis. */
   const drawSize = $derived(handleDrawSize(app.lastPointerType));
   const handles = $derived(frame ? handlePositions(frame, view, size) : null);
-  const marquee = $derived(app.overlay?.kind === "marquee" ? app.overlay.box : null);
-  const marqueeA = $derived(marquee ? docToScreen(view, { x: marquee.x, y: marquee.y }) : null);
-  const marqueeB = $derived(
-    marquee ? docToScreen(view, { x: marquee.x + marquee.w, y: marquee.y + marquee.h }) : null,
+  const marqueeQuad = $derived(
+    app.overlay?.kind === "marquee" ? app.overlay.quad.map((p) => docToScreen(view, p)) : null,
   );
   const guides = $derived(app.overlay?.kind === "guides" ? app.overlay : null);
   const GUIDE = "stroke: var(--color-guide)";
@@ -528,29 +526,10 @@
     {/each}
   {/if}
 
-  {#if marqueeA && marqueeB}
-    {@const x0 = Math.min(marqueeA.x, marqueeB.x)}
-    {@const y0 = Math.min(marqueeA.y, marqueeB.y)}
-    {@const x1 = Math.max(marqueeA.x, marqueeB.x)}
-    {@const y1 = Math.max(marqueeA.y, marqueeB.y)}
-    {@render lineHalo(
-      {
-        t: "poly",
-        pts: [
-          { x: x0, y: y0 },
-          { x: x1, y: y0 },
-          { x: x1, y: y1 },
-          { x: x0, y: y1 },
-        ],
-        closed: true,
-      },
-      "4 3",
-    )}
-    <rect
-      x={x0}
-      y={y0}
-      width={x1 - x0}
-      height={y1 - y0}
+  {#if marqueeQuad}
+    {@render lineHalo({ t: "poly", pts: marqueeQuad, closed: true }, "4 3")}
+    <polygon
+      points={marqueeQuad.map((p) => `${p.x},${p.y}`).join(" ")}
       style="stroke: var(--color-accent); fill: var(--color-accent); fill-opacity: 0.08"
       stroke-dasharray="4 3"
     />

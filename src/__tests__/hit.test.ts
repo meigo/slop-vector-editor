@@ -9,6 +9,7 @@ import {
 } from "../doc/document";
 import { hitTest, marqueeSelect } from "../geom/hit";
 import { IDENTITY, rotateAbout, scale, translate, type Mat } from "../geom/mat";
+import { viewMatrix } from "../state/viewport";
 import { deepFreeze } from "./helpers";
 
 const filled: Style = { ...DEFAULT_STYLE, stroke: null };
@@ -247,6 +248,11 @@ describe("marqueeSelect", () => {
     expect(marqueeSelect(d, { x: -1, y: -1, w: 32, h: 12 })).toEqual(["a", "b"]);
     expect(marqueeSelect(d, { x: -1, y: -1, w: 17, h: 17 })).toEqual(["a", "d"]);
     expect(marqueeSelect(d, { x: 1, y: -1, w: 50, h: 50 })).toEqual(["b", "d"]);
+  });
+  it("marqueeSelect in a rotated frame selects what the turned rectangle contains", () => {
+    const d = doc({ children: [rect("a", 0, 0), rect("b", 40, 0)] });
+    const toBox = viewMatrix({ x: 0, y: 0, zoom: 1, rotation: Math.PI / 2 });
+    expect(marqueeSelect(d, { x: -15, y: -5, w: 20, h: 20 }, null, toBox)).toEqual(["a"]);
   });
 });
 

@@ -125,6 +125,13 @@ describe("selection frame", () => {
 describe("gizmo handles", () => {
   const f = { angle: 0, box: { x: 0, y: 0, w: 100, h: 50 } };
 
+  it("the rotate knob sits on the frame's axis on a turned view", () => {
+    const turned = { x: 0, y: 0, zoom: 1, rotation: Math.PI / 2 };
+    const h = handlePositions(f, turned);
+    near(h.rotate, h.n.x + 24, h.n.y);
+    near(handlePositions(f, view).rotate, 50, -24);
+  });
+
   it("positions handles and the rotate knob in screen space", () => {
     const h = handlePositions(f, view);
     expect(h.nw).toEqual({ x: 0, y: 0 });

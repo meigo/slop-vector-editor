@@ -3,6 +3,7 @@ import { createDoc, DEFAULT_STYLE, type Doc, type Node, type RectShape } from ".
 import { findNode } from "../doc/tree";
 import { applyMat, IDENTITY, translate } from "../geom/mat";
 import { DEFAULT_PREFS } from "../persist/preferences";
+import { screenToDoc } from "../state/viewport";
 import { selectionFrame } from "../tools/frame";
 import { handlePositions } from "../tools/gizmo";
 import { createSelectTool } from "../tools/select";
@@ -101,12 +102,32 @@ describe("select tool: selection", () => {
     expect(state.selection).toEqual(["a"]);
   });
 
+  it("a marquee on a turned view selects by the screen rectangle", () => {
+    const { ctx, state } = fakeContext(twoRects());
+    state.view = { x: 0, y: 0, zoom: 1, rotation: Math.PI / 4 };
+    const at = (x: number, y: number) => ({ ...ev(x, y), doc: screenToDoc(state.view, { x, y }) });
+    const t = createSelectTool();
+    // at 45° a's screen bounds are x -28…28, y 0…56; b's reach x 14…70, y 42…98
+    t.down(ctx, at(-30, -5));
+    t.move(ctx, at(30, 60));
+    expect(state.selection).toEqual(["a"]);
+    t.up(ctx, at(30, 60));
+  });
+
   it("marquee-selects nodes fully inside and adds with Shift", () => {
     const { ctx, state } = fakeContext(twoRects());
     const t = createSelectTool();
     t.down(ctx, ev(-10, -10));
     t.move(ctx, ev(50, 50));
-    expect(state.overlay).toEqual({ kind: "marquee", box: { x: -10, y: -10, w: 60, h: 60 } });
+    expect(state.overlay).toEqual({
+      kind: "marquee",
+      quad: [
+        { x: -10, y: -10 },
+        { x: 50, y: -10 },
+        { x: 50, y: 50 },
+        { x: -10, y: 50 },
+      ],
+    });
     expect(state.selection).toEqual(["a"]);
     t.up(ctx, ev(50, 50));
     expect(state.overlay).toBeNull();
