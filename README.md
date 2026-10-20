@@ -36,6 +36,9 @@ What works today:
   scales everything with it — always in proportion, strokes and rounded corners included — so
   titles, polygons and gradients stay editable.
 - Pan and zoom: drag, mouse wheel, trackpad or two-finger pinch.
+- Rotate the view: twist two fingers (it snaps to a quarter turn when you lift), or press `,` / `.`
+  for 15° steps (Shift for 90°). The status bar shows the angle; tap it, press Shift+0 or use Reset
+  rotation in the menu to turn the page upright. The drawing itself is never changed.
 - Undo/redo and automatic saving to the browser. On a touch screen, tap with two fingers to undo
   and three to redo.
 - Context menu: right-click with a mouse, or press and hold with a finger or the Pencil.
@@ -165,6 +168,7 @@ What works today:
 | Undo / Redo                                     | ⌘Z / ⇧⌘Z (or Ctrl+Y)                  |
 | Zoom in / out                                   | `=` / `-`                             |
 | Fit artboard / 100%                             | ⌘0 / ⌘1                               |
+| Rotate view 15° (Shift 90°) / Reset rotation    | `,` `.` / Shift+0                     |
 | Select / Rect / Ellipse / Line / Polygon / Hand | V / R / E / L / Y / H                 |
 | Pan                                             | Space + drag                          |
 | Delete                                          | Delete / Backspace                    |

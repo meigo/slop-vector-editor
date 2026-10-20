@@ -3692,3 +3692,29 @@ From `REVIEW-2026-10-17.md` (marked there). With this every finding is fixed exc
   passed (its layer drags included). L8, L10 and L11 are markup, not unit-tested; the drag
   cancelled by ⌘Z mid-drag and the Download placeholder were not browser-checked by hand.
 
+## 2026-10-20 — M24: Canvas rotation
+
+- The view can turn: `View.rotation` (optional radians, absent = 0), not saved, not undoable.
+  A two-finger twist rotates about the pinch midpoint and snaps to the nearest quarter turn within
+  3 degrees when the lift takes the pinch from two fingers to one; `,` / `.` step 15 degrees (Shift
+  90), Shift+0 resets (by `code`, tested before zoom-in); Reset rotation is in the File menu and the
+  context menu (disabled with a reason when upright); the status bar shows the angle and a tap resets
+  it (the footer is now `min-h-7`, growing to 32px on touch). Fit keeps the angle; a new or replaced
+  document resets it (`fitArtboard(false)` from the `fitNonce` effect). Invariant 51. Spec:
+  `docs/superpowers/specs/2026-10-20-m24-canvas-rotation-design.md`.
+- The marquee is screen-aligned for the Select and Node tools: the overlay shape is
+  `{ kind: "marquee"; quad }` and `marqueeSelect(doc, box, entered, toBox = IDENTITY)` selects
+  through the view; the Node tool selects nodes by their screen positions. The rotate knob and the
+  scrim follow the page. Tools draw in page space, so a rectangle on a 30 degree page is
+  page-aligned.
+- Checked in the browser (controller, Chrome desktop, 2026-10-20): `.` steps 15 degrees and Shift+0
+  resets; the page, artwork and scrim turn together; the selection frame and rotate knob follow the
+  page; a marquee selected the rectangle it visibly contained and not a bar crossing it; a rectangle
+  drawn on a 30 degree page is page-aligned (a thin turned rectangle for a near-horizontal screen
+  drag), as specified. `test:ipad` (WebKit, simulated): a 30 degree twist turns the page, the
+  readout reads 30 degrees (screenshot `8b-rotated.png`), tapping it resets, a straight pinch stays
+  at 0 degrees; now 27 checks. `npm test`: 1510.
+- Not browser-checked: snap guides on a turned page, a Shift-constrained line at an angle, text
+  editing at an angle, the brush at an angle, the real two-finger twist and its lift-snap on a
+  device, the menu items' disabled state.
+- Owed: the iPad pass (checklist).
