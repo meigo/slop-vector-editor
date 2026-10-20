@@ -15,6 +15,8 @@ import {
   moveSelectedNodes,
   nudgeSelection,
   redo,
+  resetRotation,
+  rotateViewStep,
   selectAll,
   sendSelectionBackward,
   sendSelectionToBack,
@@ -59,6 +61,16 @@ export function runCommand(cmd: Command): void {
       return zoomBy(ZOOM_STEP);
     case "zoomOut":
       return zoomBy(1 / ZOOM_STEP);
+    case "rotateCcw":
+      return rotateViewStep(Math.PI / 12, -1);
+    case "rotateCw":
+      return rotateViewStep(Math.PI / 12, 1);
+    case "rotateCcw90":
+      return rotateViewStep(Math.PI / 2, -1);
+    case "rotateCw90":
+      return rotateViewStep(Math.PI / 2, 1);
+    case "resetRotation":
+      return resetRotation();
   }
 }
 

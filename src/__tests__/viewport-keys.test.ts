@@ -104,6 +104,28 @@ describe("keys a focused field lets through", () => {
     ctrlKey: false,
     shiftKey: !!mods.shift,
   });
+  it("maps the rotate keys by physical key (spec M24 §6.2)", () => {
+    const key = (code: string, key: string, shiftKey = false) => ({
+      code,
+      key,
+      shiftKey,
+      metaKey: false,
+      ctrlKey: false,
+    });
+    expect(commandForKey(key("Comma", ","))).toBe("rotateCcw");
+    expect(commandForKey(key("Period", "."))).toBe("rotateCw");
+    expect(commandForKey(key("Comma", ";", true))).toBe("rotateCcw90");
+    expect(commandForKey(key("Period", ":", true))).toBe("rotateCw90");
+    expect(commandForKey(key("Digit0", "=", true))).toBe("resetRotation");
+    expect(commandForKey(key("Digit0", ")", true))).toBe("resetRotation");
+    expect(commandForKey(key("Equal", "="))).toBe("zoomIn");
+    expect(commandForKey({ ...key("Comma", ","), metaKey: true })).toBeNull();
+  });
+  it("a text field does not pass the rotate keys", async () => {
+    const { fieldPassesKey } = await import("../state/keys");
+    const e = { code: "Comma", key: ",", shiftKey: false, metaKey: false, ctrlKey: false };
+    expect(fieldPassesKey("text", e)).toBe(false);
+  });
   it("a text field passes only the file commands", async () => {
     const { fieldPassesKey } = await import("../state/keys");
     expect(fieldPassesKey("text", k("s", { meta: true }))).toBe(true);

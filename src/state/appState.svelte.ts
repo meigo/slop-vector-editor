@@ -193,7 +193,15 @@ import {
   undoSession,
   type Session,
 } from "./session";
-import { fitRect, screenToDoc, zoomAt, type View } from "./viewport";
+import {
+  fitRect,
+  rotateAt,
+  screenToDoc,
+  steppedRotation,
+  viewAngle,
+  zoomAt,
+  type View,
+} from "./viewport";
 
 export type Notice = { id: number; kind: "info" | "error"; text: string };
 export type DialogKind = "new" | "settings" | "export" | "googleFonts" | null;
@@ -697,16 +705,40 @@ export function setViewportSize(w: number, h: number): void {
   if (app.viewportSize.w !== w || app.viewportSize.h !== h) app.viewportSize = { w, h };
 }
 
-export function fitArtboard(): void {
+export function fitArtboard(keepRotation = true): void {
   const { w, h } = app.viewportSize;
   if (w <= 0 || h <= 0) return;
   const ab = app.doc.artboard;
-  app.view = fitRect({ x: 0, y: 0, w: ab.w, h: ab.h }, w, h);
+  app.view = fitRect(
+    { x: 0, y: 0, w: ab.w, h: ab.h },
+    w,
+    h,
+    undefined,
+    keepRotation ? viewAngle(app.view) : 0,
+  );
 }
 
 export function zoomBy(factor: number): void {
   const { w, h } = app.viewportSize;
   app.view = zoomAt(app.view, { x: w / 2, y: h / 2 }, factor);
+}
+
+/** Turns the view to the next multiple of `step` in `dir`, about the viewport centre (spec M24
+ *  §6.2). The same view object when the angle would not change. */
+export function rotateViewStep(step: number, dir: 1 | -1): void {
+  const { w, h } = app.viewportSize;
+  const a = viewAngle(app.view);
+  const next = steppedRotation(a, step, dir);
+  if (next === a) return;
+  app.view = rotateAt(app.view, { x: w / 2, y: h / 2 }, next - a);
+}
+
+/** Back to upright about the viewport centre (spec M24 §6.2). */
+export function resetRotation(): void {
+  const { w, h } = app.viewportSize;
+  const a = viewAngle(app.view);
+  if (a === 0) return;
+  app.view = rotateAt(app.view, { x: w / 2, y: h / 2 }, -a);
 }
 
 export function zoomTo(zoom: number): void {

@@ -1,7 +1,20 @@
 import type { ToolId } from "../tools/types";
 
 export type Command =
-  "undo" | "redo" | "save" | "saveAs" | "open" | "fit" | "zoom100" | "zoomIn" | "zoomOut";
+  | "undo"
+  | "redo"
+  | "save"
+  | "saveAs"
+  | "open"
+  | "fit"
+  | "zoom100"
+  | "zoomIn"
+  | "zoomOut"
+  | "rotateCcw"
+  | "rotateCw"
+  | "rotateCcw90"
+  | "rotateCw90"
+  | "resetRotation";
 
 export type KeyLike = {
   key: string;
@@ -31,6 +44,11 @@ export function commandForKey(e: KeyLike): Command | null {
         return "zoom100";
     }
   }
+  // Rotate the view (spec M24 §6.2): by physical key, since Shift changes `key` and layouts differ
+  // (Estonian Shift+0 types "=", US types ")").
+  if (!mod && e.code === "Comma") return e.shiftKey ? "rotateCcw90" : "rotateCcw";
+  if (!mod && e.code === "Period") return e.shiftKey ? "rotateCw90" : "rotateCw";
+  if (!mod && e.code === "Digit0" && e.shiftKey) return "resetRotation";
   if (k === "=" || k === "+") return "zoomIn";
   if (k === "-" || k === "_") return "zoomOut";
   return null;

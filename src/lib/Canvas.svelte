@@ -167,7 +167,7 @@
   // Fit when the canvas first gets a size and whenever a document is replaced.
   $effect(() => {
     void app.fitNonce;
-    if (ready) untrack(fitArtboard);
+    if (ready) untrack(() => fitArtboard(false));
   });
 
   // Switching tools mid-gesture cancels the running gesture — except a brush stroke, which the
