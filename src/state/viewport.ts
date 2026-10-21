@@ -158,7 +158,11 @@ export function wheelView(v: View, e: WheelLike, at: Vec): View {
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
   const dx = e.deltaX * unit;
   const dy = e.deltaY * unit;
-  if (e.ctrlKey || e.metaKey) return zoomAt(v, at, Math.exp(-dy * 0.01));
+  // Ctrl/Cmd-wheel: exp(−dy / 100), which follows a trackpad pinch's small deltas; each event is
+  // capped at ±10 px so one mouse notch (~100 px in Chrome, 3 lines in Firefox) zooms ~10%, not
+  // ×2.7 (slop-paint 4bd2825).
+  if (e.ctrlKey || e.metaKey)
+    return zoomAt(v, at, Math.exp(-Math.max(-10, Math.min(10, dy)) / 100));
   return panBy(v, -dx, -dy);
 }
 
