@@ -127,6 +127,8 @@ polish.
 - [ ] **P1** Every control is at least a comfortable finger target (32 px); nothing needs hover.
 - [ ] **P1** Tapping any control shows its hint in the status bar (there is no hover tooltip).
 - [ ] **P2** Number fields: drag sideways to scrub; a vertical swipe on the panel still scrolls.
+- [ ] **P2** Number fields: type a value (no Return), then tap a button (Align, Flip, Undo) — the
+  typed value lands first, and the button acts on it.
 - [ ] **P2** Sidebar: drag its width grip; drag the Layers/Properties divider; collapse and expand
       each panel; Properties opens with the Brush tool active.
 - [ ] **P2** Layers panel: drag rows to reorder and into groups; eye and lock toggles; the trash.
