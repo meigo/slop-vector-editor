@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { isValidArtboardSize, MAX_ARTBOARD } from "../doc/document";
+  import { MAX_ARTBOARD } from "../doc/document";
+  import { sizeRefusal } from "../doc/doc-resize";
   import { createNewDocument } from "../persist/project-io";
   import { app, hasUnsavedWork } from "../state/appState.svelte";
   import { DEFAULT_NAME } from "../state/doc-name";
@@ -16,14 +17,15 @@
   let name = $state(DEFAULT_NAME);
   let w = $state<number | null>(1920);
   let h = $state<number | null>(1080);
-  const valid = $derived(isValidArtboardSize(w) && isValidArtboardSize(h));
+  // The same rule Document settings applies: under 0.01 px a side reopens as 300×150 (review L18).
+  const refusal = $derived(sizeRefusal(w, h));
 
   function close() {
     app.dialog = null;
   }
 
   function create() {
-    if (!isValidArtboardSize(w) || !isValidArtboardSize(h)) return;
+    if (refusal || w === null || h === null) return;
     close();
     createNewDocument(w, h, name);
   }
@@ -67,6 +69,7 @@
       </label>
       <span class="text-muted">px</span>
     </div>
+    {#if refusal}<span class="text-xs text-muted" role="status">{refusal}</span>{/if}
   </div>
   {#if hasUnsavedWork()}
     <p class="mt-3 text-xs text-warn">
@@ -75,6 +78,6 @@
   {/if}
   {#snippet actions()}
     <button class="btn" onclick={close}>Cancel</button>
-    <button class="btn btn-primary" disabled={!valid} onclick={create}>Create</button>
+    <button class="btn btn-primary" disabled={!!refusal} onclick={create}>Create</button>
   {/snippet}
 </Modal>
