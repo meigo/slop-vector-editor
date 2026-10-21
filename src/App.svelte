@@ -256,6 +256,14 @@
       window.removeEventListener("beforepaste", onBeforePaste);
     };
   });
+
+  /** Only the canvas imports a dropped file (`Canvas.svelte`); dropped anywhere else — a panel,
+   *  the top bar, a dialog's overlay — the browser's default opened it in place of the app. */
+  function stopFileDrop(e: DragEvent) {
+    if (e.defaultPrevented || !e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "none";
+  }
 </script>
 
 <svelte:window
@@ -268,6 +276,8 @@
   {onpointerover}
   {onpointerout}
   {onpointerdown}
+  ondragover={stopFileDrop}
+  ondrop={stopFileDrop}
 />
 
 <div class="flex h-full flex-col">
