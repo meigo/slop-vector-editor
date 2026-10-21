@@ -58,8 +58,18 @@ describe("viewport", () => {
       y: -140,
       zoom: 2,
     });
-    const z = wheelView(v0, { ...base, deltaY: -100, ctrlKey: true }, { x: 0, y: 0 });
-    expect(z.zoom).toBeCloseTo(2 * Math.E);
+    const z = wheelView(v0, { ...base, deltaY: -3, ctrlKey: true }, { x: 0, y: 0 });
+    expect(z.zoom).toBeCloseTo(2 * Math.exp(0.03));
+  });
+
+  it("caps a Ctrl-wheel event at ±10 px, so a mouse notch zooms ~10% (slop-paint 4bd2825)", () => {
+    const zoom = { deltaX: 0, deltaY: 0, deltaMode: 0, ctrlKey: true, metaKey: false };
+    const at = { x: 0, y: 0 };
+    expect(wheelView(v0, { ...zoom, deltaY: -100 }, at).zoom).toBeCloseTo(2 * Math.exp(0.1));
+    expect(wheelView(v0, { ...zoom, deltaY: 3, deltaMode: 1 }, at).zoom).toBeCloseTo(
+      2 * Math.exp(-0.1),
+    );
+    expect(wheelView(v0, zoom, at)).toEqual(v0);
   });
 });
 

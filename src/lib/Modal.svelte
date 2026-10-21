@@ -11,7 +11,8 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === "Escape") onclose();
+    // An IME's Escape cancels its conversion, not the dialog.
+    if (e.key === "Escape" && !e.isComposing && e.keyCode !== 229) onclose();
   }}
 />
 

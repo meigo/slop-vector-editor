@@ -3730,3 +3730,35 @@ From `REVIEW-2026-10-17.md` (marked there). With this every finding is fixed exc
 - Spec §6.5 (directional hover cursors), decided: the only directional cursor is the Gradient
   tool's midpoint `ew-resize` (`gradient-tool.ts`); it is left as is, since it is already
   approximate for any non-horizontal gradient line, upright or turned.
+
+## 2026-10-21 — slop-paint review fixes, checked against this app
+
+slop-paint's code-review branch (`fix/code-review`) sent its input, key, dialog and layer-panel
+fixes to every sibling app. Traced here, against the code, one by one:
+
+- Taken: **Ctrl/Cmd-wheel zoom capped at ±10 px an event** (paint 4bd2825). `wheelView` already
+  zoomed by `exp(−dy/100)` and converted line and page deltas, but one Chrome mouse notch (~100 px)
+  zoomed ×2.7. Now ~10%; trackpad pinches (small deltas) unchanged.
+- Already handled or not applicable: a press keeps its owner (ac2bd70 — `gesture.tool` is fixed at
+  the press, invariant 15 cancels on edits); cancel coordinates (bf37d0a — `tool.cancel` gets no
+  event); keys on blur (c6349e3 — Space clears on `blur`); a three-finger tap turning the view
+  (19250a6 — the pinch here is incremental, so a lift leaves no stale baseline); pen landing over a
+  pan (731f754 — invariant 16); zoom-out from a fit (047efc8 — `fitRect` clamps); lower-cased keys
+  (49e35cd/666b433 — `keys.ts` lower-cases, brackets and rotation use `code`); dialog Enter
+  (abc1b6d — no dialog takes Enter); 0-px sides (6f6dcbd — both dialogs refuse); paste behind a
+  dialog (b354fb5 — `clipboardIgnored`); the layer-panel drop, Escape, pick, locked-group and id
+  fixes (cd4375c, 7c1a7ff, 578ea1e, bd838d7, 2688a97, fe77f9d — contiguous rows, no row click on
+  the grip, the highlight is the selection, new objects go to the layer's top level, the selection
+  is pruned of blocked members, one `nextId` and import renumbers).
+- Found next to them and fixed: an IME's Enter or Escape ended a layer/object rename or closed a
+  dialog (now skipped on `isComposing` / keyCode 229, as `TextEditField` does); New document
+  accepted a side under 0.01 px, which Document settings refuses (now `sizeRefusal`, with the
+  reason shown); a file dropped outside the canvas opened in the tab in place of the app (a window
+  guard now refuses it with `dropEffect = "none"` when the canvas didn't take it).
+- Checked: `npm test` 1516; build 0/0; `test:ipad` passes; in Chromium (Playwright, :5198) a file
+  `drop`/`dragover` on the top bar is prevented with `dropEffect` none, and New document shows "Too
+  small — a side must be at least 0.01 px" with Create disabled at W 0.001, and clears at 500.
+  Not checked: a real IME (the guard is untestable with synthetic keys), a real OS file drag.
+- Left as is (noted, low): `app.collapsedRows` is not pruned on undo, so a new group reusing an
+  undone group's id can appear collapsed; brush settings are read live mid-stroke (a Size change
+  with the other hand reshapes the stroke being drawn).

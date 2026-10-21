@@ -395,6 +395,7 @@
           bind:value={draft}
           {@attach focusSelect}
           onkeydown={(e) => {
+            if (e.isComposing || e.keyCode === 229) return; // an IME's own Enter/Escape
             if (e.key === "Enter") finishRename(true);
             if (e.key === "Escape") finishRename(false);
           }}
@@ -543,6 +544,7 @@
                   bind:value={draft}
                   {@attach focusSelect}
                   onkeydown={(e) => {
+                    if (e.isComposing || e.keyCode === 229) return; // an IME's own Enter/Escape
                     if (e.key === "Enter") finishRename(true);
                     if (e.key === "Escape") finishRename(false);
                   }}
