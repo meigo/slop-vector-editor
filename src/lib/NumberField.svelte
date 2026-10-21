@@ -55,6 +55,19 @@
   }
 
   let input: HTMLInputElement | undefined;
+  let row: HTMLLabelElement | undefined;
+
+  // A typed value commits on blur, but on iPad a tap on a button (Align, Undo, a toggle) does not
+  // blur the field: the button acted first and the value landed afterwards, on top of it. While
+  // typing, any press outside this row blurs — and so commits — before that press's click runs.
+  $effect(() => {
+    if (!editing) return;
+    const onpress = (e: PointerEvent) => {
+      if (!row?.contains(e.target as Node)) input?.blur();
+    };
+    window.addEventListener("pointerdown", onpress, true);
+    return () => window.removeEventListener("pointerdown", onpress, true);
+  });
   // Non-reactive on purpose: nothing renders from it.
   let scrub: {
     id: number;
@@ -150,7 +163,7 @@
      full-width control (a button, a select, the align row) ran to it, and the two right edges read
      as a step. `pointer-events-none` so a click on the unit still lands in the input, and the
      input's right padding is what keeps the digits off it. -->
-<label class="field-row text-xs whitespace-nowrap">
+<label bind:this={row} class="field-row text-xs whitespace-nowrap">
   <span class="text-muted">{label}</span>
   <span class="relative block w-full min-w-0">
     <!-- Drag sideways to change (2026-09-28); `touch-pan-y` leaves a vertical finger-scroll of the
@@ -167,6 +180,9 @@
       value={shown}
       placeholder={value === null ? "–" : ""}
       onfocus={(e) => {
+        // WebKit focuses the field again mid-drag, after the first move's blur; taking that focus
+        // would leave the drag's start value as a stale draft once `dragging` clears (slop-paint).
+        if (dragging !== null) return e.currentTarget.blur();
         draft = e.currentTarget.value;
         initial = draft;
         editing = true;

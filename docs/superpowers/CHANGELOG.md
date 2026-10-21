@@ -3762,3 +3762,25 @@ fixes to every sibling app. Traced here, against the code, one by one:
 - Left as is (noted, low): `app.collapsedRows` is not pruned on undo, so a new group reusing an
   undone group's id can appear collapsed; brush settings are read live mid-stroke (a Size change
   with the other hand reshapes the stroke being drawn).
+
+## 2026-10-21 — Two NumberField fixes from slop-paint
+
+slop-paint ported `NumberField` + `scrub.ts` (its 3b856bf) and found two bugs that were here too:
+
+- **WebKit showed a stale value after a drag.** WebKit focuses the input again on every move after
+  the drag's first-move blur; `onfocus` then took the drag's start value as the draft, and on
+  release the field showed it (drag 934 → 944, the field read 935) and stayed focused. `onfocus`
+  now blurs while `dragging`. The store was always right; only the display was wrong.
+- **A typed value landed after the button that should have used it.** A value commits on Enter or
+  blur, and on iPad a tap on a button does not blur the field: typing X and tapping Align or Undo
+  ran the button first and committed X afterwards (after an Undo, wiping redo). While typing, a
+  press anywhere outside the field's row now blurs it in the window's capture phase, so the commit
+  comes before the press. Paint sends a parsed value live on `input` instead; not taken here,
+  because W would resize through 1 and 10 on the way to 100, and a non-uniform resize drops a
+  title's text (invariant 44).
+- Checked: `npm test` 1516; build 0/0; `test:ipad` passes. In Playwright WebKit (:5198), with the
+  fix, a mouse drag of X 934.05 → 944 shows 944 after release, unfocused (without it: 935,
+  focused); with the field focused, a touch tap on Undo now logs `blur:INPUT` before the button's
+  `pointerdown`, and X returns to its pre-typing value with the rect kept. Not checked: Playwright's
+  WebKit blurs on the tap's `mousedown` anyway, so the iPad's no-blur behaviour itself is untested
+  here — owed on the iPad (checklist).
